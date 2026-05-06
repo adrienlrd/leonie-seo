@@ -1,0 +1,104 @@
+name: Audit SEO hebdomadaire
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"  # Lundi 7h UTC
+  workflow_dispatch:      # Déclenchement manuel possible
+
+jobs:
+  tests:
+    name: Tests unitaires
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Linting ruff
+        run: ruff check .
+
+      - name: Tests unitaires
+        run: pytest tests/ -x -q --tb=short
+
+  audit:
+    name: Audit SEO
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Écrire les credentials Google OAuth
+        env:
+          GOOGLE_OAUTH_CLIENT_JSON: ${{ secrets.GOOGLE_OAUTH_CLIENT_JSON }}
+          GOOGLE_OAUTH_TOKEN_JSON: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON }}
+        run: |
+          echo "$GOOGLE_OAUTH_CLIENT_JSON" > credentials.json
+          echo "$GOOGLE_OAUTH_TOKEN_JSON"  > token.json
+
+      # ── Collecte des données ────────────────────────────────────────────────
+
+      - name: Crawl Shopify
+        env:
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          SHOPIFY_STORE_DOMAIN: ${{ secrets.SHOPIFY_STORE_DOMAIN }}
+        run: python -m scripts.audit.crawl_shopify
+
+      - name: Fetch Google Search Console
+        env:
+          GSC_SITE_URL: ${{ secrets.GSC_SITE_URL }}
+          GOOGLE_OAUTH_CLIENT_PATH: credentials.json
+          GOOGLE_OAUTH_TOKEN_PATH: token.json
+        run: python -m scripts.audit.fetch_gsc
+
+      - name: Fetch PageSpeed Insights (homepage + top pages)
+        env:
+          PAGESPEED_API_KEY: ${{ secrets.PAGESPEED_API_KEY }}
+        run: |
+          python -m scripts.audit.fetch_pagespeed \
+            https://www.leoniedelacroix.com \
+            https://www.leoniedelacroix.com/collections/chien \
+            https://www.leoniedelacroix.com/collections/chat \
+            https://www.leoniedelacroix.com/products/labreuvoir \
+            https://www.leoniedelacroix.com/products/fontaine-smart-cordless
+
+      # ── Analyse ─────────────────────────────────────────────────────────────
+
+      - name: Détecter les opportunités GSC
+        run: python -m scripts.audit.detect_gsc_opportunities
+
+      - name: Analyser la couverture mots-clés
+        run: python -m scripts.audit.analyze_longtail
+
+      # ── Rapports ────────────────────────────────────────────────────────────
+
+      - name: Générer le rapport d'audit
+        run: python -m scripts.report.generate_report --pagespeed data/raw/pagespeed.csv
+
+      - name: Générer le rapport avant/après
+        run: python -m scripts.report.generate_delta_report
+
+      # ── Commit ──────────────────────────────────────────────────────────────
+
+      - name: Commiter les rapports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/
+          git diff --staged --quiet || git commit -m "chore(audit): rapport SEO hebdomadaire $(date +%Y-%m-%d)"
+          git push
