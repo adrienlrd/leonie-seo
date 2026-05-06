@@ -1,33 +1,46 @@
-dog:
-  - croquettes chien sans céréales fabriqué france
-  - croquettes chien digestion sensible fabriqué france
-  - croquettes chien hypoallergénique france
-  - croquettes chien senior articulaire naturelles
-  - nourriture chien premium ingrédients france
-  - alimentation chien saine sans additifs
+# Mots-clés cibles — leoniedelacroix.com
+# Niche : accessoires premium pour chiens et chats, fabriqués en France
+# Mise à jour : 2026-05-06 (aligné sur le vrai catalogue produits)
 
-cat:
-  - croquettes chat sans gluten fabriqué france
-  - croquettes chat senior naturelles france
-  - croquettes chat hypoallergénique made in france
-  - alimentation chat premium france
-  - croquettes chat stérilisé naturelles
+vetements_chien:
+  - pardessus pour chien france
+  - manteau pour chien luxe made in france
+  - pull chien cachemire france
+  - harnais chien haute couture france
+  - vêtements pour chien premium france
+  - tour de cou pour chien hiver
+  - harnais chien réglable confortable
 
-treats:
-  - friandises chien naturelles fabriqué france
-  - snacks chien sans additifs france
-  - complément alimentaire chien articulations naturel
-  - friandises chat made in france
+vetements_chat:
+  - pardessus pour chat france
+  - vêtements pour chat élégant
+  - tour de cou pour chat hiver
+  - manteau chat luxe made in france
+
+fontaines_abreuvoirs:
+  - fontaine eau chat sans fil silencieuse
+  - fontaine eau chat filtrante cordless
+  - abreuvoir chat design inox
+  - fontaine eau chat automatique france
+  - distributeur eau chat automatique
+  - filtre fontaine eau chat remplacement
+
+accessoires_maison:
+  - griffoir chat design moderne appartement
+  - arbre à chat boho naturel france
+  - bol chat céramique élégant
+  - bol chat inox antidérapant premium
+  - accessoires chat luxe france
 
 informational:
-  - quelle croquette pour chien sensible
-  - meilleure nourriture chien naturelle france
-  - comment choisir croquettes chat
-  - croquettes chien sans céréales avantages
-  - différence croquettes premium et discount
+  - comment choisir fontaine eau chat
+  - meilleur griffoir chat appartement
+  - harnais ou collier chien quel choisir
+  - comment habiller son chien en hiver
+  - fontaine eau chat avantages santé
+  - quelle taille harnais pour mon chien
 
 brand:
   - leoniedelacroix
-  - léonie de la croix petfood
-  - petfood france premium
-  - fabriqué en france petfood
+  - léonie delacroix accessoires animaux
+  - boutique accessoires animaux premium france

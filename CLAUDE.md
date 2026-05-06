@@ -1,11 +1,12 @@
 # CLAUDE.md — SEO Leoniedelacroix.com
 
 ## 1. CONTEXTE BUSINESS
-- Site Shopify petfood FR, niche premium/santé "fabriqué en France", longue traîne
+- Site Shopify **accessoires premium pour chiens et chats**, fabriqués en France — mode/luxe animalier
 - URL : https://www.leoniedelacroix.com · Domaine : 287c4a-bb.myshopify.com
+- **Catalogue** : vêtements chien/chat (pardessus, pull, harnais), fontaines eau, griffoirs, bols design
 - **Objectif 12 mois** : 5 000–10 000 visites organiques/mois, 40–100 conversions/mois
 - **Vision** : outil personnel → produit vendable → app Shopify publique
-- Concurrents : Zooplus, Maxi Zoo, Wanimo, Croquetteland, Ultra Premium Direct, Japhy
+- Concurrents : Miacara, Zara Pets, Ferplast, boutiques mode animaux premium FR
 
 ## 2. DÉBUT DE SESSION — OBLIGATOIRE
 **À chaque session, dans cet ordre avant toute action :**
