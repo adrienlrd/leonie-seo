@@ -38,7 +38,7 @@
 | 22 | Script `create_redirects.py` — import 301 en bulk depuis CSV validé | 🟡 | ✅ | 2026-05-05 |
 | 23 | Structured data JSON-LD `Product` + `AggregateRating` via metafields | 🔴 | ✅ | 2026-05-05 |
 | 24 | Système de rollback SQLite — logging ✅, commande CLI rollback manquante | 🔴 | ✅ | 2026-05-05 |
-| 25 | Détecteur d'opportunités GSC — requêtes positions 11-20 à optimiser | 🟡 | ⏳ | |
+| 25 | Détecteur d'opportunités GSC — requêtes positions 11-20 à optimiser | 🟡 | ✅ | 2026-05-06 |
 | 26 | Analyse concurrentielle longue traîne — requêtes niche petfood FR | 🔴 | ⏳ | |
 | 27 | Rapport comparaison avant/après par page (delta score SEO) | 🟡 | ⏳ | |
 | 28 | GitHub Actions cron hebdomadaire — audit auto + commit rapport | 🔴 | ⏳ | |
