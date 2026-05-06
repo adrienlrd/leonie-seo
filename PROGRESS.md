@@ -56,7 +56,7 @@
 - [ ] Écrire titres descriptifs pour 6 collections courtes
 
 ### GitHub Actions
-- [ ] 6 secrets configurés ✅ — vérifier que le premier run lundi 7h UTC passe
+- [ ] **🔴 PRIORITÉ PROCHAINE SESSION** — Tester le workflow manuellement pour valider les 6 secrets : aller sur GitHub → onglet Actions → "Audit SEO hebdomadaire" → "Run workflow" → vérifier que chaque étape passe sans erreur d'authentification
 
 ### Opportunités GSC prioritaires
 - [ ] **L'abreuvoir** — pos 11.5, 344 impr → enrichir contenu + méta
