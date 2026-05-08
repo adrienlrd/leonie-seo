@@ -99,6 +99,9 @@ jobs:
       - name: Générer les briefs articles blog
         run: python -m scripts.report.generate_blog_briefs
 
+      - name: Détecter les opportunités de maillage interne
+        run: python -m scripts.report.detect_internal_links
+
       # ── Alertes ─────────────────────────────────────────────────────────────
 
       - name: Envoyer alertes email
