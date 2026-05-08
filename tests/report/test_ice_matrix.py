@@ -7,7 +7,9 @@ from scripts.report.ice_matrix import build_ice_matrix, score_issue
 
 
 def _make_gsc(url: str, impressions: int, position: float) -> pd.DataFrame:
-    return pd.DataFrame([{"url": url, "clicks": 5, "impressions": impressions, "ctr": 0.05, "position": position}])
+    return pd.DataFrame(
+        [{"url": url, "clicks": 5, "impressions": impressions, "ctr": 0.05, "position": position}]
+    )
 
 
 # ── score_issue ───────────────────────────────────────────────────────────────

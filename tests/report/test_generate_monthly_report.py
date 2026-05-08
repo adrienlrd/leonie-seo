@@ -26,28 +26,34 @@ def test_compute_kpis_empty_df():
 
 
 def test_compute_kpis_sums_clicks():
-    df = _gsc_df([
-        {"url": "a", "clicks": 10, "impressions": 100, "ctr": 0.10, "position": 5.0},
-        {"url": "b", "clicks": 20, "impressions": 200, "ctr": 0.10, "position": 8.0},
-    ])
+    df = _gsc_df(
+        [
+            {"url": "a", "clicks": 10, "impressions": 100, "ctr": 0.10, "position": 5.0},
+            {"url": "b", "clicks": 20, "impressions": 200, "ctr": 0.10, "position": 8.0},
+        ]
+    )
     kpis = compute_kpis(df)
     assert kpis["clicks"] == 30
     assert kpis["impressions"] == 300
 
 
 def test_compute_kpis_ctr_as_percentage():
-    df = _gsc_df([
-        {"url": "a", "clicks": 5, "impressions": 100, "ctr": 0.05, "position": 5.0},
-    ])
+    df = _gsc_df(
+        [
+            {"url": "a", "clicks": 5, "impressions": 100, "ctr": 0.05, "position": 5.0},
+        ]
+    )
     kpis = compute_kpis(df)
     assert kpis["ctr"] == 5.0
 
 
 def test_compute_kpis_pages_count():
-    df = _gsc_df([
-        {"url": "a", "clicks": 1, "impressions": 10, "ctr": 0.1, "position": 3.0},
-        {"url": "b", "clicks": 2, "impressions": 20, "ctr": 0.1, "position": 4.0},
-    ])
+    df = _gsc_df(
+        [
+            {"url": "a", "clicks": 1, "impressions": 10, "ctr": 0.1, "position": 3.0},
+            {"url": "b", "clicks": 2, "impressions": 20, "ctr": 0.1, "position": 4.0},
+        ]
+    )
     assert compute_kpis(df)["pages"] == 2
 
 
@@ -59,17 +65,21 @@ def test_top_pages_empty():
 
 
 def test_top_pages_returns_n_rows():
-    rows = [{"url": f"/{i}", "clicks": i, "impressions": i * 10, "ctr": 0.05, "position": 5.0}
-            for i in range(20)]
+    rows = [
+        {"url": f"/{i}", "clicks": i, "impressions": i * 10, "ctr": 0.05, "position": 5.0}
+        for i in range(20)
+    ]
     result = top_pages(_gsc_df(rows), n=5)
     assert len(result) == 5
 
 
 def test_top_pages_sorted_by_clicks():
-    df = _gsc_df([
-        {"url": "/a", "clicks": 5, "impressions": 50, "ctr": 0.1, "position": 3.0},
-        {"url": "/b", "clicks": 50, "impressions": 500, "ctr": 0.1, "position": 2.0},
-    ])
+    df = _gsc_df(
+        [
+            {"url": "/a", "clicks": 5, "impressions": 50, "ctr": 0.1, "position": 3.0},
+            {"url": "/b", "clicks": 50, "impressions": 500, "ctr": 0.1, "position": 2.0},
+        ]
+    )
     result = top_pages(df)
     assert result[0]["url"] == "/b"
 
@@ -88,8 +98,10 @@ def test_quick_wins_filters_zone():
 
 
 def test_quick_wins_respects_n_limit():
-    opps = [{"query": f"q{i}", "zone": "quick_win", "impressions": i * 10, "position": 12.0}
-            for i in range(10)]
+    opps = [
+        {"query": f"q{i}", "zone": "quick_win", "impressions": i * 10, "position": 12.0}
+        for i in range(10)
+    ]
     assert len(quick_wins(opps, n=3)) == 3
 
 
@@ -117,7 +129,12 @@ def test_render_html_contains_date():
 def test_render_html_is_html_document():
     html = render_html(
         {"clicks": 0, "impressions": 0, "ctr": 0.0, "position": 0.0, "pages": 0},
-        [], [], [], [], [], "2026-05-08",
+        [],
+        [],
+        [],
+        [],
+        [],
+        "2026-05-08",
     )
     assert "<!DOCTYPE html>" in html
     assert "<html" in html
@@ -134,7 +151,12 @@ def test_render_html_contains_kpi_section():
 def test_render_html_no_gsc_data_shows_fallback():
     html = render_html(
         {"clicks": 0, "impressions": 0, "ctr": 0.0, "position": 0.0, "pages": 0},
-        [], [], [], [], [], "2026-05-08",
+        [],
+        [],
+        [],
+        [],
+        [],
+        "2026-05-08",
     )
     assert "non disponibles" in html or "Aucun" in html or "0" in html
 

@@ -33,13 +33,69 @@ def _make_db(path: str) -> None:
         "INSERT INTO seo_changes (applied_at, resource_type, resource_id, field, old_value, new_value, status)"
         " VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
-            ("2026-05-05T10:00:00", "product", "gid://shopify/Product/1", "seo.title", "Old Title", "New Title", "applied"),
-            ("2026-05-05T10:01:00", "product", "gid://shopify/Product/1", "seo.description", "Old Desc", "New Desc", "applied"),
-            ("2026-05-05T10:02:00", "collection", "gid://shopify/Collection/2", "seo.title", "Old Col", "New Col", "applied"),
-            ("2026-05-05T10:03:00", "product", "gid://shopify/Product/3", "image.altText:gid://shopify/ProductImage/99", None, "Alt text", "applied"),
-            ("2026-05-05T10:04:00", "redirect", "/old-path", "url_redirect", None, "/new-path", "applied"),
-            ("2026-05-05T10:05:00", "product", "gid://shopify/Product/5", "metafield.custom.json_ld", None, "{}", "applied"),
-            ("2026-05-04T09:00:00", "product", "gid://shopify/Product/7", "seo.title", "Very Old", "Somewhat New", "reverted"),
+            (
+                "2026-05-05T10:00:00",
+                "product",
+                "gid://shopify/Product/1",
+                "seo.title",
+                "Old Title",
+                "New Title",
+                "applied",
+            ),
+            (
+                "2026-05-05T10:01:00",
+                "product",
+                "gid://shopify/Product/1",
+                "seo.description",
+                "Old Desc",
+                "New Desc",
+                "applied",
+            ),
+            (
+                "2026-05-05T10:02:00",
+                "collection",
+                "gid://shopify/Collection/2",
+                "seo.title",
+                "Old Col",
+                "New Col",
+                "applied",
+            ),
+            (
+                "2026-05-05T10:03:00",
+                "product",
+                "gid://shopify/Product/3",
+                "image.altText:gid://shopify/ProductImage/99",
+                None,
+                "Alt text",
+                "applied",
+            ),
+            (
+                "2026-05-05T10:04:00",
+                "redirect",
+                "/old-path",
+                "url_redirect",
+                None,
+                "/new-path",
+                "applied",
+            ),
+            (
+                "2026-05-05T10:05:00",
+                "product",
+                "gid://shopify/Product/5",
+                "metafield.custom.json_ld",
+                None,
+                "{}",
+                "applied",
+            ),
+            (
+                "2026-05-04T09:00:00",
+                "product",
+                "gid://shopify/Product/7",
+                "seo.title",
+                "Very Old",
+                "Somewhat New",
+                "reverted",
+            ),
         ],
     )
     conn.commit()
@@ -102,8 +158,12 @@ def test_mark_reverted_updates_status(db_path: str) -> None:
 def test_revert_row_product_seo_title(mocker) -> None:
     mock = mocker.patch("scripts.apply.rollback.update_product_seo")
     row = {
-        "id": 1, "resource_type": "product", "resource_id": "gid://shopify/Product/1",
-        "field": "seo.title", "old_value": "Old Title", "new_value": "New Title",
+        "id": 1,
+        "resource_type": "product",
+        "resource_id": "gid://shopify/Product/1",
+        "field": "seo.title",
+        "old_value": "Old Title",
+        "new_value": "New Title",
     }
     revert_row(row, endpoint="http://test", headers={})
     mock.assert_called_once_with(
@@ -118,8 +178,12 @@ def test_revert_row_product_seo_title(mocker) -> None:
 def test_revert_row_collection_seo_description(mocker) -> None:
     mock = mocker.patch("scripts.apply.rollback.update_collection_seo")
     row = {
-        "id": 3, "resource_type": "collection", "resource_id": "gid://shopify/Collection/2",
-        "field": "seo.description", "old_value": "Old Desc", "new_value": "New Desc",
+        "id": 3,
+        "resource_type": "collection",
+        "resource_id": "gid://shopify/Collection/2",
+        "field": "seo.description",
+        "old_value": "Old Desc",
+        "new_value": "New Desc",
     }
     revert_row(row, endpoint="http://test", headers={})
     mock.assert_called_once_with(
@@ -134,9 +198,12 @@ def test_revert_row_collection_seo_description(mocker) -> None:
 def test_revert_row_image_alt_text(mocker) -> None:
     mock = mocker.patch("scripts.apply.rollback.update_image_alt")
     row = {
-        "id": 4, "resource_type": "product", "resource_id": "gid://shopify/Product/3",
+        "id": 4,
+        "resource_type": "product",
+        "resource_id": "gid://shopify/Product/3",
         "field": "image.altText:gid://shopify/ProductImage/99",
-        "old_value": None, "new_value": "Alt text",
+        "old_value": None,
+        "new_value": "Alt text",
     }
     revert_row(row, endpoint="http://test", headers={})
     mock.assert_called_once_with(
@@ -150,8 +217,12 @@ def test_revert_row_image_alt_text(mocker) -> None:
 
 def test_revert_row_url_redirect_raises(mocker) -> None:
     row = {
-        "id": 5, "resource_type": "redirect", "resource_id": "/old-path",
-        "field": "url_redirect", "old_value": None, "new_value": "/new-path",
+        "id": 5,
+        "resource_type": "redirect",
+        "resource_id": "/old-path",
+        "field": "url_redirect",
+        "old_value": None,
+        "new_value": "/new-path",
     }
     with pytest.raises(RollbackError, match="cannot be reverted automatically"):
         revert_row(row)
@@ -159,8 +230,12 @@ def test_revert_row_url_redirect_raises(mocker) -> None:
 
 def test_revert_row_metafield_raises(mocker) -> None:
     row = {
-        "id": 6, "resource_type": "product", "resource_id": "gid://shopify/Product/5",
-        "field": "metafield.custom.json_ld", "old_value": None, "new_value": "{}",
+        "id": 6,
+        "resource_type": "product",
+        "resource_id": "gid://shopify/Product/5",
+        "field": "metafield.custom.json_ld",
+        "old_value": None,
+        "new_value": "{}",
     }
     with pytest.raises(RollbackError, match="cannot be reverted automatically"):
         revert_row(row)
@@ -168,8 +243,12 @@ def test_revert_row_metafield_raises(mocker) -> None:
 
 def test_revert_row_unknown_field_raises(mocker) -> None:
     row = {
-        "id": 99, "resource_type": "product", "resource_id": "gid://shopify/Product/1",
-        "field": "unknown.field", "old_value": "x", "new_value": "y",
+        "id": 99,
+        "resource_type": "product",
+        "resource_id": "gid://shopify/Product/1",
+        "field": "unknown.field",
+        "old_value": "x",
+        "new_value": "y",
     }
     with pytest.raises(RollbackError, match="Unknown field type"):
         revert_row(row)
@@ -183,8 +262,12 @@ def test_revert_row_wraps_shopify_error(mocker) -> None:
         side_effect=ShopifyUserError("Shopify boom"),
     )
     row = {
-        "id": 1, "resource_type": "product", "resource_id": "gid://shopify/Product/1",
-        "field": "seo.title", "old_value": "Old", "new_value": "New",
+        "id": 1,
+        "resource_type": "product",
+        "resource_id": "gid://shopify/Product/1",
+        "field": "seo.title",
+        "old_value": "Old",
+        "new_value": "New",
     }
     with pytest.raises(RollbackError, match="Shopify boom"):
         revert_row(row, endpoint="http://test", headers={})

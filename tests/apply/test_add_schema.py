@@ -82,7 +82,14 @@ def test_push_schema_calls_metafields_set_mutation(mocker):
     mock_post.return_value.json.return_value = {
         "data": {
             "metafieldsSet": {
-                "metafields": [{"id": "gid://shopify/Metafield/1", "namespace": "custom", "key": "json_ld", "value": "{}"}],
+                "metafields": [
+                    {
+                        "id": "gid://shopify/Metafield/1",
+                        "namespace": "custom",
+                        "key": "json_ld",
+                        "value": "{}",
+                    }
+                ],
                 "userErrors": [],
             }
         }

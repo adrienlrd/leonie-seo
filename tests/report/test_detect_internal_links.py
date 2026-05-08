@@ -10,14 +10,25 @@ from scripts.report.detect_internal_links import (
 
 _KEYWORDS = {
     "vetements_chien": ["pardessus pour chien france", "harnais chien haute couture france"],
-    "fontaines_abreuvoirs": ["fontaine eau chat sans fil silencieuse", "abreuvoir chat design inox"],
+    "fontaines_abreuvoirs": [
+        "fontaine eau chat sans fil silencieuse",
+        "abreuvoir chat design inox",
+    ],
     "informational": ["comment choisir fontaine eau chat"],
     "brand": ["leoniedelacroix"],
 }
 
 _PRODUCTS = [
-    {"handle": "le-pardessus-pour-chien", "title": "Le Pardessus Pour Chien", "id": "gid://shopify/Product/1"},
-    {"handle": "fontaine-smart-cordless", "title": "La Fontaine Smart", "id": "gid://shopify/Product/2"},
+    {
+        "handle": "le-pardessus-pour-chien",
+        "title": "Le Pardessus Pour Chien",
+        "id": "gid://shopify/Product/1",
+    },
+    {
+        "handle": "fontaine-smart-cordless",
+        "title": "La Fontaine Smart",
+        "id": "gid://shopify/Product/2",
+    },
     {"handle": "labreuvoir", "title": "L'abreuvoir", "id": "gid://shopify/Product/3"},
     {"handle": "produit-sans-liens", "title": "Produit Orphelin", "id": "gid://shopify/Product/4"},
 ]

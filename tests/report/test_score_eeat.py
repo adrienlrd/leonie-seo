@@ -12,7 +12,13 @@ def _product(title: str, description: str = "") -> dict:
 
 def test_score_page_returns_all_keys():
     result = score_page(_product("Test Product"))
-    for key in ("global_score", "experience_score", "expertise_score", "authority_score", "trust_score"):
+    for key in (
+        "global_score",
+        "experience_score",
+        "expertise_score",
+        "authority_score",
+        "trust_score",
+    ):
         assert key in result
 
 
@@ -22,7 +28,9 @@ def test_score_page_empty_description_gives_low_scores():
 
 
 def test_score_page_expertise_detects_veterinaire():
-    result = score_page(_product("Fontaine", "Recommandé par les vétérinaires pour une bonne hydratation."))
+    result = score_page(
+        _product("Fontaine", "Recommandé par les vétérinaires pour une bonne hydratation.")
+    )
     assert result["expertise_score"] > 0
 
 
@@ -37,22 +45,31 @@ def test_score_page_trust_detects_garantie():
 
 
 def test_score_page_experience_detects_nous_avons_teste():
-    result = score_page(_product("Griffoir", "Nous avons testé ce griffoir avec nos animaux au quotidien."))
+    result = score_page(
+        _product("Griffoir", "Nous avons testé ce griffoir avec nos animaux au quotidien.")
+    )
     assert result["experience_score"] > 0
 
 
 def test_score_page_global_score_between_0_and_1():
-    result = score_page(_product("Produit", "Vétérinaire recommandé. Fabriqué en France. Garantie 2 ans."))
+    result = score_page(
+        _product("Produit", "Vétérinaire recommandé. Fabriqué en France. Garantie 2 ans.")
+    )
     assert 0.0 <= result["global_score"] <= 1.0
 
 
 def test_score_page_rich_description_scores_higher():
     poor = score_page(_product("A", "Manteau pour chien."))
-    rich = score_page(_product("B", (
-        "Recommandé par les vétérinaires. Fabriqué en France par nos couturières. "
-        "Certifié sans substances nocives. Garantie satisfait ou remboursé. "
-        "Nos clients adorent ce produit. Testé sur nos animaux."
-    )))
+    rich = score_page(
+        _product(
+            "B",
+            (
+                "Recommandé par les vétérinaires. Fabriqué en France par nos couturières. "
+                "Certifié sans substances nocives. Garantie satisfait ou remboursé. "
+                "Nos clients adorent ce produit. Testé sur nos animaux."
+            ),
+        )
+    )
     assert rich["global_score"] > poor["global_score"]
 
 

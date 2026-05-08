@@ -1,6 +1,5 @@
 """Tests for scripts.report.generate_delta_report."""
 
-
 from scripts.report.generate_delta_report import (
     changes_summary,
     generate_delta_markdown,
@@ -14,10 +13,19 @@ _PRODUCT = {
     "title": "Le Pardessus Pour Chien",
     "handle": "le-pardessus-pour-chien",
     "status": "ACTIVE",
-    "seo": {"title": "Pardessus Chien Premium | Léonie Delacroix", "description": "Description optimisée longue de 120 caractères minimum pour ce beau produit Léonie."},
+    "seo": {
+        "title": "Pardessus Chien Premium | Léonie Delacroix",
+        "description": "Description optimisée longue de 120 caractères minimum pour ce beau produit Léonie.",
+    },
     "images": {
         "edges": [
-            {"node": {"id": "gid://shopify/ProductImage/99", "url": "http://x.com/img.jpg", "altText": "Pardessus pour chien élégant"}}
+            {
+                "node": {
+                    "id": "gid://shopify/ProductImage/99",
+                    "url": "http://x.com/img.jpg",
+                    "altText": "Pardessus pour chien élégant",
+                }
+            }
         ]
     },
     "collections": {"edges": []},
@@ -28,30 +36,44 @@ _COLLECTION = {
     "id": "gid://shopify/Collection/1",
     "title": "Chien",
     "handle": "chien",
-    "seo": {"title": "Collection Chien Premium | Léonie Delacroix", "description": "Découvrez notre collection chien premium Léonie Delacroix."},
+    "seo": {
+        "title": "Collection Chien Premium | Léonie Delacroix",
+        "description": "Découvrez notre collection chien premium Léonie Delacroix.",
+    },
 }
 
 _CHANGES_META = [
     {
-        "id": 1, "applied_at": "2026-05-05T10:00:00", "resource_type": "product",
-        "resource_id": "gid://shopify/Product/1", "field": "seo.title",
-        "old_value": None, "new_value": "Pardessus Chien Premium | Léonie Delacroix",
+        "id": 1,
+        "applied_at": "2026-05-05T10:00:00",
+        "resource_type": "product",
+        "resource_id": "gid://shopify/Product/1",
+        "field": "seo.title",
+        "old_value": None,
+        "new_value": "Pardessus Chien Premium | Léonie Delacroix",
         "status": "applied",
     },
     {
-        "id": 2, "applied_at": "2026-05-05T10:00:00", "resource_type": "product",
-        "resource_id": "gid://shopify/Product/1", "field": "seo.description",
-        "old_value": None, "new_value": "Description optimisée longue de 120 caractères minimum.",
+        "id": 2,
+        "applied_at": "2026-05-05T10:00:00",
+        "resource_type": "product",
+        "resource_id": "gid://shopify/Product/1",
+        "field": "seo.description",
+        "old_value": None,
+        "new_value": "Description optimisée longue de 120 caractères minimum.",
         "status": "applied",
     },
 ]
 
 _CHANGES_ALT = [
     {
-        "id": 3, "applied_at": "2026-05-05T10:01:00", "resource_type": "product",
+        "id": 3,
+        "applied_at": "2026-05-05T10:01:00",
+        "resource_type": "product",
         "resource_id": "gid://shopify/Product/1",
         "field": "image.altText:gid://shopify/ProductImage/99",
-        "old_value": None, "new_value": "Pardessus pour chien élégant",
+        "old_value": None,
+        "new_value": "Pardessus pour chien élégant",
         "status": "applied",
     },
 ]
@@ -78,6 +100,7 @@ def test_reconstruct_before_snapshot_restores_alt_text():
 
 def test_reconstruct_before_snapshot_does_not_mutate_originals():
     import copy
+
     original = copy.deepcopy(_PRODUCT)
     reconstruct_before_snapshot([_PRODUCT], [], _CHANGES_META)
     assert _PRODUCT["seo"]["title"] == original["seo"]["title"]
@@ -85,9 +108,14 @@ def test_reconstruct_before_snapshot_does_not_mutate_originals():
 
 def test_reconstruct_before_snapshot_collection():
     change = {
-        "id": 10, "applied_at": "2026-05-05T10:00:00", "resource_type": "collection",
-        "resource_id": "gid://shopify/Collection/1", "field": "seo.title",
-        "old_value": "Vieux titre", "new_value": "Nouveau titre", "status": "applied",
+        "id": 10,
+        "applied_at": "2026-05-05T10:00:00",
+        "resource_type": "collection",
+        "resource_id": "gid://shopify/Collection/1",
+        "field": "seo.title",
+        "old_value": "Vieux titre",
+        "new_value": "Nouveau titre",
+        "status": "applied",
     }
     _, colls_b = reconstruct_before_snapshot([], [_COLLECTION], [change])
     assert colls_b[0]["seo"]["title"] == "Vieux titre"
@@ -105,7 +133,12 @@ def test_changes_summary_counts_by_type():
 
 
 def test_changes_summary_empty():
-    assert changes_summary([]) == {"meta_title": 0, "meta_description": 0, "alt_text": 0, "other": 0}
+    assert changes_summary([]) == {
+        "meta_title": 0,
+        "meta_description": 0,
+        "alt_text": 0,
+        "other": 0,
+    }
 
 
 # ── generate_delta_markdown ───────────────────────────────────────────────────
@@ -118,15 +151,20 @@ def test_generate_delta_score_improves_after_optimization():
     products_before, _ = reconstruct_before_snapshot([_PRODUCT], [_COLLECTION], _CHANGES_META)
 
     md = generate_delta_markdown(
-        products_before, [_COLLECTION],
-        [_PRODUCT], [_COLLECTION],
-        _CHANGES_META, [], [],
+        products_before,
+        [_COLLECTION],
+        [_PRODUCT],
+        [_COLLECTION],
+        _CHANGES_META,
+        [],
+        [],
         "2026-05-06",
     )
     assert "Score SEO global" in md
     # After score should not be worse
     # Extract scores from markdown
     import re
+
     scores = re.findall(r"Score global.*?\|\s*([\d.]+)\s*\|\s*([\d.]+)", md)
     if scores:
         before_score, after_score = float(scores[0][0]), float(scores[0][1])
@@ -136,9 +174,13 @@ def test_generate_delta_score_improves_after_optimization():
 def test_generate_delta_markdown_contains_all_sections():
     products_before, _ = reconstruct_before_snapshot([_PRODUCT], [_COLLECTION], _CHANGES_META)
     md = generate_delta_markdown(
-        products_before, [_COLLECTION],
-        [_PRODUCT], [_COLLECTION],
-        _CHANGES_META + _CHANGES_ALT, [], [],
+        products_before,
+        [_COLLECTION],
+        [_PRODUCT],
+        [_COLLECTION],
+        _CHANGES_META + _CHANGES_ALT,
+        [],
+        [],
         "2026-05-06",
     )
     assert "Optimisations appliquées" in md
@@ -152,8 +194,11 @@ def test_generate_delta_markdown_includes_opportunities():
     opps = [
         {
             "url": "https://www.leoniedelacroix.com/products/labreuvoir",
-            "zone": "quick_win", "position": 11.5, "impressions": 344,
-            "ctr_pct": 5.2, "estimated_gain_clicks": 3,
+            "zone": "quick_win",
+            "position": 11.5,
+            "impressions": 344,
+            "ctr_pct": 5.2,
+            "estimated_gain_clicks": 3,
             "action": "Enrichir contenu",
         }
     ]
@@ -168,9 +213,13 @@ def test_generate_delta_markdown_includes_opportunities():
 def test_generate_delta_no_changes_zero_delta():
     """With no changes, before and after scores should be identical."""
     md = generate_delta_markdown(
-        [_PRODUCT], [_COLLECTION],
-        [_PRODUCT], [_COLLECTION],
-        [], [], [],
+        [_PRODUCT],
+        [_COLLECTION],
+        [_PRODUCT],
+        [_COLLECTION],
+        [],
+        [],
+        [],
         "2026-05-06",
     )
     # Score rows should show → 0.0 delta

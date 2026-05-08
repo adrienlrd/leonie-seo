@@ -211,7 +211,9 @@ def build_meta_suggestions(
         existing_seo = p.get("seo") or {}
 
         title_sug = suggest_meta_title(p["title"], animal, existing_seo.get("title"), _cfg)
-        desc_sug = suggest_meta_description(p["title"], animal, existing_seo.get("description"), _cfg)
+        desc_sug = suggest_meta_description(
+            p["title"], animal, existing_seo.get("description"), _cfg
+        )
 
         if title_sug["value"] is None and desc_sug["value"] is None:
             continue  # nothing actionable (e.g. English name)
@@ -240,7 +242,9 @@ def build_meta_suggestions(
         existing_seo = c.get("seo") or {}
 
         title_sug = suggest_meta_title(c["title"], animal, existing_seo.get("title"), _cfg)
-        desc_sug = suggest_meta_description(c["title"], animal, existing_seo.get("description"), _cfg)
+        desc_sug = suggest_meta_description(
+            c["title"], animal, existing_seo.get("description"), _cfg
+        )
 
         if title_sug["value"] is None and desc_sug["value"] is None:
             continue

@@ -53,8 +53,10 @@ def test_url_paths_includes_collections():
 
 
 def test_build_hreflang_entries_returns_one_entry_per_page():
-    pages = [{"path": "/", "page_type": "homepage", "title": "Home"},
-             {"path": "/products/a", "page_type": "product", "title": "A"}]
+    pages = [
+        {"path": "/", "page_type": "homepage", "title": "Home"},
+        {"path": "/products/a", "page_type": "product", "title": "A"},
+    ]
     entries = build_hreflang_entries(pages, _BASE_URL, _LOCALES)
     assert len(entries) == 2
 

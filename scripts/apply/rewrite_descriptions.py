@@ -27,7 +27,13 @@ _DB_PATH = "data/history.db"
 _CATEGORY_SIGNALS: dict[str, list[str]] = {
     "filtres": ["filtre", "filtres", "pompe", "pump"],
     "fontaines": ["abreuvoir", "fontaine", "drinking machine", "distributeur"],
-    "vetements_chien": ["pardessus pour chien", "tour de cou pour chien", "pull", "harnais", "windbreaker"],
+    "vetements_chien": [
+        "pardessus pour chien",
+        "tour de cou pour chien",
+        "pull",
+        "harnais",
+        "windbreaker",
+    ],
     "vetements_chat": ["pardessus pour chat", "tour de cou pour chat"],
     "accessoires": ["bol", "griffoir", "arbre", "ensemble", "clawcount", "félin"],
 }
@@ -139,8 +145,7 @@ _TEMPLATES: dict[str, dict[str, str]] = {
             "passe aussi par son environnement quotidien."
         ),
         "cta": (
-            "Livraison soignée en France métropolitaine. "
-            "Satisfait ou remboursé sous 14 jours."
+            "Livraison soignée en France métropolitaine. Satisfait ou remboursé sous 14 jours."
         ),
     },
 }
@@ -198,7 +203,9 @@ class ShopifyUserError(Exception):
     pass
 
 
-def push_description(product_id: str, description: str, endpoint: str, headers: dict[str, str]) -> None:
+def push_description(
+    product_id: str, description: str, endpoint: str, headers: dict[str, str]
+) -> None:
     """Push a new body_html description to Shopify via productUpdate."""
     mutation = """
     mutation productUpdate($input: ProductInput!) {
@@ -208,8 +215,12 @@ def push_description(product_id: str, description: str, endpoint: str, headers: 
       }
     }
     """
-    variables = {"input": {"id": product_id, "descriptionHtml": description.replace("\n\n", "<br><br>")}}
-    resp = requests.post(endpoint, json={"query": mutation, "variables": variables}, headers=headers, timeout=30)
+    variables = {
+        "input": {"id": product_id, "descriptionHtml": description.replace("\n\n", "<br><br>")}
+    }
+    resp = requests.post(
+        endpoint, json={"query": mutation, "variables": variables}, headers=headers, timeout=30
+    )
     resp.raise_for_status()
     body = resp.json()
     errors = body.get("data", {}).get("productUpdate", {}).get("userErrors", [])
@@ -241,7 +252,11 @@ def main(snapshot: str, output: str, dry_run: bool) -> None:
 
     products = load_products(snapshot)
     # Exclude accessory-only products with non-French titles
-    products = [p for p in products if not p["title"].startswith("Pet ") and p["title"] != "Le Harnais Haute Couture (test)"]
+    products = [
+        p
+        for p in products
+        if not p["title"].startswith("Pet ") and p["title"] != "Le Harnais Haute Couture (test)"
+    ]
 
     suggestions: list[dict[str, Any]] = []
     for p in products:
@@ -250,15 +265,17 @@ def main(snapshot: str, output: str, dry_run: bool) -> None:
         category = classify_product(title, existing)
         new_desc = build_description(title, category)
         word_count = len(new_desc.split())
-        suggestions.append({
-            "id": p["id"],
-            "handle": p.get("handle", ""),
-            "title": title,
-            "category": category,
-            "old_description": existing,
-            "new_description": new_desc,
-            "word_count": word_count,
-        })
+        suggestions.append(
+            {
+                "id": p["id"],
+                "handle": p.get("handle", ""),
+                "title": title,
+                "category": category,
+                "old_description": existing,
+                "new_description": new_desc,
+                "word_count": word_count,
+            }
+        )
         console.print(f"  [dim]{title}[/dim] → {category} ({word_count} mots)")
 
     Path(output).parent.mkdir(parents=True, exist_ok=True)

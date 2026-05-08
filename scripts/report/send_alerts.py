@@ -62,7 +62,15 @@ def detect_cwv_alerts(pagespeed: list[dict[str, Any]], cfg=None) -> list[dict[st
         if cls_val > t.cwv_cls_max:
             reasons.append(f"CLS {cls_val:.2f} > {t.cwv_cls_max}")
         if reasons:
-            alerts.append({"url": row["url"], "reasons": reasons, "score": score, "lcp_ms": lcp, "cls": cls_val})
+            alerts.append(
+                {
+                    "url": row["url"],
+                    "reasons": reasons,
+                    "score": score,
+                    "lcp_ms": lcp,
+                    "cls": cls_val,
+                }
+            )
     return alerts
 
 
@@ -70,7 +78,8 @@ def detect_position_alerts(opportunities: list[dict[str, Any]], cfg=None) -> lis
     """Return quick_win URLs worth flagging (position 11-20, high impressions)."""
     t = (cfg or get_config()).alert_thresholds
     return [
-        opp for opp in opportunities
+        opp
+        for opp in opportunities
         if opp.get("zone") == "quick_win"
         and opp.get("impressions", 0) >= t.quick_win_min_impressions
     ]
@@ -80,7 +89,8 @@ def detect_low_ctr_alerts(opportunities: list[dict[str, Any]], cfg=None) -> list
     """Return low-CTR URLs with significant impressions."""
     t = (cfg or get_config()).alert_thresholds
     return [
-        opp for opp in opportunities
+        opp
+        for opp in opportunities
         if opp.get("zone") == "low_ctr"
         and opp.get("impressions", 0) >= t.low_ctr_min_impressions
         and opp.get("ctr_pct", 100.0) < t.low_ctr_max_pct
@@ -166,7 +176,9 @@ def send_email(subject: str, body: str, sender: str, recipient: str, app_passwor
 @click.option("--recipient", default=None, help="Override recipient email")
 @click.option("--dry-run/--apply", default=True, show_default=True)
 @click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
-def main(pagespeed: str, opportunities: str, recipient: str | None, dry_run: bool, tenant: str | None) -> None:
+def main(
+    pagespeed: str, opportunities: str, recipient: str | None, dry_run: bool, tenant: str | None
+) -> None:
     """Detect SEO regressions and send alert email if needed."""
     cfg = get_config(tenant)
     console.print("[bold cyan]► SEO Alert check[/bold cyan]")
@@ -179,7 +191,9 @@ def main(pagespeed: str, opportunities: str, recipient: str | None, dry_run: boo
     ctr_alerts = detect_low_ctr_alerts(opp_data, cfg)
 
     total_alerts = len(cwv_alerts) + len(pos_alerts) + len(ctr_alerts)
-    console.print(f"  CWV: {len(cwv_alerts)} · Positions: {len(pos_alerts)} · CTR faible: {len(ctr_alerts)}")
+    console.print(
+        f"  CWV: {len(cwv_alerts)} · Positions: {len(pos_alerts)} · CTR faible: {len(ctr_alerts)}"
+    )
 
     date = datetime.utcnow().strftime("%Y-%m-%d")
     body = build_alert_summary(cwv_alerts, pos_alerts, ctr_alerts, date, site_name=cfg.domain)

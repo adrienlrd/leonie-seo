@@ -77,7 +77,9 @@ def fetch_scores_for_urls(urls: list[str], delay: float = 1.5) -> list[dict[str,
                     f"  [green]✓[/green] {strategy:8} {result['performance_score']:.0%}  {url}"
                 )
             except (requests.exceptions.Timeout, requests.exceptions.HTTPError) as exc:
-                console.print(f"  [yellow]⚠ {type(exc).__name__}, retrying…[/yellow] {strategy:8} {url}")
+                console.print(
+                    f"  [yellow]⚠ {type(exc).__name__}, retrying…[/yellow] {strategy:8} {url}"
+                )
                 try:
                     result = fetch_score(url, strategy)
                     results.append(result)

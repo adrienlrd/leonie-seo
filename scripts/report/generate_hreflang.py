@@ -31,20 +31,24 @@ def _url_paths_from_snapshot(snapshot_path: str) -> list[dict[str, str]]:
             continue
         handle = product.get("handle", "")
         if handle:
-            pages.append({
-                "path": f"/products/{handle}",
-                "page_type": "product",
-                "title": product.get("title", handle),
-            })
+            pages.append(
+                {
+                    "path": f"/products/{handle}",
+                    "page_type": "product",
+                    "title": product.get("title", handle),
+                }
+            )
 
     for collection in data.get("collections", []):
         handle = collection.get("handle", "")
         if handle:
-            pages.append({
-                "path": f"/collections/{handle}",
-                "page_type": "collection",
-                "title": collection.get("title", handle),
-            })
+            pages.append(
+                {
+                    "path": f"/collections/{handle}",
+                    "page_type": "collection",
+                    "title": collection.get("title", handle),
+                }
+            )
 
     return pages
 
@@ -80,12 +84,14 @@ def build_hreflang_entries(
         canonical_url = f"{base_url}{path}"
         links.append({"hreflang": "x-default", "url": canonical_url})
 
-        entries.append({
-            "path": path,
-            "page_type": page["page_type"],
-            "title": page["title"],
-            "links": links,
-        })
+        entries.append(
+            {
+                "path": path,
+                "page_type": page["page_type"],
+                "title": page["title"],
+                "links": links,
+            }
+        )
 
     return entries
 
@@ -112,7 +118,9 @@ def render_liquid_snippet(entries: list[dict[str, Any]]) -> str:
         condition = "request.page_type == 'index'" if path == "/" else f"current_path == '{path}'"
         lines.append(f"{{% if {condition} %}}")
         for link in entry["links"]:
-            lines.append(f'  <link rel="alternate" hreflang="{link["hreflang"]}" href="{link["url"]}">')
+            lines.append(
+                f'  <link rel="alternate" hreflang="{link["hreflang"]}" href="{link["url"]}">'
+            )
         lines.append("{% endif %}")
         lines.append("")
 
@@ -177,9 +185,7 @@ def render_markdown(
 
     locale_count = len(locales) + 1  # +1 for x-default
     for entry in entries[:30]:  # cap table at 30 rows for readability
-        lines.append(
-            f"| `{entry['path']}` | {entry['page_type']} | {locale_count} balises |"
-        )
+        lines.append(f"| `{entry['path']}` | {entry['page_type']} | {locale_count} balises |")
     if len(entries) > 30:
         lines.append(f"| … | … | {len(entries) - 30} pages supplémentaires |")
 

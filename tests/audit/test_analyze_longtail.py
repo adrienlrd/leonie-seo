@@ -20,11 +20,31 @@ _COLLECTIONS = [
     {"title": "Chat", "handle": "chat"},
 ]
 
-_GSC_DF = pd.DataFrame([
-    {"url": "https://www.leoniedelacroix.com/products/le-pardessus-pour-chien", "clicks": 5, "impressions": 120, "ctr": 0.04, "position": 8.0},
-    {"url": "https://www.leoniedelacroix.com/collections/chien", "clicks": 2, "impressions": 40, "ctr": 0.05, "position": 5.0},
-    {"url": "https://www.leoniedelacroix.com/products/fontaine-smart-cordless", "clicks": 1, "impressions": 80, "ctr": 0.012, "position": 15.0},
-])
+_GSC_DF = pd.DataFrame(
+    [
+        {
+            "url": "https://www.leoniedelacroix.com/products/le-pardessus-pour-chien",
+            "clicks": 5,
+            "impressions": 120,
+            "ctr": 0.04,
+            "position": 8.0,
+        },
+        {
+            "url": "https://www.leoniedelacroix.com/collections/chien",
+            "clicks": 2,
+            "impressions": 40,
+            "ctr": 0.05,
+            "position": 5.0,
+        },
+        {
+            "url": "https://www.leoniedelacroix.com/products/fontaine-smart-cordless",
+            "clicks": 1,
+            "impressions": 80,
+            "ctr": 0.012,
+            "position": 15.0,
+        },
+    ]
+)
 
 
 # ── _tokenize ─────────────────────────────────────────────────────────────────
@@ -95,13 +115,21 @@ def test_classify_coverage_ranking():
 
 
 def test_classify_coverage_on_site():
-    result = classify_coverage("griffoir chat", pd.DataFrame(columns=["url", "clicks", "impressions", "ctr", "position"]), [{"label": "Griffoir", "path": "/products/griffoir"}])
+    result = classify_coverage(
+        "griffoir chat",
+        pd.DataFrame(columns=["url", "clicks", "impressions", "ctr", "position"]),
+        [{"label": "Griffoir", "path": "/products/griffoir"}],
+    )
     assert result["status"] == "on_site"
     assert result["site_page"] == "/products/griffoir"
 
 
 def test_classify_coverage_gap():
-    result = classify_coverage("croquettes chien", pd.DataFrame(columns=["url", "clicks", "impressions", "ctr", "position"]), [])
+    result = classify_coverage(
+        "croquettes chien",
+        pd.DataFrame(columns=["url", "clicks", "impressions", "ctr", "position"]),
+        [],
+    )
     assert result["status"] == "gap"
     assert result["site_page"] is None
     assert "créer" in result["recommendation"].lower()

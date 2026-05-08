@@ -1,12 +1,13 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Phase actuelle : Phase 4 — Productisation (tâche 44)
+- Phase actuelle : Phase 5 — App Shopify publique (tâche 45)
 - Dernière session : 2026-05-08
 - Phase 1 : **15/15 complètes** ✅
 - Phase 2 : **14/14 complètes** ✅
 - Phase 3 : **10/10 complètes** ✅
-- Tests : **389/389** ✅ — ruff clean ✅
+- Phase 4 : **5/5 complètes** ✅
+- Tests : **428/428** ✅ — ruff clean ✅
 
 ## ✅ Terminé
 
@@ -56,7 +57,7 @@
 - **Score SEO avant : 56.3 → après : 83.9 (+27.6 pts)**
 - **Pipeline CI GitHub Actions** validé : tests + audit + tous les rapports Phase 3
 
-### Phase 4 — Productisation (tâches 40–42) ✅
+### Phase 4 — Productisation (tâches 40–44) ✅
 - **40** `config/tenants/leoniedelacroix.yaml` + `scripts/_config.py` — abstraction multi-tenant complète
   - Pydantic v1 `TenantConfig` : base_url, brand, categories, product_categories, hreflang_locales, seo_rules, alert_thresholds
   - 16 scripts migrés : domaine, brand, thresholds SEO → tous via `get_config(tenant_id)`
@@ -75,12 +76,16 @@
   - 4 scripts migrés : `analyze_semantics.py`, `score_eeat.py`, `generate_faq.py`, `generate_blog_briefs.py`
   - `tests/test_niche_config.py` : 23 nouveaux tests
   - **365 tests verts** · ruff clean
+- **43** `scripts/license.py` — HMAC-SHA256, CLI `issue`/`check`, intégration 3 scripts
+  - **389 tests verts** · ruff clean
+- **44** `scripts/cli.py` + `pyproject.toml` + `Dockerfile` + `install.sh`
+  - Point d'entrée `leonie-seo` avec 5 groupes : `setup`, `license`, `audit` (7 cmds), `report` (12 cmds), `apply` (7 cmds)
+  - `pip install -e .` → `leonie-seo --help` opérationnel
+  - `install.sh` : bootstrap en une commande (venv + pip + .env)
+  - `Dockerfile` : Python 3.11-slim, volumes pour data/reports/config
+  - **428 tests verts** · ruff clean
 
-## ⏳ À faire — Phase 4 (tâche 44)
-
-| # | Tâche | Priorité |
-|---|---|---|
-| 44 | Packaging PyPI ou Docker — installation en une commande | Moyenne |
+## ✅ Phase 4 complète
 
 ## ⏳ Actions manuelles en attente
 
@@ -101,6 +106,14 @@
 - [ ] **Le Tour De Cou Pour Chien** — pos 6.1, 210 impr, CTR 0% → réécrire méta
 
 ## 📋 Historique des sessions
+
+### Session 2026-05-08 (Tâche 44 — packaging)
+- `scripts/cli.py` : agrégateur Click — 5 groupes, 26 commandes (setup/license/audit/report/apply)
+- `pyproject.toml` : `[project.scripts]` → `leonie-seo = "scripts.cli:cli"` + description/classifiers
+- `Dockerfile` : Python 3.11-slim, `VOLUME ["/app/data", "/app/reports", "/app/config/tenants"]`
+- `install.sh` : bootstrap une commande — check Python 3.11+, venv, `pip install -e .[dev]`, .env
+- `tests/test_cli.py` : 39 smoke tests (--help sur tous les groupes et sous-commandes)
+- **428/428 tests verts** · ruff clean
 
 ### Session 2026-05-08 (Tâche 43 — licences API key)
 - `scripts/license.py` : `issue_key`, `decode_key`, `validate_key`, `require_valid_license` + CLI `issue`/`check`

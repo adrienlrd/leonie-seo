@@ -97,30 +97,72 @@ def _make_df(rows: list[dict]) -> pd.DataFrame:
 
 
 def test_detect_opportunities_returns_quick_wins():
-    df = _make_df([
-        {"url": "https://x.com/products/a", "clicks": 2, "impressions": 150, "ctr": 0.013, "position": 13.5},
-        {"url": "https://x.com/products/b", "clicks": 1, "impressions": 20, "ctr": 0.05, "position": 4.0},
-    ])
+    df = _make_df(
+        [
+            {
+                "url": "https://x.com/products/a",
+                "clicks": 2,
+                "impressions": 150,
+                "ctr": 0.013,
+                "position": 13.5,
+            },
+            {
+                "url": "https://x.com/products/b",
+                "clicks": 1,
+                "impressions": 20,
+                "ctr": 0.05,
+                "position": 4.0,
+            },
+        ]
+    )
     opps = detect_opportunities(df)
     zones = {o["zone"] for o in opps}
     assert "quick_win" in zones
 
 
 def test_detect_opportunities_sorted_by_score_desc():
-    df = _make_df([
-        {"url": "https://x.com/products/a", "clicks": 2, "impressions": 50, "ctr": 0.04, "position": 12.0},
-        {"url": "https://x.com/products/b", "clicks": 5, "impressions": 300, "ctr": 0.017, "position": 11.0},
-    ])
+    df = _make_df(
+        [
+            {
+                "url": "https://x.com/products/a",
+                "clicks": 2,
+                "impressions": 50,
+                "ctr": 0.04,
+                "position": 12.0,
+            },
+            {
+                "url": "https://x.com/products/b",
+                "clicks": 5,
+                "impressions": 300,
+                "ctr": 0.017,
+                "position": 11.0,
+            },
+        ]
+    )
     opps = detect_opportunities(df)
     scores = [o["opportunity_score"] for o in opps]
     assert scores == sorted(scores, reverse=True)
 
 
 def test_detect_opportunities_filters_min_impressions():
-    df = _make_df([
-        {"url": "https://x.com/products/low", "clicks": 0, "impressions": 5, "ctr": 0.0, "position": 14.0},
-        {"url": "https://x.com/products/ok", "clicks": 2, "impressions": 50, "ctr": 0.04, "position": 12.0},
-    ])
+    df = _make_df(
+        [
+            {
+                "url": "https://x.com/products/low",
+                "clicks": 0,
+                "impressions": 5,
+                "ctr": 0.0,
+                "position": 14.0,
+            },
+            {
+                "url": "https://x.com/products/ok",
+                "clicks": 2,
+                "impressions": 50,
+                "ctr": 0.04,
+                "position": 12.0,
+            },
+        ]
+    )
     opps = detect_opportunities(df, min_impressions=10)
     urls = [o["url"] for o in opps]
     assert "https://x.com/products/low" not in urls
@@ -129,7 +171,13 @@ def test_detect_opportunities_filters_min_impressions():
 
 def test_detect_opportunities_respects_top_limit():
     rows = [
-        {"url": f"https://x.com/products/{i}", "clicks": 1, "impressions": 100, "ctr": 0.01, "position": 12.0}
+        {
+            "url": f"https://x.com/products/{i}",
+            "clicks": 1,
+            "impressions": 100,
+            "ctr": 0.01,
+            "position": 12.0,
+        }
         for i in range(10)
     ]
     df = _make_df(rows)
@@ -144,9 +192,17 @@ def test_detect_opportunities_empty_df():
 
 
 def test_detect_opportunities_includes_gain_and_action():
-    df = _make_df([
-        {"url": "https://x.com/products/a", "clicks": 2, "impressions": 100, "ctr": 0.02, "position": 14.0},
-    ])
+    df = _make_df(
+        [
+            {
+                "url": "https://x.com/products/a",
+                "clicks": 2,
+                "impressions": 100,
+                "ctr": 0.02,
+                "position": 14.0,
+            },
+        ]
+    )
     opps = detect_opportunities(df)
     assert len(opps) == 1
     assert opps[0]["estimated_gain_clicks"] >= 0

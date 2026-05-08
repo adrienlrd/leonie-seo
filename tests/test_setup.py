@@ -198,19 +198,24 @@ def test_cmd_init_creates_yaml(tmp_path, monkeypatch):
     (niches_dir / "pet_accessories_fr.yaml").write_text("niche_id: pet_accessories_fr\n")
 
     import scripts.setup as setup_mod
+
     monkeypatch.setattr(setup_mod, "_TENANTS_DIR", tenants_dir)
     monkeypatch.setattr(setup_mod, "_NICHES_DIR", niches_dir)
     monkeypatch.setattr(setup_mod, "_ENV_PATH", tmp_path / ".env")
 
     runner = CliRunner()
-    result = runner.invoke(cli, ["init"], input=(
-        "testshop\n"          # tenant_id
-        "Test Brand\n"        # brand
-        "https://www.test.com\n"  # base_url
-        "testshop.myshopify.com\n"  # shopify domain
-        "pet_accessories_fr\n"  # niche
-        "n\n"                 # don't update .env
-    ))
+    result = runner.invoke(
+        cli,
+        ["init"],
+        input=(
+            "testshop\n"  # tenant_id
+            "Test Brand\n"  # brand
+            "https://www.test.com\n"  # base_url
+            "testshop.myshopify.com\n"  # shopify domain
+            "pet_accessories_fr\n"  # niche
+            "n\n"  # don't update .env
+        ),
+    )
     assert result.exit_code == 0, result.output
     assert (tenants_dir / "testshop.yaml").exists()
     data = yaml.safe_load((tenants_dir / "testshop.yaml").read_text())

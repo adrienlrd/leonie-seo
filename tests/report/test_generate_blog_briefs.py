@@ -28,10 +28,30 @@ _KEYWORDS = {
 }
 
 _GAPS = [
-    {"keyword": "pardessus pour chien france", "status": "on_site", "impressions": 0, "opportunity_score": 5.0},
-    {"keyword": "abreuvoir chat design inox", "status": "on_site", "impressions": 0, "opportunity_score": 4.0},
-    {"keyword": "manteau pour chien luxe made in france", "status": "ranking", "impressions": 50, "opportunity_score": 8.0},
-    {"keyword": "leoniedelacroix", "status": "ranking", "impressions": 690, "opportunity_score": 87.0},
+    {
+        "keyword": "pardessus pour chien france",
+        "status": "on_site",
+        "impressions": 0,
+        "opportunity_score": 5.0,
+    },
+    {
+        "keyword": "abreuvoir chat design inox",
+        "status": "on_site",
+        "impressions": 0,
+        "opportunity_score": 4.0,
+    },
+    {
+        "keyword": "manteau pour chien luxe made in france",
+        "status": "ranking",
+        "impressions": 50,
+        "opportunity_score": 8.0,
+    },
+    {
+        "keyword": "leoniedelacroix",
+        "status": "ranking",
+        "impressions": 690,
+        "opportunity_score": 87.0,
+    },
 ]
 
 
@@ -100,14 +120,34 @@ def test_secondary_keywords_max_four():
 
 
 def test_generate_brief_has_required_fields():
-    candidate = {"keyword": "comment choisir fontaine eau chat", "category": "informational", "status": "planned", "impressions": 0}
+    candidate = {
+        "keyword": "comment choisir fontaine eau chat",
+        "category": "informational",
+        "status": "planned",
+        "impressions": 0,
+    }
     brief = generate_brief(candidate, _KEYWORDS)
-    for field in ("keyword", "category", "intent", "h1", "h2s", "secondary_keywords", "target_length", "eeat_angle", "internal_links"):
+    for field in (
+        "keyword",
+        "category",
+        "intent",
+        "h1",
+        "h2s",
+        "secondary_keywords",
+        "target_length",
+        "eeat_angle",
+        "internal_links",
+    ):
         assert field in brief, f"Missing field: {field}"
 
 
 def test_generate_brief_h2s_not_empty():
-    candidate = {"keyword": "pardessus pour chien france", "category": "vetements_chien", "status": "on_site", "impressions": 0}
+    candidate = {
+        "keyword": "pardessus pour chien france",
+        "category": "vetements_chien",
+        "status": "on_site",
+        "impressions": 0,
+    }
     brief = generate_brief(candidate, _KEYWORDS)
     assert len(brief["h2s"]) >= 3
 
@@ -126,7 +166,12 @@ def test_render_markdown_has_date():
 
 
 def test_render_markdown_has_eeat_section():
-    candidate = {"keyword": "comment choisir fontaine eau chat", "category": "informational", "status": "planned", "impressions": 0}
+    candidate = {
+        "keyword": "comment choisir fontaine eau chat",
+        "category": "informational",
+        "status": "planned",
+        "impressions": 0,
+    }
     briefs = [generate_brief(candidate, _KEYWORDS)]
     md = render_markdown(briefs, "2026-05-08")
     assert "E-E-A-T" in md

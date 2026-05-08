@@ -24,7 +24,9 @@ def test_classify_product_tour_de_cou_chat():
 
 
 def test_classify_product_fontaine():
-    assert classify_product("La Fontaine Smart - Fontaine à eau sans fil pour chat", "") == "fontaines"
+    assert (
+        classify_product("La Fontaine Smart - Fontaine à eau sans fil pour chat", "") == "fontaines"
+    )
 
 
 def test_classify_product_abreuvoir():

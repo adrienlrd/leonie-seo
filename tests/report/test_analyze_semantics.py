@@ -26,7 +26,9 @@ _PRODUCT_EMPTY = {
 
 
 def test_score_signals_all_present():
-    found, total, missing = _score_signals("made in france et artisanal", ["made in france", "artisanal"])
+    found, total, missing = _score_signals(
+        "made in france et artisanal", ["made in france", "artisanal"]
+    )
     assert found == 2
     assert total == 2
     assert missing == []
@@ -48,17 +50,32 @@ def test_score_signals_partial():
 def test_analyze_product_has_all_fields():
     result = analyze_product(_PRODUCT_RICH)
     required = {
-        "handle", "title", "category", "description_length",
-        "premium_score", "eeat_score", "longtail_score", "category_score",
-        "global_score", "top_missing_premium", "top_missing_eeat",
-        "top_missing_longtail", "top_missing_category",
+        "handle",
+        "title",
+        "category",
+        "description_length",
+        "premium_score",
+        "eeat_score",
+        "longtail_score",
+        "category_score",
+        "global_score",
+        "top_missing_premium",
+        "top_missing_eeat",
+        "top_missing_longtail",
+        "top_missing_category",
     }
     assert required.issubset(result.keys())
 
 
 def test_analyze_product_scores_between_0_and_1():
     result = analyze_product(_PRODUCT_RICH)
-    for field in ("premium_score", "eeat_score", "longtail_score", "category_score", "global_score"):
+    for field in (
+        "premium_score",
+        "eeat_score",
+        "longtail_score",
+        "category_score",
+        "global_score",
+    ):
         assert 0.0 <= result[field] <= 1.0, f"{field} out of range"
 
 

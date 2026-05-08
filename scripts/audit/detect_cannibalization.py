@@ -93,19 +93,21 @@ def detect_cannibal_pairs(
 
         severity = round(min(1.0, impression_score * 0.5 + closeness_score * 0.5) * type_penalty, 3)
 
-        results.append({
-            "query": query,
-            "pages_count": len(group),
-            "total_impressions": int(total_impressions),
-            "primary_url": primary["url"],
-            "primary_position": round(float(primary["position"]), 1),
-            "primary_type": primary_type,
-            "cannibal_url": cannibal["url"],
-            "cannibal_position": round(float(cannibal["position"]), 1),
-            "cannibal_type": cannibal_type,
-            "position_gap": round(position_gap, 1),
-            "severity": severity,
-        })
+        results.append(
+            {
+                "query": query,
+                "pages_count": len(group),
+                "total_impressions": int(total_impressions),
+                "primary_url": primary["url"],
+                "primary_position": round(float(primary["position"]), 1),
+                "primary_type": primary_type,
+                "cannibal_url": cannibal["url"],
+                "cannibal_position": round(float(cannibal["position"]), 1),
+                "cannibal_type": cannibal_type,
+                "position_gap": round(position_gap, 1),
+                "severity": severity,
+            }
+        )
 
     results.sort(key=lambda x: -x["severity"])
     return results
@@ -211,13 +213,23 @@ def render_markdown(
 @click.option("--input", "input_path", default="data/raw/gsc_query_page.csv", show_default=True)
 @click.option("--output-dir", default="reports", show_default=True)
 @click.option("--json-output", default="data/raw/cannibalization.json", show_default=True)
-@click.option("--min-impressions", default=None, type=int, help="Override min impressions threshold")
+@click.option(
+    "--min-impressions", default=None, type=int, help="Override min impressions threshold"
+)
 @click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
-def main(input_path: str, output_dir: str, json_output: str, min_impressions: int | None, tenant: str | None) -> None:
+def main(
+    input_path: str,
+    output_dir: str,
+    json_output: str,
+    min_impressions: int | None,
+    tenant: str | None,
+) -> None:
     """Detect pages competing for the same queries (keyword cannibalization)."""
     cfg = get_config(tenant)
     t = cfg.alert_thresholds
-    effective_min = min_impressions if min_impressions is not None else t.cannibalization_min_impressions
+    effective_min = (
+        min_impressions if min_impressions is not None else t.cannibalization_min_impressions
+    )
     console.print("[bold cyan]► Detecting keyword cannibalization[/bold cyan]")
 
     df = load_gsc_query_page(input_path)

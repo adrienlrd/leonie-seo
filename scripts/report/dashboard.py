@@ -141,13 +141,32 @@ def _panel_kpis(gsc: dict[str, Any], cfg: TenantConfig | None = None) -> Panel:
     ctr = gsc["ctr"]
     pos = gsc["position"]
 
-    t.add_row("Clics (90j)", Text(f"{clicks:,}" if clicks is not None else "N/A",
-              style=_color(clicks, t_cfg.clicks_warn, t_cfg.clicks_ok) if clicks is not None else "dim"))
+    t.add_row(
+        "Clics (90j)",
+        Text(
+            f"{clicks:,}" if clicks is not None else "N/A",
+            style=_color(clicks, t_cfg.clicks_warn, t_cfg.clicks_ok)
+            if clicks is not None
+            else "dim",
+        ),
+    )
     t.add_row("Impressions", Text(f"{imp:,}" if imp is not None else "N/A", style="cyan"))
-    t.add_row("CTR moyen", Text(f"{ctr}%" if ctr is not None else "N/A",
-              style=_color(ctr, t_cfg.ctr_warn, t_cfg.ctr_ok) if ctr is not None else "dim"))
-    t.add_row("Position moy.", Text(str(pos) if pos is not None else "N/A",
-              style=_color(pos, t_cfg.position_ok, t_cfg.position_warn, invert=True) if pos is not None else "dim"))
+    t.add_row(
+        "CTR moyen",
+        Text(
+            f"{ctr}%" if ctr is not None else "N/A",
+            style=_color(ctr, t_cfg.ctr_warn, t_cfg.ctr_ok) if ctr is not None else "dim",
+        ),
+    )
+    t.add_row(
+        "Position moy.",
+        Text(
+            str(pos) if pos is not None else "N/A",
+            style=_color(pos, t_cfg.position_ok, t_cfg.position_warn, invert=True)
+            if pos is not None
+            else "dim",
+        ),
+    )
     t.add_row("Pages indexées", Text(str(gsc["pages"]), style="white"))
 
     return Panel(t, title="[bold]KPIs GSC[/bold]", border_style="blue", padding=(0, 1))
@@ -161,28 +180,41 @@ def _panel_health(eeat: dict, cannibal: dict, ps: dict, cfg: TenantConfig | None
     t.add_column(min_width=10, justify="right")
 
     eeat_avg = eeat["avg"]
-    t.add_row("E-E-A-T moyen",
-              Text(f"{eeat_avg}%" if eeat_avg is not None else "N/A",
-                   style=_color(eeat_avg, t_cfg.eeat_warn, t_cfg.eeat_ok) if eeat_avg is not None else "dim"))
+    t.add_row(
+        "E-E-A-T moyen",
+        Text(
+            f"{eeat_avg}%" if eeat_avg is not None else "N/A",
+            style=_color(eeat_avg, t_cfg.eeat_warn, t_cfg.eeat_ok)
+            if eeat_avg is not None
+            else "dim",
+        ),
+    )
 
     weak = eeat["weak"]
-    t.add_row(f"Pages E-E-A-T < {t_cfg.eeat_ok:.0f}%",
-              Text(str(weak) if weak is not None else "N/A",
-                   style="red" if weak else "green"))
+    t.add_row(
+        f"Pages E-E-A-T < {t_cfg.eeat_ok:.0f}%",
+        Text(str(weak) if weak is not None else "N/A", style="red" if weak else "green"),
+    )
 
     high = cannibal["high"]
-    t.add_row("Cannibalisation 🔴",
-              Text(str(high) if high is not None else "N/A",
-                   style="red" if high else "green"))
+    t.add_row(
+        "Cannibalisation 🔴",
+        Text(str(high) if high is not None else "N/A", style="red" if high else "green"),
+    )
 
     total_c = cannibal["total"]
-    t.add_row("Total cannibal.",
-              Text(str(total_c) if total_c is not None else "N/A", style="white"))
+    t.add_row(
+        "Total cannibal.", Text(str(total_c) if total_c is not None else "N/A", style="white")
+    )
 
     mob = ps["mobile_avg"]
-    t.add_row("CWV mobile",
-              Text(f"{mob:.0%}" if mob is not None else "N/A",
-                   style=_color(mob, t_cfg.cwv_warn, t_cfg.cwv_ok) if mob is not None else "dim"))
+    t.add_row(
+        "CWV mobile",
+        Text(
+            f"{mob:.0%}" if mob is not None else "N/A",
+            style=_color(mob, t_cfg.cwv_warn, t_cfg.cwv_ok) if mob is not None else "dim",
+        ),
+    )
 
     return Panel(t, title="[bold]Santé SEO[/bold]", border_style="magenta", padding=(0, 1))
 
@@ -289,6 +321,7 @@ def main(
 
     def _snapshot() -> Layout:
         from datetime import datetime
+
         ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
         return build_layout(
             gsc_summary(gsc),

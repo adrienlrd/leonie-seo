@@ -72,7 +72,11 @@ def test_create_redirect_calls_correct_mutation(mocker):
     mock_post.return_value.json.return_value = {
         "data": {
             "urlRedirectCreate": {
-                "urlRedirect": {"id": "gid://shopify/UrlRedirect/1", "path": "/old", "target": "/new"},
+                "urlRedirect": {
+                    "id": "gid://shopify/UrlRedirect/1",
+                    "path": "/old",
+                    "target": "/new",
+                },
                 "userErrors": [],
             }
         }
@@ -94,7 +98,9 @@ def test_create_redirect_raises_on_user_errors(mocker):
         "data": {
             "urlRedirectCreate": {
                 "urlRedirect": None,
-                "userErrors": [{"field": ["path"], "message": "Path already exists", "code": "TAKEN"}],
+                "userErrors": [
+                    {"field": ["path"], "message": "Path already exists", "code": "TAKEN"}
+                ],
             }
         }
     }

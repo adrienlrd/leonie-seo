@@ -21,10 +21,42 @@ load_dotenv()
 console = Console()
 
 _STOP_WORDS = {
-    "le", "la", "les", "un", "une", "des", "de", "du", "pour", "par",
-    "en", "et", "ou", "à", "au", "aux", "ce", "cet", "cette", "ces",
-    "mon", "ton", "son", "notre", "votre", "leur", "dans", "sur", "avec",
-    "comment", "quel", "quelle", "quels", "meilleur", "bien", "choisir",
+    "le",
+    "la",
+    "les",
+    "un",
+    "une",
+    "des",
+    "de",
+    "du",
+    "pour",
+    "par",
+    "en",
+    "et",
+    "ou",
+    "à",
+    "au",
+    "aux",
+    "ce",
+    "cet",
+    "cette",
+    "ces",
+    "mon",
+    "ton",
+    "son",
+    "notre",
+    "votre",
+    "leur",
+    "dans",
+    "sur",
+    "avec",
+    "comment",
+    "quel",
+    "quelle",
+    "quels",
+    "meilleur",
+    "bien",
+    "choisir",
 }
 
 # Keyword category → product handles eligible for internal links
@@ -84,7 +116,8 @@ def load_products(snapshot_path: str) -> list[dict[str, Any]]:
     with open(snapshot_path, encoding="utf-8") as f:
         data = json.load(f)
     return [
-        p for p in data.get("products", [])
+        p
+        for p in data.get("products", [])
         if not p["title"].startswith("Pet ") and p["title"] != "Le Harnais Haute Couture (test)"
     ]
 
@@ -145,16 +178,18 @@ def detect_opportunities(
                 overlap = len(kw_tokens & title_tokens)
                 score = round(overlap / max(len(kw_tokens), 1), 2)
                 anchor = _anchor_from_keyword(keyword, product["title"])
-                opportunities.append({
-                    "source_keyword": keyword,
-                    "source_category": category,
-                    "source_article_h1": keyword.capitalize(),
-                    "target_type": "product",
-                    "target_title": product["title"],
-                    "target_url": f"{base_url}/products/{handle}",
-                    "anchor_text": anchor,
-                    "relevance_score": score,
-                })
+                opportunities.append(
+                    {
+                        "source_keyword": keyword,
+                        "source_category": category,
+                        "source_article_h1": keyword.capitalize(),
+                        "target_type": "product",
+                        "target_title": product["title"],
+                        "target_url": f"{base_url}/products/{handle}",
+                        "anchor_text": anchor,
+                        "relevance_score": score,
+                    }
+                )
 
             # Match collections
             for chandle in target_colls:
@@ -162,16 +197,18 @@ def detect_opportunities(
                 if not coll:
                     continue
                 anchor = _anchor_from_keyword(keyword, coll.get("title", chandle))
-                opportunities.append({
-                    "source_keyword": keyword,
-                    "source_category": category,
-                    "source_article_h1": keyword.capitalize(),
-                    "target_type": "collection",
-                    "target_title": coll.get("title", chandle),
-                    "target_url": f"{base_url}/collections/{chandle}",
-                    "anchor_text": anchor,
-                    "relevance_score": 0.1,
-                })
+                opportunities.append(
+                    {
+                        "source_keyword": keyword,
+                        "source_category": category,
+                        "source_article_h1": keyword.capitalize(),
+                        "target_type": "collection",
+                        "target_title": coll.get("title", chandle),
+                        "target_url": f"{base_url}/collections/{chandle}",
+                        "anchor_text": anchor,
+                        "relevance_score": 0.1,
+                    }
+                )
 
     # Sort by score desc, deduplicate (keyword, target_url) pairs
     seen: set[tuple[str, str]] = set()

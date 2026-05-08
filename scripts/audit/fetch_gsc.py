@@ -155,7 +155,9 @@ def fetch_query_page_performance(
     "--site-url", default=None, help="GSC property URL (default: https://<SHOPIFY_STORE_DOMAIN>)"
 )
 @click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
-def main(days: int, output: str, query_page_output: str, site_url: str | None, tenant: str | None) -> None:
+def main(
+    days: int, output: str, query_page_output: str, site_url: str | None, tenant: str | None
+) -> None:
     """Export Google Search Console performance data to CSV."""
     cfg = get_config(tenant)
     console.print("[bold cyan]► Fetching Google Search Console data[/bold cyan]")

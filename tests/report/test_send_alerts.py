@@ -13,16 +13,76 @@ from scripts.report.send_alerts import (
 )
 
 _PS_ROWS = [
-    {"url": "https://ex.com", "strategy": "mobile", "performance_score": 0.45, "lcp_ms": 5000.0, "cls": 0.30, "tbt_ms": 300, "fcp_ms": 1200},
-    {"url": "https://ex.com", "strategy": "desktop", "performance_score": 0.90, "lcp_ms": 1200.0, "cls": 0.05, "tbt_ms": 100, "fcp_ms": 800},
-    {"url": "https://ex.com/ok", "strategy": "mobile", "performance_score": 0.80, "lcp_ms": 2000.0, "cls": 0.05, "tbt_ms": 100, "fcp_ms": 900},
+    {
+        "url": "https://ex.com",
+        "strategy": "mobile",
+        "performance_score": 0.45,
+        "lcp_ms": 5000.0,
+        "cls": 0.30,
+        "tbt_ms": 300,
+        "fcp_ms": 1200,
+    },
+    {
+        "url": "https://ex.com",
+        "strategy": "desktop",
+        "performance_score": 0.90,
+        "lcp_ms": 1200.0,
+        "cls": 0.05,
+        "tbt_ms": 100,
+        "fcp_ms": 800,
+    },
+    {
+        "url": "https://ex.com/ok",
+        "strategy": "mobile",
+        "performance_score": 0.80,
+        "lcp_ms": 2000.0,
+        "cls": 0.05,
+        "tbt_ms": 100,
+        "fcp_ms": 900,
+    },
 ]
 
 _OPP_ROWS = [
-    {"url": "https://ex.com/a", "zone": "quick_win", "position": 14.0, "impressions": 80, "clicks": 2, "ctr_pct": 2.5, "estimated_gain_clicks": 20, "action": ""},
-    {"url": "https://ex.com/b", "zone": "quick_win", "position": 18.0, "impressions": 10, "clicks": 0, "ctr_pct": 0.0, "estimated_gain_clicks": 5, "action": ""},
-    {"url": "https://ex.com/c", "zone": "low_ctr", "position": 5.0, "impressions": 300, "clicks": 2, "ctr_pct": 0.7, "estimated_gain_clicks": 12, "action": ""},
-    {"url": "https://ex.com/d", "zone": "low_ctr", "position": 7.0, "impressions": 50, "clicks": 1, "ctr_pct": 2.0, "estimated_gain_clicks": 3, "action": ""},
+    {
+        "url": "https://ex.com/a",
+        "zone": "quick_win",
+        "position": 14.0,
+        "impressions": 80,
+        "clicks": 2,
+        "ctr_pct": 2.5,
+        "estimated_gain_clicks": 20,
+        "action": "",
+    },
+    {
+        "url": "https://ex.com/b",
+        "zone": "quick_win",
+        "position": 18.0,
+        "impressions": 10,
+        "clicks": 0,
+        "ctr_pct": 0.0,
+        "estimated_gain_clicks": 5,
+        "action": "",
+    },
+    {
+        "url": "https://ex.com/c",
+        "zone": "low_ctr",
+        "position": 5.0,
+        "impressions": 300,
+        "clicks": 2,
+        "ctr_pct": 0.7,
+        "estimated_gain_clicks": 12,
+        "action": "",
+    },
+    {
+        "url": "https://ex.com/d",
+        "zone": "low_ctr",
+        "position": 7.0,
+        "impressions": 50,
+        "clicks": 1,
+        "ctr_pct": 2.0,
+        "estimated_gain_clicks": 3,
+        "action": "",
+    },
 ]
 
 
@@ -67,7 +127,9 @@ def test_detect_cwv_alerts_ignores_desktop():
 
 
 def test_detect_cwv_alerts_no_alert_when_all_ok():
-    ok = [{"url": "u", "strategy": "mobile", "performance_score": 0.80, "lcp_ms": 2000.0, "cls": 0.10}]
+    ok = [
+        {"url": "u", "strategy": "mobile", "performance_score": 0.80, "lcp_ms": 2000.0, "cls": 0.10}
+    ]
     assert detect_cwv_alerts(ok) == []
 
 
@@ -95,7 +157,15 @@ def test_build_alert_summary_no_alerts():
 
 
 def test_build_alert_summary_with_cwv():
-    cwv = [{"url": "https://ex.com", "reasons": ["score mobile 45% < 50%"], "score": 0.45, "lcp_ms": 5000, "cls": 0.30}]
+    cwv = [
+        {
+            "url": "https://ex.com",
+            "reasons": ["score mobile 45% < 50%"],
+            "score": 0.45,
+            "lcp_ms": 5000,
+            "cls": 0.30,
+        }
+    ]
     body = build_alert_summary(cwv, [], [], "2026-05-08")
     assert "Core Web Vitals" in body
     assert "https://ex.com" in body

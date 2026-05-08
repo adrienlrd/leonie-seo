@@ -138,7 +138,9 @@ def _recommendations(
             "Position moyenne > 20 — créer des contenus longue traîne ciblant les requêtes niche petfood FR."
         )
     if not recs:
-        recs.append("Maintenir le rythme : audit hebdomadaire + publication d'un article blog mensuel.")
+        recs.append(
+            "Maintenir le rythme : audit hebdomadaire + publication d'un article blog mensuel."
+        )
     return recs[:5]
 
 
@@ -162,10 +164,10 @@ def render_html(
     # KPI cards
     kpi_html = f"""
     <div class="kpi-grid">
-      <div class="kpi"><span class="val">{kpis['clicks']:,}</span><span class="lbl">Clics (90j)</span></div>
-      <div class="kpi"><span class="val">{kpis['impressions']:,}</span><span class="lbl">Impressions</span></div>
-      <div class="kpi"><span class="val">{kpis['ctr']}%</span><span class="lbl">CTR moyen</span></div>
-      <div class="kpi"><span class="val">{kpis['position']}</span><span class="lbl">Position moy.</span></div>
+      <div class="kpi"><span class="val">{kpis["clicks"]:,}</span><span class="lbl">Clics (90j)</span></div>
+      <div class="kpi"><span class="val">{kpis["impressions"]:,}</span><span class="lbl">Impressions</span></div>
+      <div class="kpi"><span class="val">{kpis["ctr"]}%</span><span class="lbl">CTR moyen</span></div>
+      <div class="kpi"><span class="val">{kpis["position"]}</span><span class="lbl">Position moy.</span></div>
     </div>"""
 
     # Top pages table
@@ -177,25 +179,33 @@ def render_html(
         f"<td>{r['position']:.1f}</td></tr>"
         for r in pages
     )
-    pages_table = f"""
+    pages_table = (
+        f"""
     <table>
       <thead><tr><th>Page</th><th>Clics</th><th>Impressions</th><th>CTR</th><th>Position</th></tr></thead>
       <tbody>{pages_rows}</tbody>
-    </table>""" if pages_rows else "<p><em>Données GSC non disponibles.</em></p>"
+    </table>"""
+        if pages_rows
+        else "<p><em>Données GSC non disponibles.</em></p>"
+    )
 
     # Quick wins table
     wins_rows = "".join(
-        f"<tr><td>{w.get('query','')[:50]}</td>"
-        f"<td>{int(w.get('impressions',0))}</td>"
-        f"<td>{w.get('position',0):.1f}</td>"
-        f"<td>{w.get('action','—')[:60]}</td></tr>"
+        f"<tr><td>{w.get('query', '')[:50]}</td>"
+        f"<td>{int(w.get('impressions', 0))}</td>"
+        f"<td>{w.get('position', 0):.1f}</td>"
+        f"<td>{w.get('action', '—')[:60]}</td></tr>"
         for w in wins
     )
-    wins_table = f"""
+    wins_table = (
+        f"""
     <table>
       <thead><tr><th>Requête</th><th>Impressions</th><th>Position</th><th>Action</th></tr></thead>
       <tbody>{wins_rows}</tbody>
-    </table>""" if wins_rows else "<p><em>Aucun quick win identifié.</em></p>"
+    </table>"""
+        if wins_rows
+        else "<p><em>Aucun quick win identifié.</em></p>"
+    )
 
     # Recommendations list
     recs_html = "".join(f"<li>{r}</li>" for r in recs)
@@ -210,7 +220,7 @@ def render_html(
 </head>
 <body>
   <h1>Rapport SEO mensuel</h1>
-  <p class="meta">{get_config().domain} &nbsp;·&nbsp; {date} &nbsp;·&nbsp; {kpis['pages']} pages indexées</p>
+  <p class="meta">{get_config().domain} &nbsp;·&nbsp; {date} &nbsp;·&nbsp; {kpis["pages"]} pages indexées</p>
 
   <h2>KPIs clés — 90 derniers jours</h2>
   {kpi_html}
@@ -225,10 +235,10 @@ def render_html(
   <table>
     <thead><tr><th>Indicateur</th><th>Valeur</th><th>Seuil cible</th></tr></thead>
     <tbody>
-      <tr><td>Score E-E-A-T moyen</td><td>{badge(round(eeat_avg*100,1), (25, 45))}%</td><td>≥ 45%</td></tr>
+      <tr><td>Score E-E-A-T moyen</td><td>{badge(round(eeat_avg * 100, 1), (25, 45))}%</td><td>≥ 45%</td></tr>
       <tr><td>Cannibalisation haute sévérité</td><td>{badge(cannibal_high, (0.1, 0.1))} cas</td><td>0</td></tr>
-      <tr><td>CTR moyen</td><td>{badge(kpis['ctr'], (2, 4))}%</td><td>≥ 4%</td></tr>
-      <tr><td>Position moyenne</td><td>{kpis['position']}</td><td>≤ 20</td></tr>
+      <tr><td>CTR moyen</td><td>{badge(kpis["ctr"], (2, 4))}%</td><td>≥ 4%</td></tr>
+      <tr><td>Position moyenne</td><td>{kpis["position"]}</td><td>≤ 20</td></tr>
     </tbody>
   </table>
 
@@ -285,7 +295,9 @@ def main(
         encoding="utf-8",
     )
 
-    console.print(f"  [green]✓[/green] {kpis['clicks']:,} clics · {kpis['impressions']:,} impressions")
+    console.print(
+        f"  [green]✓[/green] {kpis['clicks']:,} clics · {kpis['impressions']:,} impressions"
+    )
     console.print(f"  [green]✓[/green] Rapport → {out_path}")
     console.print("  [dim]→ Ouvrir dans un navigateur et Ctrl+P pour exporter en PDF[/dim]")
 

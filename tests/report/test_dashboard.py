@@ -37,10 +37,12 @@ def test_gsc_summary_missing_file_returns_nulls():
 
 
 def test_gsc_summary_aggregates_correctly():
-    df = pd.DataFrame([
-        {"url": "a", "clicks": 10, "impressions": 100, "ctr": 0.10, "position": 5.0},
-        {"url": "b", "clicks": 20, "impressions": 200, "ctr": 0.20, "position": 10.0},
-    ])
+    df = pd.DataFrame(
+        [
+            {"url": "a", "clicks": 10, "impressions": 100, "ctr": 0.10, "position": 5.0},
+            {"url": "b", "clicks": 20, "impressions": 200, "ctr": 0.20, "position": 10.0},
+        ]
+    )
     path = _write_csv(df)
     s = gsc_summary(path)
     assert s["clicks"] == 30
@@ -100,10 +102,12 @@ def test_pagespeed_summary_missing_file():
 
 
 def test_pagespeed_summary_filters_mobile():
-    df = pd.DataFrame([
-        {"url": "a", "strategy": "mobile", "performance_score": 0.6},
-        {"url": "a", "strategy": "desktop", "performance_score": 0.9},
-    ])
+    df = pd.DataFrame(
+        [
+            {"url": "a", "strategy": "mobile", "performance_score": 0.6},
+            {"url": "a", "strategy": "desktop", "performance_score": 0.9},
+        ]
+    )
     path = _write_csv(df)
     s = pagespeed_summary(path)
     assert s["mobile_avg"] == 0.6
@@ -128,8 +132,10 @@ def test_quick_wins_list_filters_zone():
 
 
 def test_quick_wins_list_respects_n():
-    data = [{"query": f"q{i}", "zone": "quick_win", "impressions": i * 10, "position": 12.0}
-            for i in range(10)]
+    data = [
+        {"query": f"q{i}", "zone": "quick_win", "impressions": i * 10, "position": 12.0}
+        for i in range(10)
+    ]
     path = _write_json(data)
     assert len(quick_wins_list(path, n=3)) == 3
 
@@ -142,10 +148,12 @@ def test_top_pages_list_missing_file():
 
 
 def test_top_pages_list_sorted_by_clicks():
-    df = pd.DataFrame([
-        {"url": "/a", "clicks": 5, "impressions": 50, "ctr": 0.1, "position": 3.0},
-        {"url": "/b", "clicks": 50, "impressions": 500, "ctr": 0.1, "position": 2.0},
-    ])
+    df = pd.DataFrame(
+        [
+            {"url": "/a", "clicks": 5, "impressions": 50, "ctr": 0.1, "position": 3.0},
+            {"url": "/b", "clicks": 50, "impressions": 500, "ctr": 0.1, "position": 2.0},
+        ]
+    )
     path = _write_csv(df)
     result = top_pages_list(path)
     assert result[0]["url"] == "/b"
