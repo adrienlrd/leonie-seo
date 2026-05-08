@@ -36,7 +36,7 @@ def fetch_score(url: str, strategy: str = "mobile") -> dict[str, Any]:
         "category": "performance",
     }
 
-    response = requests.get(_API_URL, params=params, timeout=120)
+    response = requests.get(_API_URL, params=params, timeout=300)
 
     if response.status_code == 429:
         console.print("[yellow]Rate limit — waiting 10s[/yellow]")
@@ -77,7 +77,15 @@ def fetch_scores_for_urls(urls: list[str], delay: float = 1.5) -> list[dict[str,
                     f"  [green]✓[/green] {strategy:8} {result['performance_score']:.0%}  {url}"
                 )
             except requests.exceptions.Timeout:
-                console.print(f"  [yellow]⚠ timeout[/yellow] {strategy:8} {url} — skipped")
+                console.print(f"  [yellow]⚠ timeout, retrying…[/yellow] {strategy:8} {url}")
+                try:
+                    result = fetch_score(url, strategy)
+                    results.append(result)
+                    console.print(
+                        f"  [green]✓[/green] {strategy:8} {result['performance_score']:.0%}  {url} (retry)"
+                    )
+                except requests.exceptions.Timeout:
+                    console.print(f"  [red]✗ timeout x2[/red] {strategy:8} {url} — skipped")
             time.sleep(delay)
     return results
 
