@@ -114,6 +114,9 @@ jobs:
       - name: Score E-E-A-T par page produit
         run: python -m scripts.report.score_eeat
 
+      - name: Générer les balises hreflang BE/CH
+        run: python -m scripts.report.generate_hreflang
+
       # ── Alertes ─────────────────────────────────────────────────────────────
 
       - name: Envoyer alertes email
