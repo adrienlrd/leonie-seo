@@ -6,7 +6,7 @@
 - Phase 1 : **15/15 complètes** ✅
 - Phase 2 : **14/14 complètes** ✅
 - Phase 3 : **10/10 complètes** ✅
-- Tests : **319/319** ✅ — ruff clean ✅
+- Tests : **342/342** ✅ — ruff clean ✅
 
 ## ✅ Terminé
 
@@ -56,14 +56,20 @@
 - **Score SEO avant : 56.3 → après : 83.9 (+27.6 pts)**
 - **Pipeline CI GitHub Actions** validé : tests + audit + tous les rapports Phase 3
 
-### Phase 4 — Productisation (tâche 40) ✅
+### Phase 4 — Productisation (tâches 40–41) ✅
 - **40** `config/tenants/leoniedelacroix.yaml` + `scripts/_config.py` — abstraction multi-tenant complète
   - Pydantic v1 `TenantConfig` : base_url, brand, categories, product_categories, hreflang_locales, seo_rules, alert_thresholds
   - 16 scripts migrés : domaine, brand, thresholds SEO → tous via `get_config(tenant_id)`
   - Option `--tenant` ajoutée à tous les CLI
   - 319 tests verts · ruff clean
+- **41** `scripts/setup.py` — wizard CLI `init` / `list` / `check`
+  - Renommage niche `petfood_fr` → `pet_accessories_fr` (plus fidèle au business)
+  - `init` : wizard interactif → génère `config/tenants/<id>.yaml` + met à jour `.env`
+  - `list` : tableau de tous les tenants avec marqueur tenant actif
+  - `check` : validation config + secrets `.env` requis
+  - 342 tests verts · ruff clean
 
-## ⏳ À faire — Phase 4 (tâches 41–44)
+## ⏳ À faire — Phase 4 (tâches 42–44)
 
 | # | Tâche | Priorité |
 |---|---|---|

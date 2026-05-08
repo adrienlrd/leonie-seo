@@ -1,8 +1,8 @@
-# Niche config — petfood_fr
+# Niche config — pet_accessories_fr
 # Signal lists and content templates will be migrated here in task 42.
 # Scripts currently read these values from Python constants.
 
-niche_id: petfood_fr
+niche_id: pet_accessories_fr
 label: "Accessoires animaux premium FR"
 language: fr
 market: FR

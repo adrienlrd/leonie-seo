@@ -108,4 +108,4 @@ python -m scripts.apply.update_alt_text --apply
 - `CONTEXT.md` — fiche marché, concurrents, mots-clés stratégiques
 - `skills/seo-technique.md` — seuils et règles de scoring SEO
 - `skills/shopify-graphql.md` — patterns GraphQL sûrs et rate limiting
-- `skills/petfood-niche.md` — mots-clés, positionnement, règles E-E-A-T
+- `skills/pet-accessories-niche.md` — mots-clés, positionnement, règles E-E-A-T
