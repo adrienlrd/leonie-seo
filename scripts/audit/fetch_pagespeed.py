@@ -36,7 +36,7 @@ def fetch_score(url: str, strategy: str = "mobile") -> dict[str, Any]:
         "category": "performance",
     }
 
-    response = requests.get(_API_URL, params=params, timeout=60)
+    response = requests.get(_API_URL, params=params, timeout=120)
 
     if response.status_code == 429:
         console.print("[yellow]Rate limit — waiting 10s[/yellow]")

@@ -67,6 +67,7 @@ jobs:
         run: python -m scripts.audit.fetch_gsc
 
       - name: Fetch PageSpeed Insights (homepage + top pages)
+        continue-on-error: true
         env:
           PAGESPEED_API_KEY: ${{ secrets.PAGESPEED_API_KEY }}
         run: |
