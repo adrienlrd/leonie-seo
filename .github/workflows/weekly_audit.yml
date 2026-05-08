@@ -96,6 +96,15 @@ jobs:
       - name: Générer le rapport avant/après
         run: python -m scripts.report.generate_delta_report
 
+      # ── Alertes ─────────────────────────────────────────────────────────────
+
+      - name: Envoyer alertes email
+        env:
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: python -m scripts.report.send_alerts --apply
+
       # ── Commit ──────────────────────────────────────────────────────────────
 
       - name: Commiter les rapports
