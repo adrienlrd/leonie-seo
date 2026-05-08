@@ -1,10 +1,12 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Phase actuelle : Phase 3 — Contenu SEO & Intelligence niche (tâches 30–39)
+- Phase actuelle : Phase 4 — Productisation (tâches 40–44)
 - Dernière session : 2026-05-08
+- Phase 1 : **15/15 complètes** ✅
 - Phase 2 : **14/14 complètes** ✅
-- Prochain objectif : Tâche 30 — Générateur de briefs articles blog
+- Phase 3 : **10/10 complètes** ✅
+- Tests : **303/303** ✅ — ruff clean ✅
 
 ## ✅ Terminé
 
@@ -17,8 +19,8 @@
 
 ### Phase 1 — Fondations & Audit (tâches 1–15) ✅
 - `scripts/audit/crawl_shopify.py` — GraphQL paginé, snapshot JSON + SQLite
-- `scripts/audit/fetch_gsc.py` — OAuth navigateur, export 90j par URL
-- `scripts/audit/fetch_pagespeed.py` — score mobile/desktop + CWV
+- `scripts/audit/fetch_gsc.py` — OAuth navigateur, export 90j par URL + query×page
+- `scripts/audit/fetch_pagespeed.py` — score mobile/desktop + CWV (timeout 600s, retry)
 - `scripts/audit/parse_screaming_frog.py` — parser overview/images/redirects CSV
 - `scripts/audit/detect_issues.py` — 5 détecteurs (titles, descriptions, alt, duplicates, redirects/404)
 - `scripts/report/generate_report.py` — score /100 pondéré + rapport Markdown horodaté
@@ -26,37 +28,43 @@
 
 ### Phase 2 — Application supervisée (tâches 16–29) ✅
 - **16** `scripts/report/ice_matrix.py` — Matrice ICE pondérée GSC
-- **17–21** `generate_suggestions.py` + `update_alt_text.py` — **26 méta + 17 alt texts poussés** sur Shopify (0 erreur)
+- **17–21** `generate_suggestions.py` + `update_alt_text.py` — **26 méta + 17 alt texts poussés** sur Shopify
 - **22** `scripts/apply/create_redirects.py` — import 301 bulk depuis CSV
 - **23** `scripts/apply/add_schema.py` — JSON-LD schema.org/Product via metafield custom.json_ld
 - **24** `scripts/apply/rollback.py` — CLI rollback SQLite (`--list`, `--revert-ids`, `--revert-since`)
-- **25** `scripts/audit/detect_gsc_opportunities.py` — 3 zones (quick win, CTR faible, long terme) ; **17 opportunités, +148 clics estimés**
-- **26** `scripts/audit/analyze_longtail.py` — gap analysis mots-clés vs GSC + Shopify ; correction keywords.yaml (petfood → accessoires animaux)
-- **27** `scripts/report/generate_delta_report.py` — rapport avant/après : **56.3 → 83.9 (+27.6 pts), 62/68 issues résolues**
-- **28** `.github/workflows/weekly_audit.yml` — pipeline CI complet, 6 secrets configurés sur GitHub
-- **29** `scripts/report/send_alerts.py` — alertes email CWV + positions + CTR, SMTP Gmail, 15 tests
+- **25** `scripts/audit/detect_gsc_opportunities.py` — 3 zones ; **17 opportunités, +148 clics estimés**
+- **26** `scripts/audit/analyze_longtail.py` — gap analysis mots-clés vs GSC + Shopify
+- **27** `scripts/report/generate_delta_report.py` — **score 56.3 → 83.9 (+27.6 pts), 62/68 issues résolues**
+- **28** `.github/workflows/weekly_audit.yml` — pipeline CI complet, 6 secrets GitHub
+- **29** `scripts/report/send_alerts.py` — alertes email CWV + positions + CTR, SMTP Gmail
+
+### Phase 3 — Contenu SEO & Intelligence niche (tâches 30–39) ✅
+- **30** `scripts/report/generate_blog_briefs.py` — 10 briefs H1/H2/E-E-A-T par requête cible
+- **31** `scripts/apply/rewrite_descriptions.py` — 18 descriptions longue traîne, classification title-priority
+- **32** `scripts/report/detect_internal_links.py` — 120 opportunités, 5 pages orphelines
+- **33** `scripts/report/analyze_semantics.py` — scoring 4 dimensions vs benchmark Miacara/Zooplus
+- **34** `scripts/report/generate_faq.py` — 21 Q/R × 5 catégories, JSON-LD FAQPage
+- **35** `scripts/audit/detect_cannibalization.py` — query×page GSC, score sévérité 0–1, canonical/consolidation
+- **36** `scripts/report/score_eeat.py` — 4 dimensions (Exp 20%, Expert 30%, Auth 25%, Trust 25%)
+- **37** `scripts/report/generate_hreflang.py` — Liquid snippet + sitemap XML, fr-FR/fr-BE/fr-CH/x-default
+- **38** `scripts/report/generate_monthly_report.py` — rapport HTML print-ready (Ctrl+P → PDF)
+- **39** `scripts/report/dashboard.py` — dashboard `rich` snapshot + `--watch` 30s
 
 ### Données réelles
 - **50 URLs GSC** · 90 jours · 245 clics · 3 736 impressions · position moyenne 6.0
 - **69 changements** loggés dans `data/history.db`
-- **147 tests unitaires** — 147/147 ✅ — ruff clean ✅
-- **Score SEO avant optimisations : 56.3 → après : 83.9 (+27.6 pts)**
-- **Pipeline CI** validé manuellement : tests + audit + commit rapport + alertes email
+- **Score SEO avant : 56.3 → après : 83.9 (+27.6 pts)**
+- **Pipeline CI GitHub Actions** validé : tests + audit + tous les rapports Phase 3
 
-## ⏳ À faire — Phase 3 (tâches 30–39)
+## ⏳ À faire — Phase 4 (tâches 40–44)
 
 | # | Tâche | Priorité |
 |---|---|---|
-| 30 | Générateur de briefs articles blog (H1/H2, mots-clés, angle E-E-A-T) | Haute |
-| 31 | Réécriture descriptions produits longue traîne — ton premium FR | Haute |
-| 32 | Maillage interne automatique — détection opportunités liens blog → produits | Moyenne |
-| 33 | Analyse sémantique fiches produits vs concurrents (Zooplus, Wanimo) | Moyenne |
-| 34 | Générateur de FAQ structurée par catégorie produit | Moyenne |
-| 35 | Détecteur de cannibalisation — pages en compétition sur un même mot-clé | Moyenne |
-| 36 | Score E-E-A-T par page | Basse |
-| 37 | Générateur balises hreflang si extension BE/CH francophone | Basse |
-| 38 | Rapport mensuel synthétique PDF | Basse |
-| 39 | Dashboard CLI interactif `rich` — vue temps réel santé SEO du site | Basse |
+| 40 | Abstraction multi-boutiques — config par tenant dans YAML | Haute |
+| 41 | Interface CLI universelle — sélecteur de secteur/niche au démarrage | Moyenne |
+| 42 | Bibliothèque de règles métier par secteur (cosmétique, bébé, jardinage…) | Haute |
+| 43 | Système de licences API key — authentification par boutique cliente | Haute |
+| 44 | Packaging PyPI ou Docker — installation en une commande | Moyenne |
 
 ## ⏳ Actions manuelles en attente
 
@@ -78,23 +86,23 @@
 
 ## 📋 Historique des sessions
 
-### Session 2026-05-08 (Phase 2 tâche 29 + validation CI)
-- Validation complète du pipeline GitHub Actions (nombreux fix : requirements.txt vide, PATH ruff, timeout pagespeed, permissions push)
-- Tâche 29 : send_alerts.py — CWV + positions + CTR, SMTP Gmail, 15 tests
-- 147/147 tests verts, ruff clean
+### Session 2026-05-08 (Phase 2 tâche 29 + Phase 3 complète)
+- Fix pipeline CI GitHub Actions (requirements.txt, ruff PATH, pagespeed timeout, permissions)
+- Tâche 29 : send_alerts.py (15 tests)
+- Tâches 30–39 : Phase 3 complète — 156 nouveaux tests
+- **303/303 tests verts** · ruff clean · toutes les tâches Phase 3 commitées et poussées
 
 ### Session 2026-05-06 (Phase 2 tâches 25–28)
-- Tâche 25 : detect_gsc_opportunities.py — 17 opportunités, +148 clics estimés (20 tests)
-- Tâche 26 : analyze_longtail.py — gap analysis + correction keywords.yaml (petfood → accessoires) (15 tests)
-- Tâche 27 : generate_delta_report.py — score 56.3→83.9, 62 issues résolues (11 tests)
-- Tâche 28 : weekly_audit.yml reécrit — pipeline complet, 6 secrets GitHub configurés
-- 132/132 tests verts, ruff clean
+- Tâche 25 : detect_gsc_opportunities.py (20 tests)
+- Tâche 26 : analyze_longtail.py (15 tests)
+- Tâche 27 : generate_delta_report.py (11 tests)
+- Tâche 28 : weekly_audit.yml pipeline complet
 
 ### Session 2026-05-05 → 2026-05-06 (Phase 2 tâches 16–24)
-- CLAUDE.md réorganisé avec protocole début de session
-- Tâches 16, 22, 23, 24 : ICE matrix, create_redirects, add_schema, rollback (37 tests)
+- CLAUDE.md réorganisé
+- Tâches 16, 22, 23, 24 (37 tests)
 
-### Session 2026-05-05 (Phase 1 + tâches 17–21 + GSC)
+### Session 2026-05-05 (Phase 1 + tâches 17–21)
 - Phase 1 complète : 14 fichiers, 49 tests
 - 26 méta + 17 alt texts poussés sur Shopify
 - GSC connecté : 50 URLs · 3 736 impressions
