@@ -4,6 +4,7 @@ from scripts.audit.fetch_pagespeed import fetch_score
 
 
 def test_fetch_score_returns_expected_keys(pagespeed_response, mocker):
+    mocker.patch.dict("os.environ", {"PAGESPEED_API_KEY": "test-key"})
     mock_get = mocker.patch("requests.get")
     mock_get.return_value.status_code = 200
     mock_get.return_value.json.return_value = pagespeed_response
@@ -19,6 +20,7 @@ def test_fetch_score_returns_expected_keys(pagespeed_response, mocker):
 
 
 def test_fetch_score_parses_values_correctly(pagespeed_response, mocker):
+    mocker.patch.dict("os.environ", {"PAGESPEED_API_KEY": "test-key"})
     mock_get = mocker.patch("requests.get")
     mock_get.return_value.status_code = 200
     mock_get.return_value.json.return_value = pagespeed_response
