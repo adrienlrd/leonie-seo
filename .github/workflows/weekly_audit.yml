@@ -117,6 +117,9 @@ jobs:
       - name: Générer les balises hreflang BE/CH
         run: python -m scripts.report.generate_hreflang
 
+      - name: Générer le rapport mensuel synthétique
+        run: python -m scripts.report.generate_monthly_report
+
       # ── Alertes ─────────────────────────────────────────────────────────────
 
       - name: Envoyer alertes email
