@@ -96,6 +96,9 @@ jobs:
       - name: Générer le rapport avant/après
         run: python -m scripts.report.generate_delta_report
 
+      - name: Générer les briefs articles blog
+        run: python -m scripts.report.generate_blog_briefs
+
       # ── Alertes ─────────────────────────────────────────────────────────────
 
       - name: Envoyer alertes email
