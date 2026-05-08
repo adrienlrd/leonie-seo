@@ -70,11 +70,14 @@ def fetch_scores_for_urls(urls: list[str], delay: float = 1.5) -> list[dict[str,
     results: list[dict[str, Any]] = []
     for url in urls:
         for strategy in ("mobile", "desktop"):
-            result = fetch_score(url, strategy)
-            results.append(result)
-            console.print(
-                f"  [green]✓[/green] {strategy:8} {result['performance_score']:.0%}  {url}"
-            )
+            try:
+                result = fetch_score(url, strategy)
+                results.append(result)
+                console.print(
+                    f"  [green]✓[/green] {strategy:8} {result['performance_score']:.0%}  {url}"
+                )
+            except requests.exceptions.Timeout:
+                console.print(f"  [yellow]⚠ timeout[/yellow] {strategy:8} {url} — skipped")
             time.sleep(delay)
     return results
 
