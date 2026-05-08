@@ -1,10 +1,10 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Phase actuelle : Phase 2 — Application supervisée (tâches 16–29)
-- Dernière session : 2026-05-06
-- Tâches Phase 2 complètes : 16–28 (13/14)
-- Prochain objectif : Tâche 29 — Alertes email (régression CWV, nouveaux 404, chute de position)
+- Phase actuelle : Phase 3 — Contenu SEO & Intelligence niche (tâches 30–39)
+- Dernière session : 2026-05-08
+- Phase 2 : **14/14 complètes** ✅
+- Prochain objectif : Tâche 30 — Générateur de briefs articles blog
 
 ## ✅ Terminé
 
@@ -24,7 +24,7 @@
 - `scripts/report/generate_report.py` — score /100 pondéré + rapport Markdown horodaté
 - `scripts/apply/update_meta.py` — mutation GraphQL, dry-run par défaut, logging SQLite
 
-### Phase 2 — Application supervisée (tâches 16–28) ✅
+### Phase 2 — Application supervisée (tâches 16–29) ✅
 - **16** `scripts/report/ice_matrix.py` — Matrice ICE pondérée GSC
 - **17–21** `generate_suggestions.py` + `update_alt_text.py` — **26 méta + 17 alt texts poussés** sur Shopify (0 erreur)
 - **22** `scripts/apply/create_redirects.py` — import 301 bulk depuis CSV
@@ -34,18 +34,29 @@
 - **26** `scripts/audit/analyze_longtail.py` — gap analysis mots-clés vs GSC + Shopify ; correction keywords.yaml (petfood → accessoires animaux)
 - **27** `scripts/report/generate_delta_report.py` — rapport avant/après : **56.3 → 83.9 (+27.6 pts), 62/68 issues résolues**
 - **28** `.github/workflows/weekly_audit.yml` — pipeline CI complet, 6 secrets configurés sur GitHub
+- **29** `scripts/report/send_alerts.py` — alertes email CWV + positions + CTR, SMTP Gmail, 15 tests
 
 ### Données réelles
 - **50 URLs GSC** · 90 jours · 245 clics · 3 736 impressions · position moyenne 6.0
 - **69 changements** loggés dans `data/history.db`
-- **132 tests unitaires** — 132/132 ✅ — ruff clean ✅
+- **147 tests unitaires** — 147/147 ✅ — ruff clean ✅
 - **Score SEO avant optimisations : 56.3 → après : 83.9 (+27.6 pts)**
+- **Pipeline CI** validé manuellement : tests + audit + commit rapport + alertes email
 
-## ⏳ À faire — Tâche restante Phase 2
+## ⏳ À faire — Phase 3 (tâches 30–39)
 
 | # | Tâche | Priorité |
 |---|---|---|
-| 29 | Alertes email — régression CWV, nouveaux 404, chute de position | Moyen terme |
+| 30 | Générateur de briefs articles blog (H1/H2, mots-clés, angle E-E-A-T) | Haute |
+| 31 | Réécriture descriptions produits longue traîne — ton premium FR | Haute |
+| 32 | Maillage interne automatique — détection opportunités liens blog → produits | Moyenne |
+| 33 | Analyse sémantique fiches produits vs concurrents (Zooplus, Wanimo) | Moyenne |
+| 34 | Générateur de FAQ structurée par catégorie produit | Moyenne |
+| 35 | Détecteur de cannibalisation — pages en compétition sur un même mot-clé | Moyenne |
+| 36 | Score E-E-A-T par page | Basse |
+| 37 | Générateur balises hreflang si extension BE/CH francophone | Basse |
+| 38 | Rapport mensuel synthétique PDF | Basse |
+| 39 | Dashboard CLI interactif `rich` — vue temps réel santé SEO du site | Basse |
 
 ## ⏳ Actions manuelles en attente
 
@@ -55,8 +66,10 @@
 - [ ] Corriger 6 méta titles trop courts dans l'admin (Bol Félin Raffiné, L'abreuvoir, Griffoir Dimitrios, Distributeur Pet Feeder, La Fontaine Smart, Le Harnais)
 - [ ] Écrire titres descriptifs pour 6 collections courtes
 
-### GitHub Actions
-- [ ] **🔴 PRIORITÉ PROCHAINE SESSION** — Tester le workflow manuellement pour valider les 6 secrets : aller sur GitHub → onglet Actions → "Audit SEO hebdomadaire" → "Run workflow" → vérifier que chaque étape passe sans erreur d'authentification
+### GitHub Actions — secrets alertes email
+- [ ] Ajouter `GMAIL_SENDER` (adresse Gmail expéditeur)
+- [ ] Ajouter `GMAIL_APP_PASSWORD` (mot de passe d'application Google)
+- [ ] Ajouter `ALERT_EMAIL` = adrien.leredde@outlook.com
 
 ### Opportunités GSC prioritaires
 - [ ] **L'abreuvoir** — pos 11.5, 344 impr → enrichir contenu + méta
@@ -64,6 +77,11 @@
 - [ ] **Le Tour De Cou Pour Chien** — pos 6.1, 210 impr, CTR 0% → réécrire méta
 
 ## 📋 Historique des sessions
+
+### Session 2026-05-08 (Phase 2 tâche 29 + validation CI)
+- Validation complète du pipeline GitHub Actions (nombreux fix : requirements.txt vide, PATH ruff, timeout pagespeed, permissions push)
+- Tâche 29 : send_alerts.py — CWV + positions + CTR, SMTP Gmail, 15 tests
+- 147/147 tests verts, ruff clean
 
 ### Session 2026-05-06 (Phase 2 tâches 25–28)
 - Tâche 25 : detect_gsc_opportunities.py — 17 opportunités, +148 clics estimés (20 tests)
