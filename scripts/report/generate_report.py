@@ -21,6 +21,7 @@ from scripts.audit.detect_issues import (
     detect_redirect_issues,
 )
 from scripts.audit.parse_screaming_frog import parse_overview, parse_redirects
+from scripts.license import LicenseError, require_valid_license
 from scripts.models import Issue, SEOScore, Severity
 
 console = Console()
@@ -202,6 +203,11 @@ def main(
     output_dir: str,
 ) -> None:
     """Generate a Markdown SEO report from audit data."""
+    try:
+        require_valid_license()
+    except LicenseError as e:
+        console.print(f"  [red]✗[/red] Licence invalide : {e}")
+        raise SystemExit(1)
     import pandas as pd
 
     console.print("[bold cyan]► Generating SEO report[/bold cyan]")

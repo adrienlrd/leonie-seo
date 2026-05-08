@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from scripts._config import get_config, load_tenant, reset_config_cache
+from scripts.license import LicenseError, require_valid_license
 
 console = Console()
 
@@ -36,12 +37,14 @@ def list_tenants() -> list[dict[str, str]]:
     for path in sorted(_TENANTS_DIR.glob("*.yaml")):
         try:
             cfg = load_tenant(path.stem)
-            tenants.append({
-                "tenant_id": cfg.tenant_id,
-                "name": cfg.name,
-                "domain": cfg.domain,
-                "niche": cfg.niche,
-            })
+            tenants.append(
+                {
+                    "tenant_id": cfg.tenant_id,
+                    "name": cfg.name,
+                    "domain": cfg.domain,
+                    "niche": cfg.niche,
+                }
+            )
         except Exception:
             tenants.append({"tenant_id": path.stem, "name": "?", "domain": "?", "niche": "?"})
     return tenants
@@ -75,9 +78,7 @@ def validate_tenant_id(value: str) -> str:
         click.BadParameter: If the value contains invalid characters.
     """
     if not re.match(r"^[a-z0-9][a-z0-9_-]*$", value):
-        raise click.BadParameter(
-            "Doit être en minuscules, sans espaces (ex: maboutique-fr)"
-        )
+        raise click.BadParameter("Doit être en minuscules, sans espaces (ex: maboutique-fr)")
     return value
 
 
@@ -99,9 +100,7 @@ def validate_shopify_domain(value: str) -> str:
         click.BadParameter: If the domain does not end with .myshopify.com.
     """
     if not value.endswith(".myshopify.com"):
-        raise click.BadParameter(
-            "Doit finir par .myshopify.com (ex: maboutique.myshopify.com)"
-        )
+        raise click.BadParameter("Doit finir par .myshopify.com (ex: maboutique.myshopify.com)")
     return value
 
 
@@ -341,6 +340,24 @@ def cmd_check(tenant: str | None) -> None:
         console.print(
             "\n  [yellow]⚠[/yellow] Ajouter les variables manquantes dans [cyan].env[/cyan]"
         )
+
+    # License status
+    console.print()
+    try:
+        result = require_valid_license()
+        if result is None:
+            console.print(
+                "  [dim]Licence :[/dim] [yellow]⚠[/yellow] LEONIE_API_KEY non définie"
+                " — usage personnel (sans licence commerciale)"
+            )
+        else:
+            console.print(
+                f"  [dim]Licence :[/dim] [green]✓[/green]"
+                f" tenant [cyan]{result['tenant_id']}[/cyan]"
+                f", expire le [yellow]{result['expiry']}[/yellow]"
+            )
+    except LicenseError as e:
+        console.print(f"  [dim]Licence :[/dim] [red]✗[/red] {e}")
 
 
 if __name__ == "__main__":

@@ -13,6 +13,8 @@ import requests
 from dotenv import load_dotenv
 from rich.console import Console
 
+from scripts.license import LicenseError, require_valid_license
+
 load_dotenv()
 
 console = Console()
@@ -205,6 +207,11 @@ def save_snapshot(
 @click.option("--output", default="data/raw/shopify_snapshot.json", show_default=True)
 def main(db_path: str, output: str) -> None:
     """Crawl the Shopify catalog and save a snapshot to SQLite + JSON."""
+    try:
+        require_valid_license()
+    except LicenseError as e:
+        console.print(f"  [red]✗[/red] Licence invalide : {e}")
+        raise SystemExit(1)
     console.print("[bold cyan]► Crawling Shopify catalog[/bold cyan]")
 
     products = fetch_products()

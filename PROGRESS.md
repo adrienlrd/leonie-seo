@@ -1,12 +1,12 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Phase actuelle : Phase 4 — Productisation (tâches 43–44)
+- Phase actuelle : Phase 4 — Productisation (tâche 44)
 - Dernière session : 2026-05-08
 - Phase 1 : **15/15 complètes** ✅
 - Phase 2 : **14/14 complètes** ✅
 - Phase 3 : **10/10 complètes** ✅
-- Tests : **365/365** ✅ — ruff clean ✅
+- Tests : **389/389** ✅ — ruff clean ✅
 
 ## ✅ Terminé
 
@@ -76,11 +76,10 @@
   - `tests/test_niche_config.py` : 23 nouveaux tests
   - **365 tests verts** · ruff clean
 
-## ⏳ À faire — Phase 4 (tâches 43–44)
+## ⏳ À faire — Phase 4 (tâche 44)
 
 | # | Tâche | Priorité |
 |---|---|---|
-| 43 | Système de licences API key — authentification par boutique cliente | Haute |
 | 44 | Packaging PyPI ou Docker — installation en une commande | Moyenne |
 
 ## ⏳ Actions manuelles en attente
@@ -102,6 +101,15 @@
 - [ ] **Le Tour De Cou Pour Chien** — pos 6.1, 210 impr, CTR 0% → réécrire méta
 
 ## 📋 Historique des sessions
+
+### Session 2026-05-08 (Tâche 43 — licences API key)
+- `scripts/license.py` : `issue_key`, `decode_key`, `validate_key`, `require_valid_license` + CLI `issue`/`check`
+- Clé signée HMAC-SHA256, format `LEO-<base64(tenant_id+expiry+sig)>`, sans dépendance externe
+- Intégration dans `crawl_shopify.py`, `update_meta.py`, `generate_report.py` — check non-bloquant si clé absente
+- `scripts/setup.py cmd check` affiche désormais le statut de licence
+- `.env.example` mis à jour avec `LICENSE_SECRET` et `LEONIE_API_KEY`
+- `tests/test_license.py` : 24 tests
+- **389/389 tests verts** · ruff clean
 
 ### Session 2026-05-08 (Tâche 42 — bibliothèque niches)
 - `scripts/_config.py` : modèles Pydantic `NicheConfig` + `load_niche()` lru_cache + `reset_config_cache()` étendu aux deux caches

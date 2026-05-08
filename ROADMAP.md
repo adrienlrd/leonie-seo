@@ -72,7 +72,7 @@
 | 40 | Abstraction multi-boutiques — config par tenant dans YAML | 🔴 | ✅ | 2026-05-08 |
 | 41 | Interface CLI universelle — sélecteur de secteur/niche au démarrage | 🟡 | ✅ | 2026-05-08 |
 | 42 | Bibliothèque de règles métier par secteur (cosmétique, bébé, jardinage…) | 🔴 | ✅ | 2026-05-08 |
-| 43 | Système de licences API key — authentification par boutique cliente | 🔴 | ⏳ | |
+| 43 | Système de licences API key — authentification par boutique cliente | 🔴 | ✅ | 2026-05-08 |
 | 44 | Packaging PyPI ou Docker — installation en une commande | 🔴 | ⏳ | |
 
 ---

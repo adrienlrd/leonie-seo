@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
+from scripts.license import LicenseError, require_valid_license
+
 load_dotenv()
 
 console = Console()
@@ -230,6 +232,11 @@ def main(updates: str, dry_run: bool, delay: float) -> None:
     Reads a JSON file of pre-computed updates. Always shows a preview table.
     Requires explicit --apply to write anything to Shopify.
     """
+    try:
+        require_valid_license()
+    except LicenseError as e:
+        console.print(f"  [red]✗[/red] Licence invalide : {e}")
+        raise SystemExit(1)
     with open(updates, encoding="utf-8") as f:
         update_list: list[dict[str, Any]] = json.load(f)
 
