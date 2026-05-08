@@ -12,93 +12,11 @@ import yaml
 from dotenv import load_dotenv
 from rich.console import Console
 
-from scripts._config import get_config
+from scripts._config import get_config, load_niche
 
 load_dotenv()
 
 console = Console()
-
-# --- Brief templates per keyword category ---------------------------------
-
-_INTENT = {
-    "informational": "Informatif (guide / conseil)",
-    "vetements_chien": "Commercial (catégorie produit)",
-    "vetements_chat": "Commercial (catégorie produit)",
-    "fontaines_abreuvoirs": "Commercial (catégorie produit)",
-    "accessoires_maison": "Commercial (catégorie produit)",
-    "brand": None,  # brand queries → no blog brief
-}
-
-_TARGET_LENGTH = {
-    "informational": "1 000–1 200 mots",
-    "vetements_chien": "800–1 000 mots",
-    "vetements_chat": "800–1 000 mots",
-    "fontaines_abreuvoirs": "1 000–1 200 mots",
-    "accessoires_maison": "800–1 000 mots",
-}
-
-_H2_TEMPLATES: dict[str, list[str]] = {
-    "informational": [
-        "Pourquoi c'est important pour la santé de votre animal",
-        "Les critères essentiels pour bien choisir",
-        "Les erreurs courantes à éviter",
-        "Notre sélection premium made in France",
-        "Questions fréquentes",
-    ],
-    "vetements_chien": [
-        "Pourquoi habiller son chien : confort, santé ou style ?",
-        "Comment choisir la bonne taille",
-        "Les matières qui comptent (laine, cachemire, coton bio)",
-        "Nos modèles français : du manteau au harnais haute couture",
-        "Entretien et durabilité",
-    ],
-    "vetements_chat": [
-        "Peut-on habiller un chat ? Ce que disent les vétérinaires",
-        "Les signes que votre chat est à l'aise ou stressé",
-        "Choisir la bonne taille et matière",
-        "Nos modèles élégants fabriqués en France",
-        "FAQ : vêtements pour chat",
-    ],
-    "fontaines_abreuvoirs": [
-        "Pourquoi les chats boivent peu — et comment y remédier",
-        "Fontaine filtrante vs abreuvoir classique : le comparatif",
-        "Sans fil ou filaire : quel modèle choisir ?",
-        "Entretien et hygiène : conseils de vétérinaires",
-        "Notre sélection de fontaines design pour chats",
-    ],
-    "accessoires_maison": [
-        "L'importance d'un espace dédié à votre animal",
-        "Les critères de qualité : matériaux, stabilité, design",
-        "Intégrer l'accessoire à votre décoration intérieure",
-        "Notre sélection premium made in France",
-        "FAQ",
-    ],
-}
-
-_EEAT_ANGLES: dict[str, str] = {
-    "informational": (
-        "Mobiliser l'expérience terrain de propriétaires exigeants. "
-        "Citer des recommandations vétérinaires si pertinent. "
-        "Montrer des produits testés en conditions réelles."
-    ),
-    "vetements_chien": (
-        "Angle créateur / artisan : chaque pièce est pensée pour le confort "
-        "et l'esthétique. Expertise couture française, matières sélectionnées."
-    ),
-    "vetements_chat": (
-        "Angle bien-être animal : écouter le chat avant le style. "
-        "Collaboration avec comportementalistes félins. Matières douces et non-contraignantes."
-    ),
-    "fontaines_abreuvoirs": (
-        "Angle santé : l'hydratation est le premier levier de santé chez le chat. "
-        "Données chiffrées sur la consommation d'eau. Recommandations vétérinaires."
-    ),
-    "accessoires_maison": (
-        "Angle design d'intérieur + bien-être animal. "
-        "Produits pensés pour les appartements parisiens. "
-        "Artisans français, matières naturelles."
-    ),
-}
 
 # Product URLs for internal linking suggestions
 _CATEGORY_TO_URLS: dict[str, list[str]] = {
@@ -161,7 +79,9 @@ def select_candidates(
 
     # 1. All informational keywords
     for kw in keywords.get("informational", []):
-        candidates.append({"keyword": kw, "category": "informational", "status": "planned", "impressions": 0})
+        candidates.append(
+            {"keyword": kw, "category": "informational", "status": "planned", "impressions": 0}
+        )
 
     # 2. on_site keywords with 0 impressions (sorted by opportunity_score desc)
     gap_map = {g["keyword"]: g for g in gaps if g["status"] in ("on_site", "gap")}
@@ -170,13 +90,15 @@ def select_candidates(
             continue
         for kw in kw_list:
             if kw in gap_map and gap_map[kw].get("impressions", 0) == 0:
-                candidates.append({
-                    "keyword": kw,
-                    "category": category,
-                    "status": gap_map[kw]["status"],
-                    "impressions": 0,
-                    "opportunity_score": gap_map[kw].get("opportunity_score", 0),
-                })
+                candidates.append(
+                    {
+                        "keyword": kw,
+                        "category": category,
+                        "status": gap_map[kw]["status"],
+                        "impressions": 0,
+                        "opportunity_score": gap_map[kw].get("opportunity_score", 0),
+                    }
+                )
 
     # Deduplicate and limit to 10 briefs
     seen: set[str] = set()
@@ -201,7 +123,9 @@ def _h1_from_keyword(keyword: str, category: str) -> str:
     return f"{kw} : notre sélection premium"
 
 
-def _secondary_keywords(keyword: str, category: str, all_keywords: dict[str, list[str]]) -> list[str]:
+def _secondary_keywords(
+    keyword: str, category: str, all_keywords: dict[str, list[str]]
+) -> list[str]:
     """Return related keywords from the same category, excluding the primary one."""
     pool = all_keywords.get(category, [])
     return [k for k in pool if k != keyword][:4]
@@ -210,20 +134,25 @@ def _secondary_keywords(keyword: str, category: str, all_keywords: dict[str, lis
 def generate_brief(
     candidate: dict[str, Any],
     all_keywords: dict[str, list[str]],
+    niche=None,
 ) -> dict[str, Any]:
     """Build a complete brief dict for one keyword."""
+    _niche = niche or load_niche(get_config().niche)
     kw = candidate["keyword"]
     category = candidate["category"]
+
+    fallback = _niche.blog_templates.get("informational")
+    template = _niche.blog_templates.get(category) or fallback
 
     return {
         "keyword": kw,
         "category": category,
-        "intent": _INTENT.get(category, "Informatif"),
+        "intent": template.intent if template else "Informatif",
         "h1": _h1_from_keyword(kw, category),
-        "h2s": _H2_TEMPLATES.get(category, _H2_TEMPLATES["informational"]),
+        "h2s": template.h2s if template else [],
         "secondary_keywords": _secondary_keywords(kw, category, all_keywords),
-        "target_length": _TARGET_LENGTH.get(category, "800–1 000 mots"),
-        "eeat_angle": _EEAT_ANGLES.get(category, _EEAT_ANGLES["informational"]),
+        "target_length": template.target_length if template else "800–1 000 mots",
+        "eeat_angle": template.eeat_angle if template else "",
         "internal_links": _CATEGORY_TO_URLS.get(category, []),
         "status": candidate.get("status", "planned"),
     }
@@ -290,7 +219,8 @@ def render_markdown(briefs: list[dict[str, Any]], date: str) -> str:
 @click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
 def main(keywords: str, gaps: str, output_dir: str, tenant: str | None) -> None:
     """Generate blog brief outlines from keyword gaps and GSC opportunities."""
-    get_config(tenant)  # preload tenant
+    cfg = get_config(tenant)
+    niche = load_niche(cfg.niche)
     console.print("[bold cyan]► Generating blog briefs[/bold cyan]")
 
     kw_data = load_keywords(keywords)
@@ -299,7 +229,7 @@ def main(keywords: str, gaps: str, output_dir: str, tenant: str | None) -> None:
     candidates = select_candidates(kw_data, gap_data)
     console.print(f"  {len(candidates)} candidats sélectionnés")
 
-    briefs = [generate_brief(c, kw_data) for c in candidates]
+    briefs = [generate_brief(c, kw_data, niche) for c in candidates]
 
     date = datetime.utcnow().strftime("%Y-%m-%d")
     out_dir = Path(output_dir) / date

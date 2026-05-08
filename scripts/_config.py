@@ -1,4 +1,4 @@
-"""Tenant configuration loader — reads config/tenants/<tenant_id>.yaml."""
+"""Tenant and niche configuration loaders."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import yaml
 from pydantic import BaseModel, Field
 
 _CONFIG_DIR = Path(__file__).parent.parent / "config" / "tenants"
+_NICHES_DIR = Path(__file__).parent.parent / "config" / "niches"
 _DEFAULT_TENANT = "leoniedelacroix"
 
 
@@ -82,6 +83,49 @@ class TenantConfig(BaseModel):
         return self.product_categories.get(handle, "accessoires")
 
 
+# ── Niche models ──────────────────────────────────────────────────────────
+
+
+class NicheSignals(BaseModel):
+    premium: list[str] = Field(default_factory=list)
+    eeat: list[str] = Field(default_factory=list)
+    longtail: list[str] = Field(default_factory=list)
+    category: dict[str, list[str]] = Field(default_factory=dict)
+
+
+class NicheEeatDimensions(BaseModel):
+    experience: list[str] = Field(default_factory=list)
+    expertise: list[str] = Field(default_factory=list)
+    authority: list[str] = Field(default_factory=list)
+    trust: list[str] = Field(default_factory=list)
+    weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "experience": 0.20,
+            "expertise": 0.30,
+            "authority": 0.25,
+            "trust": 0.25,
+        }
+    )
+
+
+class NicheBlogTemplate(BaseModel):
+    h2s: list[str] = Field(default_factory=list)
+    intent: str = ""
+    target_length: str = "800–1 000 mots"
+    eeat_angle: str = ""
+
+
+class NicheConfig(BaseModel):
+    niche_id: str
+    label: str
+    language: str = "fr"
+    market: str = "FR"
+    signals: NicheSignals = Field(default_factory=NicheSignals)
+    eeat_dimensions: NicheEeatDimensions = Field(default_factory=NicheEeatDimensions)
+    faq_templates: dict[str, list[dict[str, str]]] = Field(default_factory=dict)
+    blog_templates: dict[str, NicheBlogTemplate] = Field(default_factory=dict)
+
+
 def load_tenant(tenant_id: str) -> TenantConfig:
     """Load and validate a tenant config from YAML.
 
@@ -118,6 +162,28 @@ def get_config(tenant_id: str | None = None) -> TenantConfig:
     return load_tenant(resolved)
 
 
+@lru_cache(maxsize=8)
+def load_niche(niche_id: str) -> NicheConfig:
+    """Load and validate a niche config from YAML.
+
+    Args:
+        niche_id: Niche identifier matching a file in config/niches/.
+
+    Returns:
+        Validated NicheConfig instance.
+
+    Raises:
+        FileNotFoundError: If no config file exists for niche_id.
+    """
+    path = _NICHES_DIR / f"{niche_id}.yaml"
+    if not path.exists():
+        raise FileNotFoundError(f"No niche config found at {path}")
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return NicheConfig.parse_obj(data)
+
+
 def reset_config_cache() -> None:
-    """Clear the lru_cache — use in tests to reload config between calls."""
+    """Clear tenant and niche lru_caches — use in tests to reload between calls."""
     get_config.cache_clear()
+    load_niche.cache_clear()

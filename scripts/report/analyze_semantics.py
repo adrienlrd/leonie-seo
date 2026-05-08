@@ -13,89 +13,11 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
-from scripts._config import get_config
+from scripts._config import get_config, load_niche
 
 load_dotenv()
 
 console = Console()
-
-# ── Competitor semantic signals (Miacara, Zooplus, Wanimo benchmark) ───────
-
-_PREMIUM_SIGNALS: list[str] = [
-    # Fabrication / origine
-    "made in france", "fabriqué en france", "fabriqué à la main", "fait main",
-    "artisanal", "artisan", "couturière", "confectionné",
-    # Matières
-    "laine d'alpaga", "alpaga", "cachemire", "soie naturelle", "cuir véritable",
-    "cuir pleine fleur", "coton bio", "lin naturel", "inox", "céramique",
-    # Bien-être animal
-    "confort", "ergonomique", "posture naturelle", "liberté de mouvement",
-    "non-restrictif", "respirant", "hypoallergénique", "sans bpa", "alimentaire",
-    # Durabilité
-    "durable", "résistant", "lavable", "entretien facile", "garantie",
-    # Design
-    "design", "élégant", "premium", "luxe", "haut de gamme", "raffiné",
-    # Service
-    "livraison", "retour", "satisfait", "remboursé", "france métropolitaine",
-]
-
-_EEAT_SIGNALS: list[str] = [
-    "vétérinaire", "vétérinaires", "comportementaliste", "comportementalistes",
-    "expert", "experts", "spécialiste", "spécialistes",
-    "recommandé", "recommandée", "recommandés", "certifié", "certifiée",
-    "testé", "testée", "testés", "cliniquement", "approuvé", "approuvée",
-    "conseil", "conseils", "étude", "recherche",
-]
-
-_LONGTAIL_SIGNALS: list[str] = [
-    # Vetements chien
-    "pour chien", "chiens", "manteau pour chien", "pull pour chien",
-    "harnais pour chien", "taille chien", "morphologie",
-    # Vetements chat
-    "pour chat", "chats", "félin", "félins", "comportement félin",
-    # Fontaines
-    "fontaine", "abreuvoir", "hydratation", "eau filtrée", "filtre",
-    "sans fil", "silencieux", "silencieuse", "capacité",
-    "rein", "urinaire", "santé rénale",
-    # Accessoires
-    "griffoir", "griffer", "griffes", "arbre à chat", "bol surélevé",
-    "digestion", "antidérapant",
-]
-
-# ── Category → relevant signal subsets ────────────────────────────────────
-
-_CATEGORY_SIGNALS: dict[str, list[str]] = {
-    "vetements_chien": [
-        "pour chien", "chiens", "harnais", "manteau pour chien", "pull pour chien",
-        "taille chien", "morphologie", "made in france", "artisan", "couturière",
-        "confectionné", "laine d'alpaga", "cachemire", "soie naturelle",
-        "cuir véritable", "confort", "liberté de mouvement", "respirant",
-        "durable", "élégant", "premium",
-    ],
-    "vetements_chat": [
-        "pour chat", "chats", "félin", "comportement félin", "non-restrictif",
-        "made in france", "artisan", "couturière", "laine d'alpaga", "soie naturelle",
-        "confort", "liberté de mouvement", "respirant", "hypoallergénique",
-        "élégant", "premium",
-    ],
-    "fontaines": [
-        "fontaine", "abreuvoir", "hydratation", "eau filtrée", "filtre",
-        "sans fil", "silencieux", "silencieuse", "capacité", "rein",
-        "urinaire", "santé rénale", "vétérinaire", "recommandé",
-        "inox", "alimentaire", "sans bpa", "durable", "design",
-    ],
-    "filtres": [
-        "filtre", "eau filtrée", "charbon actif", "calcaire", "impuretés",
-        "hygiène", "remplacement", "compatible", "alimentaire",
-        "certifié", "garantie",
-    ],
-    "accessoires": [
-        "design", "élégant", "premium", "raffiné", "ergonomique",
-        "posture naturelle", "confort", "céramique", "inox", "sans bpa",
-        "alimentaire", "durable", "résistant", "lavable", "made in france",
-        "félin", "félins", "digestion", "antidérapant",
-    ],
-}
 
 
 def _normalize(text: str) -> str:
@@ -110,20 +32,22 @@ def _score_signals(text: str, signals: list[str]) -> tuple[int, int, list[str]]:
     return len(found), len(signals), missing
 
 
-def analyze_product(product: dict[str, Any], cfg=None) -> dict[str, Any]:
+def analyze_product(product: dict[str, Any], cfg=None, niche=None) -> dict[str, Any]:
     """Score a single product description across all signal categories."""
     _cfg = cfg or get_config()
+    _niche = niche or load_niche(_cfg.niche)
     handle = product.get("handle", "")
     title = product.get("title", "")
     description = (product.get("description") or "").strip()
     text = f"{title} {description}"
 
     category = _cfg.category_for_handle(handle)
-    category_signals = _CATEGORY_SIGNALS.get(category, _CATEGORY_SIGNALS["accessoires"])
+    fallback = _niche.signals.category.get("accessoires", [])
+    category_signals = _niche.signals.category.get(category, fallback)
 
-    prem_found, prem_total, prem_missing = _score_signals(text, _PREMIUM_SIGNALS)
-    eeat_found, eeat_total, eeat_missing = _score_signals(text, _EEAT_SIGNALS)
-    lt_found, lt_total, lt_missing = _score_signals(text, _LONGTAIL_SIGNALS)
+    prem_found, prem_total, prem_missing = _score_signals(text, _niche.signals.premium)
+    eeat_found, eeat_total, eeat_missing = _score_signals(text, _niche.signals.eeat)
+    lt_found, lt_total, lt_missing = _score_signals(text, _niche.signals.longtail)
     cat_found, cat_total, cat_missing = _score_signals(text, category_signals)
 
     # Weighted global score: category coverage 40%, premium 30%, longtail 20%, eeat 10%
@@ -156,9 +80,9 @@ def load_products(snapshot_path: str) -> list[dict[str, Any]]:
     with open(snapshot_path, encoding="utf-8") as f:
         data = json.load(f)
     return [
-        p for p in data.get("products", [])
-        if not p["title"].startswith("Pet ")
-        and p["title"] != "Le Harnais Haute Couture (test)"
+        p
+        for p in data.get("products", [])
+        if not p["title"].startswith("Pet ") and p["title"] != "Le Harnais Haute Couture (test)"
     ]
 
 
@@ -248,10 +172,11 @@ def render_markdown(results: list[dict[str, Any]], date: str) -> str:
 def main(snapshot: str, keywords: str, output_dir: str, tenant: str | None) -> None:
     """Score product descriptions against competitor vocabulary and keyword targets."""
     cfg = get_config(tenant)
+    niche = load_niche(cfg.niche)
     console.print("[bold cyan]► Semantic analysis vs competitor benchmark[/bold cyan]")
 
     products = load_products(snapshot)
-    results = [analyze_product(p, cfg) for p in products]
+    results = [analyze_product(p, cfg, niche) for p in products]
 
     table = Table(title="Semantic Scores")
     table.add_column("Product", max_width=30)
@@ -260,7 +185,9 @@ def main(snapshot: str, keywords: str, output_dir: str, tenant: str | None) -> N
     table.add_column("E-E-A-T", justify="right")
 
     for r in sorted(results, key=lambda x: -x["global_score"]):
-        color = "green" if r["global_score"] >= 0.5 else "yellow" if r["global_score"] >= 0.3 else "red"
+        color = (
+            "green" if r["global_score"] >= 0.5 else "yellow" if r["global_score"] >= 0.3 else "red"
+        )
         table.add_row(
             r["title"][:30],
             f"[{color}]{r['global_score']:.0%}[/{color}]",

@@ -11,60 +11,9 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from scripts._config import get_config
+from scripts._config import get_config, load_niche
 
 console = Console()
-
-# ── Signal lists per E-E-A-T dimension ────────────────────────────────────
-
-_EXPERIENCE_SIGNALS: list[str] = [
-    "nous avons testé", "testé par", "retour d'expérience", "en pratique",
-    "nos clients", "avis clients", "témoignage", "ils ont adoré",
-    "après utilisation", "après plusieurs", "nos animaux", "notre équipe",
-    "conçu avec", "développé avec", "créé avec", "inspiré par",
-    "nous utilisons", "utilisé au quotidien",
-]
-
-_EXPERTISE_SIGNALS: list[str] = [
-    "vétérinaire", "vétérinaires", "comportementaliste", "comportementalistes",
-    "spécialiste", "spécialistes", "expert", "experts",
-    "recommandé", "recommandée", "recommandés",
-    "certifié", "certifiée", "certifiés",
-    "cliniquement", "approuvé", "approuvée",
-    "étude", "recherche", "selon les études",
-    "norme", "normes", "conforme",
-]
-
-_AUTHORITY_SIGNALS: list[str] = [
-    "fabriqué en france", "made in france", "fabrication française",
-    "fait main", "fabriqué à la main", "artisanal", "artisan",
-    "couturière", "couturières", "confectionné",
-    "normes européennes", "certification", "certifié ce",
-    "depuis", "fondé", "créé en", "marque française",
-    "primé", "récompensé", "sélectionné",
-    "partenaire", "collaboration",
-]
-
-_TRUST_SIGNALS: list[str] = [
-    "garantie", "garanti", "garantis",
-    "remboursé", "remboursement", "satisfait ou remboursé",
-    "retour", "retours", "échange",
-    "livraison", "expédition", "délai",
-    "sans bpa", "sans phtalates", "sans substances nocives",
-    "inox 304", "inox 316", "acier inoxydable",
-    "alimentaire", "certifié alimentaire",
-    "non toxique", "hypoallergénique",
-    "testé", "testée", "testés",
-    "sécurité", "sécurisé", "paiement sécurisé",
-]
-
-# Weighted global score: Expertise carries most weight for a premium pet brand
-_WEIGHTS = {
-    "experience": 0.20,
-    "expertise": 0.30,
-    "authority": 0.25,
-    "trust": 0.25,
-}
 
 
 def _count_signals(text: str, signals: list[str]) -> tuple[int, int]:
@@ -74,41 +23,46 @@ def _count_signals(text: str, signals: list[str]) -> tuple[int, int]:
     return found, len(signals)
 
 
-def score_page(product: dict[str, Any]) -> dict[str, Any]:
+def score_page(product: dict[str, Any], niche=None) -> dict[str, Any]:
     """Compute E-E-A-T scores for a single product.
 
     Args:
         product: Product dict with keys: handle, title, description.
+        niche: Optional NicheConfig. Defaults to active tenant's niche.
 
     Returns:
         Dict with dimension scores, global score, and missing signals.
     """
+    _niche = niche or load_niche(get_config().niche)
+    dim = _niche.eeat_dimensions
+    weights = dim.weights
+
     title = product.get("title", "")
     description = (product.get("description") or "").strip()
     text = f"{title} {description}"
 
-    exp_found, exp_total = _count_signals(text, _EXPERIENCE_SIGNALS)
-    exp_found2, exp_total2 = _count_signals(text, _EXPERTISE_SIGNALS)
-    auth_found, auth_total = _count_signals(text, _AUTHORITY_SIGNALS)
-    trust_found, trust_total = _count_signals(text, _TRUST_SIGNALS)
+    exp_found, exp_total = _count_signals(text, dim.experience)
+    exp_found2, exp_total2 = _count_signals(text, dim.expertise)
+    auth_found, auth_total = _count_signals(text, dim.authority)
+    trust_found, trust_total = _count_signals(text, dim.trust)
 
-    exp_score = round(exp_found / exp_total, 3)
-    expertise_score = round(exp_found2 / exp_total2, 3)
-    auth_score = round(auth_found / auth_total, 3)
-    trust_score = round(trust_found / trust_total, 3)
+    exp_score = round(exp_found / max(exp_total, 1), 3)
+    expertise_score = round(exp_found2 / max(exp_total2, 1), 3)
+    auth_score = round(auth_found / max(auth_total, 1), 3)
+    trust_score = round(trust_found / max(trust_total, 1), 3)
 
     global_score = round(
-        _WEIGHTS["experience"] * exp_score
-        + _WEIGHTS["expertise"] * expertise_score
-        + _WEIGHTS["authority"] * auth_score
-        + _WEIGHTS["trust"] * trust_score,
+        weights.get("experience", 0.20) * exp_score
+        + weights.get("expertise", 0.30) * expertise_score
+        + weights.get("authority", 0.25) * auth_score
+        + weights.get("trust", 0.25) * trust_score,
         3,
     )
 
-    exp_missing = [s for s in _EXPERIENCE_SIGNALS if s not in text.lower()]
-    expertise_missing = [s for s in _EXPERTISE_SIGNALS if s not in text.lower()]
-    auth_missing = [s for s in _AUTHORITY_SIGNALS if s not in text.lower()]
-    trust_missing = [s for s in _TRUST_SIGNALS if s not in text.lower()]
+    exp_missing = [s for s in dim.experience if s not in text.lower()]
+    expertise_missing = [s for s in dim.expertise if s not in text.lower()]
+    auth_missing = [s for s in dim.authority if s not in text.lower()]
+    trust_missing = [s for s in dim.trust if s not in text.lower()]
 
     return {
         "handle": product.get("handle", ""),
@@ -130,9 +84,9 @@ def load_products(snapshot_path: str) -> list[dict[str, Any]]:
     with open(snapshot_path, encoding="utf-8") as f:
         data = json.load(f)
     return [
-        p for p in data.get("products", [])
-        if not p["title"].startswith("Pet ")
-        and p["title"] != "Le Harnais Haute Couture (test)"
+        p
+        for p in data.get("products", [])
+        if not p["title"].startswith("Pet ") and p["title"] != "Le Harnais Haute Couture (test)"
     ]
 
 
@@ -256,7 +210,13 @@ def main(snapshot: str, output_dir: str, json_output: str, tenant: str | None) -
     table.add_column("Trust", justify="right")
 
     for r in sorted(results, key=lambda x: -x["global_score"]):
-        color = "green" if r["global_score"] >= 0.45 else "yellow" if r["global_score"] >= 0.25 else "red"
+        color = (
+            "green"
+            if r["global_score"] >= 0.45
+            else "yellow"
+            if r["global_score"] >= 0.25
+            else "red"
+        )
         table.add_row(
             r["title"][:30],
             f"[{color}]{r['global_score']:.0%}[/{color}]",

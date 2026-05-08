@@ -1,14 +1,523 @@
 # Niche config — pet_accessories_fr
-# Signal lists and content templates will be migrated here in task 42.
-# Scripts currently read these values from Python constants.
+# Accessoires et vêtements premium pour animaux de compagnie, marché FR
+# Signals, templates FAQ et blog externalisés ici (task 42).
 
 niche_id: pet_accessories_fr
 label: "Accessoires animaux premium FR"
 language: fr
 market: FR
 
-# Placeholder — task 42 will externalize signal lists and templates here
-# signals:
-#   premium: [...]
-#   eeat: [...]
-#   longtail: [...]
+# ── Signals sémantiques ────────────────────────────────────────────────────
+
+signals:
+  premium:
+    - "made in france"
+    - "fabriqué en france"
+    - "fabriqué à la main"
+    - "fait main"
+    - "artisanal"
+    - "artisan"
+    - "couturière"
+    - "confectionné"
+    - "laine d'alpaga"
+    - "alpaga"
+    - "cachemire"
+    - "soie naturelle"
+    - "cuir véritable"
+    - "cuir pleine fleur"
+    - "coton bio"
+    - "lin naturel"
+    - "inox"
+    - "céramique"
+    - "confort"
+    - "ergonomique"
+    - "posture naturelle"
+    - "liberté de mouvement"
+    - "non-restrictif"
+    - "respirant"
+    - "hypoallergénique"
+    - "sans bpa"
+    - "alimentaire"
+    - "durable"
+    - "résistant"
+    - "lavable"
+    - "entretien facile"
+    - "garantie"
+    - "design"
+    - "élégant"
+    - "premium"
+    - "luxe"
+    - "haut de gamme"
+    - "raffiné"
+    - "livraison"
+    - "retour"
+    - "satisfait"
+    - "remboursé"
+    - "france métropolitaine"
+
+  eeat:
+    - "vétérinaire"
+    - "vétérinaires"
+    - "comportementaliste"
+    - "comportementalistes"
+    - "expert"
+    - "experts"
+    - "spécialiste"
+    - "spécialistes"
+    - "recommandé"
+    - "recommandée"
+    - "recommandés"
+    - "certifié"
+    - "certifiée"
+    - "testé"
+    - "testée"
+    - "testés"
+    - "cliniquement"
+    - "approuvé"
+    - "approuvée"
+    - "conseil"
+    - "conseils"
+    - "étude"
+    - "recherche"
+
+  longtail:
+    - "pour chien"
+    - "chiens"
+    - "manteau pour chien"
+    - "pull pour chien"
+    - "harnais pour chien"
+    - "taille chien"
+    - "morphologie"
+    - "pour chat"
+    - "chats"
+    - "félin"
+    - "félins"
+    - "comportement félin"
+    - "fontaine"
+    - "abreuvoir"
+    - "hydratation"
+    - "eau filtrée"
+    - "filtre"
+    - "sans fil"
+    - "silencieux"
+    - "silencieuse"
+    - "capacité"
+    - "rein"
+    - "urinaire"
+    - "santé rénale"
+    - "griffoir"
+    - "griffer"
+    - "griffes"
+    - "arbre à chat"
+    - "bol surélevé"
+    - "digestion"
+    - "antidérapant"
+
+  category:
+    vetements_chien:
+      - "pour chien"
+      - "chiens"
+      - "harnais"
+      - "manteau pour chien"
+      - "pull pour chien"
+      - "taille chien"
+      - "morphologie"
+      - "made in france"
+      - "artisan"
+      - "couturière"
+      - "confectionné"
+      - "laine d'alpaga"
+      - "cachemire"
+      - "soie naturelle"
+      - "cuir véritable"
+      - "confort"
+      - "liberté de mouvement"
+      - "respirant"
+      - "durable"
+      - "élégant"
+      - "premium"
+    vetements_chat:
+      - "pour chat"
+      - "chats"
+      - "félin"
+      - "comportement félin"
+      - "non-restrictif"
+      - "made in france"
+      - "artisan"
+      - "couturière"
+      - "laine d'alpaga"
+      - "soie naturelle"
+      - "confort"
+      - "liberté de mouvement"
+      - "respirant"
+      - "hypoallergénique"
+      - "élégant"
+      - "premium"
+    fontaines:
+      - "fontaine"
+      - "abreuvoir"
+      - "hydratation"
+      - "eau filtrée"
+      - "filtre"
+      - "sans fil"
+      - "silencieux"
+      - "silencieuse"
+      - "capacité"
+      - "rein"
+      - "urinaire"
+      - "santé rénale"
+      - "vétérinaire"
+      - "recommandé"
+      - "inox"
+      - "alimentaire"
+      - "sans bpa"
+      - "durable"
+      - "design"
+    filtres:
+      - "filtre"
+      - "eau filtrée"
+      - "charbon actif"
+      - "calcaire"
+      - "impuretés"
+      - "hygiène"
+      - "remplacement"
+      - "compatible"
+      - "alimentaire"
+      - "certifié"
+      - "garantie"
+    accessoires:
+      - "design"
+      - "élégant"
+      - "premium"
+      - "raffiné"
+      - "ergonomique"
+      - "posture naturelle"
+      - "confort"
+      - "céramique"
+      - "inox"
+      - "sans bpa"
+      - "alimentaire"
+      - "durable"
+      - "résistant"
+      - "lavable"
+      - "made in france"
+      - "félin"
+      - "félins"
+      - "digestion"
+      - "antidérapant"
+
+# ── Dimensions E-E-A-T ─────────────────────────────────────────────────────
+
+eeat_dimensions:
+  experience:
+    - "nous avons testé"
+    - "testé par"
+    - "retour d'expérience"
+    - "en pratique"
+    - "nos clients"
+    - "avis clients"
+    - "témoignage"
+    - "ils ont adoré"
+    - "après utilisation"
+    - "après plusieurs"
+    - "nos animaux"
+    - "notre équipe"
+    - "conçu avec"
+    - "développé avec"
+    - "créé avec"
+    - "inspiré par"
+    - "nous utilisons"
+    - "utilisé au quotidien"
+
+  expertise:
+    - "vétérinaire"
+    - "vétérinaires"
+    - "comportementaliste"
+    - "comportementalistes"
+    - "spécialiste"
+    - "spécialistes"
+    - "expert"
+    - "experts"
+    - "recommandé"
+    - "recommandée"
+    - "recommandés"
+    - "certifié"
+    - "certifiée"
+    - "certifiés"
+    - "cliniquement"
+    - "approuvé"
+    - "approuvée"
+    - "étude"
+    - "recherche"
+    - "selon les études"
+    - "norme"
+    - "normes"
+    - "conforme"
+
+  authority:
+    - "fabriqué en france"
+    - "made in france"
+    - "fabrication française"
+    - "fait main"
+    - "fabriqué à la main"
+    - "artisanal"
+    - "artisan"
+    - "couturière"
+    - "couturières"
+    - "confectionné"
+    - "normes européennes"
+    - "certification"
+    - "certifié ce"
+    - "depuis"
+    - "fondé"
+    - "créé en"
+    - "marque française"
+    - "primé"
+    - "récompensé"
+    - "sélectionné"
+    - "partenaire"
+    - "collaboration"
+
+  trust:
+    - "garantie"
+    - "garanti"
+    - "garantis"
+    - "remboursé"
+    - "remboursement"
+    - "satisfait ou remboursé"
+    - "retour"
+    - "retours"
+    - "échange"
+    - "livraison"
+    - "expédition"
+    - "délai"
+    - "sans bpa"
+    - "sans phtalates"
+    - "sans substances nocives"
+    - "inox 304"
+    - "inox 316"
+    - "acier inoxydable"
+    - "alimentaire"
+    - "certifié alimentaire"
+    - "non toxique"
+    - "hypoallergénique"
+    - "testé"
+    - "testée"
+    - "testés"
+    - "sécurité"
+    - "sécurisé"
+    - "paiement sécurisé"
+
+  weights:
+    experience: 0.20
+    expertise: 0.30
+    authority: 0.25
+    trust: 0.25
+
+# ── FAQ templates par catégorie ────────────────────────────────────────────
+
+faq_templates:
+  vetements_chien:
+    - q: "Comment choisir la bonne taille de vêtement pour mon chien ?"
+      a: >-
+        Mesurez le tour de poitrail, le tour de cou et la longueur du dos de votre chien.
+        Nos guides des tailles sont disponibles sur chaque fiche produit.
+        En cas de doute entre deux tailles, choisissez la plus grande pour préserver la liberté de mouvement.
+        Nos vêtements pour chien sont conçus pour une morphologie naturelle sans comprimer les articulations.
+    - q: "Quelles matières sont utilisées dans vos vêtements pour chien ?"
+      a: >-
+        Nous sélectionnons des matières premium : laine d'alpaga (douce et hypoallergénique),
+        soie naturelle, cachemire et cuir pleine fleur tanné végétal.
+        Toutes nos matières sont testées sans produits chimiques nocifs et adaptées au contact avec la peau animale.
+        Nos vêtements pour chien sont fabriqués à la main en France par nos couturières expertes.
+    - q: "Comment habituer mon chien à porter un vêtement ?"
+      a: >-
+        Introduisez le vêtement progressivement : posez-le près de votre chien quelques jours,
+        puis enfilez-le quelques minutes en le récompensant.
+        Augmentez la durée graduellement.
+        Nos modèles sont conçus pour être enfilés facilement et ne pas stresser l'animal —
+        fermoirs magnétiques ou velcro pour une mise en place sans effort.
+    - q: "Comment entretenir les vêtements pour chien Léonie Delacroix ?"
+      a: >-
+        Lavage à la main à l'eau froide ou cycle délicat à 30°C maximum.
+        Séchage à plat, à l'abri de la lumière directe.
+        Évitez l'essorage pour préserver les matières nobles comme l'alpaga et la soie.
+        Un entretien soigneux garantit une durée de vie longue et un confort constant.
+    - q: "Vos vêtements pour chien sont-ils adaptés à toutes les saisons ?"
+      a: >-
+        Nos manteaux et pardessus sont conçus pour les saisons froides (automne et hiver).
+        Les tours de cou et pulls légers conviennent aux demi-saisons.
+        Chaque fiche produit indique la saison recommandée.
+        La laine d'alpaga régule naturellement la température corporelle, ce qui en fait un choix idéal pour les variations de temps.
+
+  vetements_chat:
+    - q: "Mon chat peut-il vraiment porter des vêtements sans stress ?"
+      a: >-
+        Oui, à condition de choisir des pièces légères, non-restrictives et adaptées à sa morphologie.
+        Nous travaillons avec des comportementalistes félins pour concevoir des modèles qui respectent
+        les besoins sensoriels du chat.
+        Les signes d'acceptation : le chat continue de se déplacer normalement, mange et se toilette.
+        Interrompez si vous observez immobilité, halètement ou tentatives répétées de retrait.
+    - q: "Comment prendre les mesures de mon chat pour commander le bon modèle ?"
+      a: >-
+        Mesurez le tour de cou, le tour de poitrail (juste derrière les pattes avant) et la longueur du dos.
+        Reportez-vous au guide des tailles sur chaque fiche produit.
+        Nos vêtements pour chat sont coupés pour ne pas gêner les sauts,
+        le toilettage ou les passages dans les chatières.
+    - q: "Quelles matières utilisez-vous pour les vêtements pour chat ?"
+      a: >-
+        Nous privilégions la laine d'alpaga ultra-douce (hypoallergénique et thermorégulante),
+        le jersey de soie naturelle et le coton biologique certifié.
+        Ces matières évitent l'accumulation d'électricité statique et ne retiennent pas les poils.
+        Toutes sont fabriquées sans substances irritantes pour la peau féline sensible.
+    - q: "Comment laver les vêtements pour chat ?"
+      a: >-
+        Lavage à la main à l'eau froide, avec un savon doux sans parfum.
+        Séchage à plat à l'ombre.
+        Évitez la machine à laver pour les pièces en alpaga ou soie.
+        Le coton biologique peut passer en machine à 30°C en cycle délicat.
+
+  fontaines:
+    - q: "Pourquoi mon chat devrait-il boire dans une fontaine plutôt qu'un bol ?"
+      a: >-
+        Les chats sont instinctivement attirés par l'eau en mouvement — un réflexe de survie.
+        Une fontaine filtrante peut augmenter leur consommation d'eau de 50 % par rapport à un bol statique.
+        Une meilleure hydratation réduit les risques d'insuffisance rénale, de calculs urinaires et d'infections.
+        Recommandée par les vétérinaires pour les chats prédisposés aux maladies rénales.
+    - q: "À quelle fréquence faut-il changer l'eau et nettoyer la fontaine ?"
+      a: >-
+        Changez l'eau tous les 2 à 3 jours et nettoyez le bac hebdomadairement.
+        Le filtre charbon actif doit être remplacé toutes les 2 à 4 semaines selon le nombre d'animaux et la dureté de l'eau.
+        Un entretien régulier garantit une eau fraîche, propre et sans odeur désagréable.
+    - q: "La fontaine fait-elle du bruit ? Peut-elle déranger mon chat ?"
+      a: >-
+        Nos fontaines sont équipées d'un moteur ultra-silencieux (< 40 dB).
+        La majorité des chats s'y habituent en 24 à 48 heures.
+        Le bruit de l'eau qui coule est justement attractif pour les félins — c'est ce qui les incite à boire davantage.
+        Si votre chat semble méfiant au début, placez la fontaine loin de sa litière et près de sa zone de repos.
+    - q: "La fontaine fonctionne-t-elle sans fil ?"
+      a: >-
+        Oui, notre modèle Fontaine Smart est sans fil et rechargeable par USB.
+        L'autonomie varie de 7 à 15 jours selon le débit choisi.
+        L'installation sans câble vous permet de la placer partout dans votre intérieur sans contrainte esthétique.
+        Compatible avec tous les filtres de remplacement disponibles dans notre boutique.
+    - q: "La fontaine est-elle sans danger pour les chats et les chiens ?"
+      a: >-
+        Toutes nos fontaines sont fabriquées en matériaux certifiés alimentaires : inox 304, plastique sans BPA,
+        céramique de qualité.
+        Les filtres charbon actif utilisés respectent les normes européennes de qualité alimentaire.
+        Aucun composant chimique nocif ne risque de contaminer l'eau de votre animal.
+
+  filtres:
+    - q: "À quelle fréquence faut-il changer les filtres ?"
+      a: >-
+        En règle générale, changez les filtres toutes les 2 à 4 semaines.
+        Si vous avez plusieurs animaux ou si votre eau est calcaire, remplacez-les toutes les 2 semaines.
+        Un filtre saturé perd son efficacité et peut développer des bactéries — un changement régulier est essentiel.
+    - q: "Comment savoir que le filtre doit être changé ?"
+      a: >-
+        Signes à surveiller : eau avec une légère odeur, dépôts visibles sur le filtre,
+        débit de la fontaine réduit.
+        Certains chats refusent de boire à la fontaine quand le filtre est trop usé — c'est un signal fiable.
+        Nos packs économiques permettent d'avoir toujours un filtre de rechange disponible.
+    - q: "Ces filtres sont-ils compatibles avec toutes les fontaines Léonie Delacroix ?"
+      a: >-
+        Oui, nos filtres sont conçus pour être compatibles avec l'ensemble des fontaines et abreuvoirs Léonie Delacroix.
+        Consultez la fiche produit pour vérifier la compatibilité avec votre modèle.
+        Chaque filtre est emballé individuellement pour préserver sa fraîcheur jusqu'à utilisation.
+
+  accessoires:
+    - q: "Vos accessoires sont-ils fabriqués avec des matériaux sans danger pour mon animal ?"
+      a: >-
+        Oui. Nous sélectionnons exclusivement des matériaux certifiés alimentaires ou sûrs au contact animal :
+        céramique de qualité, inox 304, bois naturel non traité, cuir tanné végétal.
+        Aucun produit chimique, peinture ou vernis nocif n'est utilisé dans notre fabrication.
+        Chaque accessoire est testé avant mise en vente.
+    - q: "Comment entretenir les accessoires Léonie Delacroix ?"
+      a: >-
+        Les bols en céramique ou inox passent au lave-vaisselle.
+        Les griffoirs et arbres à chat s'entretiennent avec un chiffon humide.
+        Évitez les produits ménagers agressifs — un savon doux suffit.
+        La durabilité de nos matériaux premium garantit un usage intensif sans dégradation prématurée.
+    - q: "Vos griffoirs réduisent-ils vraiment les dégâts sur les meubles ?"
+      a: >-
+        Oui, à condition que le griffoir soit positionné là où votre chat griffe habituellement.
+        Le sisal naturel que nous utilisons offre la résistance idéale pour satisfaire l'instinct de griffage.
+        Nous recommandons de placer le griffoir près du lieu de repos du chat,
+        car les chats griffent souvent en s'étirant au réveil.
+    - q: "Le bol surélevé est-il vraiment meilleur pour la santé de mon chat ?"
+      a: >-
+        Oui. Un bol surélevé réduit la pression sur la colonne cervicale du chat pendant le repas,
+        améliore la posture et facilite la digestion.
+        Recommandé par les vétérinaires pour les chats âgés ou ceux souffrant d'arthrose.
+        Notre Bol Félin Raffiné est incliné à l'angle optimal pour la posture naturelle féline.
+
+# ── Blog templates par catégorie ──────────────────────────────────────────
+
+blog_templates:
+  informational:
+    intent: "Informatif (guide / conseil)"
+    target_length: "1 000–1 200 mots"
+    eeat_angle: >-
+      Mobiliser l'expérience terrain de propriétaires exigeants.
+      Citer des recommandations vétérinaires si pertinent.
+      Montrer des produits testés en conditions réelles.
+    h2s:
+      - "Pourquoi c'est important pour la santé de votre animal"
+      - "Les critères essentiels pour bien choisir"
+      - "Les erreurs courantes à éviter"
+      - "Notre sélection premium made in France"
+      - "Questions fréquentes"
+
+  vetements_chien:
+    intent: "Commercial (catégorie produit)"
+    target_length: "800–1 000 mots"
+    eeat_angle: >-
+      Angle créateur / artisan : chaque pièce est pensée pour le confort
+      et l'esthétique. Expertise couture française, matières sélectionnées.
+    h2s:
+      - "Pourquoi habiller son chien : confort, santé ou style ?"
+      - "Comment choisir la bonne taille"
+      - "Les matières qui comptent (laine, cachemire, coton bio)"
+      - "Nos modèles français : du manteau au harnais haute couture"
+      - "Entretien et durabilité"
+
+  vetements_chat:
+    intent: "Commercial (catégorie produit)"
+    target_length: "800–1 000 mots"
+    eeat_angle: >-
+      Angle bien-être animal : écouter le chat avant le style.
+      Collaboration avec comportementalistes félins. Matières douces et non-contraignantes.
+    h2s:
+      - "Peut-on habiller un chat ? Ce que disent les vétérinaires"
+      - "Les signes que votre chat est à l'aise ou stressé"
+      - "Choisir la bonne taille et matière"
+      - "Nos modèles élégants fabriqués en France"
+      - "FAQ : vêtements pour chat"
+
+  fontaines_abreuvoirs:
+    intent: "Commercial (catégorie produit)"
+    target_length: "1 000–1 200 mots"
+    eeat_angle: >-
+      Angle santé : l'hydratation est le premier levier de santé chez le chat.
+      Données chiffrées sur la consommation d'eau. Recommandations vétérinaires.
+    h2s:
+      - "Pourquoi les chats boivent peu — et comment y remédier"
+      - "Fontaine filtrante vs abreuvoir classique : le comparatif"
+      - "Sans fil ou filaire : quel modèle choisir ?"
+      - "Entretien et hygiène : conseils de vétérinaires"
+      - "Notre sélection de fontaines design pour chats"
+
+  accessoires_maison:
+    intent: "Commercial (catégorie produit)"
+    target_length: "800–1 000 mots"
+    eeat_angle: >-
+      Angle design d'intérieur + bien-être animal.
+      Produits pensés pour les appartements parisiens.
+      Artisans français, matières naturelles.
+    h2s:
+      - "L'importance d'un espace dédié à votre animal"
+      - "Les critères de qualité : matériaux, stabilité, design"
+      - "Intégrer l'accessoire à votre décoration intérieure"
+      - "Notre sélection premium made in France"
+      - "FAQ"

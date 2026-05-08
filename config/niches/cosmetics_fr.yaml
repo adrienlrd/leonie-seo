@@ -1,0 +1,162 @@
+# Niche config — cosmetics_fr
+# Cosmétiques et soins premium, marché FR
+
+niche_id: cosmetics_fr
+label: "Cosmétiques premium FR"
+language: fr
+market: FR
+
+signals:
+  premium:
+    - "naturel"
+    - "bio"
+    - "certifié bio"
+    - "écocert"
+    - "vegan"
+    - "cruelty-free"
+    - "sans parabène"
+    - "sans sulfate"
+    - "fait en france"
+    - "fabriqué en france"
+    - "ingrédients naturels"
+    - "huile essentielle"
+    - "extrait végétal"
+    - "dermatologiquement testé"
+    - "peaux sensibles"
+    - "hypoallergénique"
+    - "sans parfum synthétique"
+    - "rechargeable"
+    - "éco-responsable"
+    - "luxe"
+    - "premium"
+  eeat:
+    - "dermatologue"
+    - "dermatologues"
+    - "médecin"
+    - "expert"
+    - "experts"
+    - "cliniquement testé"
+    - "testé"
+    - "certifié"
+    - "recommandé"
+    - "étude clinique"
+    - "approuvé"
+  longtail:
+    - "soin visage"
+    - "crème hydratante"
+    - "sérum anti-âge"
+    - "huile corps"
+    - "masque visage"
+    - "peaux mixtes"
+    - "peaux sèches"
+    - "peaux grasses"
+    - "soin nuit"
+    - "soin jour"
+    - "routine beauté"
+    - "inci"
+  category:
+    soins_visage:
+      - "soin visage"
+      - "crème hydratante"
+      - "sérum"
+      - "naturel"
+      - "bio"
+      - "dermatologiquement testé"
+      - "sans parabène"
+    soins_corps:
+      - "huile corps"
+      - "lait corps"
+      - "peaux sèches"
+      - "naturel"
+      - "bio"
+      - "écocert"
+
+eeat_dimensions:
+  experience:
+    - "nous avons testé"
+    - "testé par notre équipe"
+    - "retour d'expérience"
+    - "avis clients"
+    - "après utilisation"
+    - "nos clientes"
+    - "témoignages"
+  expertise:
+    - "dermatologue"
+    - "dermatologues"
+    - "médecin"
+    - "cliniquement testé"
+    - "testé"
+    - "certifié"
+    - "recommandé"
+    - "étude clinique"
+    - "approuvé"
+    - "expert"
+    - "experts"
+  authority:
+    - "fabriqué en france"
+    - "fait en france"
+    - "depuis"
+    - "fondé"
+    - "marque française"
+    - "certification"
+    - "ecocert"
+    - "label bio"
+    - "artisan"
+    - "laboratoire"
+  trust:
+    - "garantie"
+    - "remboursé"
+    - "satisfait ou remboursé"
+    - "sans parabène"
+    - "sans sulfate"
+    - "testé"
+    - "retour"
+    - "livraison"
+    - "paiement sécurisé"
+    - "inci"
+    - "ingrédients transparents"
+  weights:
+    experience: 0.20
+    expertise: 0.35
+    authority: 0.25
+    trust: 0.20
+
+faq_templates:
+  soins_visage:
+    - q: "Cette crème est-elle adaptée aux peaux sensibles ?"
+      a: >-
+        Oui. Notre formule est dermatologiquement testée et conçue sans parfums synthétiques ni parabènes.
+        Elle convient aux peaux sensibles, mixtes et sèches.
+        Recommandée par les dermatologues pour une hydratation sans irritation.
+    - q: "Vos produits sont-ils certifiés bio ?"
+      a: >-
+        Nos soins sont formulés avec des ingrédients naturels certifiés.
+        Retrouvez la liste INCI complète sur chaque fiche produit.
+        Nous privilégions les certifications Ecocert et Cosmos Organic.
+
+blog_templates:
+  informational:
+    intent: "Informatif (guide / conseil)"
+    target_length: "1 000–1 500 mots"
+    eeat_angle: >-
+      Citer des études cliniques et recommandations dermatologiques.
+      Expliquer les ingrédients clés et leur action.
+      Témoignages de clientes avec avant/après.
+    h2s:
+      - "Comprendre les besoins de votre type de peau"
+      - "Les ingrédients à privilégier (et ceux à éviter)"
+      - "Notre formulation naturelle et certifiée"
+      - "Comment intégrer ce soin dans votre routine"
+      - "Questions fréquentes"
+  soins_visage:
+    intent: "Commercial (catégorie produit)"
+    target_length: "800–1 000 mots"
+    eeat_angle: >-
+      Angle expertise : formulateur, laboratoire, certifications.
+      Rassurer sur la transparence des ingrédients (INCI).
+    h2s:
+      - "Les actifs clés de cette formule"
+      - "Pour quel type de peau ?"
+      - "Comment l'utiliser (matin / soir / fréquence)"
+      - "Ce que disent les dermatologues"
+      - "FAQ"

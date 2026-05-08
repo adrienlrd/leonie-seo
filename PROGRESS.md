@@ -1,12 +1,12 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Phase actuelle : Phase 4 — Productisation (tâches 40–44)
+- Phase actuelle : Phase 4 — Productisation (tâches 43–44)
 - Dernière session : 2026-05-08
 - Phase 1 : **15/15 complètes** ✅
 - Phase 2 : **14/14 complètes** ✅
 - Phase 3 : **10/10 complètes** ✅
-- Tests : **342/342** ✅ — ruff clean ✅
+- Tests : **365/365** ✅ — ruff clean ✅
 
 ## ✅ Terminé
 
@@ -56,7 +56,7 @@
 - **Score SEO avant : 56.3 → après : 83.9 (+27.6 pts)**
 - **Pipeline CI GitHub Actions** validé : tests + audit + tous les rapports Phase 3
 
-### Phase 4 — Productisation (tâches 40–41) ✅
+### Phase 4 — Productisation (tâches 40–42) ✅
 - **40** `config/tenants/leoniedelacroix.yaml` + `scripts/_config.py` — abstraction multi-tenant complète
   - Pydantic v1 `TenantConfig` : base_url, brand, categories, product_categories, hreflang_locales, seo_rules, alert_thresholds
   - 16 scripts migrés : domaine, brand, thresholds SEO → tous via `get_config(tenant_id)`
@@ -68,13 +68,18 @@
   - `list` : tableau de tous les tenants avec marqueur tenant actif
   - `check` : validation config + secrets `.env` requis
   - 342 tests verts · ruff clean
+- **42** `NicheConfig` + 4 YAML niches + migration 4 scripts
+  - `scripts/_config.py` : modèles `NicheSignals`, `NicheEeatDimensions`, `NicheBlogTemplate`, `NicheConfig` + `load_niche()` lru_cache
+  - `config/niches/pet_accessories_fr.yaml` : signals premium/eeat/longtail/category, dimensions EEAT, 21 FAQ Q/R, 5 blog templates
+  - 3 nouveaux secteurs : `cosmetics_fr.yaml`, `mode_fr.yaml`, `jardinage_fr.yaml`
+  - 4 scripts migrés : `analyze_semantics.py`, `score_eeat.py`, `generate_faq.py`, `generate_blog_briefs.py`
+  - `tests/test_niche_config.py` : 23 nouveaux tests
+  - **365 tests verts** · ruff clean
 
-## ⏳ À faire — Phase 4 (tâches 42–44)
+## ⏳ À faire — Phase 4 (tâches 43–44)
 
 | # | Tâche | Priorité |
 |---|---|---|
-| 41 | Interface CLI universelle — sélecteur de secteur/niche au démarrage | Moyenne |
-| 42 | Bibliothèque de règles métier par secteur (cosmétique, bébé, jardinage…) | Haute |
 | 43 | Système de licences API key — authentification par boutique cliente | Haute |
 | 44 | Packaging PyPI ou Docker — installation en une commande | Moyenne |
 
@@ -97,6 +102,14 @@
 - [ ] **Le Tour De Cou Pour Chien** — pos 6.1, 210 impr, CTR 0% → réécrire méta
 
 ## 📋 Historique des sessions
+
+### Session 2026-05-08 (Tâche 42 — bibliothèque niches)
+- `scripts/_config.py` : modèles Pydantic `NicheConfig` + `load_niche()` lru_cache + `reset_config_cache()` étendu aux deux caches
+- `config/niches/pet_accessories_fr.yaml` : signals (premium × 43, eeat × 23, longtail × 30, category × 5), EEAT dimensions × 4, 21 FAQ Q/R, 5 blog templates
+- 3 nouveaux secteurs : `cosmetics_fr.yaml`, `mode_fr.yaml`, `jardinage_fr.yaml`
+- 4 scripts migrés (constantes Python → YAML) : `analyze_semantics.py`, `score_eeat.py`, `generate_faq.py`, `generate_blog_briefs.py`
+- `tests/test_niche_config.py` : 23 tests
+- **365/365 tests verts** · ruff clean
 
 ### Session 2026-05-08 (Tâche 40 — multi-tenant)
 - `scripts/_config.py` : TenantConfig Pydantic v1, lru_cache, `get_config(tenant_id)`

@@ -1,0 +1,167 @@
+# Niche config — jardinage_fr
+# Jardinage, plantes et outils premium, marché FR
+
+niche_id: jardinage_fr
+label: "Jardinage premium FR"
+language: fr
+market: FR
+
+signals:
+  premium:
+    - "fabriqué en france"
+    - "made in france"
+    - "artisan"
+    - "artisanal"
+    - "outil forgé"
+    - "acier inoxydable"
+    - "bois certifié"
+    - "fsc"
+    - "bio"
+    - "certifié bio"
+    - "sans pesticide"
+    - "compost"
+    - "terreau naturel"
+    - "durable"
+    - "résistant"
+    - "garantie"
+    - "ergonomique"
+    - "manche bois"
+    - "premium"
+    - "jardinage raisonné"
+    - "éco-responsable"
+  eeat:
+    - "horticulteur"
+    - "jardinier expert"
+    - "botaniste"
+    - "agronome"
+    - "paysagiste"
+    - "recommandé"
+    - "certifié"
+    - "testé"
+    - "expert"
+    - "conseil"
+  longtail:
+    - "jardinage débutant"
+    - "jardinage balcon"
+    - "potager urbain"
+    - "plantes d'intérieur"
+    - "arrosage automatique"
+    - "composteur"
+    - "outils jardinage"
+    - "taille-haie"
+    - "bêche"
+    - "transplantoir"
+    - "serre"
+    - "engrais naturel"
+  category:
+    outils:
+      - "outil forgé"
+      - "acier inoxydable"
+      - "manche bois"
+      - "ergonomique"
+      - "made in france"
+      - "artisan"
+      - "durable"
+      - "résistant"
+      - "garantie"
+    plantes:
+      - "plante"
+      - "bio"
+      - "sans pesticide"
+      - "terreau naturel"
+      - "arrosage"
+      - "exposition"
+      - "entretien facile"
+      - "naturel"
+
+eeat_dimensions:
+  experience:
+    - "notre équipe de jardiniers"
+    - "testé dans nos jardins"
+    - "retour d'expérience"
+    - "nos clients témoignent"
+    - "après plusieurs saisons"
+    - "nous cultivons"
+    - "jardiniers passionnés"
+    - "en pratique"
+  expertise:
+    - "horticulteur"
+    - "jardinier expert"
+    - "botaniste"
+    - "agronome"
+    - "paysagiste"
+    - "recommandé"
+    - "certifié"
+    - "testé"
+    - "expert"
+    - "selon les spécialistes"
+    - "études agronomiques"
+  authority:
+    - "fabriqué en france"
+    - "made in france"
+    - "forge française"
+    - "artisan forgeron"
+    - "depuis"
+    - "fondé"
+    - "marque française"
+    - "fsc"
+    - "certification"
+    - "label"
+  trust:
+    - "garantie"
+    - "garanti"
+    - "remboursé"
+    - "satisfait ou remboursé"
+    - "retour"
+    - "livraison"
+    - "sans pesticide"
+    - "bio"
+    - "certifié"
+    - "testé"
+    - "paiement sécurisé"
+  weights:
+    experience: 0.25
+    expertise: 0.30
+    authority: 0.25
+    trust: 0.20
+
+faq_templates:
+  outils:
+    - q: "Comment entretenir mes outils de jardinage ?"
+      a: >-
+        Nettoyez les lames après chaque utilisation pour éviter la rouille.
+        Huilez les parties métalliques avec une huile végétale ou minérale légère.
+        Affûtez les tranchants une à deux fois par saison.
+        Rangez à l'abri de l'humidité, outil à la verticale ou suspendu.
+    - q: "Vos outils sont-ils fabriqués en France ?"
+      a: >-
+        Oui, notre gamme d'outils forgés est fabriquée dans des ateliers français.
+        Nous travaillons avec des artisans forgerons qui perpétuent un savoir-faire séculaire.
+        Les manches sont en bois certifié FSC provenant de forêts gérées durablement.
+
+blog_templates:
+  informational:
+    intent: "Informatif (guide / conseil)"
+    target_length: "1 200–1 500 mots"
+    eeat_angle: >-
+      Citer des conseils d'horticulteurs et jardiniers experts.
+      Données pratiques sur les saisons et les variétés.
+      Montrer des résultats concrets avec photos de jardins clients.
+    h2s:
+      - "Par où commencer : les bases du jardinage"
+      - "Choisir les bons outils selon votre espace"
+      - "Les variétés adaptées à votre région"
+      - "Calendrier d'entretien mois par mois"
+      - "Questions fréquentes des débutants"
+  outils:
+    intent: "Commercial (catégorie produit)"
+    target_length: "800–1 000 mots"
+    eeat_angle: >-
+      Angle artisan-forgeron : explication du procédé de forge.
+      Valoriser la longévité et la transmission du savoir-faire.
+    h2s:
+      - "Pourquoi choisir un outil forgé plutôt qu'industriel"
+      - "Les matériaux qui font la différence"
+      - "Comment choisir selon votre type de sol"
+      - "Nos outils fabriqués en France"
+      - "Entretien et longévité : investir une fois pour longtemps"

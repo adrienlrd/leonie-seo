@@ -1,0 +1,169 @@
+# Niche config — mode_fr
+# Mode et vêtements premium, marché FR
+
+niche_id: mode_fr
+label: "Mode premium FR"
+language: fr
+market: FR
+
+signals:
+  premium:
+    - "made in france"
+    - "fabriqué en france"
+    - "couture"
+    - "haute couture"
+    - "artisan"
+    - "artisanal"
+    - "fait main"
+    - "tailleur"
+    - "façonnier"
+    - "atelier"
+    - "créateur"
+    - "laine vierge"
+    - "cachemire"
+    - "soie"
+    - "lin"
+    - "coton bio"
+    - "matières nobles"
+    - "coupe ajustée"
+    - "finitions soignées"
+    - "intemporel"
+    - "capsule"
+    - "édition limitée"
+    - "premium"
+    - "luxe"
+    - "responsable"
+    - "durable"
+  eeat:
+    - "styliste"
+    - "designer"
+    - "créateur"
+    - "couturier"
+    - "expert"
+    - "recommandé"
+    - "certifié"
+    - "reconnu"
+    - "primé"
+    - "collaborateur"
+  longtail:
+    - "vêtement femme"
+    - "vêtement homme"
+    - "robe élégante"
+    - "manteau luxe"
+    - "costume sur mesure"
+    - "pull cachemire"
+    - "tenue soirée"
+    - "mode durable"
+    - "mode responsable"
+    - "marque française"
+  category:
+    manteaux:
+      - "manteau"
+      - "imperméable"
+      - "trench"
+      - "laine"
+      - "cachemire"
+      - "made in france"
+      - "artisan"
+      - "doublure"
+      - "coupe cintrée"
+    robes:
+      - "robe"
+      - "soie"
+      - "lin"
+      - "coton bio"
+      - "made in france"
+      - "couturière"
+      - "élégant"
+      - "intemporel"
+
+eeat_dimensions:
+  experience:
+    - "notre atelier"
+    - "conçu par"
+    - "nous avons créé"
+    - "retour de nos clientes"
+    - "avis clients"
+    - "après plusieurs saisons"
+    - "nos stylistes"
+    - "testé au quotidien"
+  expertise:
+    - "styliste"
+    - "designer"
+    - "couturier"
+    - "tailleur"
+    - "façonnier"
+    - "expert"
+    - "reconnu"
+    - "primé"
+    - "récompensé"
+    - "certifié"
+    - "label"
+  authority:
+    - "fabriqué en france"
+    - "made in france"
+    - "atelier français"
+    - "façonnier français"
+    - "depuis"
+    - "fondé"
+    - "marque française"
+    - "créateur français"
+    - "artisan"
+    - "certifié"
+  trust:
+    - "garantie"
+    - "remboursé"
+    - "satisfait ou remboursé"
+    - "retour gratuit"
+    - "livraison"
+    - "paiement sécurisé"
+    - "testé"
+    - "échange"
+    - "matières tracées"
+    - "éco-responsable"
+  weights:
+    experience: 0.20
+    expertise: 0.30
+    authority: 0.30
+    trust: 0.20
+
+faq_templates:
+  manteaux:
+    - q: "Comment entretenir un manteau en laine ?"
+      a: >-
+        Lavage à sec recommandé ou lavage main à l'eau froide.
+        Séchage à plat à l'ombre pour éviter la déformation.
+        Ne jamais essorer. Brossez régulièrement avec une brosse à laine.
+        Un entretien soigneux préserve la qualité et la durée de vie du vêtement.
+    - q: "Vos manteaux sont-ils fabriqués en France ?"
+      a: >-
+        Oui, tous nos manteaux sont fabriqués dans nos ateliers français.
+        Nous travaillons avec des façonniers partenaires locaux pour garantir
+        un savoir-faire couture de qualité et des conditions de travail éthiques.
+
+blog_templates:
+  informational:
+    intent: "Informatif (guide / conseil)"
+    target_length: "1 000–1 500 mots"
+    eeat_angle: >-
+      Valoriser l'expertise des créateurs et stylistes.
+      Expliquer les matières et leur provenance.
+      Mettre en avant le savoir-faire artisanal français.
+    h2s:
+      - "Les critères d'un vêtement de qualité"
+      - "Choisir des matières durables et éco-responsables"
+      - "Le savoir-faire artisanal français"
+      - "Notre sélection capsule intemporelle"
+      - "Questions fréquentes"
+  manteaux:
+    intent: "Commercial (catégorie produit)"
+    target_length: "800–1 000 mots"
+    eeat_angle: >-
+      Angle créateur : la coupe, les matières et la fabrication française.
+      Valoriser l'investissement dans un manteau durable.
+    h2s:
+      - "Pourquoi investir dans un manteau de qualité"
+      - "Les matières nobles : laine, cachemire, alpaga"
+      - "Comment choisir sa coupe selon sa morphologie"
+      - "Nos modèles fabriqués en France"
+      - "Entretien et longévité"
