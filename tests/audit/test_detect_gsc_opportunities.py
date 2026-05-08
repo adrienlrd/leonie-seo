@@ -1,16 +1,14 @@
 """Tests for scripts.audit.detect_gsc_opportunities."""
 
 import pandas as pd
-import pytest
 
 from scripts.audit.detect_gsc_opportunities import (
+    _estimated_gain,
+    _page_type,
     classify_url,
     detect_opportunities,
     score_opportunity,
-    _estimated_gain,
-    _page_type,
 )
-
 
 # ── _page_type ────────────────────────────────────────────────────────────────
 

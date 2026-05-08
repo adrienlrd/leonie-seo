@@ -1,15 +1,14 @@
 """Tests for scripts.audit.analyze_longtail."""
 
 import pandas as pd
-import pytest
 
 from scripts.audit.analyze_longtail import (
+    _site_tokens,
     _tokenize,
     build_gap_report,
     classify_coverage,
     match_keyword_to_gsc,
     match_keyword_to_site,
-    _site_tokens,
 )
 
 _PRODUCTS = [

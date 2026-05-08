@@ -8,7 +8,6 @@ from scripts.apply.create_redirects import (
     validate_redirects,
 )
 
-
 # ── validate_redirects ────────────────────────────────────────────────────────
 
 

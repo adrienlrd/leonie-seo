@@ -1,10 +1,8 @@
 """Tests for scripts.report.generate_delta_report."""
 
-import pytest
 
 from scripts.report.generate_delta_report import (
     changes_summary,
-    compute_issues,
     generate_delta_markdown,
     reconstruct_before_snapshot,
 )

@@ -1,7 +1,6 @@
 """Tests for scripts.report.ice_matrix."""
 
 import pandas as pd
-import pytest
 
 from scripts.models import Issue, Severity
 from scripts.report.ice_matrix import build_ice_matrix, score_issue
