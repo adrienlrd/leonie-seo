@@ -12,9 +12,11 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
+from scripts._config import get_config
+
 console = Console()
 
-_MIN_IMPRESSIONS = 10  # ignore queries with fewer impressions (noise filter)
+_MIN_IMPRESSIONS = 10  # default; overridden by tenant config
 
 
 def _page_type(url: str) -> str:
@@ -209,9 +211,13 @@ def render_markdown(
 @click.option("--input", "input_path", default="data/raw/gsc_query_page.csv", show_default=True)
 @click.option("--output-dir", default="reports", show_default=True)
 @click.option("--json-output", default="data/raw/cannibalization.json", show_default=True)
-@click.option("--min-impressions", default=_MIN_IMPRESSIONS, show_default=True)
-def main(input_path: str, output_dir: str, json_output: str, min_impressions: int) -> None:
+@click.option("--min-impressions", default=None, type=int, help="Override min impressions threshold")
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(input_path: str, output_dir: str, json_output: str, min_impressions: int | None, tenant: str | None) -> None:
     """Detect pages competing for the same queries (keyword cannibalization)."""
+    cfg = get_config(tenant)
+    t = cfg.alert_thresholds
+    effective_min = min_impressions if min_impressions is not None else t.cannibalization_min_impressions
     console.print("[bold cyan]► Detecting keyword cannibalization[/bold cyan]")
 
     df = load_gsc_query_page(input_path)
@@ -220,9 +226,9 @@ def main(input_path: str, output_dir: str, json_output: str, min_impressions: in
         console.print(f"  [yellow]⚠[/yellow] No data at {input_path} — skipping")
         return
 
-    results = detect_cannibal_pairs(df, min_impressions=min_impressions)
+    results = detect_cannibal_pairs(df, min_impressions=effective_min)
 
-    high = sum(1 for r in results if r["severity"] >= 0.6)
+    high = sum(1 for r in results if r["severity"] >= t.cannibalization_severity_high)
     console.print(f"  {len(results)} cannibalized queries found ({high} high severity)")
 
     table = Table(title="Top Cannibalization Issues")

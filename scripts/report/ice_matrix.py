@@ -9,6 +9,7 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
+from scripts._config import get_config
 from scripts.audit.detect_issues import (
     detect_alt_text_issues,
     detect_meta_description_issues,
@@ -17,8 +18,6 @@ from scripts.audit.detect_issues import (
 from scripts.models import Issue
 
 console = Console()
-
-_SITE_URL = "https://www.leoniedelacroix.com"
 
 _CONFIDENCE: dict[str, int] = {
     "missing_meta_title": 9,
@@ -64,16 +63,18 @@ _SEVERITY_BASE: dict[str, float] = {
 
 
 def _build_url_map(
-    products: list[dict[str, Any]], collections: list[dict[str, Any]]
+    products: list[dict[str, Any]], collections: list[dict[str, Any]], cfg=None
 ) -> dict[str, str]:
     """Map Shopify GID → canonical page URL."""
+    _cfg = cfg or get_config()
+    base = _cfg.base_url
     mapping: dict[str, str] = {}
     for p in products:
         if handle := p.get("handle"):
-            mapping[p["id"]] = f"{_SITE_URL}/products/{handle}"
+            mapping[p["id"]] = f"{base}/products/{handle}"
     for c in collections:
         if handle := c.get("handle"):
-            mapping[c["id"]] = f"{_SITE_URL}/collections/{handle}"
+            mapping[c["id"]] = f"{base}/collections/{handle}"
     return mapping
 
 
@@ -147,6 +148,7 @@ def build_ice_matrix(
     products: list[dict[str, Any]],
     collections: list[dict[str, Any]],
     gsc: pd.DataFrame,
+    cfg=None,
 ) -> list[dict[str, Any]]:
     """Build the full ICE matrix from all detected issues, sorted by score desc.
 
@@ -154,11 +156,12 @@ def build_ice_matrix(
         products: Raw product list from Shopify snapshot.
         collections: Raw collection list from Shopify snapshot.
         gsc: GSC performance DataFrame.
+        cfg: Optional TenantConfig (defaults to TENANT_ID env var).
 
     Returns:
         List of scored issue dicts, highest ICE first.
     """
-    url_map = _build_url_map(products, collections)
+    url_map = _build_url_map(products, collections, cfg)
 
     all_issues: list[Issue] = (
         detect_meta_title_issues(products, "product")
@@ -183,12 +186,14 @@ def _severity_color(severity: str) -> str:
 @click.option("--gsc", "gsc_path", default="data/raw/gsc_performance.csv", show_default=True)
 @click.option("--output", default="data/raw/ice_matrix.json", show_default=True)
 @click.option("--top", default=20, show_default=True, help="Number of issues to display")
-def main(snapshot: str, gsc_path: str, output: str, top: int) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(snapshot: str, gsc_path: str, output: str, top: int, tenant: str | None) -> None:
     """Generate ICE priority matrix from Shopify issues and GSC data.
 
     ICE = (Impact × Confidence) / Effort
     Reads the Shopify snapshot and GSC CSV, writes ice_matrix.json.
     """
+    cfg = get_config(tenant)
     console.print("[bold cyan]► Building ICE priority matrix[/bold cyan]")
 
     with open(snapshot, encoding="utf-8") as f:
@@ -202,7 +207,7 @@ def main(snapshot: str, gsc_path: str, output: str, top: int) -> None:
             "[yellow]  ⚠ No GSC data found — impact scores won't use impressions[/yellow]"
         )
 
-    matrix = build_ice_matrix(products, collections, gsc_df)
+    matrix = build_ice_matrix(products, collections, gsc_df, cfg)
 
     table = Table(title=f"ICE Priority Matrix — Top {top}", show_lines=True)
     table.add_column("#", width=3)

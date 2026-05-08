@@ -12,6 +12,8 @@ import yaml
 from dotenv import load_dotenv
 from rich.console import Console
 
+from scripts._config import get_config
+
 load_dotenv()
 
 console = Console()
@@ -229,8 +231,9 @@ def generate_brief(
 
 def render_markdown(briefs: list[dict[str, Any]], date: str) -> str:
     """Render all briefs as a Markdown document."""
+    _site = get_config().domain
     lines = [
-        f"# Briefs Articles Blog — leoniedelacroix.com — {date}",
+        f"# Briefs Articles Blog — {_site} — {date}",
         "",
         f"**{len(briefs)} briefs générés** · Priorité : informationnels d'abord, puis pages catalogue sans trafic",
         "",
@@ -276,7 +279,7 @@ def render_markdown(briefs: list[dict[str, Any]], date: str) -> str:
 
         lines += ["", "---", ""]
 
-    lines.append("*Généré automatiquement par le pipeline SEO leoniedelacroix.com*")
+    lines.append(f"*Généré automatiquement par le pipeline SEO {get_config().domain}*")
     return "\n".join(lines)
 
 
@@ -284,8 +287,10 @@ def render_markdown(briefs: list[dict[str, Any]], date: str) -> str:
 @click.option("--keywords", default="config/keywords.yaml", show_default=True)
 @click.option("--gaps", default="data/raw/longtail_gaps.json", show_default=True)
 @click.option("--output-dir", default="reports", show_default=True)
-def main(keywords: str, gaps: str, output_dir: str) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(keywords: str, gaps: str, output_dir: str, tenant: str | None) -> None:
     """Generate blog brief outlines from keyword gaps and GSC opportunities."""
+    get_config(tenant)  # preload tenant
     console.print("[bold cyan]► Generating blog briefs[/bold cyan]")
 
     kw_data = load_keywords(keywords)

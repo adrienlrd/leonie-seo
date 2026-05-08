@@ -14,6 +14,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from rich.console import Console
 
+from scripts._config import get_config
+
 load_dotenv()
 
 console = Console()
@@ -21,11 +23,10 @@ console = Console()
 _SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 
 
-def _default_site_url() -> str:
+def _default_site_url(cfg=None) -> str:
     if url := os.getenv("GSC_SITE_URL"):
         return url
-    domain = os.getenv("SHOPIFY_STORE_DOMAIN", "www.leoniedelacroix.com")
-    return f"https://{domain}"
+    return (cfg or get_config()).base_url
 
 
 def get_gsc_service(
@@ -153,12 +154,14 @@ def fetch_query_page_performance(
 @click.option(
     "--site-url", default=None, help="GSC property URL (default: https://<SHOPIFY_STORE_DOMAIN>)"
 )
-def main(days: int, output: str, query_page_output: str, site_url: str | None) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(days: int, output: str, query_page_output: str, site_url: str | None, tenant: str | None) -> None:
     """Export Google Search Console performance data to CSV."""
+    cfg = get_config(tenant)
     console.print("[bold cyan]► Fetching Google Search Console data[/bold cyan]")
 
     service = get_gsc_service()
-    target = site_url or _default_site_url()
+    target = site_url or _default_site_url(cfg)
 
     df = fetch_search_performance(service, target, days)
     console.print(f"  [green]✓[/green] {len(df)} URLs fetched ({days} days, site: {target})")

@@ -9,6 +9,8 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
+from scripts._config import get_config
+
 console = Console()
 
 # CTR benchmarks by position used to estimate traffic gain
@@ -189,7 +191,7 @@ def _opportunities_table(opps: list[dict[str, Any]]) -> Table:
         label = {"quick_win": "Quick win", "low_ctr": "CTR faible", "long_term": "Long terme"}.get(
             o["zone"], o["zone"]
         )
-        path = o["url"].split("leoniedelacroix.com")[-1] or "/"
+        path = o["url"].split(get_config().domain)[-1] or "/"
         table.add_row(
             path,
             f"[{color}]{label}[/{color}]",
@@ -208,7 +210,8 @@ def _opportunities_table(opps: list[dict[str, Any]]) -> Table:
 @click.option("--output", default="data/raw/gsc_opportunities.json", show_default=True)
 @click.option("--min-impressions", default=10, show_default=True)
 @click.option("--top", default=20, show_default=True, help="Max results to show")
-def main(gsc_path: str, output: str, min_impressions: int, top: int) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(gsc_path: str, output: str, min_impressions: int, top: int, tenant: str | None) -> None:
     """Detect SEO opportunities from Google Search Console data.
 
     Classifies URLs into three zones:
@@ -216,6 +219,7 @@ def main(gsc_path: str, output: str, min_impressions: int, top: int) -> None:
     - Low CTR (pos 4-10): improve meta title/description
     - Long term (pos 21-50, high impressions): invest in content
     """
+    get_config(tenant)  # preload tenant
     console.print("[bold cyan]► Detecting GSC opportunities[/bold cyan]")
 
     df = pd.read_csv(gsc_path)

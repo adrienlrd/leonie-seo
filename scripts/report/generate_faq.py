@@ -12,6 +12,8 @@ import yaml
 from dotenv import load_dotenv
 from rich.console import Console
 
+from scripts._config import get_config
+
 load_dotenv()
 
 console = Console()
@@ -255,9 +257,10 @@ def render_markdown(
     date: str,
 ) -> str:
     """Render all FAQs as a Markdown document."""
+    _site = get_config().domain
     total = sum(len(v) for v in faqs_by_category.values())
     lines = [
-        f"# FAQ Structurée — leoniedelacroix.com — {date}",
+        f"# FAQ Structurée — {_site} — {date}",
         "",
         f"**{total} questions** réparties sur {len(faqs_by_category)} catégories",
         "",
@@ -289,7 +292,8 @@ def render_markdown(
             ]
         lines += ["---", ""]
 
-    lines.append("*Généré automatiquement par le pipeline SEO leoniedelacroix.com*")
+    _site = get_config().domain
+    lines.append(f"*Généré automatiquement par le pipeline SEO {_site}*")
     return "\n".join(lines)
 
 
@@ -297,8 +301,10 @@ def render_markdown(
 @click.option("--keywords", default="config/keywords.yaml", show_default=True)
 @click.option("--output-dir", default="reports", show_default=True)
 @click.option("--json-output", default="data/raw/faq_suggestions.json", show_default=True)
-def main(keywords: str, output_dir: str, json_output: str) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(keywords: str, output_dir: str, json_output: str, tenant: str | None) -> None:
     """Generate structured FAQ content per product category with JSON-LD schema."""
+    get_config(tenant)  # preload tenant
     console.print("[bold cyan]► Generating structured FAQ[/bold cyan]")
 
     categories = list(_FAQ_TEMPLATES.keys())

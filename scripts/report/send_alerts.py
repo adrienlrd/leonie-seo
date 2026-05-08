@@ -16,17 +16,11 @@ import pandas as pd
 from dotenv import load_dotenv
 from rich.console import Console
 
+from scripts._config import get_config
+
 load_dotenv()
 
 console = Console()
-
-# Alert thresholds
-_CWV_MOBILE_MIN = 0.50
-_CWV_LCP_MAX_MS = 4000.0
-_CWV_CLS_MAX = 0.25
-_QUICK_WIN_MIN_IMPRESSIONS = 30
-_LOW_CTR_MIN_IMPRESSIONS = 100
-_LOW_CTR_MAX_PCT = 1.0
 
 
 class AlertError(Exception):
@@ -50,8 +44,9 @@ def load_gsc_opportunities(path: str) -> list[dict[str, Any]]:
         return json.load(f)
 
 
-def detect_cwv_alerts(pagespeed: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def detect_cwv_alerts(pagespeed: list[dict[str, Any]], cfg=None) -> list[dict[str, Any]]:
     """Return CWV entries that breach alert thresholds."""
+    t = (cfg or get_config()).alert_thresholds
     alerts = []
     for row in pagespeed:
         if row.get("strategy") != "mobile":
@@ -59,34 +54,36 @@ def detect_cwv_alerts(pagespeed: list[dict[str, Any]]) -> list[dict[str, Any]]:
         reasons = []
         score = row.get("performance_score") or 0.0
         lcp = row.get("lcp_ms") or 0.0
-        cls = row.get("cls") or 0.0
-        if score < _CWV_MOBILE_MIN:
-            reasons.append(f"score mobile {score:.0%} < {_CWV_MOBILE_MIN:.0%}")
-        if lcp > _CWV_LCP_MAX_MS:
-            reasons.append(f"LCP {lcp:.0f}ms > {_CWV_LCP_MAX_MS:.0f}ms")
-        if cls > _CWV_CLS_MAX:
-            reasons.append(f"CLS {cls:.2f} > {_CWV_CLS_MAX}")
+        cls_val = row.get("cls") or 0.0
+        if score < t.cwv_mobile_min:
+            reasons.append(f"score mobile {score:.0%} < {t.cwv_mobile_min:.0%}")
+        if lcp > t.cwv_lcp_max_ms:
+            reasons.append(f"LCP {lcp:.0f}ms > {t.cwv_lcp_max_ms:.0f}ms")
+        if cls_val > t.cwv_cls_max:
+            reasons.append(f"CLS {cls_val:.2f} > {t.cwv_cls_max}")
         if reasons:
-            alerts.append({"url": row["url"], "reasons": reasons, "score": score, "lcp_ms": lcp, "cls": cls})
+            alerts.append({"url": row["url"], "reasons": reasons, "score": score, "lcp_ms": lcp, "cls": cls_val})
     return alerts
 
 
-def detect_position_alerts(opportunities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def detect_position_alerts(opportunities: list[dict[str, Any]], cfg=None) -> list[dict[str, Any]]:
     """Return quick_win URLs worth flagging (position 11-20, high impressions)."""
+    t = (cfg or get_config()).alert_thresholds
     return [
         opp for opp in opportunities
         if opp.get("zone") == "quick_win"
-        and opp.get("impressions", 0) >= _QUICK_WIN_MIN_IMPRESSIONS
+        and opp.get("impressions", 0) >= t.quick_win_min_impressions
     ]
 
 
-def detect_low_ctr_alerts(opportunities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def detect_low_ctr_alerts(opportunities: list[dict[str, Any]], cfg=None) -> list[dict[str, Any]]:
     """Return low-CTR URLs with significant impressions."""
+    t = (cfg or get_config()).alert_thresholds
     return [
         opp for opp in opportunities
         if opp.get("zone") == "low_ctr"
-        and opp.get("impressions", 0) >= _LOW_CTR_MIN_IMPRESSIONS
-        and opp.get("ctr_pct", 100.0) < _LOW_CTR_MAX_PCT
+        and opp.get("impressions", 0) >= t.low_ctr_min_impressions
+        and opp.get("ctr_pct", 100.0) < t.low_ctr_max_pct
     ]
 
 
@@ -95,10 +92,12 @@ def build_alert_summary(
     positions: list[dict[str, Any]],
     low_ctr: list[dict[str, Any]],
     date: str,
+    site_name: str = "",
 ) -> str:
     """Build plain-text email body."""
+    _site = site_name or get_config().domain
     lines = [
-        f"Rapport SEO hebdomadaire — leoniedelacroix.com — {date}",
+        f"Rapport SEO hebdomadaire — {_site} — {date}",
         "=" * 60,
         "",
     ]
@@ -166,27 +165,29 @@ def send_email(subject: str, body: str, sender: str, recipient: str, app_passwor
 @click.option("--opportunities", default="data/raw/gsc_opportunities.json", show_default=True)
 @click.option("--recipient", default=None, help="Override recipient email")
 @click.option("--dry-run/--apply", default=True, show_default=True)
-def main(pagespeed: str, opportunities: str, recipient: str | None, dry_run: bool) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(pagespeed: str, opportunities: str, recipient: str | None, dry_run: bool, tenant: str | None) -> None:
     """Detect SEO regressions and send alert email if needed."""
+    cfg = get_config(tenant)
     console.print("[bold cyan]► SEO Alert check[/bold cyan]")
 
     ps_data = load_pagespeed(pagespeed)
     opp_data = load_gsc_opportunities(opportunities)
 
-    cwv_alerts = detect_cwv_alerts(ps_data)
-    pos_alerts = detect_position_alerts(opp_data)
-    ctr_alerts = detect_low_ctr_alerts(opp_data)
+    cwv_alerts = detect_cwv_alerts(ps_data, cfg)
+    pos_alerts = detect_position_alerts(opp_data, cfg)
+    ctr_alerts = detect_low_ctr_alerts(opp_data, cfg)
 
     total_alerts = len(cwv_alerts) + len(pos_alerts) + len(ctr_alerts)
     console.print(f"  CWV: {len(cwv_alerts)} · Positions: {len(pos_alerts)} · CTR faible: {len(ctr_alerts)}")
 
     date = datetime.utcnow().strftime("%Y-%m-%d")
-    body = build_alert_summary(cwv_alerts, pos_alerts, ctr_alerts, date)
+    body = build_alert_summary(cwv_alerts, pos_alerts, ctr_alerts, date, site_name=cfg.domain)
 
     subject = (
-        f"[SEO Alert] leoniedelacroix.com — {total_alerts} alerte(s) — {date}"
+        f"[SEO Alert] {cfg.domain} — {total_alerts} alerte(s) — {date}"
         if total_alerts
-        else f"[SEO OK] leoniedelacroix.com — aucune alerte — {date}"
+        else f"[SEO OK] {cfg.domain} — aucune alerte — {date}"
     )
 
     if dry_run:

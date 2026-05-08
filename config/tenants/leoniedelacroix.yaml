@@ -1,0 +1,116 @@
+# Tenant config — Léonie Delacroix
+# Used by all scripts via scripts._config.get_config()
+
+tenant_id: leoniedelacroix
+name: "Léonie Delacroix"
+brand: "Léonie Delacroix"
+niche: petfood_fr
+
+# ── URLs ──────────────────────────────────────────────────────────────────
+base_url: "https://www.leoniedelacroix.com"
+shopify_store_domain: "287c4a-bb.myshopify.com"
+
+# ── Produit → catégorie (pour semantic analysis, internal links, rewrite) ─
+product_categories:
+  le-pardessus-pour-chien: vetements_chien
+  le-pardessus-pour-chat: vetements_chat
+  le-tour-de-cou-pour-chien: vetements_chien
+  le-tour-de-cou-pour-chat: vetements_chat
+  le-harnais-haute-couture: vetements_chien
+  le-harnais-tout-en-un: vetements_chien
+  le-pull-le-leonie: vetements_chien
+  labreuvoir: fontaines
+  fontaine-smart-cordless: fontaines
+  distributeur-pet-feeder: fontaines
+  pack-de-5-filtres-puissants-pour-labreuvoir: filtres
+  pompe-pour-labreuvoir: filtres
+  un-an-de-filtres-pour-la-fontaine-smart-6-boites: filtres
+  1-boite-de-filtres-pour-la-fontaine-smart: filtres
+  griffoir-dimitrios: accessoires
+  arbre-a-chat-boho: accessoires
+  bol-felin-raffine: accessoires
+  lensemble-clawcount: accessoires
+  le-raisonnable: accessoires
+
+# ── Catégories produit ────────────────────────────────────────────────────
+categories:
+  - vetements_chien
+  - vetements_chat
+  - fontaines
+  - filtres
+  - accessoires
+
+category_labels:
+  vetements_chien: "Vêtements pour chien"
+  vetements_chat: "Vêtements pour chat"
+  fontaines: "Fontaines & Abreuvoirs"
+  filtres: "Filtres & Accessoires fontaines"
+  accessoires: "Accessoires maison"
+
+category_collections:
+  vetements_chien: chien
+  vetements_chat: chat
+  fontaines: fontaines-abreuvoirs
+  filtres: fontaines-abreuvoirs
+  accessoires: accessoires
+
+# ── Hreflang ──────────────────────────────────────────────────────────────
+hreflang_locales:
+  - hreflang: fr-FR
+    prefix: ""
+  - hreflang: fr-BE
+    prefix: /fr-be
+  - hreflang: fr-CH
+    prefix: /fr-ch
+  - hreflang: fr
+    prefix: ""
+
+# ── URLs PageSpeed à tester ───────────────────────────────────────────────
+pagespeed_urls:
+  - "https://www.leoniedelacroix.com"
+  - "https://www.leoniedelacroix.com/collections/chien"
+  - "https://www.leoniedelacroix.com/collections/chat"
+  - "https://www.leoniedelacroix.com/products/labreuvoir"
+  - "https://www.leoniedelacroix.com/products/fontaine-smart-cordless"
+
+# ── Concurrents (semantic analysis benchmark) ─────────────────────────────
+competitors:
+  - Miacara
+  - Zooplus
+  - Wanimo
+
+# ── Règles SEO ────────────────────────────────────────────────────────────
+seo_rules:
+  title_min_chars: 50
+  title_max_chars: 65
+  description_min_chars: 120
+  description_max_chars: 155
+  description_min_words: 150
+  min_alt_text_length: 10
+
+# ── Seuils d'alerte ───────────────────────────────────────────────────────
+alert_thresholds:
+  # CWV
+  cwv_mobile_min: 0.50
+  cwv_lcp_max_ms: 4000.0
+  cwv_cls_max: 0.25
+  # GSC opportunities
+  quick_win_min_impressions: 30
+  low_ctr_min_impressions: 100
+  low_ctr_max_pct: 1.0
+  cannibalization_min_impressions: 10
+  cannibalization_severity_high: 0.6
+  cannibalization_severity_medium: 0.3
+  # Dashboard display
+  clicks_warn: 500
+  clicks_ok: 2000
+  ctr_warn: 2.0
+  ctr_ok: 4.0
+  position_warn: 20.0
+  position_ok: 10.0
+  eeat_warn: 25.0
+  eeat_ok: 45.0
+  cwv_warn: 0.50
+  cwv_ok: 0.70
+  eeat_weak_threshold: 0.45
+  eeat_action_threshold: 0.15

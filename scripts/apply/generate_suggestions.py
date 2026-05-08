@@ -8,12 +8,9 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-BRAND = "Léonie Delacroix"
+from scripts._config import get_config
+
 _OLD_BRAND = "Léonie de la Croix"
-TITLE_MIN = 50
-TITLE_MAX = 65
-DESC_MIN = 120
-DESC_MAX = 155
 
 _ENGLISH_SIGNALS = {
     "for",
@@ -60,14 +57,20 @@ def suggest_meta_title(
     title: str,
     animal: str,
     existing: str | None = None,
+    cfg=None,
 ) -> dict[str, Any]:
     """Suggest an SEO meta title (target 50-65 chars).
 
     Returns dict with keys: value, is_review_needed, reason.
     """
+    _cfg = cfg or get_config()
+    brand = _cfg.brand
+    title_min = _cfg.seo_rules.title_min_chars
+    title_max = _cfg.seo_rules.title_max_chars
+
     if existing and existing.strip():
-        e = existing.strip().replace(_OLD_BRAND, BRAND)
-        in_range = TITLE_MIN <= len(e) <= TITLE_MAX
+        e = existing.strip().replace(_OLD_BRAND, brand)
+        in_range = title_min <= len(e) <= title_max
         return {
             "value": e,
             "is_review_needed": not in_range,
@@ -83,20 +86,20 @@ def suggest_meta_title(
             "reason": "nom en anglais — traduire avant publication",
         }
 
-    base = f"{title} | {BRAND}"
+    base = f"{title} | {brand}"
 
-    if TITLE_MIN <= len(base) <= TITLE_MAX:
+    if title_min <= len(base) <= title_max:
         return {"value": base, "is_review_needed": False, "reason": "ok"}
 
-    if len(base) < TITLE_MIN:
+    if len(base) < title_min:
         # Only add animal qualifier if that word isn't already in the title
         if animal != "animal" and animal.lower() not in title.lower():
             qualifier = f"Pour {animal.title()}"
         else:
             qualifier = "Premium"
-        candidate = f"{title} {qualifier} | {BRAND}"
-        if len(candidate) <= TITLE_MAX:
-            in_range = len(candidate) >= TITLE_MIN
+        candidate = f"{title} {qualifier} | {brand}"
+        if len(candidate) <= title_max:
+            in_range = len(candidate) >= title_min
             return {
                 "value": candidate,
                 "is_review_needed": not in_range,
@@ -105,17 +108,17 @@ def suggest_meta_title(
         # qualifier made it too long, keep base
         return {
             "value": base,
-            "is_review_needed": len(base) < TITLE_MIN,
+            "is_review_needed": len(base) < title_min,
             "reason": f"court ({len(base)} chars) — compléter"
-            if len(base) < TITLE_MIN
+            if len(base) < title_min
             else "court mais acceptable",
         }
 
     # Too long: truncate title to fit
-    max_title_len = TITLE_MAX - len(f" | {BRAND}")
+    max_title_len = title_max - len(f" | {brand}")
     truncated = title[:max_title_len].rstrip(" —,")
     return {
-        "value": f"{truncated} | {BRAND}",
+        "value": f"{truncated} | {brand}",
         "is_review_needed": True,
         "reason": f"tronqué ({len(title)} → {max_title_len} chars) — vérifier",
     }
@@ -125,15 +128,21 @@ def suggest_meta_description(
     title: str,
     animal: str,
     existing: str | None = None,
+    cfg=None,
 ) -> dict[str, Any]:
     """Suggest an SEO meta description (target 120-155 chars).
 
     Returns dict with keys: value, is_review_needed, reason.
     """
-    if existing and len(existing.strip()) >= DESC_MIN:
+    _cfg = cfg or get_config()
+    brand = _cfg.brand
+    desc_min = _cfg.seo_rules.description_min_chars
+    desc_max = _cfg.seo_rules.description_max_chars
+
+    if existing and len(existing.strip()) >= desc_min:
         desc = existing.strip()
-        if len(desc) > DESC_MAX:
-            desc = desc[: DESC_MAX - 3].rstrip() + "..."
+        if len(desc) > desc_max:
+            desc = desc[: desc_max - 3].rstrip() + "..."
             return {"value": desc, "is_review_needed": True, "reason": "trop longue — tronquée"}
         return {"value": desc, "is_review_needed": False, "reason": "already set"}
 
@@ -148,40 +157,41 @@ def suggest_meta_description(
 
     templates = [
         (
-            f"Découvrez {title} par {BRAND} — accessoire premium pour {animal_label}. "
+            f"Découvrez {title} par {brand} — accessoire premium pour {animal_label}. "
             f"Fabrication soignée, design élégant. Livraison rapide en France."
         ),
         (
-            f"{title} — l'accessoire premium pour {animal_label} signé {BRAND}. "
+            f"{title} — l'accessoire premium pour {animal_label} signé {brand}. "
             f"Qualité artisanale et design élégant. Livraison rapide en France."
         ),
         (
-            f"L'accessoire premium pour {animal_label} : {title} par {BRAND}. "
+            f"L'accessoire premium pour {animal_label} : {title} par {brand}. "
             f"Design élégant, fabrication soignée. Livraison rapide en France."
         ),
     ]
 
     for tpl in templates:
-        if DESC_MIN <= len(tpl) <= DESC_MAX:
+        if desc_min <= len(tpl) <= desc_max:
             return {"value": tpl, "is_review_needed": False, "reason": "généré"}
 
     # Fallback: use shortest template, truncate or flag
     desc = min(templates, key=len)
-    if len(desc) < DESC_MIN:
+    if len(desc) < desc_min:
         return {
             "value": desc,
             "is_review_needed": True,
             "reason": f"court ({len(desc)} chars) — compléter",
         }
-    desc = desc[: DESC_MAX - 3].rstrip() + "..."
+    desc = desc[: desc_max - 3].rstrip() + "..."
     return {"value": desc, "is_review_needed": True, "reason": "tronqué — vérifier"}
 
 
-def suggest_alt_text(product_title: str, image_index: int = 0) -> str:
+def suggest_alt_text(product_title: str, image_index: int = 0, cfg=None) -> str:
     """Suggest alt text for a product image (max 125 chars)."""
-    suffix = f" | {BRAND}"
+    brand = (cfg or get_config()).brand
+    suffix = f" | {brand}"
     if image_index > 0:
-        suffix = f" — vue {image_index + 1} | {BRAND}"
+        suffix = f" — vue {image_index + 1} | {brand}"
     max_title = 125 - len(suffix)
     return f"{product_title[:max_title].rstrip()}{suffix}"
 
@@ -189,8 +199,10 @@ def suggest_alt_text(product_title: str, image_index: int = 0) -> str:
 def build_meta_suggestions(
     products: list[dict[str, Any]],
     collections: list[dict[str, Any]],
+    cfg=None,
 ) -> list[dict[str, Any]]:
     """Build the full list of meta update suggestions for products and collections."""
+    _cfg = cfg or get_config()
     suggestions: list[dict[str, Any]] = []
 
     for p in products:
@@ -198,8 +210,8 @@ def build_meta_suggestions(
         animal = _infer_animal(p["title"], col_titles)
         existing_seo = p.get("seo") or {}
 
-        title_sug = suggest_meta_title(p["title"], animal, existing_seo.get("title"))
-        desc_sug = suggest_meta_description(p["title"], animal, existing_seo.get("description"))
+        title_sug = suggest_meta_title(p["title"], animal, existing_seo.get("title"), _cfg)
+        desc_sug = suggest_meta_description(p["title"], animal, existing_seo.get("description"), _cfg)
 
         if title_sug["value"] is None and desc_sug["value"] is None:
             continue  # nothing actionable (e.g. English name)
@@ -227,8 +239,8 @@ def build_meta_suggestions(
         animal = _infer_animal(c["title"], [])
         existing_seo = c.get("seo") or {}
 
-        title_sug = suggest_meta_title(c["title"], animal, existing_seo.get("title"))
-        desc_sug = suggest_meta_description(c["title"], animal, existing_seo.get("description"))
+        title_sug = suggest_meta_title(c["title"], animal, existing_seo.get("title"), _cfg)
+        desc_sug = suggest_meta_description(c["title"], animal, existing_seo.get("description"), _cfg)
 
         if title_sug["value"] is None and desc_sug["value"] is None:
             continue
@@ -252,8 +264,9 @@ def build_meta_suggestions(
     return suggestions
 
 
-def build_alt_suggestions(products: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_alt_suggestions(products: list[dict[str, Any]], cfg=None) -> list[dict[str, Any]]:
     """Build alt text suggestions for images that have no alt text."""
+    _cfg = cfg or get_config()
     suggestions: list[dict[str, Any]] = []
 
     for p in products:
@@ -270,7 +283,7 @@ def build_alt_suggestions(products: list[dict[str, Any]]) -> list[dict[str, Any]
                         "image_id": img["id"],
                         "image_url": img.get("url", ""),
                         "old_alt": alt,
-                        "new_alt": suggest_alt_text(p["title"], img_idx),
+                        "new_alt": suggest_alt_text(p["title"], img_idx, _cfg),
                     }
                 )
                 img_idx += 1
@@ -286,13 +299,15 @@ def _review_marker(needs_review: bool) -> str:
 @click.option("--data", default="data/raw/shopify_snapshot.json", show_default=True)
 @click.option("--meta-output", default="data/raw/meta_suggestions.json", show_default=True)
 @click.option("--alt-output", default="data/raw/alt_suggestions.json", show_default=True)
-def main(data: str, meta_output: str, alt_output: str) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(data: str, meta_output: str, alt_output: str, tenant: str | None) -> None:
     """Generate meta title, description, and alt text suggestions.
 
     Reads the Shopify snapshot and writes two JSON files:
     - meta_suggestions.json → feed into update_meta.py
     - alt_suggestions.json  → feed into update_alt_text.py
     """
+    cfg = get_config(tenant)
     console.print("[bold cyan]► Generating SEO suggestions[/bold cyan]")
 
     with open(data, encoding="utf-8") as f:
@@ -302,7 +317,7 @@ def main(data: str, meta_output: str, alt_output: str) -> None:
     collections: list[dict[str, Any]] = snapshot.get("collections", [])
 
     # --- Meta suggestions ---
-    meta = build_meta_suggestions(products, collections)
+    meta = build_meta_suggestions(products, collections, cfg)
 
     table = Table(title="Meta Suggestions", show_lines=True)
     table.add_column("", width=2)
@@ -331,7 +346,7 @@ def main(data: str, meta_output: str, alt_output: str) -> None:
     console.print(f"  [green]✓[/green] Meta suggestions → {meta_output}")
 
     # --- Alt text suggestions ---
-    alt = build_alt_suggestions(products)
+    alt = build_alt_suggestions(products, cfg)
 
     if alt:
         alt_table = Table(title="Alt Text Suggestions", show_lines=True)

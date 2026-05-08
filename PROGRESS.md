@@ -6,7 +6,7 @@
 - Phase 1 : **15/15 complètes** ✅
 - Phase 2 : **14/14 complètes** ✅
 - Phase 3 : **10/10 complètes** ✅
-- Tests : **303/303** ✅ — ruff clean ✅
+- Tests : **319/319** ✅ — ruff clean ✅
 
 ## ✅ Terminé
 
@@ -56,11 +56,17 @@
 - **Score SEO avant : 56.3 → après : 83.9 (+27.6 pts)**
 - **Pipeline CI GitHub Actions** validé : tests + audit + tous les rapports Phase 3
 
-## ⏳ À faire — Phase 4 (tâches 40–44)
+### Phase 4 — Productisation (tâche 40) ✅
+- **40** `config/tenants/leoniedelacroix.yaml` + `scripts/_config.py` — abstraction multi-tenant complète
+  - Pydantic v1 `TenantConfig` : base_url, brand, categories, product_categories, hreflang_locales, seo_rules, alert_thresholds
+  - 16 scripts migrés : domaine, brand, thresholds SEO → tous via `get_config(tenant_id)`
+  - Option `--tenant` ajoutée à tous les CLI
+  - 319 tests verts · ruff clean
+
+## ⏳ À faire — Phase 4 (tâches 41–44)
 
 | # | Tâche | Priorité |
 |---|---|---|
-| 40 | Abstraction multi-boutiques — config par tenant dans YAML | Haute |
 | 41 | Interface CLI universelle — sélecteur de secteur/niche au démarrage | Moyenne |
 | 42 | Bibliothèque de règles métier par secteur (cosmétique, bébé, jardinage…) | Haute |
 | 43 | Système de licences API key — authentification par boutique cliente | Haute |
@@ -85,6 +91,13 @@
 - [ ] **Le Tour De Cou Pour Chien** — pos 6.1, 210 impr, CTR 0% → réécrire méta
 
 ## 📋 Historique des sessions
+
+### Session 2026-05-08 (Tâche 40 — multi-tenant)
+- `scripts/_config.py` : TenantConfig Pydantic v1, lru_cache, `get_config(tenant_id)`
+- `config/tenants/leoniedelacroix.yaml` : YAML complet (brand, product_categories, hreflang, seo_rules, alert_thresholds)
+- Migration complète des 16 scripts : `--tenant` CLI sur tous, domaine/brand/thresholds depuis config
+- Fix `seo_rules.title_min_chars = 50` (était 30) pour matcher les contraintes generate_suggestions
+- **319/319 tests verts** · ruff clean
 
 ### Session 2026-05-08 (Phase 2 tâche 29 + Phase 3 complète)
 - Fix pipeline CI GitHub Actions (requirements.txt, ruff PATH, pagespeed timeout, permissions)

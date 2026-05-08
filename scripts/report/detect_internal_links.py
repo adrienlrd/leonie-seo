@@ -14,6 +14,8 @@ import yaml
 from dotenv import load_dotenv
 from rich.console import Console
 
+from scripts._config import get_config
+
 load_dotenv()
 
 console = Console()
@@ -66,8 +68,6 @@ _CATEGORY_TO_COLLECTIONS: dict[str, list[str]] = {
     "informational": ["chien", "chat"],
 }
 
-_BASE_URL = "https://www.leoniedelacroix.com"
-
 
 def _tokenize(text: str) -> set[str]:
     """Return significant tokens from a string."""
@@ -118,8 +118,11 @@ def detect_opportunities(
     keywords: dict[str, list[str]],
     products: list[dict[str, Any]],
     collections: list[dict[str, Any]],
+    cfg=None,
 ) -> list[dict[str, Any]]:
     """Match each keyword to target product/collection pages for internal linking."""
+    _cfg = cfg or get_config()
+    base_url = _cfg.base_url
     product_map = {p["handle"]: p for p in products}
     collection_map = {c["handle"]: c for c in collections}
     opportunities: list[dict[str, Any]] = []
@@ -148,7 +151,7 @@ def detect_opportunities(
                     "source_article_h1": keyword.capitalize(),
                     "target_type": "product",
                     "target_title": product["title"],
-                    "target_url": f"{_BASE_URL}/products/{handle}",
+                    "target_url": f"{base_url}/products/{handle}",
                     "anchor_text": anchor,
                     "relevance_score": score,
                 })
@@ -165,7 +168,7 @@ def detect_opportunities(
                     "source_article_h1": keyword.capitalize(),
                     "target_type": "collection",
                     "target_title": coll.get("title", chandle),
-                    "target_url": f"{_BASE_URL}/collections/{chandle}",
+                    "target_url": f"{base_url}/collections/{chandle}",
                     "anchor_text": anchor,
                     "relevance_score": 0.1,
                 })
@@ -185,12 +188,14 @@ def detect_opportunities(
 def detect_orphans(
     products: list[dict[str, Any]],
     gsc_urls: set[str],
+    cfg=None,
 ) -> list[dict[str, Any]]:
     """Return product pages with zero GSC impressions — need incoming links."""
+    base_url = (cfg or get_config()).base_url
     orphans = []
     for p in products:
         handle = p.get("handle", "")
-        url = f"{_BASE_URL}/products/{handle}"
+        url = f"{base_url}/products/{handle}"
         if url not in gsc_urls:
             orphans.append({"title": p["title"], "url": url, "handle": handle})
     return orphans
@@ -202,8 +207,9 @@ def render_markdown(
     date: str,
 ) -> str:
     """Render linking opportunities as a Markdown report."""
+    _site = get_config().domain
     lines = [
-        f"# Maillage Interne — leoniedelacroix.com — {date}",
+        f"# Maillage Interne — {_site} — {date}",
         "",
         f"**{len(opportunities)} opportunités de liens** · "
         f"**{len(orphans)} pages orphelines** (zéro trafic GSC)",
@@ -249,7 +255,7 @@ def render_markdown(
         "",
         "---",
         "",
-        "*Généré automatiquement par le pipeline SEO leoniedelacroix.com*",
+        f"*Généré automatiquement par le pipeline SEO {get_config().domain}*",
     ]
     return "\n".join(lines)
 
@@ -259,8 +265,10 @@ def render_markdown(
 @click.option("--snapshot", default="data/raw/shopify_snapshot.json", show_default=True)
 @click.option("--gsc", default="data/raw/gsc_performance.csv", show_default=True)
 @click.option("--output-dir", default="reports", show_default=True)
-def main(keywords: str, snapshot: str, gsc: str, output_dir: str) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(keywords: str, snapshot: str, gsc: str, output_dir: str, tenant: str | None) -> None:
     """Detect internal linking opportunities between blog topics and product pages."""
+    cfg = get_config(tenant)
     console.print("[bold cyan]► Detecting internal linking opportunities[/bold cyan]")
 
     kw_data = load_keywords(keywords)
@@ -268,8 +276,8 @@ def main(keywords: str, snapshot: str, gsc: str, output_dir: str) -> None:
     collections = load_collections(snapshot)
     gsc_urls = load_gsc(gsc)
 
-    opportunities = detect_opportunities(kw_data, products, collections)
-    orphans = detect_orphans(products, gsc_urls)
+    opportunities = detect_opportunities(kw_data, products, collections, cfg)
+    orphans = detect_orphans(products, gsc_urls, cfg)
 
     console.print(f"  {len(opportunities)} opportunités · {len(orphans)} pages orphelines")
 

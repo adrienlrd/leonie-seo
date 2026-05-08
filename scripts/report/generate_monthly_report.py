@@ -11,6 +11,8 @@ import click
 import pandas as pd
 from rich.console import Console
 
+from scripts._config import get_config
+
 console = Console()
 
 _CSS = """
@@ -203,12 +205,12 @@ def render_html(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rapport SEO mensuel — leoniedelacroix.com — {date}</title>
+  <title>Rapport SEO mensuel — {get_config().domain} — {date}</title>
   {_CSS}
 </head>
 <body>
   <h1>Rapport SEO mensuel</h1>
-  <p class="meta">leoniedelacroix.com &nbsp;·&nbsp; {date} &nbsp;·&nbsp; {kpis['pages']} pages indexées</p>
+  <p class="meta">{get_config().domain} &nbsp;·&nbsp; {date} &nbsp;·&nbsp; {kpis['pages']} pages indexées</p>
 
   <h2>KPIs clés — 90 derniers jours</h2>
   {kpi_html}
@@ -236,7 +238,7 @@ def render_html(
   </ul>
 
   <footer>
-    Généré automatiquement par le pipeline SEO leoniedelacroix.com &nbsp;·&nbsp; {date}<br>
+    Généré automatiquement par le pipeline SEO {get_config().domain} &nbsp;·&nbsp; {date}<br>
     Pour imprimer en PDF : Ctrl+P → Enregistrer en PDF (désactiver les en-têtes/pieds de page).
   </footer>
 </body>
@@ -249,14 +251,17 @@ def render_html(
 @click.option("--cannibalization", default="data/raw/cannibalization.json", show_default=True)
 @click.option("--eeat", default="data/raw/eeat_scores.json", show_default=True)
 @click.option("--output-dir", default="reports", show_default=True)
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
 def main(
     gsc: str,
     opportunities: str,
     cannibalization: str,
     eeat: str,
     output_dir: str,
+    tenant: str | None,
 ) -> None:
     """Generate a monthly SEO synthesis report as print-ready HTML."""
+    get_config(tenant)  # preload tenant
     console.print("[bold cyan]► Generating monthly SEO report[/bold cyan]")
 
     gsc_df = load_gsc(gsc)

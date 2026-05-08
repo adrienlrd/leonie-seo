@@ -11,6 +11,8 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
+from scripts._config import get_config
+
 console = Console()
 
 _STOP_WORDS = {
@@ -270,7 +272,7 @@ def _gap_table(report: list[dict[str, Any]]) -> Table:
         impr = str(r["impressions"]) if r["impressions"] else "—"
         page = str(r["site_page"] or "—")
         if page.startswith("https://"):
-            page = page.split("leoniedelacroix.com")[-1]
+            page = page.split(get_config().domain)[-1]
 
         table.add_row(
             r["keyword"],
@@ -310,7 +312,8 @@ def _summary(report: list[dict[str, Any]]) -> None:
 @click.option("--snapshot", default="data/raw/shopify_snapshot.json", show_default=True)
 @click.option("--gsc", "gsc_path", default="data/raw/gsc_performance.csv", show_default=True)
 @click.option("--output", default="data/raw/longtail_gaps.json", show_default=True)
-def main(kw_path: str, snapshot: str, gsc_path: str, output: str) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(kw_path: str, snapshot: str, gsc_path: str, output: str, tenant: str | None) -> None:
     """Analyse long-tail keyword coverage against GSC data and Shopify catalog.
 
     For each target keyword, reports:
@@ -318,6 +321,7 @@ def main(kw_path: str, snapshot: str, gsc_path: str, output: str) -> None:
     - on_site: product/collection exists but no GSC data
     - gap: no coverage at all → content to create
     """
+    get_config(tenant)  # preload tenant
     console.print("[bold cyan]► Analyse couverture mots-clés longue traîne[/bold cyan]")
 
     keywords_by_cat = load_keywords(kw_path)

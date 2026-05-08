@@ -13,14 +13,14 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
+from scripts._config import get_config
+
 load_dotenv()
 
 console = Console()
 
 _ENDPOINT_TMPL = "https://{domain}/admin/api/2025-01/graphql.json"
 _DB_PATH = "data/history.db"
-_SITE_URL = "https://www.leoniedelacroix.com"
-_BRAND = "Léonie Delacroix"
 
 _METAFIELDS_SET = """
 mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
@@ -68,17 +68,19 @@ def _get_client() -> tuple[str, dict[str, str]]:
     }
 
 
-def build_product_schema(product: dict[str, Any]) -> dict[str, Any]:
+def build_product_schema(product: dict[str, Any], cfg=None) -> dict[str, Any]:
     """Build a schema.org Product JSON-LD dict for a single Shopify product.
 
     Args:
         product: Raw product dict from Shopify snapshot (must have id, title, handle).
+        cfg: Optional TenantConfig (defaults to TENANT_ID env var).
 
     Returns:
         JSON-LD dict ready to be serialized as application/ld+json.
     """
+    _cfg = cfg or get_config()
     handle = product.get("handle", "")
-    url = f"{_SITE_URL}/products/{handle}"
+    url = f"{_cfg.base_url}/products/{handle}"
     image_urls = [edge["node"]["url"] for edge in (product.get("images") or {}).get("edges", [])]
 
     schema: dict[str, Any] = {
@@ -86,7 +88,7 @@ def build_product_schema(product: dict[str, Any]) -> dict[str, Any]:
         "@type": "Product",
         "name": product.get("title", ""),
         "url": url,
-        "brand": {"@type": "Brand", "name": _BRAND},
+        "brand": {"@type": "Brand", "name": _cfg.brand},
     }
 
     if desc := product.get("description", "").strip():
@@ -184,12 +186,14 @@ def push_schema(
     help="Dry-run by default. Pass --apply to write to Shopify.",
 )
 @click.option("--delay", default=0.5, show_default=True, help="Seconds between mutations")
-def main(snapshot: str, dry_run: bool, delay: float) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(snapshot: str, dry_run: bool, delay: float, tenant: str | None) -> None:
     """Push JSON-LD Product structured data to Shopify via metafields (custom.json_ld).
 
     Reads the Shopify snapshot. Re-run crawl_shopify first to get price data.
     Requires --apply to write. After applying, add the Liquid snippet to your theme.
     """
+    cfg = get_config(tenant)
     console.print("[bold cyan]► Generating JSON-LD structured data[/bold cyan]")
 
     with open(snapshot, encoding="utf-8") as f:
@@ -203,7 +207,7 @@ def main(snapshot: str, dry_run: bool, delay: float) -> None:
             "  Re-run: python -m scripts.audit.crawl_shopify[/yellow]"
         )
 
-    schemas = [(p, build_product_schema(p)) for p in products]
+    schemas = [(p, build_product_schema(p, cfg)) for p in products]
 
     # Preview table
     table = Table(title="JSON-LD Preview", show_lines=True)

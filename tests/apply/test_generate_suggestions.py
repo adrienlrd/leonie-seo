@@ -1,17 +1,20 @@
 """Tests for scripts.apply.generate_suggestions."""
 
+from scripts._config import get_config
 from scripts.apply.generate_suggestions import (
-    BRAND,
-    DESC_MAX,
-    DESC_MIN,
-    TITLE_MAX,
-    TITLE_MIN,
     build_alt_suggestions,
     build_meta_suggestions,
     suggest_alt_text,
     suggest_meta_description,
     suggest_meta_title,
 )
+
+_cfg = get_config()
+BRAND = _cfg.brand
+TITLE_MIN = _cfg.seo_rules.title_min_chars
+TITLE_MAX = _cfg.seo_rules.title_max_chars
+DESC_MIN = _cfg.seo_rules.description_min_chars
+DESC_MAX = _cfg.seo_rules.description_max_chars
 
 # ── Meta title ────────────────────────────────────────────────────────────────
 

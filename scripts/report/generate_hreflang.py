@@ -10,19 +10,9 @@ from typing import Any
 import click
 from rich.console import Console
 
+from scripts._config import get_config
+
 console = Console()
-
-_DEFAULT_BASE_URL = "https://www.leoniedelacroix.com"
-
-# Supported locales: (hreflang value, url_prefix)
-# url_prefix="" means same base URL (fr-FR is the canonical domain)
-# For BE/CH, Shopify Markets adds a subpath prefix (/fr-be/, /fr-ch/)
-_DEFAULT_LOCALES: list[tuple[str, str]] = [
-    ("fr-FR", ""),
-    ("fr-BE", "/fr-be"),
-    ("fr-CH", "/fr-ch"),
-    ("fr", ""),  # generic French fallback — same as fr-FR canonical
-]
 
 
 def _url_paths_from_snapshot(snapshot_path: str) -> list[dict[str, str]]:
@@ -230,24 +220,30 @@ def render_markdown(
 
 @click.command()
 @click.option("--snapshot", default="data/raw/shopify_snapshot.json", show_default=True)
-@click.option("--base-url", default=_DEFAULT_BASE_URL, show_default=True)
+@click.option("--base-url", default=None, help="Override base URL (default: from tenant config)")
 @click.option("--output-dir", default="reports", show_default=True)
 @click.option("--json-output", default="data/raw/hreflang.json", show_default=True)
 @click.option("--sitemap-output", default="data/raw/hreflang_sitemap.xml", show_default=True)
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
 def main(
     snapshot: str,
-    base_url: str,
+    base_url: str | None,
     output_dir: str,
     json_output: str,
     sitemap_output: str,
+    tenant: str | None,
 ) -> None:
     """Generate hreflang tags for fr-FR/fr-BE/fr-CH market expansion."""
+    cfg = get_config(tenant)
+    effective_base_url = base_url or cfg.base_url
+    locales = cfg.hreflang_locales_as_tuples()
+
     console.print("[bold cyan]► Generating hreflang tags[/bold cyan]")
 
     pages = _url_paths_from_snapshot(snapshot)
-    entries = build_hreflang_entries(pages, base_url, _DEFAULT_LOCALES)
+    entries = build_hreflang_entries(pages, effective_base_url, locales)
 
-    console.print(f"  {len(entries)} pages × {len(_DEFAULT_LOCALES) + 1} locales")
+    console.print(f"  {len(entries)} pages × {len(locales) + 1} locales")
 
     Path(json_output).parent.mkdir(parents=True, exist_ok=True)
     with open(json_output, "w", encoding="utf-8") as f:
@@ -261,7 +257,7 @@ def main(
     out_dir = Path(output_dir) / date
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "hreflang.md"
-    out_path.write_text(render_markdown(entries, _DEFAULT_LOCALES, date, liquid), encoding="utf-8")
+    out_path.write_text(render_markdown(entries, locales, date, liquid), encoding="utf-8")
 
     console.print(f"  [green]✓[/green] {len(entries)} pages → {out_path}")
     console.print(f"  [green]✓[/green] Sitemap XML → {sitemap_output}")

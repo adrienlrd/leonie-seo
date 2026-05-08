@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
+from scripts._config import get_config
+
 load_dotenv()
 
 console = Console()
@@ -95,28 +97,6 @@ _CATEGORY_SIGNALS: dict[str, list[str]] = {
     ],
 }
 
-_CATEGORY_BY_HANDLE: dict[str, str] = {
-    "le-pardessus-pour-chien": "vetements_chien",
-    "le-pardessus-pour-chat": "vetements_chat",
-    "le-tour-de-cou-pour-chien": "vetements_chien",
-    "le-tour-de-cou-pour-chat": "vetements_chat",
-    "le-harnais-haute-couture": "vetements_chien",
-    "le-harnais-tout-en-un": "vetements_chien",
-    "le-pull-le-leonie": "vetements_chien",
-    "labreuvoir": "fontaines",
-    "fontaine-smart-cordless": "fontaines",
-    "distributeur-pet-feeder": "fontaines",
-    "pack-de-5-filtres-puissants-pour-labreuvoir": "filtres",
-    "pompe-pour-labreuvoir": "filtres",
-    "un-an-de-filtres-pour-la-fontaine-smart-6-boites": "filtres",
-    "1-boite-de-filtres-pour-la-fontaine-smart": "filtres",
-    "griffoir-dimitrios": "accessoires",
-    "arbre-a-chat-boho": "accessoires",
-    "bol-felin-raffine": "accessoires",
-    "lensemble-clawcount": "accessoires",
-    "le-raisonnable": "accessoires",
-}
-
 
 def _normalize(text: str) -> str:
     return text.lower()
@@ -130,14 +110,15 @@ def _score_signals(text: str, signals: list[str]) -> tuple[int, int, list[str]]:
     return len(found), len(signals), missing
 
 
-def analyze_product(product: dict[str, Any]) -> dict[str, Any]:
+def analyze_product(product: dict[str, Any], cfg=None) -> dict[str, Any]:
     """Score a single product description across all signal categories."""
+    _cfg = cfg or get_config()
     handle = product.get("handle", "")
     title = product.get("title", "")
     description = (product.get("description") or "").strip()
     text = f"{title} {description}"
 
-    category = _CATEGORY_BY_HANDLE.get(handle, "accessoires")
+    category = _cfg.category_for_handle(handle)
     category_signals = _CATEGORY_SIGNALS.get(category, _CATEGORY_SIGNALS["accessoires"])
 
     prem_found, prem_total, prem_missing = _score_signals(text, _PREMIUM_SIGNALS)
@@ -192,8 +173,9 @@ def render_markdown(results: list[dict[str, Any]], date: str) -> str:
     avg_premium = round(sum(r["premium_score"] for r in results) / max(len(results), 1), 2)
     avg_eeat = round(sum(r["eeat_score"] for r in results) / max(len(results), 1), 2)
 
+    _site = get_config().domain
     lines = [
-        f"# Analyse Sémantique Produits — leoniedelacroix.com — {date}",
+        f"# Analyse Sémantique Produits — {_site} — {date}",
         "",
         "## Résumé",
         "",
@@ -253,7 +235,7 @@ def render_markdown(results: list[dict[str, Any]], date: str) -> str:
         "3. **Longue traîne** — intégrer les termes de santé animale (`santé rénale`, `urinaire`, `digestion`) dans les produits concernés",
         "4. **Longueur** — viser 150+ mots par description (utiliser `rewrite_descriptions.py --apply`)",
         "",
-        "*Généré automatiquement par le pipeline SEO leoniedelacroix.com*",
+        f"*Généré automatiquement par le pipeline SEO {get_config().domain}*",
     ]
     return "\n".join(lines)
 
@@ -262,12 +244,14 @@ def render_markdown(results: list[dict[str, Any]], date: str) -> str:
 @click.option("--snapshot", default="data/raw/shopify_snapshot.json", show_default=True)
 @click.option("--keywords", default="config/keywords.yaml", show_default=True)
 @click.option("--output-dir", default="reports", show_default=True)
-def main(snapshot: str, keywords: str, output_dir: str) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(snapshot: str, keywords: str, output_dir: str, tenant: str | None) -> None:
     """Score product descriptions against competitor vocabulary and keyword targets."""
+    cfg = get_config(tenant)
     console.print("[bold cyan]► Semantic analysis vs competitor benchmark[/bold cyan]")
 
     products = load_products(snapshot)
-    results = [analyze_product(p) for p in products]
+    results = [analyze_product(p, cfg) for p in products]
 
     table = Table(title="Semantic Scores")
     table.add_column("Product", max_width=30)

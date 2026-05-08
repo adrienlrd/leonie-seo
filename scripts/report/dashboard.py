@@ -16,9 +16,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-console = Console()
+from scripts._config import TenantConfig, get_config
 
-_SITE = "leoniedelacroix.com"
+console = Console()
 
 # ── Data loaders ───────────────────────────────────────────────────────────
 
@@ -129,7 +129,9 @@ def _color(val: float | None, low: float, high: float, invert: bool = False) -> 
     return "red"
 
 
-def _panel_kpis(gsc: dict[str, Any]) -> Panel:
+def _panel_kpis(gsc: dict[str, Any], cfg: TenantConfig | None = None) -> Panel:
+    _cfg = cfg or get_config()
+    t_cfg = _cfg.alert_thresholds
     t = Table.grid(padding=(0, 1))
     t.add_column(min_width=14)
     t.add_column(min_width=10, justify="right")
@@ -140,18 +142,20 @@ def _panel_kpis(gsc: dict[str, Any]) -> Panel:
     pos = gsc["position"]
 
     t.add_row("Clics (90j)", Text(f"{clicks:,}" if clicks is not None else "N/A",
-              style=_color(clicks, 500, 2000) if clicks is not None else "dim"))
+              style=_color(clicks, t_cfg.clicks_warn, t_cfg.clicks_ok) if clicks is not None else "dim"))
     t.add_row("Impressions", Text(f"{imp:,}" if imp is not None else "N/A", style="cyan"))
     t.add_row("CTR moyen", Text(f"{ctr}%" if ctr is not None else "N/A",
-              style=_color(ctr, 2.0, 4.0) if ctr is not None else "dim"))
+              style=_color(ctr, t_cfg.ctr_warn, t_cfg.ctr_ok) if ctr is not None else "dim"))
     t.add_row("Position moy.", Text(str(pos) if pos is not None else "N/A",
-              style=_color(pos, 10, 20, invert=True) if pos is not None else "dim"))
+              style=_color(pos, t_cfg.position_ok, t_cfg.position_warn, invert=True) if pos is not None else "dim"))
     t.add_row("Pages indexées", Text(str(gsc["pages"]), style="white"))
 
     return Panel(t, title="[bold]KPIs GSC[/bold]", border_style="blue", padding=(0, 1))
 
 
-def _panel_health(eeat: dict, cannibal: dict, ps: dict) -> Panel:
+def _panel_health(eeat: dict, cannibal: dict, ps: dict, cfg: TenantConfig | None = None) -> Panel:
+    _cfg = cfg or get_config()
+    t_cfg = _cfg.alert_thresholds
     t = Table.grid(padding=(0, 1))
     t.add_column(min_width=16)
     t.add_column(min_width=10, justify="right")
@@ -159,10 +163,10 @@ def _panel_health(eeat: dict, cannibal: dict, ps: dict) -> Panel:
     eeat_avg = eeat["avg"]
     t.add_row("E-E-A-T moyen",
               Text(f"{eeat_avg}%" if eeat_avg is not None else "N/A",
-                   style=_color(eeat_avg, 25, 45) if eeat_avg is not None else "dim"))
+                   style=_color(eeat_avg, t_cfg.eeat_warn, t_cfg.eeat_ok) if eeat_avg is not None else "dim"))
 
     weak = eeat["weak"]
-    t.add_row("Pages E-E-A-T < 45%",
+    t.add_row(f"Pages E-E-A-T < {t_cfg.eeat_ok:.0f}%",
               Text(str(weak) if weak is not None else "N/A",
                    style="red" if weak else "green"))
 
@@ -178,7 +182,7 @@ def _panel_health(eeat: dict, cannibal: dict, ps: dict) -> Panel:
     mob = ps["mobile_avg"]
     t.add_row("CWV mobile",
               Text(f"{mob:.0%}" if mob is not None else "N/A",
-                   style=_color(mob, 0.5, 0.7) if mob is not None else "dim"))
+                   style=_color(mob, t_cfg.cwv_warn, t_cfg.cwv_ok) if mob is not None else "dim"))
 
     return Panel(t, title="[bold]Santé SEO[/bold]", border_style="magenta", padding=(0, 1))
 
@@ -231,10 +235,11 @@ def build_layout(
     pages: list,
     timestamp: str,
 ) -> Layout:
+    cfg = get_config()
     layout = Layout()
 
     header_text = Text(justify="center")
-    header_text.append(f" {_SITE} ", style="bold white on dark_blue")
+    header_text.append(f" {cfg.domain} ", style="bold white on dark_blue")
     header_text.append("  SEO Dashboard  ", style="bold")
     header_text.append(f"  {timestamp}", style="dim")
 
@@ -245,8 +250,8 @@ def build_layout(
     )
 
     layout["top"].split_row(
-        Layout(_panel_kpis(gsc), name="kpis"),
-        Layout(_panel_health(eeat, cannibal, ps), name="health"),
+        Layout(_panel_kpis(gsc, cfg), name="kpis"),
+        Layout(_panel_health(eeat, cannibal, ps, cfg), name="health"),
         Layout(_panel_wins(wins), name="wins"),
     )
 
@@ -268,6 +273,7 @@ def build_layout(
 @click.option("--pagespeed", default="data/raw/pagespeed.csv", show_default=True)
 @click.option("--watch", is_flag=True, default=False, help="Refresh every 30s (Ctrl+C to exit)")
 @click.option("--refresh", default=30, show_default=True, help="Refresh interval in seconds")
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
 def main(
     gsc: str,
     opportunities: str,
@@ -276,8 +282,10 @@ def main(
     pagespeed: str,
     watch: bool,
     refresh: int,
+    tenant: str | None,
 ) -> None:
-    """Display real-time SEO health dashboard for leoniedelacroix.com."""
+    """Display real-time SEO health dashboard."""
+    get_config(tenant)  # preload tenant config
 
     def _snapshot() -> Layout:
         from datetime import datetime

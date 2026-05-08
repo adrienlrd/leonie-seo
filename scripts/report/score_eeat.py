@@ -11,6 +11,8 @@ import click
 from rich.console import Console
 from rich.table import Table
 
+from scripts._config import get_config
+
 console = Console()
 
 # ── Signal lists per E-E-A-T dimension ────────────────────────────────────
@@ -136,8 +138,9 @@ def load_products(snapshot_path: str) -> list[dict[str, Any]]:
 
 def render_markdown(results: list[dict[str, Any]], date: str) -> str:
     """Render E-E-A-T scores as a Markdown report."""
+    _site = get_config().domain
     if not results:
-        return f"# Score E-E-A-T — leoniedelacroix.com — {date}\n\nAucun produit analysé.\n"
+        return f"# Score E-E-A-T — {_site} — {date}\n\nAucun produit analysé.\n"
 
     avg_global = round(sum(r["global_score"] for r in results) / len(results), 3)
     avg_exp = round(sum(r["experience_score"] for r in results) / len(results), 2)
@@ -146,7 +149,7 @@ def render_markdown(results: list[dict[str, Any]], date: str) -> str:
     avg_trust = round(sum(r["trust_score"] for r in results) / len(results), 2)
 
     lines = [
-        f"# Score E-E-A-T — leoniedelacroix.com — {date}",
+        f"# Score E-E-A-T — {_site} — {date}",
         "",
         "## Résumé",
         "",
@@ -227,7 +230,7 @@ def render_markdown(results: list[dict[str, Any]], date: str) -> str:
         "3. **Autorité** — systématiser `fabriqué en France` dans toutes les fiches vêtements",
         "4. **Confiance** — rappeler `garantie`, `sans BPA`, matériaux `certifiés alimentaires` pour fontaines et accessoires",
         "",
-        "*Généré automatiquement par le pipeline SEO leoniedelacroix.com*",
+        f"*Généré automatiquement par le pipeline SEO {get_config().domain}*",
     ]
     return "\n".join(lines)
 
@@ -236,8 +239,10 @@ def render_markdown(results: list[dict[str, Any]], date: str) -> str:
 @click.option("--snapshot", default="data/raw/shopify_snapshot.json", show_default=True)
 @click.option("--output-dir", default="reports", show_default=True)
 @click.option("--json-output", default="data/raw/eeat_scores.json", show_default=True)
-def main(snapshot: str, output_dir: str, json_output: str) -> None:
+@click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
+def main(snapshot: str, output_dir: str, json_output: str, tenant: str | None) -> None:
     """Score all product pages on E-E-A-T dimensions."""
+    get_config(tenant)  # preload tenant
     console.print("[bold cyan]► Scoring E-E-A-T per product page[/bold cyan]")
 
     products = load_products(snapshot)
