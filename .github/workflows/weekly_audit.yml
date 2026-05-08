@@ -68,6 +68,9 @@ jobs:
           GOOGLE_OAUTH_TOKEN_PATH: token.json
         run: python -m scripts.audit.fetch_gsc
 
+      - name: Détecter la cannibalisation de mots-clés
+        run: python -m scripts.audit.detect_cannibalization
+
       - name: Fetch PageSpeed Insights (homepage + top pages)
         continue-on-error: true
         env:
