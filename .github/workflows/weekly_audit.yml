@@ -105,6 +105,9 @@ jobs:
       - name: Analyse sémantique vs concurrents
         run: python -m scripts.report.analyze_semantics
 
+      - name: Générer les FAQ structurées par catégorie
+        run: python -m scripts.report.generate_faq
+
       # ── Alertes ─────────────────────────────────────────────────────────────
 
       - name: Envoyer alertes email
