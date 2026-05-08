@@ -102,6 +102,9 @@ jobs:
       - name: Détecter les opportunités de maillage interne
         run: python -m scripts.report.detect_internal_links
 
+      - name: Analyse sémantique vs concurrents
+        run: python -m scripts.report.analyze_semantics
+
       # ── Alertes ─────────────────────────────────────────────────────────────
 
       - name: Envoyer alertes email
