@@ -111,6 +111,9 @@ jobs:
       - name: Générer les FAQ structurées par catégorie
         run: python -m scripts.report.generate_faq
 
+      - name: Score E-E-A-T par page produit
+        run: python -m scripts.report.score_eeat
+
       # ── Alertes ─────────────────────────────────────────────────────────────
 
       - name: Envoyer alertes email

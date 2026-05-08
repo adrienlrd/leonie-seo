@@ -57,7 +57,7 @@
 | 33 | Analyse sémantique fiches produits vs concurrents (Zooplus, Wanimo) | 🔴 | ✅ | 2026-05-08 |
 | 34 | Générateur de FAQ structurée par catégorie produit | 🟡 | ✅ | 2026-05-08 |
 | 35 | Détecteur de cannibalisation — pages en compétition sur un même mot-clé | 🔴 | ✅ | 2026-05-08 |
-| 36 | Score E-E-A-T par page — auteur, sources, date, expertise vétérinaire | 🔴 | ⏳ | |
+| 36 | Score E-E-A-T par page — auteur, sources, date, expertise vétérinaire | 🔴 | ✅ | 2026-05-08 |
 | 37 | Générateur balises hreflang si extension BE/CH francophone | 🟡 | ⏳ | |
 | 38 | Rapport mensuel synthétique PDF — trafic, conversions, gains cumulés | 🟡 | ⏳ | |
 | 39 | Dashboard CLI interactif `rich` — vue temps réel santé SEO du site | 🟡 | ⏳ | |
