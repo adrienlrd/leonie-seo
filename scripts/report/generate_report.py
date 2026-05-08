@@ -223,8 +223,10 @@ def main(
     issues += detect_404_issues(parse_overview(sf_overview) if sf_overview else None)
 
     pagespeed_data: list[dict[str, Any]] | None = None
-    if pagespeed:
+    if pagespeed and Path(pagespeed).exists():
         pagespeed_data = pd.read_csv(pagespeed).to_dict("records")
+    elif pagespeed:
+        console.print(f"  [yellow]⚠[/yellow] {pagespeed} not found — skipping CWV scores")
 
     total_images = sum(len((p.get("images") or {}).get("edges", [])) for p in products)
     score = calculate_score(issues, len(products) + len(collections), total_images, pagespeed_data)
