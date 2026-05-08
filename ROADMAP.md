@@ -52,7 +52,7 @@
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
 | 30 | Générateur de briefs articles blog (H1/H2, mots-clés, angle E-E-A-T) | 🟡 | ✅ | 2026-05-08 |
-| 31 | Réécriture descriptions produits longue traîne — ton premium petfood FR | 🔴 | ⏳ | |
+| 31 | Réécriture descriptions produits longue traîne — ton premium petfood FR | 🔴 | ✅ | 2026-05-08 |
 | 32 | Maillage interne automatique — détection opportunités liens blog → produits | 🔴 | ⏳ | |
 | 33 | Analyse sémantique fiches produits vs concurrents (Zooplus, Wanimo) | 🔴 | ⏳ | |
 | 34 | Générateur de FAQ structurée par catégorie produit | 🟡 | ⏳ | |
