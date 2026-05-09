@@ -22,6 +22,7 @@ export const api = {
   getIssues: (shop, severity) =>
     _get(`/shops/${shop}/audit/issues${severity ? `?severity=${severity}` : ''}`),
   getScore: (shop) => _get(`/shops/${shop}/audit/score`),
+  getMetaSuggestions: (shop) => _get(`/shops/${shop}/suggestions/meta`),
   applyMeta: (shop, updates, dryRun = true) =>
     _post(`/shops/${shop}/apply/meta?dry_run=${dryRun}`, updates),
 }

@@ -5,9 +5,10 @@ from typing import Any
 import pandas as pd
 import yaml
 
+from scripts._paths import SEO_RULES_PATH
 from scripts.models import Issue, Severity
 
-_RULES_PATH = "config/seo_rules.yaml"
+_RULES_PATH = SEO_RULES_PATH
 
 
 def _load_rules(rules_path: str = _RULES_PATH) -> dict[str, Any]:

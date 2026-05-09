@@ -143,7 +143,7 @@ def load_tenant(tenant_id: str) -> TenantConfig:
         raise FileNotFoundError(f"No tenant config found at {path}")
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    return TenantConfig.parse_obj(data)
+    return TenantConfig.model_validate(data)
 
 
 @lru_cache(maxsize=8)
@@ -180,7 +180,7 @@ def load_niche(niche_id: str) -> NicheConfig:
         raise FileNotFoundError(f"No niche config found at {path}")
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    return NicheConfig.parse_obj(data)
+    return NicheConfig.model_validate(data)
 
 
 def reset_config_cache() -> None:

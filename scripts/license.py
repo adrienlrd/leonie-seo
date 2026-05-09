@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import click
 from dotenv import load_dotenv
@@ -48,7 +48,7 @@ def issue_key(tenant_id: str, days: int, secret: str | None = None) -> str:
         A LEO-prefixed, base64-encoded signed key string.
     """
     sec = _secret(secret)
-    expiry = (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%d")
+    expiry = (datetime.now(UTC) + timedelta(days=days)).strftime("%Y-%m-%d")
     payload = {"tenant_id": tenant_id, "expiry": expiry}
     sig = _sign(payload, sec)
     raw = json.dumps({**payload, "sig": sig}, sort_keys=True)
@@ -100,7 +100,7 @@ def validate_key(api_key: str, secret: str | None = None) -> dict:
     expected = _sign(data, sec)
     if not hmac.compare_digest(sig, expected):
         raise LicenseError("Signature invalide — clé corrompue ou non autorisée")
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     if today > data["expiry"]:
         raise LicenseError(f"Licence expirée le {data['expiry']}")
     return data
@@ -147,7 +147,7 @@ def cli() -> None:
 def cmd_issue(tenant: str, days: int, secret: str | None) -> None:
     """Generate a new signed license key for a boutique."""
     key = issue_key(tenant, days, secret)
-    expiry = (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%d")
+    expiry = (datetime.now(UTC) + timedelta(days=days)).strftime("%Y-%m-%d")
     console.print(
         f"\n  [green]✓[/green] Clé générée pour [cyan]{tenant}[/cyan]"
         f" — expire le [yellow]{expiry}[/yellow]\n"

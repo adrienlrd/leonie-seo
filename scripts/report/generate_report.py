@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +12,7 @@ import click
 import yaml
 from rich.console import Console
 
+from scripts._paths import SEO_RULES_PATH
 from scripts.audit.detect_issues import (
     detect_404_issues,
     detect_alt_text_issues,
@@ -26,7 +27,7 @@ from scripts.models import Issue, SEOScore, Severity
 
 console = Console()
 
-_RULES_PATH = "config/seo_rules.yaml"
+_RULES_PATH = SEO_RULES_PATH
 _REPORTS_DIR = "reports"
 
 _SEVERITY_EMOJI = {
@@ -122,7 +123,7 @@ def generate_markdown_report(
     report_date: str | None = None,
 ) -> str:
     """Render the full SEO audit report as a Markdown string."""
-    date = report_date or datetime.utcnow().strftime("%Y-%m-%d")
+    date = report_date or datetime.now(UTC).strftime("%Y-%m-%d")
     total_images = sum(len((p.get("images") or {}).get("edges", [])) for p in products)
 
     lines: list[str] = [
@@ -239,7 +240,7 @@ def main(
 
     console.print(f"  [green]✓[/green] {len(issues)} issues — score {score.total}/100")
 
-    date = datetime.utcnow().strftime("%Y-%m-%d")
+    date = datetime.now(UTC).strftime("%Y-%m-%d")
     out_dir = Path(output_dir) / date
     out_dir.mkdir(parents=True, exist_ok=True)
     report_path = out_dir / "audit_report.md"

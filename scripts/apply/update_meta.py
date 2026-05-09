@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
+from scripts._paths import DB_PATH as _DB_PATH
 from scripts.license import LicenseError, require_valid_license
 
 load_dotenv()
@@ -20,7 +21,6 @@ load_dotenv()
 console = Console()
 
 _ENDPOINT_TMPL = "https://{domain}/admin/api/2025-01/graphql.json"
-_DB_PATH = "data/history.db"
 
 _UPDATE_PRODUCT_SEO = """
 mutation UpdateProductSEO($input: ProductInput!) {
@@ -261,7 +261,7 @@ def main(updates: str, dry_run: bool, delay: float) -> None:
     for update in update_list:
         name = update.get("name", update.get("id", "?"))
         resource_id: str = update["id"]
-        is_collection = "Collection" in resource_id
+        is_collection = resource_id.startswith("gid://shopify/Collection/")
         try:
             if is_collection:
                 update_collection_seo(

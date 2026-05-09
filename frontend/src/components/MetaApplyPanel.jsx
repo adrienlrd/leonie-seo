@@ -8,11 +8,10 @@ export default function MetaApplyPanel({ shop }) {
   const [loading, setLoading] = useState(false)
   const [applied, setApplied] = useState(false)
 
-  // Load meta suggestions from the raw JSON produced by generate_suggestions
+  // Load meta suggestions from the API endpoint
   useEffect(() => {
     if (!shop) return
-    fetch('/data/raw/meta_suggestions.json')
-      .then(r => r.ok ? r.json() : [])
+    api.getMetaSuggestions(shop)
       .then(data => {
         setSuggestions(Array.isArray(data) ? data.slice(0, 10) : [])
         setEdits({})

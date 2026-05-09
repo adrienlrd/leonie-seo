@@ -2,9 +2,9 @@
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import ShopContext, get_shop_context
 from scripts.audit.detect_issues import (
@@ -49,9 +49,11 @@ def _detect_all_issues(snapshot: dict[str, Any]) -> list[Issue]:
 
 
 @router.get("/shops/{shop}/audit/issues")
-async def get_issues(shop: str, severity: str | None = None) -> list[dict]:
+async def get_issues(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    severity: str | None = None,
+) -> list[dict]:
     """Return all SEO issues from the last crawl, optionally filtered by severity."""
-    ctx: ShopContext = get_shop_context(shop)
     snapshot = _load_snapshot(ctx.snapshot_path)
     issues = _detect_all_issues(snapshot)
 
@@ -62,20 +64,19 @@ async def get_issues(shop: str, severity: str | None = None) -> list[dict]:
 
 
 @router.get("/shops/{shop}/audit/score")
-async def get_score(shop: str) -> dict:
+async def get_score(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict:
     """Return the SEO score (0–100) from the last crawl."""
-    ctx: ShopContext = get_shop_context(shop)
     snapshot = _load_snapshot(ctx.snapshot_path)
 
     products = snapshot.get("products", [])
     collections = snapshot.get("collections", [])
-    all_resources = products + collections
+    total_resources = len(products) + len(collections)
     total_images = sum(len((p.get("images") or {}).get("edges", [])) for p in products)
 
     issues = _detect_all_issues(snapshot)
     score: SEOScore = calculate_score(
         issues=issues,
-        total_resources=len(all_resources),
+        total_resources=total_resources,
         total_images=total_images,
         rules_path=_RULES_PATH,
     )

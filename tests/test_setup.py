@@ -96,7 +96,7 @@ def test_generate_yaml_produces_valid_tenant_config():
         niche="pet_accessories_fr",
     )
     data = yaml.safe_load(content)
-    cfg = TenantConfig.parse_obj(data)
+    cfg = TenantConfig.model_validate(data)
     assert cfg.tenant_id == "testshop"
     assert cfg.brand == "Test Shop"
     assert cfg.base_url == "https://www.testshop.com"

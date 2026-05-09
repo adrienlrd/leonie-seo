@@ -1,7 +1,7 @@
+"""Shopify OAuth install/callback handlers."""
+
 import os
 import re
-import time
-import uuid
 from typing import Annotated
 
 import httpx
@@ -9,36 +9,39 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
 from app.oauth.hmac_validator import validate_hmac
-from app.oauth.token_store import init_token_table, save_token
+from app.oauth.state_store import consume_state, issue_state
+from app.oauth.token_store import save_token
 
 router = APIRouter()
 
 _SHOP_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$")
 
-# In-memory CSRF state store: state_token -> monotonic timestamp
-_pending_states: dict[str, float] = {}
-_STATE_TTL = 600  # 10 minutes
-
 
 def _env(key: str) -> str:
     val = os.getenv(key)
     if not val:
-        raise RuntimeError(f"Missing required environment variable: {key}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Server misconfigured — missing environment variable: {key}",
+        )
     return val
+
+
+def _is_valid_shop(shop: str) -> bool:
+    return bool(_SHOP_RE.match(shop))
 
 
 @router.get("/install")
 async def install(shop: Annotated[str, Query()]) -> RedirectResponse:
     """Step 1 — redirect the merchant to Shopify's OAuth consent screen."""
-    if not _SHOP_RE.match(shop):
+    if not _is_valid_shop(shop):
         raise HTTPException(status_code=400, detail="Invalid shop domain")
 
     client_id = _env("SHOPIFY_CLIENT_ID")
     scopes = _env("SHOPIFY_SCOPES")
     redirect_uri = _env("APP_URL").rstrip("/") + "/shopify/callback"
 
-    state = str(uuid.uuid4())
-    _pending_states[state] = time.monotonic()
+    state = issue_state()
 
     auth_url = (
         f"https://{shop}/admin/oauth/authorize"
@@ -60,10 +63,14 @@ async def callback(
     host: Annotated[str, Query()] = "",
 ) -> dict:
     """Step 2 — validate Shopify callback, exchange code for access token."""
+    # Defense in depth: the HMAC check below is the real gatekeeper, but
+    # validating the shop format first prevents spurious upstream calls.
+    if not _is_valid_shop(shop):
+        raise HTTPException(status_code=400, detail="Invalid shop domain")
+
     client_secret = _env("SHOPIFY_CLIENT_SECRET")
     client_id = _env("SHOPIFY_CLIENT_ID")
 
-    # Build the exact param dict Shopify signed
     params: dict[str, str] = {"shop": shop, "code": code, "state": state, "hmac": hmac}
     if timestamp:
         params["timestamp"] = timestamp
@@ -73,8 +80,7 @@ async def callback(
     if not validate_hmac(params, client_secret):
         raise HTTPException(status_code=403, detail="Invalid HMAC signature")
 
-    ts = _pending_states.pop(state, None)
-    if ts is None or (time.monotonic() - ts) > _STATE_TTL:
+    if not consume_state(state):
         raise HTTPException(status_code=403, detail="Invalid or expired state parameter")
 
     async with httpx.AsyncClient() as client:
@@ -90,8 +96,6 @@ async def callback(
     access_token: str = data["access_token"]
     scope: str = data.get("scope", "")
 
-    init_token_table()
     save_token(shop=shop, access_token=access_token, scope=scope)
 
-    # Never return the access_token in the response body
     return {"status": "installed", "shop": shop, "scope": scope}

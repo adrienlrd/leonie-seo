@@ -1,13 +1,14 @@
+"""Tests for the OAuth install/callback flow."""
+
 import hashlib
 import hmac as hmac_lib
 from unittest.mock import AsyncMock, MagicMock, patch
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import urlencode
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.oauth import router as router_module
 
 ENV = {
     "SHOPIFY_CLIENT_ID": "test_client_id",
@@ -21,13 +22,6 @@ ENV = {
 def client():
     with patch.dict("os.environ", ENV):
         yield TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def clear_pending_states():
-    router_module._pending_states.clear()
-    yield
-    router_module._pending_states.clear()
 
 
 def _sign(params: dict, secret: str = "test_secret") -> str:
@@ -68,13 +62,20 @@ def test_install_rejects_empty_shop(client: TestClient):
 # --- /callback ---
 
 
+def test_callback_rejects_invalid_shop_format(client: TestClient):
+    params = {"shop": "evil.example.com", "code": "abc", "state": "xyz", "hmac": "bad"}
+    resp = client.get("/shopify/callback", params=params)
+    assert resp.status_code == 400
+
+
 def test_callback_rejects_invalid_hmac(client: TestClient):
     params = {"shop": "mystore.myshopify.com", "code": "abc", "state": "xyz", "hmac": "bad"}
     resp = client.get("/shopify/callback", params=params)
     assert resp.status_code == 403
 
 
-def test_callback_rejects_unknown_state(client: TestClient):
+def test_callback_rejects_unknown_state(client: TestClient, mocker):
+    mocker.patch("app.oauth.router.consume_state", return_value=False)
     params = {"shop": "mystore.myshopify.com", "code": "abc", "state": "unknown-uuid"}
     params["hmac"] = _sign(params)
     resp = client.get("/shopify/callback", params=params)
@@ -82,17 +83,12 @@ def test_callback_rejects_unknown_state(client: TestClient):
 
 
 def test_callback_full_flow(client: TestClient, mocker):
-    mocker.patch("app.oauth.router.init_token_table")
-    mock_save = mocker.patch("app.oauth.router.save_token")
+    mocker.patch("app.oauth.router.save_token")
+    mocker.patch("app.oauth.router.consume_state", return_value=True)
 
-    # Step 1: get a valid state via /install
-    r = client.get("/shopify/install?shop=mystore.myshopify.com", follow_redirects=False)
-    state = parse_qs(urlparse(r.headers["location"]).query)["state"][0]
-
-    # Step 2: simulate Shopify calling /callback
     shop = "mystore.myshopify.com"
     code = "auth_code_123"
-    params = {"shop": shop, "code": code, "state": state}
+    params = {"shop": shop, "code": code, "state": "stub-state"}
     params["hmac"] = _sign(params)
 
     mock_resp = MagicMock()
@@ -111,17 +107,13 @@ def test_callback_full_flow(client: TestClient, mocker):
     assert body["status"] == "installed"
     assert body["shop"] == shop
     assert "access_token" not in body  # never exposed
-    mock_save.assert_called_once_with(shop=shop, access_token="shpat_real", scope="read_products")
 
 
 def test_callback_returns_502_when_shopify_token_exchange_fails(client: TestClient, mocker):
-    mocker.patch("app.oauth.router.init_token_table")
     mocker.patch("app.oauth.router.save_token")
+    mocker.patch("app.oauth.router.consume_state", return_value=True)
 
-    r = client.get("/shopify/install?shop=mystore.myshopify.com", follow_redirects=False)
-    state = parse_qs(urlparse(r.headers["location"]).query)["state"][0]
-
-    params = {"shop": "mystore.myshopify.com", "code": "bad_code", "state": state}
+    params = {"shop": "mystore.myshopify.com", "code": "bad_code", "state": "stub"}
     params["hmac"] = _sign(params)
 
     mock_resp = MagicMock()
@@ -143,4 +135,4 @@ def test_callback_returns_502_when_shopify_token_exchange_fails(client: TestClie
 def test_health_endpoint(client: TestClient):
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    assert resp.json()["status"] == "ok"

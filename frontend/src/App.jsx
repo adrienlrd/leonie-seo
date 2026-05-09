@@ -5,14 +5,24 @@ import ScoreCard from './components/ScoreCard'
 import { api } from './api'
 import './styles.css'
 
-const PRIMARY_SHOP = '287c4a-bb.myshopify.com'
 const VIEWS = ['dashboard', 'issues', 'appliquer']
 const VIEW_LABELS = { dashboard: 'Dashboard', issues: 'Issues', appliquer: 'Appliquer' }
 
+// Resolve the active shop from (priority): URL ?shop=… → localStorage → empty
+function resolveInitialShop() {
+  const params = new URLSearchParams(window.location.search)
+  const fromUrl = params.get('shop')
+  if (fromUrl) {
+    localStorage.setItem('leonie:shop', fromUrl)
+    return fromUrl
+  }
+  return localStorage.getItem('leonie:shop') || ''
+}
+
 export default function App() {
   const [view, setView] = useState('dashboard')
-  const [shop, setShop] = useState(PRIMARY_SHOP)
-  const [shops, setShops] = useState([PRIMARY_SHOP])
+  const [shop, setShop] = useState(resolveInitialShop)
+  const [shops, setShops] = useState([])
 
   const [status, setStatus] = useState(null)
   const [score, setScore] = useState(null)
@@ -22,15 +32,26 @@ export default function App() {
   const [issuesError, setIssuesError] = useState(null)
   const [error, setError] = useState(null)
 
-  // Load installed shops from OAuth table + primary tenant
+  // Load installed shops from OAuth table; fall back to current shop only
   useEffect(() => {
     api.listShops()
       .then(data => {
-        const extras = data.map(s => s.shop).filter(s => s !== PRIMARY_SHOP)
-        setShops([PRIMARY_SHOP, ...extras])
+        const installed = data.map(s => s.shop)
+        const all = shop && !installed.includes(shop) ? [shop, ...installed] : installed
+        setShops(all)
+        if (!shop && installed.length > 0) {
+          setShop(installed[0])
+          localStorage.setItem('leonie:shop', installed[0])
+        }
       })
       .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Persist shop selection
+  useEffect(() => {
+    if (shop) localStorage.setItem('leonie:shop', shop)
+  }, [shop])
 
   // Load shop status + score when shop changes
   useEffect(() => {
@@ -80,15 +101,32 @@ export default function App() {
         {/* Shop selector */}
         <div className="shop-selector">
           <label>Boutique</label>
-          <select value={shop} onChange={e => setShop(e.target.value)}>
-            {shops.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+          {shops.length > 0 ? (
+            <select value={shop} onChange={e => setShop(e.target.value)}>
+              {shops.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          ) : (
+            <input
+              type="text"
+              placeholder="xxx.myshopify.com"
+              value={shop}
+              onChange={e => setShop(e.target.value)}
+              style={{ padding: '0.5rem 0.75rem', border: '1px solid #ddd', borderRadius: 8, fontSize: '0.875rem' }}
+            />
+          )}
           {status && <span style={{ fontSize: '0.78rem', color: '#888' }}>
             {status.snapshot_available
               ? `${status.product_count} produits · ${status.collection_count} collections`
               : '⚠ Aucun crawl — lancez leonie-seo audit crawl'}
           </span>}
         </div>
+
+        {!shop && (
+          <div className="empty">
+            Aucune boutique configurée. Ajoute <code>?shop=xxx.myshopify.com</code> à l'URL,
+            ou installe l'app via OAuth.
+          </div>
+        )}
 
         {error && <div className="error-msg">{error}</div>}
 

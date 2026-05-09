@@ -73,14 +73,19 @@ def test_apply_meta_apply_calls_shopify(client: TestClient, mocker):
     )
 
 
-def test_apply_meta_shopify_error_returns_error_status(client: TestClient, mocker):
-    mocker.patch("app.api.apply.update_product_seo", side_effect=RuntimeError("Shopify down"))
+def test_apply_meta_shopify_user_error_returns_error_status(client: TestClient, mocker):
+    from scripts.apply.update_meta import ShopifyUserError
+
+    mocker.patch(
+        "app.api.apply.update_product_seo",
+        side_effect=ShopifyUserError("Title is too long"),
+    )
     payload = [{"product_id": PRODUCT_GID, "title": "Title"}]
     with _auth_patches():
         resp = client.post(f"/api/shops/{SHOP}/apply/meta?dry_run=false", json=payload)
     assert resp.status_code == 200
     assert resp.json()[0]["status"] == "error"
-    assert "Shopify down" in resp.json()[0]["detail"]
+    assert "Title is too long" in resp.json()[0]["detail"]
 
 
 def test_apply_meta_empty_list_returns_422(client: TestClient):
