@@ -25,6 +25,8 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "httpx",
+    "cryptography",
+    "pyjwt",
 ]
 
 [project.scripts]

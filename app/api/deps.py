@@ -3,9 +3,11 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import HTTPException
+from fastapi import Header, HTTPException
 
+from app.api.session_token import SessionTokenError, shop_from_payload, verify_session_token
 from app.oauth.token_store import get_token
 
 _API_VERSION = "2025-01"
@@ -21,13 +23,48 @@ class ShopContext:
     snapshot_path: Path
 
 
-def get_shop_context(shop: str) -> ShopContext:
-    """Resolve Shopify credentials for a shop.
+def _auth_required() -> bool:
+    return os.getenv("LEONIE_REQUIRE_SESSION_TOKEN", "false").lower() in ("1", "true", "yes")
 
-    Priority:
+
+def _verify_token_matches_shop(authorization: str | None, shop: str) -> None:
+    """Validate the Shopify session token in the Authorization header.
+
+    No-op when LEONIE_REQUIRE_SESSION_TOKEN is false (development mode).
+    """
+    if not _auth_required():
+        return
+
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(
+            status_code=401, detail="Missing Bearer session token in Authorization header"
+        )
+
+    token = authorization[7:].strip()
+    try:
+        payload = verify_session_token(token)
+    except SessionTokenError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    if shop_from_payload(payload) != shop:
+        raise HTTPException(status_code=403, detail="Session token does not match requested shop")
+
+
+def get_shop_context(
+    shop: str,
+    authorization: Annotated[str | None, Header()] = None,
+) -> ShopContext:
+    """Resolve Shopify credentials for a shop, after auth gate.
+
+    Auth priority (when enabled):
+    - Shopify session token in Authorization header — required in prod.
+
+    Credential priority:
     1. OAuth token from shop_tokens SQLite table (installed merchants).
     2. Primary tenant credentials from .env (local development fallback).
     """
+    _verify_token_matches_shop(authorization, shop)
+
     record = get_token(shop)
     if record:
         token = record["access_token"]

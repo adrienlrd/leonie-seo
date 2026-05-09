@@ -1,15 +1,26 @@
+import { getSessionToken } from './auth'
+
 const BASE = '/api'
 
+async function _headers(extra = {}) {
+  const token = await getSessionToken()
+  return token
+    ? { ...extra, Authorization: `Bearer ${token}` }
+    : extra
+}
+
 async function _get(path) {
-  const res = await fetch(BASE + path)
+  const headers = await _headers()
+  const res = await fetch(BASE + path, { headers })
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`)
   return res.json()
 }
 
 async function _post(path, body) {
+  const headers = await _headers({ 'Content-Type': 'application/json' })
   const res = await fetch(BASE + path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`)

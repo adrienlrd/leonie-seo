@@ -1,6 +1,15 @@
+"""Persistent storage of Shopify OAuth access tokens.
+
+Tokens are stored encrypted at rest via Fernet (see app.oauth.crypto).
+A plaintext token from a pre-encryption row will be decrypted as-is and
+re-saved encrypted on the next save_token() call.
+"""
+
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
+
+from app.oauth.crypto import decrypt, encrypt
 
 DB_PATH = Path(__file__).parents[2] / "data" / "history.db"
 
@@ -26,12 +35,9 @@ def init_token_table(db_path: Path = DB_PATH) -> None:
 
 
 def save_token(shop: str, access_token: str, scope: str, db_path: Path = DB_PATH) -> None:
-    """Insert or update the access token for a shop.
-
-    installed_at is preserved on update — only access_token, scope and
-    updated_at are refreshed on re-install.
-    """
+    """Insert or update the access token for a shop. Token is encrypted at rest."""
     now = datetime.now(UTC).isoformat()
+    encrypted = encrypt(access_token)
     with _connect(db_path) as conn:
         conn.execute(
             """
@@ -42,15 +48,19 @@ def save_token(shop: str, access_token: str, scope: str, db_path: Path = DB_PATH
                 scope        = excluded.scope,
                 updated_at   = excluded.updated_at
             """,
-            (shop, access_token, scope, now, now),
+            (shop, encrypted, scope, now, now),
         )
 
 
 def get_token(shop: str, db_path: Path = DB_PATH) -> dict | None:
-    """Return the token record for a shop, or None if not installed."""
+    """Return the token record for a shop with the access_token decrypted."""
     with _connect(db_path) as conn:
         row = conn.execute("SELECT * FROM shop_tokens WHERE shop = ?", (shop,)).fetchone()
-    return dict(row) if row else None
+    if row is None:
+        return None
+    record = dict(row)
+    record["access_token"] = decrypt(record["access_token"])
+    return record
 
 
 def delete_token(shop: str, db_path: Path = DB_PATH) -> None:
@@ -60,7 +70,7 @@ def delete_token(shop: str, db_path: Path = DB_PATH) -> None:
 
 
 def list_tokens(db_path: Path = DB_PATH) -> list[dict]:
-    """Return all installed shops ordered by installation date."""
+    """Return all installed shops (without access_token) ordered by install date."""
     if not db_path.exists():
         return []
     with _connect(db_path) as conn:

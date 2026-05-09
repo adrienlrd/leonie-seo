@@ -11,6 +11,8 @@ pyyaml
 fastapi
 uvicorn[standard]
 httpx
+cryptography
+pyjwt
 pytest
 pytest-mock
 ruff
