@@ -34,7 +34,7 @@ leonie-seo = "scripts.cli:cli"
 dev = ["pytest", "pytest-mock", "ruff"]
 
 [tool.setuptools]
-packages = ["scripts", "scripts.audit", "scripts.report", "scripts.apply", "app", "app.oauth"]
+packages = ["scripts", "scripts.audit", "scripts.report", "scripts.apply", "app", "app.oauth", "app.api"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

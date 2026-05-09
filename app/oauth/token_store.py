@@ -57,3 +57,14 @@ def delete_token(shop: str, db_path: Path = DB_PATH) -> None:
     """Remove the token for a shop (uninstall webhook handler)."""
     with _connect(db_path) as conn:
         conn.execute("DELETE FROM shop_tokens WHERE shop = ?", (shop,))
+
+
+def list_tokens(db_path: Path = DB_PATH) -> list[dict]:
+    """Return all installed shops ordered by installation date."""
+    if not db_path.exists():
+        return []
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT shop, scope, installed_at, updated_at FROM shop_tokens ORDER BY installed_at DESC"
+        ).fetchall()
+    return [dict(row) for row in rows]

@@ -83,7 +83,7 @@
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
 | 45 | OAuth Shopify — authentification marchands via App Store | 🔴 | ✅ | 2026-05-09 |
-| 46 | Backend FastAPI — API REST entre l'app et le moteur Python | 🔴 | ⏳ | |
+| 46 | Backend FastAPI — API REST entre l'app et le moteur Python | 🔴 | ✅ | 2026-05-09 |
 | 47 | Frontend dashboard React — version UI du CLI | 🔴 | ⏳ | |
 | 48 | Système de pricing par plan (Free/Pro/Agency) | 🔴 | ⏳ | |
 | 49 | Soumission et validation Shopify App Store | 🔴 | ⏳ | |

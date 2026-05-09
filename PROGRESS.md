@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Phase actuelle : Phase 5 — App Shopify publique (tâche 46)
+- Phase actuelle : Phase 5 — App Shopify publique (tâche 47)
 - Dernière session : 2026-05-09
 - Phase 1 : **15/15 complètes** ✅
 - Phase 2 : **14/14 complètes** ✅
@@ -86,6 +86,12 @@
   - **428 tests verts** · ruff clean
 
 ### Phase 5 — App Shopify publique (tâches 45–50)
+- **46** `app/api/` — Backend FastAPI (REST → moteur Python)
+  - `deps.py` : `ShopContext` — résolution token OAuth ou fallback `.env`
+  - `shops.py` : `GET /api/shops` · `GET /api/shops/{shop}/status`
+  - `audit.py` : `GET /api/shops/{shop}/audit/issues` · `/score` (depuis snapshot JSON)
+  - `apply.py` : `POST /api/shops/{shop}/apply/meta` (`dry_run=true` par défaut)
+  - **469 tests verts** · ruff clean
 - **45** `app/main.py` + `app/oauth/` — OAuth Shopify complet
   - `hmac_validator.py` : validation HMAC-SHA256 des callbacks Shopify
   - `token_store.py` : SQLite `shop_tokens` (save/get/delete, `installed_at` préservé)
