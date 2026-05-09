@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
+from scripts._paths import DB_PATH as _DB_PATH
 from scripts.apply.update_alt_text import ShopifyUserError as AltUserError
 from scripts.apply.update_alt_text import update_image_alt
 from scripts.apply.update_meta import ShopifyUserError as MetaUserError
@@ -18,7 +19,6 @@ load_dotenv()
 
 console = Console()
 
-_DB_PATH = "data/history.db"
 
 _SKIP_INSTRUCTIONS: dict[str, str] = {
     "url_redirect": (

@@ -1,4 +1,4 @@
-"""Interactive CLI dashboard — real-time SEO health view for leoniedelacroix.com."""
+"""Interactive CLI dashboard — real-time SEO health view for the active tenant."""
 
 from __future__ import annotations
 

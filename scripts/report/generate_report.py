@@ -121,15 +121,24 @@ def generate_markdown_report(
     issues: list[Issue],
     score: SEOScore,
     report_date: str | None = None,
+    site: str | None = None,
 ) -> str:
-    """Render the full SEO audit report as a Markdown string."""
+    """Render the full SEO audit report as a Markdown string.
+
+    Args:
+        site: Site domain to display in the header (e.g. www.leoniedelacroix.com).
+              Falls back to the active tenant config if omitted.
+    """
+    from scripts._config import get_config
+
     date = report_date or datetime.now(UTC).strftime("%Y-%m-%d")
     total_images = sum(len((p.get("images") or {}).get("edges", [])) for p in products)
+    site_label = site or get_config().domain
 
     lines: list[str] = [
         f"# SEO Audit Report — {date}",
         "",
-        "**Site :** leoniedelacroix.com  ",
+        f"**Site :** {site_label}  ",
         f"**Products :** {len(products)}  ",
         f"**Collections :** {len(collections)}  ",
         f"**Images :** {total_images}  ",

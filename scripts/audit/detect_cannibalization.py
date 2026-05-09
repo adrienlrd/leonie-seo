@@ -130,14 +130,18 @@ def _recommendation(record: dict[str, Any]) -> str:
 def render_markdown(
     results: list[dict[str, Any]],
     date: str,
+    site: str | None = None,
 ) -> str:
     """Render cannibalization analysis as a Markdown report."""
+    from scripts._config import get_config
+
+    site_label = site or get_config().domain
     high = [r for r in results if r["severity"] >= 0.6]
     medium = [r for r in results if 0.3 <= r["severity"] < 0.6]
     low = [r for r in results if r["severity"] < 0.3]
 
     lines = [
-        f"# Détecteur de Cannibalisation SEO — leoniedelacroix.com — {date}",
+        f"# Détecteur de Cannibalisation SEO — {site_label} — {date}",
         "",
         "## Résumé",
         "",
@@ -157,7 +161,7 @@ def render_markdown(
         lines += [
             "Aucune cannibalisation détectée avec les données disponibles.",
             "",
-            "*Généré automatiquement par le pipeline SEO leoniedelacroix.com*",
+            f"*Généré automatiquement par le pipeline SEO {site_label}*",
         ]
         return "\n".join(lines)
 
@@ -204,7 +208,7 @@ def render_markdown(
         "3. **Maillage interne** — ne pas créer de liens internes croisés entre pages cannibales",
         "4. **Consolidation** — fusionner deux pages faibles en une seule plus forte",
         "",
-        "*Généré automatiquement par le pipeline SEO leoniedelacroix.com*",
+        f"*Généré automatiquement par le pipeline SEO {site_label}*",
     ]
     return "\n".join(lines)
 

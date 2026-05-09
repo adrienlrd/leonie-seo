@@ -151,7 +151,7 @@ def build_alert_summary(
         lines.append("")
 
     lines.append("—")
-    lines.append("Généré automatiquement par le pipeline SEO leoniedelacroix.com")
+    lines.append(f"Généré automatiquement par le pipeline SEO {_site}")
     return "\n".join(lines)
 
 

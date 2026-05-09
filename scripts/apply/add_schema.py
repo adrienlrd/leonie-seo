@@ -14,13 +14,13 @@ from rich.console import Console
 from rich.table import Table
 
 from scripts._config import get_config
+from scripts._paths import DB_PATH as _DB_PATH
 
 load_dotenv()
 
 console = Console()
 
 _ENDPOINT_TMPL = "https://{domain}/admin/api/2025-01/graphql.json"
-_DB_PATH = "data/history.db"
 
 _METAFIELDS_SET = """
 mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {

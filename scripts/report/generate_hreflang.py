@@ -156,14 +156,18 @@ def render_markdown(
     locales: list[tuple[str, str]],
     date: str,
     liquid_snippet: str,
+    site: str | None = None,
 ) -> str:
     """Render hreflang report as Markdown."""
+    from scripts._config import get_config
+
+    site_label = site or get_config().domain
     products = [e for e in entries if e["page_type"] == "product"]
     collections = [e for e in entries if e["page_type"] == "collection"]
     locale_tags = ", ".join(f"`{h}`" for h, _ in locales)
 
     lines = [
-        f"# Balises Hreflang — leoniedelacroix.com — {date}",
+        f"# Balises Hreflang — {site_label} — {date}",
         "",
         "## Résumé",
         "",
@@ -214,12 +218,12 @@ def render_markdown(
         "",
         "```bash",
         "# Vérifier les balises sur la homepage",
-        "curl -s https://www.leoniedelacroix.com | grep 'hreflang'",
+        f"curl -s https://{site_label} | grep 'hreflang'",
         "```",
         "",
         "---",
         "",
-        "*Généré automatiquement par le pipeline SEO leoniedelacroix.com*",
+        f"*Généré automatiquement par le pipeline SEO {site_label}*",
     ]
     return "\n".join(lines)
 

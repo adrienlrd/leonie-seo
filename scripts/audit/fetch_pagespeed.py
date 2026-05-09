@@ -103,7 +103,11 @@ def main(urls: tuple[str, ...], output: str) -> None:
     console.print("[bold cyan]► Fetching PageSpeed scores[/bold cyan]")
 
     if not urls:
-        domain = os.getenv("SHOPIFY_STORE_DOMAIN", "www.leoniedelacroix.com")
+        domain = os.getenv("SHOPIFY_STORE_DOMAIN")
+        if not domain:
+            from scripts._config import get_config
+
+            domain = get_config().domain
         urls = (f"https://{domain}",)
         console.print("  [dim]No URLs given — auditing homepage only[/dim]")
 

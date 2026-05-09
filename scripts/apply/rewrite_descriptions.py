@@ -15,12 +15,13 @@ import requests
 from dotenv import load_dotenv
 from rich.console import Console
 
+from scripts._paths import DB_PATH as _DB_PATH
+
 load_dotenv()
 
 console = Console()
 
 _SHOPIFY_API_VERSION = "2025-01"
-_DB_PATH = "data/history.db"
 
 # ── Product classification ─────────────────────────────────────────────────
 

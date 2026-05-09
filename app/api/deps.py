@@ -11,7 +11,9 @@ from app.api.session_token import SessionTokenError, shop_from_payload, verify_s
 from app.oauth.token_store import get_token
 
 _API_VERSION = "2025-01"
-_SNAPSHOT_DEFAULT = Path("data/raw/shopify_snapshot.json")
+_PROJECT_ROOT = Path(__file__).parents[2]
+_SNAPSHOT_DEFAULT = _PROJECT_ROOT / "data" / "raw" / "shopify_snapshot.json"
+_RAW_DIR = _PROJECT_ROOT / "data" / "raw"
 
 
 @dataclass
@@ -68,7 +70,7 @@ def get_shop_context(
     record = get_token(shop)
     if record:
         token = record["access_token"]
-        snapshot = Path(f"data/raw/{shop}/shopify_snapshot.json")
+        snapshot = _RAW_DIR / shop / "shopify_snapshot.json"
     else:
         primary_shop = os.getenv("SHOPIFY_STORE_DOMAIN", "")
         primary_token = os.getenv("SHOPIFY_ACCESS_TOKEN", "")

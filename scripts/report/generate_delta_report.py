@@ -4,13 +4,14 @@ import copy
 import json
 import sqlite3
 from collections import Counter
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import click
 from rich.console import Console
 
+from scripts._paths import DB_PATH as _DB_PATH
 from scripts.audit.detect_issues import (
     detect_alt_text_issues,
     detect_meta_description_issues,
@@ -21,7 +22,6 @@ from scripts.report.generate_report import calculate_score
 
 console = Console()
 
-_DB_PATH = "data/history.db"
 _REPORTS_DIR = "reports"
 _RULES_PATH = "config/seo_rules.yaml"
 
@@ -219,6 +219,7 @@ def generate_delta_markdown(
     gaps: list[dict[str, Any]],
     report_date: str | None = None,
     rules_path: str = _RULES_PATH,
+    site: str | None = None,
 ) -> str:
     """Generate the full before/after Markdown delta report.
 
@@ -232,11 +233,15 @@ def generate_delta_markdown(
         gaps: Longtail keyword gaps list.
         report_date: ISO date string (defaults to today).
         rules_path: Path to seo_rules.yaml.
+        site: Site domain to display in the report header. Falls back to active tenant.
 
     Returns:
         Full Markdown report as a string.
     """
-    date = report_date or datetime.utcnow().strftime("%Y-%m-%d")
+    from scripts._config import get_config
+
+    site_label = site or get_config().domain
+    date = report_date or datetime.now(UTC).strftime("%Y-%m-%d")
 
     issues_before = compute_issues(products_before, collections_before)
     issues_after = compute_issues(products_after, collections_after)
@@ -263,7 +268,7 @@ def generate_delta_markdown(
     counts_after = Counter(i.issue_type for i in issues_after)
 
     lines: list[str] = [
-        "# Rapport SEO Avant/Après — leoniedelacroix.com",
+        f"# Rapport SEO Avant/Après — {site_label}",
         f"**Date :** {date}  ",
         f"**Produits :** {len(products_after)}  |  **Collections :** {len(collections_after)}  ",
         "",
@@ -355,7 +360,7 @@ def generate_delta_markdown(
 
     zone_labels = {"quick_win": "Quick win", "low_ctr": "CTR faible", "long_term": "Long terme"}
     for opp in opportunities[:5]:
-        path = opp["url"].split("leoniedelacroix.com")[-1] or "/"
+        path = opp["url"].split(site_label)[-1] or "/"
         zone = zone_labels.get(opp["zone"], opp["zone"])
         lines.append(
             f"| {path} | {zone} | {opp['position']} | {opp['impressions']} "
@@ -445,7 +450,7 @@ def main(
         with open(gaps, encoding="utf-8") as f:
             gap_report = json.load(f)
 
-    date = datetime.utcnow().strftime("%Y-%m-%d")
+    date = datetime.now(UTC).strftime("%Y-%m-%d")
     report_md = generate_delta_markdown(
         products_before,
         collections_before,

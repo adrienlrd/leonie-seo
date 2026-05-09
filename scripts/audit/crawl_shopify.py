@@ -160,31 +160,14 @@ def fetch_collections(
     return results
 
 
-def init_db(db_path: str = "data/history.db") -> sqlite3.Connection:
-    """Initialize SQLite database with snapshots and seo_changes tables."""
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS snapshots (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            snapshot_date TEXT NOT NULL,
-            resource_type TEXT NOT NULL,
-            resource_id   TEXT NOT NULL,
-            data_json     TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS seo_changes (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            applied_at    TEXT NOT NULL,
-            resource_type TEXT NOT NULL,
-            resource_id   TEXT NOT NULL,
-            field         TEXT NOT NULL,
-            old_value     TEXT,
-            new_value     TEXT,
-            status        TEXT NOT NULL DEFAULT 'applied'
-        );
-    """)
-    conn.commit()
-    return conn
+def init_db(db_path: str | None = None) -> sqlite3.Connection:
+    """Initialize SQLite database. Schema lives in app.db (single source of truth)."""
+    from app.db import DB_PATH as _DEFAULT_DB
+    from app.db import init_db as _create_tables
+
+    path = Path(db_path) if db_path else _DEFAULT_DB
+    _create_tables(path)
+    return sqlite3.connect(path)
 
 
 def save_snapshot(
