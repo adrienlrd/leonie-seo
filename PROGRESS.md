@@ -1,8 +1,8 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Phase actuelle : Phase 5 — App Shopify publique (tâche 45)
-- Dernière session : 2026-05-08
+- Phase actuelle : Phase 5 — App Shopify publique (tâche 46)
+- Dernière session : 2026-05-09
 - Phase 1 : **15/15 complètes** ✅
 - Phase 2 : **14/14 complètes** ✅
 - Phase 3 : **10/10 complètes** ✅
@@ -84,6 +84,15 @@
   - `install.sh` : bootstrap en une commande (venv + pip + .env)
   - `Dockerfile` : Python 3.11-slim, volumes pour data/reports/config
   - **428 tests verts** · ruff clean
+
+### Phase 5 — App Shopify publique (tâches 45–50)
+- **45** `app/main.py` + `app/oauth/` — OAuth Shopify complet
+  - `hmac_validator.py` : validation HMAC-SHA256 des callbacks Shopify
+  - `token_store.py` : SQLite `shop_tokens` (save/get/delete, `installed_at` préservé)
+  - `router.py` : `GET /shopify/install` → redirect OAuth + `GET /shopify/callback` → échange code/token
+  - Sécurité : HMAC validé, state UUID4 anti-CSRF (TTL 10 min), token jamais exposé en réponse
+  - Nouvelles deps : `fastapi`, `uvicorn[standard]`, `httpx`
+  - **449 tests verts** · ruff clean
 
 ## ✅ Phase 4 complète
 
