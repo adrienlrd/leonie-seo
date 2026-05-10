@@ -1,0 +1,34 @@
+{
+  "name": "leonie-seo-shopify-app",
+  "private": true,
+  "scripts": {
+    "build": "remix vite:build",
+    "dev": "shopify app dev",
+    "start": "remix-serve ./build/server/index.js",
+    "typecheck": "tsc"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@remix-run/node": "^2.9.2",
+    "@remix-run/react": "^2.9.2",
+    "@remix-run/serve": "^2.9.2",
+    "@shopify/polaris": "^13.9.5",
+    "@shopify/app-bridge-react": "^4.1.5",
+    "@shopify/shopify-app-remix": "^3.3.3",
+    "@shopify/shopify-app-session-storage-postgresql": "^3.0.1",
+    "isbot": "^4.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@remix-run/dev": "^2.9.2",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.1.0",
+    "vite-tsconfig-paths": "^5.0.1"
+  }
+}
