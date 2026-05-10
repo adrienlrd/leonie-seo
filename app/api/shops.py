@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import ShopContext, get_shop_context
+from app.api.plans import plan_summary
 from app.oauth.token_store import list_tokens
 
 router = APIRouter(prefix="/api", tags=["shops"])
@@ -41,4 +42,5 @@ async def shop_status(ctx: Annotated[ShopContext, Depends(get_shop_context)]) ->
         "snapshot_date": snapshot_date,
         "product_count": product_count,
         "collection_count": collection_count,
+        **plan_summary(ctx.plan),
     }

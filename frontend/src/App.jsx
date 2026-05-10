@@ -88,6 +88,9 @@ export default function App() {
       <header>
         <h1>Léonie SEO</h1>
         <span className="tag">BETA</span>
+        {status?.plan && (
+          <span className={`tag tag-plan tag-plan-${status.plan}`}>{status.plan.toUpperCase()}</span>
+        )}
         <nav>
           {VIEWS.map(v => (
             <button key={v} className={view === v ? 'active' : ''} onClick={() => setView(v)}>

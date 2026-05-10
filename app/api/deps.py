@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
 
+from app.api.plans import PlanFeatures, get_active_plan, get_features
 from app.api.session_token import SessionTokenError, shop_from_payload, verify_session_token
 from app.oauth.token_store import get_token
 
@@ -23,6 +24,7 @@ class ShopContext:
     graphql_endpoint: str
     graphql_headers: dict[str, str]
     snapshot_path: Path
+    plan: str = "pro"
 
 
 def _auth_required() -> bool:
@@ -92,4 +94,33 @@ def get_shop_context(
             "Content-Type": "application/json",
         },
         snapshot_path=snapshot,
+        plan=get_active_plan(),
     )
+
+
+def require_feature(feature: str):
+    """Dependency factory: raises 403 when the active plan lacks a feature.
+
+    Usage::
+
+        @router.post("/shops/{shop}/apply/meta")
+        async def apply_meta(ctx: Annotated[ShopContext, Depends(require_feature("apply"))]):
+            ...
+
+    FastAPI caches Depends results per request, so get_shop_context runs once.
+    """
+
+    def _check(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> ShopContext:
+        features: PlanFeatures = get_features(ctx.plan)
+        if not getattr(features, f"can_{feature}", False):
+            plan_label = ctx.plan.capitalize()
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"La fonctionnalité '{feature}' n'est pas disponible avec le plan {plan_label}. "
+                    "Passez au plan Pro ou Agency."
+                ),
+            )
+        return ctx
+
+    return _check

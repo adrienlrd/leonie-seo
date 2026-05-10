@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+
 import pytest
 from click.testing import CliRunner
 
@@ -179,3 +182,65 @@ def test_cmd_check_invalid_key_reports_error():
     result = runner.invoke(cli, ["check", "--key", "LEO-invalid", "--secret", _SECRET])
     assert result.exit_code == 0
     assert "✗" in result.output or "invalide" in result.output.lower()
+
+
+# ── plan field ────────────────────────────────────────────────────────────
+
+
+def test_issue_key_default_plan_is_pro():
+    data = decode_key(issue_key(_TENANT, 365, _SECRET))
+    assert data["plan"] == "pro"
+
+
+def test_issue_key_agency_plan_stored():
+    data = decode_key(issue_key(_TENANT, 365, _SECRET, plan="agency"))
+    assert data["plan"] == "agency"
+
+
+def test_issue_key_free_plan_stored():
+    data = decode_key(issue_key(_TENANT, 365, _SECRET, plan="free"))
+    assert data["plan"] == "free"
+
+
+def test_issue_key_invalid_plan_raises():
+    with pytest.raises(LicenseError, match="Plan inconnu"):
+        issue_key(_TENANT, 365, _SECRET, plan="enterprise")
+
+
+def test_validate_key_returns_plan():
+    result = validate_key(issue_key(_TENANT, 365, _SECRET, plan="agency"), _SECRET)
+    assert result["plan"] == "agency"
+
+
+def test_validate_key_legacy_key_defaults_to_pro():
+    """Keys issued before the plan field was added must validate as plan=pro."""
+    import base64
+    import json as _json
+
+    secret = _SECRET
+    payload = {"tenant_id": _TENANT, "expiry": "2099-01-01"}
+    data = payload.copy()
+    sig = hmac.new(
+        secret.encode(), _json.dumps(data, sort_keys=True).encode(), hashlib.sha256
+    ).hexdigest()
+    raw = _json.dumps({**data, "sig": sig}, sort_keys=True)
+    key = "LEO-" + base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
+    result = validate_key(key, secret)
+    assert result["plan"] == "pro"
+
+
+def test_cmd_issue_with_plan_shows_plan():
+    runner = CliRunner()
+    result = runner.invoke(
+        cli, ["issue", "--tenant", "testshop", "--plan", "agency", "--secret", _SECRET]
+    )
+    assert result.exit_code == 0, result.output
+    assert "agency" in result.output
+
+
+def test_cmd_check_shows_plan():
+    runner = CliRunner()
+    k = issue_key(_TENANT, 365, _SECRET, plan="pro")
+    result = runner.invoke(cli, ["check", "--key", k, "--secret", _SECRET])
+    assert result.exit_code == 0, result.output
+    assert "pro" in result.output

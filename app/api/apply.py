@@ -7,7 +7,7 @@ import requests
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.api.deps import ShopContext, get_shop_context
+from app.api.deps import ShopContext, require_feature
 from scripts.apply.update_meta import ShopifyUserError, update_product_seo
 
 router = APIRouter(prefix="/api", tags=["apply"])
@@ -47,7 +47,7 @@ def _classify_error(exc: Exception, product_id: str) -> MetaUpdateResult:
 
 @router.post("/shops/{shop}/apply/meta")
 async def apply_meta(
-    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    ctx: Annotated[ShopContext, Depends(require_feature("apply"))],
     updates: list[MetaUpdate],
     dry_run: bool = True,
 ) -> list[dict]:

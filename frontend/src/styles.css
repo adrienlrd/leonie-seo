@@ -20,6 +20,9 @@ header {
 }
 header h1 { font-size: 1.2rem; font-weight: 600; }
 header .tag { font-size: 0.7rem; background: #4ade80; color: #1a1a2e; padding: 2px 8px; border-radius: 99px; font-weight: 700; }
+header .tag-plan-free { background: #e5e7eb; color: #6b7280; }
+header .tag-plan-pro  { background: #818cf8; color: #fff; }
+header .tag-plan-agency { background: #f59e0b; color: #fff; }
 
 nav { display: flex; gap: 0.25rem; margin-left: auto; }
 nav button {

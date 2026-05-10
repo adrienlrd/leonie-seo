@@ -36,20 +36,31 @@ def _sign(payload: dict, secret: str) -> str:
     return hmac.new(secret.encode(), data.encode(), hashlib.sha256).hexdigest()
 
 
-def issue_key(tenant_id: str, days: int, secret: str | None = None) -> str:
+_VALID_PLANS = frozenset({"free", "pro", "agency"})
+
+
+def issue_key(
+    tenant_id: str,
+    days: int,
+    secret: str | None = None,
+    plan: str = "pro",
+) -> str:
     """Generate a signed license key for a tenant.
 
     Args:
         tenant_id: Tenant identifier embedded in the key.
         days: Days until expiry (negative = already expired, useful in tests).
         secret: Signing secret. Defaults to LICENSE_SECRET env var.
+        plan: Pricing plan — "free", "pro", or "agency". Defaults to "pro".
 
     Returns:
         A LEO-prefixed, base64-encoded signed key string.
     """
+    if plan not in _VALID_PLANS:
+        raise LicenseError(f"Plan inconnu : {plan!r}. Valeurs acceptées : {sorted(_VALID_PLANS)}")
     sec = _secret(secret)
     expiry = (datetime.now(UTC) + timedelta(days=days)).strftime("%Y-%m-%d")
-    payload = {"tenant_id": tenant_id, "expiry": expiry}
+    payload = {"expiry": expiry, "plan": plan, "tenant_id": tenant_id}
     sig = _sign(payload, sec)
     raw = json.dumps({**payload, "sig": sig}, sort_keys=True)
     encoded = base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
@@ -103,6 +114,8 @@ def validate_key(api_key: str, secret: str | None = None) -> dict:
     today = datetime.now(UTC).strftime("%Y-%m-%d")
     if today > data["expiry"]:
         raise LicenseError(f"Licence expirée le {data['expiry']}")
+    # Backward compat: legacy keys without a plan field default to "pro"
+    data.setdefault("plan", "pro")
     return data
 
 
@@ -143,13 +156,21 @@ def cli() -> None:
 @cli.command("issue")
 @click.option("--tenant", required=True, help="Tenant ID to embed in the key")
 @click.option("--days", default=365, show_default=True, help="Days until expiry")
+@click.option(
+    "--plan",
+    default="pro",
+    show_default=True,
+    type=click.Choice(["free", "pro", "agency"]),
+    help="Pricing plan",
+)
 @click.option("--secret", default=None, help="Override LICENSE_SECRET env var")
-def cmd_issue(tenant: str, days: int, secret: str | None) -> None:
+def cmd_issue(tenant: str, days: int, plan: str, secret: str | None) -> None:
     """Generate a new signed license key for a boutique."""
-    key = issue_key(tenant, days, secret)
+    key = issue_key(tenant, days, secret, plan=plan)
     expiry = (datetime.now(UTC) + timedelta(days=days)).strftime("%Y-%m-%d")
     console.print(
         f"\n  [green]✓[/green] Clé générée pour [cyan]{tenant}[/cyan]"
+        f" — plan [magenta]{plan}[/magenta]"
         f" — expire le [yellow]{expiry}[/yellow]\n"
     )
     console.print(f"  [bold]{key}[/bold]\n")
@@ -174,6 +195,7 @@ def cmd_check(key: str | None, secret: str | None) -> None:
             console.print(
                 f"  [green]✓[/green] Licence valide"
                 f" — tenant [cyan]{result['tenant_id']}[/cyan]"
+                f", plan [magenta]{result.get('plan', 'pro')}[/magenta]"
                 f", expire le [yellow]{result['expiry']}[/yellow]"
             )
     except LicenseError as e:
