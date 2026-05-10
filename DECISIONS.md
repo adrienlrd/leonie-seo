@@ -1,0 +1,131 @@
+# DECISIONS — Journal des choix techniques
+
+> Un choix par entrée. Format : date, contexte, décision, raison.
+
+---
+
+## 2026-05-10 — Auth interne Remix → Python : secret partagé (Option B)
+
+**Contexte :** Remix (couche app) doit appeler le moteur Python en authentifiant le shop sans re-demander un Shopify JWT à chaque requête serveur-to-serveur.
+
+**Décision :** `X-Leonie-Shop` + `X-Internal-Secret` headers — secret partagé via `INTERNAL_API_SECRET` dans les deux `.env`. Python valide avec `secrets.compare_digest()` (constant-time).
+
+**Raison :** Option A (JWT Shopify forwarding) nécessite JWKS + validation asym. côté Python — complexité injustifiée pour un setup monorepo sur hôte unique. Option B est suffisante et auditable.
+
+**Impact :** `deps.py` accepte les headers internes en bypass du check session token. Les appels externes (navigateur direct) restent soumis à LEONIE_REQUIRE_SESSION_TOKEN.
+
+---
+
+## 2026-05-10 — Décommission frontend/ (legacy React dashboard)
+
+**Contexte :** `frontend/` était le dashboard React standalone (Phase 5). `shopify-app/` (Remix, tâche 56) est désormais la couche UI native Shopify App Store.
+
+**Décision :** Retrait du serving statique de `app/main.py` (bloc `_DIST`). Code source `frontend/` conservé comme archive (pas supprimé).
+
+**Raison :** Le dashboard React autonome n'est pas compatible App Store (pas d'App Bridge). La migration vers Remix est le chemin vers la soumission App Store (tâche 75).
+
+---
+
+## 2026-04-28 — OAuth utilisateur plutôt que Service Account pour Google APIs
+
+**Contexte :** Google Search Console refuse l'ajout d'un service account (erreur « email introuvable » même après délai de propagation).
+
+**Décision :** Utiliser OAuth utilisateur (type Desktop app) via `oauth_client.json`. Le `token.json` est généré au premier run et rechargé ensuite.
+
+**Raison :** GSC n'accepte que des comptes Google personnels comme propriétaires. Les service accounts ne sont pas reconnus comme utilisateurs GSC valides. L'OAuth utilisateur est plus simple pour un usage solo.
+
+**Impact :** Le 1er run de `fetch_gsc.py` ouvre une fenêtre navigateur pour autorisation. Les runs suivants sont silencieux. `oauth_client.json` et `token.json` sont dans `.gitignore`.
+
+---
+
+## 2026-04-28 — Ahrefs API skippé
+
+**Contexte :** Ahrefs API coûte ~$129/mois, incompatible avec le budget 0-50€/mois.
+
+**Décision :** Skip total de l'API Ahrefs. Ahrefs Webmaster Tools (AWT) gratuit gardé pour usage manuel (exports CSV occasionnels).
+
+**Raison :** GSC + GA4 + PageSpeed + Shopify couvrent 90% des besoins d'audit. Les backlinks peuvent être importés manuellement via CSV AWT si besoin ultérieur.
+
+---
+
+## 2026-04-20 — SQLite plutôt que Postgres
+
+**Contexte :** Besoin d'historique des modifications et de rollback.
+
+**Décision :** SQLite via `sqlite3` stdlib, fichier `data/history.db`.
+
+**Raison :** Site petit (< 20 produits), usage solo, zéro infra à gérer. SQLite est suffisant pour des années d'historique SEO. Postgres serait de la sur-ingénierie pure.
+
+---
+
+## 2026-04-20 — Dry-run par défaut sur tous les scripts apply/
+
+**Contexte :** Risque d'écraser des données produit Shopify par erreur.
+
+**Décision :** Tout script dans `scripts/apply/` a `--dry-run` comme comportement par défaut. `--apply` doit être passé explicitement.
+
+**Raison :** Éviter les accidents irréversibles. Le dry-run affiche un diff lisible avant toute écriture réelle.
+
+---
+
+## 2026-04-20 — Screaming Frog Free plutôt que crawler custom
+
+**Contexte :** Besoin de crawl complet pour détecter les 404, redirects en chaîne, duplicate content.
+
+**Décision :** Screaming Frog Free (lancement manuel, export CSV parsé par `crawl_shopify.py`).
+
+**Raison :** Le site fait < 500 URLs (3 collections, ~20 produits), donc la limite gratuite de Screaming Frog est largement suffisante. Écrire un crawler custom serait du travail inutile quand un outil mature existe.
+
+---
+
+## 2026-05-10 — Architecture pivot : Option B retenue — scaffold Remix propre
+
+**Contexte :** Le pivot de "scripts + cron mono-store" vers "SaaS multi-tenant Shopify embedded" change : auth, stockage, jobs, billing, webhooks, isolation données, rollback, UX Shopify, observabilité, queues, quotas, review App Store. Transformer progressivement le FastAPI + React existant crée une dette qui coûte typiquement 6 mois.
+
+**Décision :** **Option B — scaffold Shopify App propre via Shopify CLI (Remix).**
+- Couche app (routing, UI, auth Shopify, Billing, GDPR) → nouveau dossier `shopify-app/` en Remix
+- Moteur SEO/IA Python conservé intégralement : `scripts/`, `app/llm/`, `app/niche/`, `app/jobs/`
+- `shopify-app/` appelle le backend Python via HTTP interne
+- `frontend/` React existant → déprécié après tâche 56
+
+**Raison :** Shopify CLI génère le scaffold Remix avec App Bridge v4, Polaris, OAuth, sessions multi-tenant et structure multi-store câblés d'emblée. App Bridge attend un contexte Remix/Next pour les sessions — l'adapter sur Vite custom est du bricolage générateur de dette. L'investissement de 2 semaines de setup évite 6 mois de friction.
+
+**Impact :**
+- Tâche 56 : `shopify app create` → scaffold Remix (inclut App Bridge + Polaris + OAuth + sessions)
+- Tâche 57 : câblage `shopify-app/` → Python backend (proxy HTTP, Neon Postgres partagé)
+- `frontend/` + `app/oauth/router.py` : décommissionnés après tâche 57
+- `scripts/`, `app/api/`, `app/llm/`, `app/niche/`, `app/jobs/` : conservés sans modification
+
+---
+
+## 2026-05-10 — Async job queue : Postgres-backed, pas Redis
+
+**Contexte :** Les jobs LLM batch (tâche 60), les audits background, et les webhooks Shopify nécessitent une queue dès Phase 6 pour ne pas bloquer les requêtes HTTP. Redis ajoute ~15-20 €/mois sur Render/Railway.
+
+**Décision :** Postgres-backed job queue (pattern pg-boss simplifié en Python) sur Neon Postgres déjà provisionné en tâche 54. Zéro surcoût infra.
+
+**Raison :** Neon Postgres est déjà dans le budget. Un worker Python qui poll une table `jobs` toutes les X secondes couvre 100% des besoins Phase 7. Si le volume dépasse 10 000 jobs/jour, migrer vers Redis à ce moment-là.
+
+**Impact :** Module `app/jobs/` à créer en tâche 55 avant les features LLM.
+
+---
+
+## 2026-05-10 — Common Crawl déféré après sources légères (tâche 63 avant 74)
+
+**Contexte :** Common Crawl / Web Graph est puissant pour l'analyse de backlinks et le graph de liens concurrents, mais représente des fichiers WARC de plusieurs To et une complexité d'ingestion majeure.
+
+**Décision :** Valider d'abord les sources légères (Google Suggest + pytrends + Reddit, tâche 63). Common Crawl en tâche 74 (Phase 8) seulement si ces sources ne suffisent pas à alimenter la Niche Intelligence.
+
+**Raison :** 80% de la valeur du Niche Intelligence est probablement atteignable avec GSC + Google Suggest + Reddit + SERP scraping léger. Common Crawl est un puits de complexité si les signaux légers fonctionnent.
+
+**Impact :** Tâche 74 conditionnelle — peut être skipée si tâche 63 + 62 fournissent des keyword gaps exploitables.
+
+---
+
+## 2026-04-20 — Pas de modification des handles produits
+
+**Contexte :** Les handles Shopify définissent les URLs des produits.
+
+**Décision :** Aucun script ne modifie jamais les handles produits, pour toujours.
+
+**Raison :** Modifier un handle = changer l'URL du produit = 404 massif si la redirection n'est pas parfaite. Le risque SEO est catastrophique. Les handles actuels sont conservés tels quels pendant au minimum 3 mois.

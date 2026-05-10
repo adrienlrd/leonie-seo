@@ -4,13 +4,10 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 # load_dotenv must run before any module that reads env vars at import time
 load_dotenv()
@@ -69,12 +66,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — origins controlled via env var; comma-separated.
+# CORS — origins controlled via env var (comma-separated).
+# Defaults include both React legacy dev port and Remix dev port.
 _cors_origins = [
     o.strip()
-    for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:4173").split(
-        ","
-    )
+    for o in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:5173,http://localhost:4173,http://localhost:3000",
+    ).split(",")
     if o.strip()
 ]
 app.add_middleware(
@@ -105,12 +104,5 @@ async def health() -> dict:
         "missing_env": _missing_required_env(),
     }
 
-
-# Serve built React frontend (production) — registered last so API routes win.
-_DIST = Path(__file__).parent.parent / "frontend" / "dist"
-if _DIST.exists():
-    app.mount("/assets", StaticFiles(directory=str(_DIST / "assets")), name="assets")
-
-    @app.get("/{full_path:path}", include_in_schema=False)
-    async def serve_spa(full_path: str) -> FileResponse:
-        return FileResponse(str(_DIST / "index.html"))
+# NOTE: frontend/ (legacy React dashboard) is decommissioned as of task 57.
+# Static file serving removed — shopify-app/ (Remix) is the sole UI layer.

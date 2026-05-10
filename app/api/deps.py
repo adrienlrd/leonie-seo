@@ -1,6 +1,7 @@
 """FastAPI dependencies shared across API routers."""
 
 import os
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -55,20 +56,43 @@ def _verify_token_matches_shop(authorization: str | None, shop: str) -> None:
         raise HTTPException(status_code=403, detail="Session token does not match requested shop")
 
 
+def _validate_internal_secret(received: str) -> None:
+    """Verify the X-Internal-Secret header matches INTERNAL_API_SECRET.
+
+    Constant-time comparison prevents timing attacks.
+    """
+    expected = os.getenv("INTERNAL_API_SECRET", "")
+    if not expected:
+        raise HTTPException(status_code=500, detail="INTERNAL_API_SECRET not configured on server")
+    if not secrets.compare_digest(expected, received):
+        raise HTTPException(status_code=403, detail="Invalid internal secret")
+
+
 def get_shop_context(
     shop: str,
     authorization: Annotated[str | None, Header()] = None,
+    x_leonie_shop: Annotated[str | None, Header()] = None,
+    x_internal_secret: Annotated[str | None, Header()] = None,
 ) -> ShopContext:
     """Resolve Shopify credentials for a shop, after auth gate.
 
-    Auth priority (when enabled):
-    - Shopify session token in Authorization header — required in prod.
-
-    Credential priority:
-    1. OAuth token from shop_tokens SQLite table (installed merchants).
-    2. Primary tenant credentials from .env (local development fallback).
+    Auth priority:
+    1. Internal call from Remix — X-Leonie-Shop + X-Internal-Secret headers.
+       Bypasses session token check (trusted internal network call).
+    2. External call — Shopify session token in Authorization header (prod only).
+       Falls back to env credentials for the primary tenant in dev mode.
     """
-    _verify_token_matches_shop(authorization, shop)
+    is_internal = bool(x_leonie_shop and x_internal_secret)
+
+    if is_internal:
+        _validate_internal_secret(x_internal_secret)  # type: ignore[arg-type]
+        if x_leonie_shop != shop:
+            raise HTTPException(
+                status_code=403,
+                detail="X-Leonie-Shop header does not match the requested shop path",
+            )
+    else:
+        _verify_token_matches_shop(authorization, shop)
 
     record = get_token(shop)
     if record:
@@ -100,16 +124,7 @@ def get_shop_context(
 
 
 def require_feature(feature: str):
-    """Dependency factory: raises 403 when the active plan lacks a feature.
-
-    Usage::
-
-        @router.post("/shops/{shop}/apply/meta")
-        async def apply_meta(ctx: Annotated[ShopContext, Depends(require_feature("apply"))]):
-            ...
-
-    FastAPI caches Depends results per request, so get_shop_context runs once.
-    """
+    """Dependency factory: raises 403 when the active plan lacks a feature."""
 
     def _check(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> ShopContext:
         features: PlanFeatures = get_features(ctx.plan)

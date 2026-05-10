@@ -11,7 +11,7 @@ import {
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { callBackend } from "../lib/api.server";
+import { callBackendForShop } from "../lib/api.server";
 
 interface Job {
   id: string;
@@ -35,9 +35,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let jobs: Job[] = [];
   try {
-    const resp = await callBackend(`/api/shops/${shop}/jobs?limit=50`);
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/jobs?limit=50`);
     if (resp.ok) {
-      const data = await resp.json() as { jobs: Job[] };
+      const data = (await resp.json()) as { jobs: Job[] };
       jobs = data.jobs;
     }
   } catch {
@@ -47,7 +47,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json<LoaderData>({ shop, jobs });
 };
 
-const STATUS_TONE: Record<string, "success" | "warning" | "critical" | "info"> = {
+const STATUS_TONE: Record<
+  string,
+  "success" | "warning" | "critical" | "info"
+> = {
   completed: "success",
   pending: "warning",
   running: "info",

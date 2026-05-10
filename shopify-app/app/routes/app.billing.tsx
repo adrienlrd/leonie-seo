@@ -11,7 +11,7 @@ import {
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { callBackend } from "../lib/api.server";
+import { callBackendForShop } from "../lib/api.server";
 
 interface Plan {
   id: string;
@@ -36,9 +36,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let plans: Plan[] = [];
   let currentPlan = "free";
   try {
-    const resp = await callBackend(`/api/shops/${shop}/billing/plans`);
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/billing/plans`);
     if (resp.ok) {
-      const data = await resp.json() as { plans: Plan[]; current_plan: string };
+      const data = (await resp.json()) as {
+        plans: Plan[];
+        current_plan: string;
+      };
       plans = data.plans;
       currentPlan = data.current_plan ?? "free";
     }
@@ -58,16 +61,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = formData.get("intent") as string;
 
   if (intent === "cancel") {
-    await callBackend(`/api/shops/${shop}/billing/cancel`, { method: "POST" });
+    await callBackendForShop(shop, `/api/shops/${shop}/billing/cancel`, {
+      method: "POST",
+    });
     return redirect("/app/billing");
   }
 
   try {
-    const resp = await callBackend(`/api/shops/${shop}/billing/subscribe`, {
-      method: "POST",
-      body: JSON.stringify({ plan: planId }),
-    });
-    const data = await resp.json() as { confirmation_url: string };
+    const resp = await callBackendForShop(
+      shop,
+      `/api/shops/${shop}/billing/subscribe`,
+      {
+        method: "POST",
+        body: JSON.stringify({ plan: planId }),
+      }
+    );
+    const data = (await resp.json()) as { confirmation_url: string };
     if (data.confirmation_url) {
       return redirect(data.confirmation_url);
     }
@@ -82,13 +91,19 @@ export default function Billing() {
   const submit = useSubmit();
 
   return (
-    <Page title="Facturation" backAction={{ content: "Dashboard", url: "/app" }}>
+    <Page
+      title="Facturation"
+      backAction={{ content: "Dashboard", url: "/app" }}
+    >
       <BlockStack gap="500">
         <Text as="p" tone="subdued">
           Plan actuel : <strong>{currentPlan}</strong>
         </Text>
 
-        <InlineGrid columns={plans.length > 0 ? String(plans.length) as "3" : "1"} gap="400">
+        <InlineGrid
+          columns={plans.length > 0 ? (String(plans.length) as "3") : "1"}
+          gap="400"
+        >
           {plans.map((plan) => (
             <Card key={plan.id}>
               <BlockStack gap="300">
@@ -97,7 +112,9 @@ export default function Billing() {
                   {plan.current && <Badge tone="success">Actuel</Badge>}
                 </Text>
                 <Text as="p" variant="headingLg">
-                  {plan.price === 0 ? "Gratuit" : `${plan.price} ${plan.currency}/${plan.interval}`}
+                  {plan.price === 0
+                    ? "Gratuit"
+                    : `${plan.price} ${plan.currency}/${plan.interval}`}
                 </Text>
                 <BlockStack gap="100">
                   {(plan.features ?? []).map((f) => (
@@ -109,9 +126,7 @@ export default function Billing() {
                 {!plan.current && plan.id !== "free" && (
                   <Button
                     variant="primary"
-                    onClick={() =>
-                      submit({ plan: plan.id }, { method: "post" })
-                    }
+                    onClick={() => submit({ plan: plan.id }, { method: "post" })}
                   >
                     Choisir {plan.name}
                   </Button>
@@ -135,7 +150,8 @@ export default function Billing() {
         {plans.length === 0 && (
           <Card>
             <Text as="p" tone="subdued">
-              Impossible de charger les plans. Vérifiez que le moteur SEO est démarré.
+              Impossible de charger les plans. Vérifiez que le moteur SEO est
+              démarré.
             </Text>
           </Card>
         )}

@@ -92,3 +92,75 @@ def test_auth_disabled_in_dev_mode_allows_request(mocker):
         client = TestClient(app)
         resp = client.get(f"/api/shops/{SHOP}/status")
     assert resp.status_code == 200
+
+
+# ── Internal auth (Remix → Python) ────────────────────────────────────────────
+
+INTERNAL_SECRET = "test-internal-secret-xyz"
+
+ENV_INTERNAL = {
+    **ENV_AUTH_ON,
+    "INTERNAL_API_SECRET": INTERNAL_SECRET,
+    # Session token auth is ON — internal secret must bypass it
+    "LEONIE_REQUIRE_SESSION_TOKEN": "true",
+}
+
+
+def test_internal_auth_accepted_when_secret_matches(mocker):
+    """X-Leonie-Shop + correct X-Internal-Secret bypasses session token check."""
+    mocker.patch("app.api.deps.get_token", return_value={"access_token": "shpat_t"})
+    with patch.dict("os.environ", ENV_INTERNAL):
+        client = TestClient(app)
+        resp = client.get(
+            f"/api/shops/{SHOP}/status",
+            headers={
+                "X-Leonie-Shop": SHOP,
+                "X-Internal-Secret": INTERNAL_SECRET,
+            },
+        )
+    assert resp.status_code == 200
+    assert resp.json()["shop"] == SHOP
+
+
+def test_internal_auth_rejects_wrong_secret(mocker):
+    """A wrong internal secret must return 403 regardless of other headers."""
+    mocker.patch("app.api.deps.get_token", return_value={"access_token": "shpat_t"})
+    with patch.dict("os.environ", ENV_INTERNAL):
+        client = TestClient(app)
+        resp = client.get(
+            f"/api/shops/{SHOP}/status",
+            headers={
+                "X-Leonie-Shop": SHOP,
+                "X-Internal-Secret": "wrong-secret",
+            },
+        )
+    assert resp.status_code == 403
+
+
+def test_internal_auth_rejects_shop_mismatch(mocker):
+    """X-Leonie-Shop that differs from the path shop must return 403."""
+    mocker.patch("app.api.deps.get_token", return_value={"access_token": "shpat_t"})
+    with patch.dict("os.environ", ENV_INTERNAL):
+        client = TestClient(app)
+        resp = client.get(
+            f"/api/shops/{SHOP}/status",
+            headers={
+                "X-Leonie-Shop": "other.myshopify.com",
+                "X-Internal-Secret": INTERNAL_SECRET,
+            },
+        )
+    assert resp.status_code == 403
+
+
+def test_internal_auth_missing_secret_falls_back_to_session_token_check(mocker):
+    """Without X-Internal-Secret, the session token gate applies as usual."""
+    mocker.patch("app.api.deps.get_token", return_value={"access_token": "shpat_t"})
+    with patch.dict("os.environ", ENV_INTERNAL):
+        client = TestClient(app)
+        # Only shop header, no secret → not treated as internal call
+        resp = client.get(
+            f"/api/shops/{SHOP}/status",
+            headers={"X-Leonie-Shop": SHOP},
+        )
+    # LEONIE_REQUIRE_SESSION_TOKEN=true, no JWT → 401
+    assert resp.status_code == 401
