@@ -61,6 +61,22 @@ _SQLITE_DDL = [
         created_at      TEXT NOT NULL,
         updated_at      TEXT NOT NULL
     )""",
+    # Async job queue (Phase 6, task 55)
+    """CREATE TABLE IF NOT EXISTS jobs (
+        id           TEXT PRIMARY KEY,
+        queue        TEXT NOT NULL,
+        payload      TEXT NOT NULL,
+        shop         TEXT,
+        status       TEXT NOT NULL DEFAULT 'pending',
+        priority     INTEGER NOT NULL DEFAULT 0,
+        retries      INTEGER NOT NULL DEFAULT 0,
+        max_retries  INTEGER NOT NULL DEFAULT 3,
+        scheduled_at TEXT NOT NULL,
+        started_at   TEXT,
+        completed_at TEXT,
+        result       TEXT,
+        created_at   TEXT NOT NULL
+    )""",
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
@@ -109,6 +125,21 @@ _PG_DDL = [
         status          TEXT NOT NULL DEFAULT 'pending',
         created_at      TEXT NOT NULL,
         updated_at      TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS jobs (
+        id           TEXT PRIMARY KEY,
+        queue        TEXT NOT NULL,
+        payload      TEXT NOT NULL,
+        shop         TEXT,
+        status       TEXT NOT NULL DEFAULT 'pending',
+        priority     INTEGER NOT NULL DEFAULT 0,
+        retries      INTEGER NOT NULL DEFAULT 0,
+        max_retries  INTEGER NOT NULL DEFAULT 3,
+        scheduled_at TEXT NOT NULL,
+        started_at   TEXT,
+        completed_at TEXT,
+        result       TEXT,
+        created_at   TEXT NOT NULL
     )""",
 ]
 

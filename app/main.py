@@ -1,7 +1,9 @@
 """FastAPI app entry point — Léonie SEO public API."""
 # ruff: noqa: I001  — import order is forced by load_dotenv() runtime constraint
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -24,15 +26,16 @@ from app.billing.router import (  # noqa: E402
     router as billing_router,
 )
 from app.db import init_db  # noqa: E402
+from app.jobs.router import router as jobs_router  # noqa: E402
+from app.jobs.worker import JobWorker  # noqa: E402
 from app.oauth.gdpr import router as gdpr_router  # noqa: E402
 from app.oauth.router import router as oauth_router  # noqa: E402
 from app.oauth.webhooks import router as webhooks_router  # noqa: E402
 
-# Initialise every SQLite table once, fail fast if the data dir is unwritable.
+# Initialise every SQLite/Postgres table once, fail fast if unwritable.
 init_db()
 
-# Resolve required env vars at startup so a misconfigured deploy crashes early
-# rather than 500-ing on the first /shopify/install request.
+# Resolve required env vars at startup so a misconfigured deploy crashes early.
 _REQUIRED_ENV = ("SHOPIFY_CLIENT_ID", "SHOPIFY_CLIENT_SECRET", "SHOPIFY_SCOPES", "APP_URL")
 
 
@@ -40,10 +43,30 @@ def _missing_required_env() -> list[str]:
     return [k for k in _REQUIRED_ENV if not os.getenv(k)]
 
 
+# ── Lifespan — background job worker ─────────────────────────────────────────
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    worker = JobWorker()
+    task = asyncio.create_task(worker.run())
+    try:
+        yield
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+# ── App ───────────────────────────────────────────────────────────────────────
+
 app = FastAPI(
     title="Léonie SEO — Shopify App",
     version="0.1.0",
     description="SEO automation app for Shopify merchants",
+    lifespan=lifespan,
 )
 
 # CORS — origins controlled via env var; comma-separated.
@@ -72,6 +95,7 @@ app.include_router(audit_router)
 app.include_router(apply_router)
 app.include_router(suggestions_router)
 app.include_router(help_router)
+app.include_router(jobs_router)
 
 
 @app.get("/health")

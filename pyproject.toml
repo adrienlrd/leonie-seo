@@ -39,7 +39,7 @@ postgres = ["psycopg2-binary"]
 [tool.setuptools]
 packages = [
     "scripts", "scripts.audit", "scripts.report", "scripts.apply",
-    "app", "app.oauth", "app.api", "app.billing",
+    "app", "app.oauth", "app.api", "app.billing", "app.jobs",
 ]
 
 [tool.pytest.ini_options]
