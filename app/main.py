@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 load_dotenv()
 
 from app.api.apply import router as apply_router  # noqa: E402
+from app.api.privacy import router as privacy_router  # noqa: E402
 from app.api.audit import router as audit_router  # noqa: E402
 from app.api.help import router as help_router  # noqa: E402
 from app.api.shops import router as shops_router  # noqa: E402
@@ -65,6 +66,7 @@ app.include_router(webhooks_router, prefix="/shopify/webhooks", tags=["webhooks"
 app.include_router(gdpr_router, prefix="/shopify/webhooks", tags=["gdpr"])
 app.include_router(billing_router)
 app.include_router(billing_confirm_router)
+app.include_router(privacy_router)
 app.include_router(shops_router)
 app.include_router(audit_router)
 app.include_router(apply_router)
