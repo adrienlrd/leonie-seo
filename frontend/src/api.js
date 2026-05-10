@@ -36,4 +36,5 @@ export const api = {
   getMetaSuggestions: (shop) => _get(`/shops/${shop}/suggestions/meta`),
   applyMeta: (shop, updates, dryRun = true) =>
     _post(`/shops/${shop}/apply/meta?dry_run=${dryRun}`, updates),
+  getFaq: (lang = 'fr') => _get(`/help/faq?lang=${lang}`),
 }

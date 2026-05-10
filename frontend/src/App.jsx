@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
+import HelpPanel from './components/HelpPanel'
 import IssuesList from './components/IssuesList'
 import MetaApplyPanel from './components/MetaApplyPanel'
 import ScoreCard from './components/ScoreCard'
 import { api } from './api'
 import './styles.css'
 
-const VIEWS = ['dashboard', 'issues', 'appliquer']
-const VIEW_LABELS = { dashboard: 'Dashboard', issues: 'Issues', appliquer: 'Appliquer' }
+const VIEWS = ['dashboard', 'issues', 'appliquer', 'aide']
+const VIEW_LABELS = { dashboard: 'Dashboard', issues: 'Issues', appliquer: 'Appliquer', aide: 'Aide' }
 
 // Resolve the active shop from (priority): URL ?shop=… → localStorage → empty
 function resolveInitialShop() {
@@ -188,6 +189,9 @@ export default function App() {
 
         {/* ── Appliquer ── */}
         {view === 'appliquer' && <MetaApplyPanel shop={shop} />}
+
+        {/* ── Aide ── */}
+        {view === 'aide' && <HelpPanel lang="fr" />}
       </main>
     </div>
   )

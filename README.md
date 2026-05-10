@@ -1,118 +1,175 @@
-# SEO Tool — Leoniedelacroix.com
+# Léonie SEO
 
-Outil CLI Python d'audit et d'optimisation SEO pour boutique Shopify.
-Audite le site chaque semaine, génère un rapport Markdown avec les problèmes priorisés et les corrections prêtes à appliquer.
+> **FR** | [EN below](#english-version)
+
+Outil d'audit et d'optimisation SEO pour boutiques Shopify. Crawle votre catalogue, analyse vos données Google Search Console, détecte les problèmes SEO et applique les corrections directement sur Shopify — en CLI ou via un dashboard web.
 
 ---
 
-## Prérequis
+## Plans
 
-- Python 3.11+
-- Compte Google Cloud avec Search Console, GA4 et PageSpeed activés
-- Token Shopify Admin API (Custom App)
-- Screaming Frog Free (pour le crawl local)
+| Fonctionnalité | Free | Pro | Agency |
+|---|:---:|:---:|:---:|
+| Audit & détection d'issues | ✅ | ✅ | ✅ |
+| Score SEO & rapport Markdown | ❌ | ✅ | ✅ |
+| Mise à jour méta / alt text | ❌ | ✅ | ✅ |
+| Hreflang (BE/CH expansion) | ❌ | ✅ | ✅ |
+| Alertes email (CWV, positions) | ❌ | ✅ | ✅ |
+| Boutiques | 1 | 1 | Illimité |
+
+---
 
 ## Installation
 
+### Option A — pip (CLI)
+
 ```bash
-git clone <repo>
+git clone https://github.com/adrienlrd/leonie-seo.git
 cd leonie-seo
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-# Remplir les variables dans .env
+pip install -e .
+cp .env.example .env        # remplir les variables
+leonie-seo --help
 ```
+
+### Option B — Docker (web app + CLI)
+
+```bash
+docker build -t leonie-seo .
+
+# Web app (dashboard React + API FastAPI)
+docker run -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/reports:/app/reports \
+  --env-file .env \
+  --entrypoint uvicorn \
+  leonie-seo app.main:app --host 0.0.0.0 --port 8000
+
+# CLI dans le même image
+docker run --rm --env-file .env leonie-seo audit crawl
+```
+
+### Option C — Script d'installation rapide
+
+```bash
+curl -sSL https://raw.githubusercontent.com/adrienlrd/leonie-seo/main/install.sh | bash
+```
+
+---
 
 ## Configuration `.env`
 
-```
+```env
+# Shopify
 SHOPIFY_ACCESS_TOKEN=shpat_...
-SHOPIFY_STORE_DOMAIN=287c4a-bb.myshopify.com
-GOOGLE_PAGESPEED_API_KEY=...
-GA4_PROPERTY_ID=properties/459014688
-```
+SHOPIFY_STORE_DOMAIN=xxx.myshopify.com
 
-Le fichier `oauth_client.json` (Google OAuth) doit être à la racine.
-Au premier run de `fetch_gsc.py`, une fenêtre navigateur s'ouvre pour autorisation.
+# Google
+PAGESPEED_API_KEY=...
 
----
+# App web (OAuth Shopify)
+SHOPIFY_CLIENT_ID=...
+SHOPIFY_CLIENT_SECRET=...
+SHOPIFY_SCOPES=read_products,write_products
+APP_URL=https://votre-domaine.com
 
-## Commandes
+# Licence (plans Pro/Agency)
+LEONIE_API_KEY=LEO-...
 
-### Audit (lecture seule — sans risque)
-
-```bash
-# Crawl complet du catalogue Shopify
-python -m scripts.audit.crawl_shopify
-
-# Export 90 jours Google Search Console
-python -m scripts.audit.fetch_gsc
-
-# Core Web Vitals via PageSpeed
-python -m scripts.audit.fetch_pagespeed
-
-# Détecter les problèmes SEO
-python -m scripts.audit.detect_issues
-
-# Parser un export CSV Screaming Frog
-python -m scripts.audit.crawl_shopify --screaming-frog data/raw/crawl.csv
-```
-
-### Rapport
-
-```bash
-# Générer le rapport de la semaine
-python -m scripts.report.generate_report --week
-
-# Rapport pour une date précise
-python -m scripts.report.generate_report --date 2026-05-01
-```
-
-### Application des corrections (écriture Shopify)
-
-**Par défaut : dry-run. Rien n'est modifié sans `--apply`.**
-
-```bash
-# Voir les corrections meta sans les appliquer
-python -m scripts.apply.update_meta --dry-run --collection=croquettes-chien
-
-# Appliquer les corrections meta (confirmation demandée)
-python -m scripts.apply.update_meta --apply --collection=croquettes-chien
-
-# Mettre à jour les alt texts
-python -m scripts.apply.update_alt_text --dry-run
-python -m scripts.apply.update_alt_text --apply
-
-# Créer des redirections 301 depuis un CSV validé
-python -m scripts.apply.create_redirects --dry-run --file=data/raw/redirects.csv
-python -m scripts.apply.create_redirects --apply --file=data/raw/redirects.csv
+# Alertes email
+GMAIL_SENDER=...
+GMAIL_APP_PASSWORD=...
+ALERT_EMAIL=...
 ```
 
 ---
 
-## Structure
+## Workflow CLI hebdomadaire
 
-```
-scripts/audit/    ← lecture seule, sans risque
-scripts/apply/    ← écriture Shopify, dry-run par défaut
-scripts/report/   ← génération rapports Markdown
-config/           ← règles métier et mots-clés (YAML)
-data/raw/         ← exports bruts (gitignored)
-data/history.db   ← SQLite, historique et rollback
-reports/          ← rapports Markdown horodatés
-skills/           ← règles d'audit SEO, patterns GraphQL, niche petfood
+```bash
+leonie-seo audit crawl           # snapshot catalogue Shopify
+leonie-seo audit gsc             # données GSC 90 jours
+leonie-seo audit pagespeed       # Core Web Vitals
+leonie-seo audit detect          # détection problèmes
+leonie-seo report weekly         # rapport Markdown
+# → lire reports/YYYY-MM-DD/report.md
+
+leonie-seo apply meta --dry-run  # prévisualiser corrections
+leonie-seo apply meta --apply    # appliquer sur Shopify
 ```
 
 ---
 
-## Workflow hebdomadaire recommandé
+## Gestion des licences
 
-1. Lancer Screaming Frog sur le site → exporter CSV dans `data/raw/`
-2. `python -m scripts.audit.crawl_shopify`
-3. `python -m scripts.audit.fetch_gsc`
-4. `python -m scripts.audit.fetch_pagespeed`
-5. `python -m scripts.audit.detect_issues`
-6. `python -m scripts.report.generate_report --week`
-7. Lire le rapport dans `reports/YYYY-MM-DD/`
-8. Valider les corrections, puis `--apply`
+```bash
+# Générer une clé pour un client (Agency)
+leonie-seo license issue --tenant client-boutique --plan agency --days 365
+
+# Vérifier la licence active
+leonie-seo license check
+```
+
+---
+
+## Structure du projet
+
+```
+app/              ← API FastAPI + OAuth Shopify
+  api/            ← endpoints REST (audit, apply, shops, plans)
+  oauth/          ← flux OAuth marchands
+frontend/         ← Dashboard React (Vite)
+scripts/
+  audit/          ← lecture seule : crawl, GSC, PageSpeed
+  apply/          ← écriture Shopify (dry-run par défaut)
+  report/         ← génération rapports Markdown
+config/
+  tenants/        ← YAML par boutique
+  niches/         ← règles métier par secteur
+data/
+  history.db      ← SQLite : historique + rollback
+  raw/            ← exports bruts (gitignored)
+reports/          ← rapports horodatés YYYY-MM-DD/
+```
+
+---
+
+## Documentation complète
+
+- [Guide utilisateur (FR)](docs/guide-utilisateur.fr.md)
+- [User guide (EN)](docs/user-guide.en.md)
+- [Détail des plans](docs/plans.md)
+
+---
+
+---
+
+## English version
+
+SEO audit and optimization tool for Shopify stores. Crawls your catalog, analyzes Google Search Console data, detects SEO issues and applies fixes directly on Shopify — via CLI or a web dashboard.
+
+### Quick start
+
+```bash
+pip install -e .
+cp .env.example .env   # fill in your credentials
+leonie-seo --help
+```
+
+### Weekly CLI workflow
+
+```bash
+leonie-seo audit crawl       # Shopify catalog snapshot
+leonie-seo audit gsc         # 90-day GSC data
+leonie-seo audit pagespeed   # Core Web Vitals
+leonie-seo audit detect      # detect SEO issues
+leonie-seo report weekly     # generate Markdown report
+
+leonie-seo apply meta --dry-run   # preview fixes
+leonie-seo apply meta --apply     # push to Shopify
+```
+
+### Full documentation
+
+- [User guide (EN)](docs/user-guide.en.md)
+- [Guide utilisateur (FR)](docs/guide-utilisateur.fr.md)
+- [Plans & pricing](docs/plans.md)

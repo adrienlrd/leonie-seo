@@ -14,6 +14,7 @@ load_dotenv()
 
 from app.api.apply import router as apply_router  # noqa: E402
 from app.api.audit import router as audit_router  # noqa: E402
+from app.api.help import router as help_router  # noqa: E402
 from app.api.shops import router as shops_router  # noqa: E402
 from app.api.suggestions import router as suggestions_router  # noqa: E402
 from app.db import init_db  # noqa: E402
@@ -59,6 +60,7 @@ app.include_router(shops_router)
 app.include_router(audit_router)
 app.include_router(apply_router)
 app.include_router(suggestions_router)
+app.include_router(help_router)
 
 
 @app.get("/health")
