@@ -87,4 +87,4 @@
 | 47 | Frontend dashboard React — version UI du CLI | 🔴 | ✅ | 2026-05-09 |
 | 48 | Système de pricing par plan (Free/Pro/Agency) | 🔴 | ✅ | 2026-05-10 |
 | 49 | Soumission et validation Shopify App Store | 🔴 | ⏳ | |
-| 50 | Support + documentation utilisateur multilingue | 🟡 | ⏳ | |
+| 50 | Support + documentation utilisateur multilingue | 🟡 | ✅ | 2026-05-10 |
