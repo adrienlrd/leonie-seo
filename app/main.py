@@ -1,4 +1,5 @@
 """FastAPI app entry point — Léonie SEO public API."""
+# ruff: noqa: I001  — import order is forced by load_dotenv() runtime constraint
 
 import os
 from pathlib import Path
@@ -17,6 +18,10 @@ from app.api.audit import router as audit_router  # noqa: E402
 from app.api.help import router as help_router  # noqa: E402
 from app.api.shops import router as shops_router  # noqa: E402
 from app.api.suggestions import router as suggestions_router  # noqa: E402
+from app.billing.router import (  # noqa: E402
+    billing_confirm_router,
+    router as billing_router,
+)
 from app.db import init_db  # noqa: E402
 from app.oauth.gdpr import router as gdpr_router  # noqa: E402
 from app.oauth.router import router as oauth_router  # noqa: E402
@@ -58,6 +63,8 @@ app.add_middleware(
 app.include_router(oauth_router, prefix="/shopify", tags=["oauth"])
 app.include_router(webhooks_router, prefix="/shopify/webhooks", tags=["webhooks"])
 app.include_router(gdpr_router, prefix="/shopify/webhooks", tags=["gdpr"])
+app.include_router(billing_router)
+app.include_router(billing_confirm_router)
 app.include_router(shops_router)
 app.include_router(audit_router)
 app.include_router(apply_router)

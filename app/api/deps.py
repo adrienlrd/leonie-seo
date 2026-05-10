@@ -7,8 +7,9 @@ from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException
 
-from app.api.plans import PlanFeatures, get_active_plan, get_features
+from app.api.plans import PlanFeatures, get_features
 from app.api.session_token import SessionTokenError, shop_from_payload, verify_session_token
+from app.billing.subscription_store import get_plan_for_shop
 from app.oauth.token_store import get_token
 
 _API_VERSION = "2025-01"
@@ -94,7 +95,7 @@ def get_shop_context(
             "Content-Type": "application/json",
         },
         snapshot_path=snapshot,
-        plan=get_active_plan(),
+        plan=get_plan_for_shop(shop),
     )
 
 

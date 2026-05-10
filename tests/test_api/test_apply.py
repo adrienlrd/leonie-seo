@@ -26,8 +26,19 @@ def client():
         yield TestClient(app)
 
 
-def _auth_patches():
-    return patch("app.api.deps.get_token", return_value=None)
+class _auth_patches:
+    """Context manager: mock OAuth token lookup + plan resolution (Pro)."""
+
+    def __enter__(self):
+        self._p1 = patch("app.api.deps.get_token", return_value=None)
+        self._p2 = patch("app.api.deps.get_plan_for_shop", return_value="pro")
+        self._p1.start()
+        self._p2.start()
+        return self
+
+    def __exit__(self, *args):
+        self._p1.stop()
+        self._p2.stop()
 
 
 def test_apply_meta_dry_run_returns_preview(client: TestClient):

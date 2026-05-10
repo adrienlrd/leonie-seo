@@ -111,7 +111,7 @@ def client():
 def test_apply_meta_blocked_on_free_plan(client: TestClient):
     with (
         patch("app.api.deps.get_token", return_value=None),
-        patch("app.api.deps.get_active_plan", return_value="free"),
+        patch("app.api.deps.get_plan_for_shop", return_value="free"),
     ):
         resp = client.post(
             "/api/shops/287c4a-bb.myshopify.com/apply/meta",
@@ -124,7 +124,7 @@ def test_apply_meta_blocked_on_free_plan(client: TestClient):
 def test_apply_meta_allowed_on_pro_plan(client: TestClient):
     with (
         patch("app.api.deps.get_token", return_value=None),
-        patch("app.api.deps.get_active_plan", return_value="pro"),
+        patch("app.api.deps.get_plan_for_shop", return_value="pro"),
     ):
         resp = client.post(
             "/api/shops/287c4a-bb.myshopify.com/apply/meta",
@@ -138,7 +138,7 @@ def test_apply_meta_allowed_on_pro_plan(client: TestClient):
 def test_apply_meta_allowed_on_agency_plan(client: TestClient):
     with (
         patch("app.api.deps.get_token", return_value=None),
-        patch("app.api.deps.get_active_plan", return_value="agency"),
+        patch("app.api.deps.get_plan_for_shop", return_value="agency"),
     ):
         resp = client.post(
             "/api/shops/287c4a-bb.myshopify.com/apply/meta",
@@ -154,7 +154,7 @@ def test_shop_status_includes_plan(client: TestClient, tmp_path):
     with (
         patch("app.api.deps.get_token", return_value=None),
         patch("app.api.deps._SNAPSHOT_DEFAULT", snap),
-        patch("app.api.deps.get_active_plan", return_value="agency"),
+        patch("app.api.deps.get_plan_for_shop", return_value="agency"),
     ):
         resp = client.get("/api/shops/287c4a-bb.myshopify.com/status")
     assert resp.status_code == 200

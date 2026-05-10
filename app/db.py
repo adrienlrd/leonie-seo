@@ -64,3 +64,15 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 payload     TEXT NOT NULL
             )
         """)
+        # Shopify Billing API — one active subscription per shop (Phase 6, task 52)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                shop            TEXT NOT NULL UNIQUE,
+                subscription_id TEXT,
+                plan            TEXT NOT NULL DEFAULT 'free',
+                status          TEXT NOT NULL DEFAULT 'pending',
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT NOT NULL
+            )
+        """)
