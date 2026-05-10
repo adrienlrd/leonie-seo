@@ -18,6 +18,7 @@ from app.api.help import router as help_router  # noqa: E402
 from app.api.shops import router as shops_router  # noqa: E402
 from app.api.suggestions import router as suggestions_router  # noqa: E402
 from app.db import init_db  # noqa: E402
+from app.oauth.gdpr import router as gdpr_router  # noqa: E402
 from app.oauth.router import router as oauth_router  # noqa: E402
 from app.oauth.webhooks import router as webhooks_router  # noqa: E402
 
@@ -56,6 +57,7 @@ app.add_middleware(
 
 app.include_router(oauth_router, prefix="/shopify", tags=["oauth"])
 app.include_router(webhooks_router, prefix="/shopify/webhooks", tags=["webhooks"])
+app.include_router(gdpr_router, prefix="/shopify/webhooks", tags=["gdpr"])
 app.include_router(shops_router)
 app.include_router(audit_router)
 app.include_router(apply_router)

@@ -1,24 +1,13 @@
 """Shopify webhook handlers — required for App Store compliance."""
 
-import base64
-import hashlib
-import hmac as hmac_lib
 import os
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
+from app.oauth.hmac_validator import verify_webhook_hmac
 from app.oauth.token_store import delete_token
 
 router = APIRouter()
-
-
-def _verify_webhook_hmac(body: bytes, header_hmac: str | None, client_secret: str) -> bool:
-    """Shopify webhook HMAC: base64(HMAC-SHA256(secret, raw_body))."""
-    if not header_hmac:
-        return False
-    digest = hmac_lib.new(client_secret.encode(), body, hashlib.sha256).digest()
-    expected = base64.b64encode(digest).decode()
-    return hmac_lib.compare_digest(expected, header_hmac)
 
 
 @router.post("/app/uninstalled")
@@ -37,7 +26,7 @@ async def app_uninstalled(
         raise HTTPException(status_code=500, detail="SHOPIFY_CLIENT_SECRET not set")
 
     body = await request.body()
-    if not _verify_webhook_hmac(body, x_shopify_hmac_sha256, secret):
+    if not verify_webhook_hmac(body, x_shopify_hmac_sha256, secret):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     if not x_shopify_shop_domain:

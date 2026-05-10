@@ -54,3 +54,13 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 data_json     TEXT NOT NULL
             )
         """)
+        # GDPR compliance audit trail (Phase 6, task 51)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS gdpr_requests (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                received_at TEXT NOT NULL,
+                topic       TEXT NOT NULL,
+                shop        TEXT NOT NULL,
+                payload     TEXT NOT NULL
+            )
+        """)
