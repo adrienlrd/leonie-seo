@@ -11,12 +11,12 @@ All three must return 200 within 5 seconds or Shopify marks the app non-complian
 from __future__ import annotations
 
 import os
-import sqlite3
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.db import DB_PATH
+from app.db_adapter import get_conn
 from app.oauth.hmac_validator import verify_webhook_hmac
 from app.oauth.token_store import delete_token
 
@@ -32,7 +32,10 @@ def _require_hmac(body: bytes, header_hmac: str | None) -> None:
 
 
 def _log(topic: str, shop: str, payload: bytes) -> None:
-    with sqlite3.connect(DB_PATH) as conn:
+    # DB_PATH may be monkeypatched by tests to a temp SQLite file.
+    # get_conn(DB_PATH) detects equality with the canonical default path to
+    # decide between Postgres (production) and SQLite (test isolation).
+    with get_conn(DB_PATH) as conn:
         conn.execute(
             "INSERT INTO gdpr_requests (received_at, topic, shop, payload) VALUES (?, ?, ?, ?)",
             (datetime.now(UTC).isoformat(), topic, shop, payload.decode("utf-8", errors="replace")),

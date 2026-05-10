@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -12,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from app.api.deps import ShopContext, get_shop_context
 from app.billing.subscription_store import get_subscription
 from app.db import DB_PATH
+from app.db_adapter import get_conn
 from app.oauth.token_store import get_token
 
 router = APIRouter(tags=["privacy"])
@@ -171,14 +171,12 @@ async def gdpr_export(
     )
 
     # GDPR request log for this shop
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        gdpr_rows = conn.execute(
+    # DB_PATH may be monkeypatched by tests — get_conn detects the patched path.
+    with get_conn(DB_PATH) as conn:
+        gdpr_requests = conn.execute(
             "SELECT received_at, topic FROM gdpr_requests WHERE shop = ? ORDER BY received_at",
             (shop,),
         ).fetchall()
-
-    gdpr_requests = [{"received_at": r["received_at"], "topic": r["topic"]} for r in gdpr_rows]
 
     return {
         "shop": shop,

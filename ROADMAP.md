@@ -88,3 +88,56 @@
 | 48 | Système de pricing par plan (Free/Pro/Agency) | 🔴 | ✅ | 2026-05-10 |
 | 49 | Soumission et validation Shopify App Store | 🔴 | ⏳ | |
 | 50 | Support + documentation utilisateur multilingue | 🟡 | ✅ | 2026-05-10 |
+
+---
+
+## PHASE 6 — Conformité App Store & Infrastructure async (Mois 13-14)
+*Objectif : lever les 3 blockers critiques (GDPR, Billing, App Bridge) ET poser l'infrastructure async*
+*Budget cible : ≤ 12 €/mois en ressources externes*
+*Note : la tâche 55 (async queue) est un prérequis pour les jobs LLM de Phase 7*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 51 | GDPR mandatory webhooks — `customers/data_request`, `customers/redact`, `shop/redact` | 🔴 | ✅ | 2026-05-10 |
+| 52 | Shopify Billing API — `appSubscriptionCreate` / `appSubscriptionCancel` (remplace HMAC license) | 🔴 | ✅ | 2026-05-10 |
+| 53 | Privacy policy page + GDPR data export endpoint (`GET /api/gdpr/export`) | 🟡 | ✅ | 2026-05-10 |
+| 54 | SQLite → Neon Postgres — migration multi-tenant (pools, connexions async) | 🔴 | ✅ | 2026-05-10 |
+| 55 | Async job queue — Postgres-backed background jobs (audits, LLM batch, retry, rate-limit Shopify) | 🔴 | ⏳ | |
+| 56 | Scaffold Shopify App Remix — `shopify app create`, App Bridge v4 + Polaris + OAuth + sessions multi-tenant | 🔴 | ⏳ | |
+| 57 | Intégration Remix ↔ Python backend — proxy HTTP, auth partagée, Neon Postgres commun, décommission frontend/ | 🔴 | ⏳ | |
+
+---
+
+## PHASE 7 — Moteur IA & Intelligence niche (Mois 15-17)
+*Objectif : générations LLM utiles (pas vagues), Niche Intelligence concrète, observabilité dès le départ*
+*Principe : prompts déterministes + validation humaine + fallbacks + coût LLM maîtrisé*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 58 | LLM provider abstraction — GPT-4o mini (primary) + Cloudflare Workers AI + Groq (fallbacks gratuits) | 🔴 | ⏳ | |
+| 59 | Templates de prompts externalisés en YAML (`config/prompts/`) — meta, alt, description, brief | 🟡 | ⏳ | |
+| 60 | Batch generation meta titles + descriptions via LLM — 100 produits en < 60 s via queue (tâche 55) | 🔴 | ⏳ | |
+| 61 | Validation + review mode — diff LLM vs Shopify actuel, approbation par batch, auto-approve opt-in | 🟡 | ⏳ | |
+| 62 | Niche Intelligence engine — détection clusters produits réels, saturation SERP, keyword gaps vs concurrents | 🔴 | ⏳ | |
+| 63 | Niche signals légers — Google Suggest + pytrends + Reddit (base de données keywords, valide avant Common Crawl) | 🟡 | ⏳ | |
+| 64 | Semantic clustering GSC — sentence-transformers + UMAP, regroupement requêtes par intent | 🔴 | ⏳ | |
+| 65 | Génération briefs pages/collections + articles blog via LLM (niche-aware, templates 59) | 🟡 | ⏳ | |
+| 66 | Bulk apply orchestrator — utilise queue 55, rate-limit Shopify, retry exponentiel, progress UI | 🟡 | ⏳ | |
+| 67 | spaCy NER — extraction entités produit (matières, certifications, origines) pour enrichissement contextuel | 🔴 | ⏳ | |
+| 68 | Observabilité — logs structurés JSON, métriques par tenant, coût LLM par requête, alertes seuil budget | 🟡 | ⏳ | |
+
+---
+
+## PHASE 8 — Scale, Contenu & App Store final (Mois 18-24)
+*Objectif : injection de contenu propre via Theme Extension, suivi ROI réel, multilinguisme IA, soumission finale*
+*Common Crawl déféré ici : sources légères (tâche 63) d'abord, Web Graph seulement si gap avéré*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 69 | Theme App Extension — injection JSON-LD sans modifier `theme.liquid` (Shopify CLI, sandbox thème) | 🔴 | ⏳ | |
+| 70 | Semantic embeddings store — pgvector (Neon) pour similarité produit / requête GSC | 🔴 | ⏳ | |
+| 71 | Impact dashboard — vue ROI (clics gagnés × taux conv × panier moyen) par URL modifiée | 🟡 | ⏳ | |
+| 72 | Multilinguisme IA — génération meta EN/DE/NL via LLM pour expansion marché | 🟡 | ⏳ | |
+| 73 | GA4 Data API — corrélation trafic organique × conversions × recettes par tenant | 🔴 | ⏳ | |
+| 74 | Common Crawl / Web Graph — backlinks, graph liens concurrents, mentions marque non-linkées (après validation tâche 63) | 🔴 | ⏳ | |
+| 75 | Soumission App Store finale — après GDPR + Billing + App Bridge validés (tâches 51-57) | 🔴 | ⏳ | |

@@ -1,78 +1,143 @@
-"""Centralized SQLite initialization for all app tables.
+"""Centralized database initialization for all app tables.
 
-Called once at startup from app/main.py. Avoids hidden coupling where
-crawl_shopify creates the seo_changes table that update_meta depends on.
+Called once at startup from app/main.py. Uses Postgres when DATABASE_URL is set
+(production / Neon), SQLite otherwise (local dev / tests).
 """
 
+from __future__ import annotations
+
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parents[1] / "data" / "history.db"
+from app.db_adapter import DB_PATH  # single canonical path, re-exported for consumers
+
+__all__ = ["DB_PATH", "init_db"]
+
+# ── SQLite DDL ─────────────────────────────────────────────────────────────────
+
+_SQLITE_DDL = [
+    """CREATE TABLE IF NOT EXISTS shop_tokens (
+        shop         TEXT PRIMARY KEY,
+        access_token TEXT NOT NULL,
+        scope        TEXT,
+        installed_at TEXT NOT NULL,
+        updated_at   TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS oauth_states (
+        state      TEXT PRIMARY KEY,
+        created_at REAL NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS seo_changes (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        applied_at    TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id   TEXT NOT NULL,
+        field         TEXT NOT NULL,
+        old_value     TEXT,
+        new_value     TEXT,
+        status        TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS snapshots (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_date TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id   TEXT NOT NULL,
+        data_json     TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS gdpr_requests (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        received_at TEXT NOT NULL,
+        topic       TEXT NOT NULL,
+        shop        TEXT NOT NULL,
+        payload     TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS subscriptions (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop            TEXT NOT NULL UNIQUE,
+        subscription_id TEXT,
+        plan            TEXT NOT NULL DEFAULT 'free',
+        status          TEXT NOT NULL DEFAULT 'pending',
+        created_at      TEXT NOT NULL,
+        updated_at      TEXT NOT NULL
+    )""",
+]
+
+# ── Postgres DDL ───────────────────────────────────────────────────────────────
+
+_PG_DDL = [
+    """CREATE TABLE IF NOT EXISTS shop_tokens (
+        shop         TEXT PRIMARY KEY,
+        access_token TEXT NOT NULL,
+        scope        TEXT,
+        installed_at TEXT NOT NULL,
+        updated_at   TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS oauth_states (
+        state      TEXT PRIMARY KEY,
+        created_at DOUBLE PRECISION NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS seo_changes (
+        id            SERIAL PRIMARY KEY,
+        applied_at    TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id   TEXT NOT NULL,
+        field         TEXT NOT NULL,
+        old_value     TEXT,
+        new_value     TEXT,
+        status        TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS snapshots (
+        id            SERIAL PRIMARY KEY,
+        snapshot_date TEXT NOT NULL,
+        resource_type TEXT NOT NULL,
+        resource_id   TEXT NOT NULL,
+        data_json     TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS gdpr_requests (
+        id          SERIAL PRIMARY KEY,
+        received_at TEXT NOT NULL,
+        topic       TEXT NOT NULL,
+        shop        TEXT NOT NULL,
+        payload     TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS subscriptions (
+        id              SERIAL PRIMARY KEY,
+        shop            TEXT NOT NULL UNIQUE,
+        subscription_id TEXT,
+        plan            TEXT NOT NULL DEFAULT 'free',
+        status          TEXT NOT NULL DEFAULT 'pending',
+        created_at      TEXT NOT NULL,
+        updated_at      TEXT NOT NULL
+    )""",
+]
 
 
-def init_db(db_path: Path = DB_PATH) -> None:
-    """Create every table the app depends on if missing."""
+def _init_postgres(database_url: str) -> None:
+    import psycopg2  # noqa: PLC0415
+
+    with psycopg2.connect(database_url) as conn:
+        with conn.cursor() as cur:
+            for stmt in _PG_DDL:
+                cur.execute(stmt)
+        conn.commit()
+
+
+def init_db(db_path: Path | None = None) -> None:
+    """Create every table the app depends on if missing.
+
+    Args:
+        db_path: Explicit SQLite path (tests only). When None, uses Postgres if
+                 DATABASE_URL is set, otherwise SQLite at the default data/history.db.
+    """
+    if db_path is None:
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            _init_postgres(database_url)
+            return
+        db_path = DB_PATH
+
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
-        # OAuth tokens (Phase 5)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS shop_tokens (
-                shop         TEXT PRIMARY KEY,
-                access_token TEXT NOT NULL,
-                scope        TEXT,
-                installed_at TEXT NOT NULL,
-                updated_at   TEXT NOT NULL
-            )
-        """)
-        # OAuth CSRF states (Phase 5)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS oauth_states (
-                state      TEXT PRIMARY KEY,
-                created_at REAL NOT NULL
-            )
-        """)
-        # SEO change log — used by scripts/apply/update_meta.py
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS seo_changes (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                applied_at    TEXT NOT NULL,
-                resource_type TEXT NOT NULL,
-                resource_id   TEXT NOT NULL,
-                field         TEXT NOT NULL,
-                old_value     TEXT,
-                new_value     TEXT,
-                status        TEXT NOT NULL
-            )
-        """)
-        # Shopify catalog snapshots — created by crawl_shopify.py historically
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS snapshots (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                snapshot_date TEXT NOT NULL,
-                resource_type TEXT NOT NULL,
-                resource_id   TEXT NOT NULL,
-                data_json     TEXT NOT NULL
-            )
-        """)
-        # GDPR compliance audit trail (Phase 6, task 51)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS gdpr_requests (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                received_at TEXT NOT NULL,
-                topic       TEXT NOT NULL,
-                shop        TEXT NOT NULL,
-                payload     TEXT NOT NULL
-            )
-        """)
-        # Shopify Billing API — one active subscription per shop (Phase 6, task 52)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS subscriptions (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                shop            TEXT NOT NULL UNIQUE,
-                subscription_id TEXT,
-                plan            TEXT NOT NULL DEFAULT 'free',
-                status          TEXT NOT NULL DEFAULT 'pending',
-                created_at      TEXT NOT NULL,
-                updated_at      TEXT NOT NULL
-            )
-        """)
+        for stmt in _SQLITE_DDL:
+            conn.execute(stmt)

@@ -1,11 +1,12 @@
-"""SQLite-backed subscription store — one active subscription per shop."""
+"""Subscription store — one active subscription per shop, backed by DB adapter."""
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import UTC, datetime
+from pathlib import Path
 
 from app.db import DB_PATH
+from app.db_adapter import get_conn
 
 _VALID_PLANS = frozenset({"free", "pro", "agency"})
 _ACTIVE_STATUSES = frozenset({"active"})
@@ -16,12 +17,12 @@ def upsert_subscription(
     plan: str,
     status: str,
     subscription_id: str | None = None,
-    db_path=None,
+    db_path: Path | None = None,
 ) -> None:
     """Insert or update the subscription record for a shop."""
-    path = db_path or DB_PATH
+    path = db_path if db_path is not None else DB_PATH
     now = datetime.now(UTC).isoformat()
-    with sqlite3.connect(path) as conn:
+    with get_conn(path) as conn:
         conn.execute(
             """
             INSERT INTO subscriptions (shop, subscription_id, plan, status, created_at, updated_at)
@@ -36,31 +37,31 @@ def upsert_subscription(
         )
 
 
-def get_subscription(shop: str, db_path=None) -> dict | None:
+def get_subscription(shop: str, db_path: Path | None = None) -> dict | None:
     """Return the subscription row for a shop, or None."""
-    path = db_path or DB_PATH
-    with sqlite3.connect(path) as conn:
-        conn.row_factory = sqlite3.Row
+    path = db_path if db_path is not None else DB_PATH
+    with get_conn(path) as conn:
         row = conn.execute("SELECT * FROM subscriptions WHERE shop = ?", (shop,)).fetchone()
-    return dict(row) if row else None
+    return row
 
 
-def get_subscription_by_id(subscription_id: str, db_path=None) -> dict | None:
+def get_subscription_by_id(subscription_id: str, db_path: Path | None = None) -> dict | None:
     """Return the subscription row matching a Shopify subscription GID."""
-    path = db_path or DB_PATH
-    with sqlite3.connect(path) as conn:
-        conn.row_factory = sqlite3.Row
+    path = db_path if db_path is not None else DB_PATH
+    with get_conn(path) as conn:
         row = conn.execute(
             "SELECT * FROM subscriptions WHERE subscription_id = ?", (subscription_id,)
         ).fetchone()
-    return dict(row) if row else None
+    return row
 
 
-def update_subscription_status(subscription_id: str, status: str, db_path=None) -> bool:
+def update_subscription_status(
+    subscription_id: str, status: str, db_path: Path | None = None
+) -> bool:
     """Update status by subscription GID. Returns True if a row was updated."""
-    path = db_path or DB_PATH
+    path = db_path if db_path is not None else DB_PATH
     now = datetime.now(UTC).isoformat()
-    with sqlite3.connect(path) as conn:
+    with get_conn(path) as conn:
         cur = conn.execute(
             "UPDATE subscriptions SET status = ?, updated_at = ? WHERE subscription_id = ?",
             (status, now, subscription_id),
@@ -68,7 +69,7 @@ def update_subscription_status(subscription_id: str, status: str, db_path=None) 
     return cur.rowcount > 0
 
 
-def get_plan_for_shop(shop: str, db_path=None) -> str:
+def get_plan_for_shop(shop: str, db_path: Path | None = None) -> str:
     """Return the active plan for a shop. Defaults to 'free'.
 
     Args:
