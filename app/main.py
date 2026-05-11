@@ -15,6 +15,7 @@ load_dotenv()
 from app.api.apply import router as apply_router  # noqa: E402
 from app.api.embeddings import router as embeddings_router  # noqa: E402
 from app.api.impact import router as impact_router  # noqa: E402
+from app.api.multilingual import router as multilingual_router  # noqa: E402
 from app.api.generate import router as generate_router  # noqa: E402
 from app.api.jsonld import router as jsonld_router  # noqa: E402
 from app.api.niche import router as niche_router  # noqa: E402
@@ -107,6 +108,7 @@ app.include_router(observability_router)
 app.include_router(jsonld_router)
 app.include_router(embeddings_router)
 app.include_router(impact_router)
+app.include_router(multilingual_router)
 
 
 @app.get("/health")
