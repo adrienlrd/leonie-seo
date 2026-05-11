@@ -50,6 +50,7 @@ packages = [
     "app.jsonld",
     "app.embeddings",
     "app.impact",
+    "app.ga4",
 ]
 
 [tool.pytest.ini_options]
