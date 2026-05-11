@@ -31,6 +31,12 @@ class GenerateMetaResponse(BaseModel):
     message: str
 
 
+class BulkApplyRequest(BaseModel):
+    dry_run: bool = True
+    max_per_run: int = 50
+    delay: float = 0.5
+
+
 class BlogBriefRequest(BaseModel):
     gaps: list[dict]
     max_workers: int = 3
@@ -194,6 +200,40 @@ async def auto_approve_meta(
             f"{approved} approved automatically, "
             f"{skipped} kept pending (failed length check)"
         ),
+    )
+
+
+@router.post("/api/shops/{shop}/generate/meta/apply", response_model=GenerateMetaResponse)
+async def enqueue_bulk_apply(
+    shop: str,
+    body: BulkApplyRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> GenerateMetaResponse:
+    """Enqueue a job to apply all approved meta suggestions to Shopify.
+
+    By default runs in dry-run mode — pass dry_run=false to write to Shopify.
+    Progress is tracked via the job queue: poll GET /api/jobs/{job_id} for status.
+
+    Args:
+        shop: Shopify shop domain.
+        body: dry_run (default True), max_per_run (default 50), delay between mutations.
+    """
+    job_id = str(uuid.uuid4())
+    enqueue(
+        "bulk_apply",
+        payload={
+            "dry_run": body.dry_run,
+            "max_per_run": body.max_per_run,
+            "delay": body.delay,
+        },
+        job_id=job_id,
+        shop=shop,
+    )
+    mode = "dry-run" if body.dry_run else "LIVE"
+    return GenerateMetaResponse(
+        job_id=job_id,
+        queued=body.max_per_run,
+        message=f"Bulk apply queued ({mode}, up to {body.max_per_run} suggestions)",
     )
 
 

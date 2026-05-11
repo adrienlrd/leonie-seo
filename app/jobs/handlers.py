@@ -82,3 +82,27 @@ async def handle_meta_generation(payload: dict, shop: str | None) -> dict:
     ok = sum(1 for r in results if r.success)
     errors = len(results) - ok
     return {"generated": ok, "errors": errors, "total": len(results)}
+
+
+@register("bulk_apply")
+async def handle_bulk_apply(payload: dict, shop: str | None) -> dict:
+    """Apply approved meta suggestions to Shopify for a shop.
+
+    Expected payload keys:
+        dry_run (bool): If True, simulate without writing to Shopify (default True).
+        max_per_run (int): Maximum suggestions per run (default 50).
+        delay (float): Seconds between mutations (default 0.5).
+    """
+    from dataclasses import asdict
+
+    from app.apply.bulk_orchestrator import apply_approved_meta
+
+    dry_run = bool(payload.get("dry_run", True))
+    max_per_run = int(payload.get("max_per_run", 50))
+    delay = float(payload.get("delay", 0.5))
+
+    if not shop:
+        return {"error": "shop is required for bulk_apply"}
+
+    report = apply_approved_meta(shop, dry_run=dry_run, max_per_run=max_per_run, delay=delay)
+    return asdict(report)

@@ -44,6 +44,7 @@ packages = [
     "app", "app.oauth", "app.api", "app.billing", "app.jobs",
     "app.llm", "app.llm.providers",
     "app.niche", "app.niche.signals",
+    "app.apply",
 ]
 
 [tool.pytest.ini_options]

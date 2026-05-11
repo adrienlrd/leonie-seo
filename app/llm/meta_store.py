@@ -8,7 +8,7 @@ from pathlib import Path
 from app.db_adapter import DB_PATH, get_conn
 from app.llm.batch import MetaResult
 
-_VALID_STATUSES = {"pending", "approved", "rejected"}
+_VALID_STATUSES = {"pending", "approved", "rejected", "applied", "error"}
 
 
 def save_results(
