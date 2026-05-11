@@ -144,6 +144,34 @@ async def get_niche_report(
     return asdict(report)
 
 
+@router.get("/api/shops/{shop}/niche/intent-clusters")
+async def get_intent_clusters(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    min_impressions: int = 5,
+) -> list[dict]:
+    """Return GSC queries clustered by user intent and semantic similarity.
+
+    Queries below min_impressions are excluded as noise.
+    Results are sorted by total_impressions descending.
+
+    Args:
+        shop: Shopify shop domain.
+        min_impressions: Minimum impressions threshold (default 5).
+    """
+    from app.niche.intent import cluster_gsc_queries
+
+    gsc_queries = _load_gsc(shop)
+    if not gsc_queries:
+        raise HTTPException(
+            status_code=404,
+            detail="No GSC data found. Run 'leonie-seo audit gsc' first.",
+        )
+
+    clusters = cluster_gsc_queries(gsc_queries, min_impressions=min_impressions)
+    return [asdict(c) for c in clusters]
+
+
 class SignalRequest(BaseModel):
     seeds: list[str]
     sources: list[str] | None = None  # None = all sources
