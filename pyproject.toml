@@ -37,6 +37,7 @@ dev = ["pytest", "pytest-mock", "ruff"]
 postgres = ["psycopg2-binary"]
 llm = ["openai>=1.0.0", "groq>=0.4.0"]
 niche = ["pytrends"]
+embeddings = ["sentence-transformers>=2.2.0"]
 
 [tool.setuptools]
 packages = [
@@ -47,6 +48,7 @@ packages = [
     "app.apply",
     "app.observability",
     "app.jsonld",
+    "app.embeddings",
 ]
 
 [tool.pytest.ini_options]

@@ -88,6 +88,26 @@ _SQLITE_DDL = [
         error       TEXT,
         called_at   TEXT NOT NULL
     )""",
+    # Semantic embeddings (Phase 8, task 70) — stored as JSON text for SQLite
+    """CREATE TABLE IF NOT EXISTS product_embeddings (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop          TEXT NOT NULL,
+        product_id    TEXT NOT NULL,
+        product_title TEXT NOT NULL DEFAULT '',
+        embedding     TEXT NOT NULL,
+        model         TEXT NOT NULL DEFAULT 'intfloat/multilingual-e5-base',
+        created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(shop, product_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS query_embeddings (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop       TEXT NOT NULL,
+        query      TEXT NOT NULL,
+        embedding  TEXT NOT NULL,
+        model      TEXT NOT NULL DEFAULT 'intfloat/multilingual-e5-base',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(shop, query)
+    )""",
     # Async job queue (Phase 6, task 55)
     """CREATE TABLE IF NOT EXISTS jobs (
         id           TEXT PRIMARY KEY,
@@ -107,6 +127,29 @@ _SQLITE_DDL = [
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
+_PG_EMBEDDINGS = [
+    "CREATE EXTENSION IF NOT EXISTS vector",
+    """CREATE TABLE IF NOT EXISTS product_embeddings (
+        id            SERIAL PRIMARY KEY,
+        shop          TEXT NOT NULL,
+        product_id    TEXT NOT NULL,
+        product_title TEXT NOT NULL DEFAULT '',
+        embedding     vector(768),
+        model         TEXT NOT NULL DEFAULT 'intfloat/multilingual-e5-base',
+        created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(shop, product_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS query_embeddings (
+        id         SERIAL PRIMARY KEY,
+        shop       TEXT NOT NULL,
+        query      TEXT NOT NULL,
+        embedding  vector(768),
+        model      TEXT NOT NULL DEFAULT 'intfloat/multilingual-e5-base',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE(shop, query)
+    )""",
+]
+
 _PG_LLM_METRICS = """CREATE TABLE IF NOT EXISTS llm_metrics (
     id          SERIAL PRIMARY KEY,
     shop        TEXT,
@@ -204,6 +247,8 @@ def _init_postgres(database_url: str) -> None:
             for stmt in _PG_DDL:
                 cur.execute(stmt)
             cur.execute(_PG_LLM_METRICS)
+            for stmt in _PG_EMBEDDINGS:
+                cur.execute(stmt)
         conn.commit()
 
 
