@@ -134,7 +134,7 @@
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
-| 69 | Theme App Extension — injection JSON-LD sans modifier `theme.liquid` (Shopify CLI, sandbox thème) | 🔴 | ⏳ | |
+| 69 | Theme App Extension — injection JSON-LD sans modifier `theme.liquid` (Shopify CLI, sandbox thème) | 🔴 | ✅ | 2026-05-11 |
 | 70 | Semantic embeddings store — pgvector (Neon) pour similarité produit / requête GSC | 🔴 | ⏳ | |
 | 71 | Impact dashboard — vue ROI (clics gagnés × taux conv × panier moyen) par URL modifiée | 🟡 | ⏳ | |
 | 72 | Multilinguisme IA — génération meta EN/DE/NL via LLM pour expansion marché | 🟡 | ⏳ | |

@@ -46,6 +46,7 @@ packages = [
     "app.niche", "app.niche.signals",
     "app.apply",
     "app.observability",
+    "app.jsonld",
 ]
 
 [tool.pytest.ini_options]

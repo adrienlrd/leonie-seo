@@ -1,0 +1,71 @@
+{%- comment -%}
+  Léonie SEO — Organization JSON-LD block
+  Renders Schema.org/Organization markup for the homepage.
+  Add this block to the <head> section via the theme editor on the index template.
+{%- endcomment -%}
+
+{%- assign shop_url = shop.secure_url | default: shop.url -%}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": {{ shop.name | json }},
+  "url": {{ shop_url | json }},
+  {%- if shop.email != blank -%}
+  "email": {{ shop.email | json }},
+  {%- endif -%}
+  {%- if shop.phone != blank -%}
+  "telephone": {{ shop.phone | json }},
+  {%- endif -%}
+  "address": {
+    "@type": "PostalAddress",
+    {%- if shop.address.street != blank -%}
+    "streetAddress": {{ shop.address.street | json }},
+    {%- endif -%}
+    {%- if shop.address.city != blank -%}
+    "addressLocality": {{ shop.address.city | json }},
+    {%- endif -%}
+    {%- if shop.address.zip != blank -%}
+    "postalCode": {{ shop.address.zip | json }},
+    {%- endif -%}
+    "addressCountry": {{ shop.address.country_code | json }}
+  }
+  {%- if block.settings.social_instagram != blank or block.settings.social_facebook != blank -%}
+  ,"sameAs": [
+    {%- assign social_links = "" -%}
+    {%- if block.settings.social_instagram != blank -%}
+      {%- assign social_links = social_links | append: block.settings.social_instagram | append: "|" -%}
+    {%- endif -%}
+    {%- if block.settings.social_facebook != blank -%}
+      {%- assign social_links = social_links | append: block.settings.social_facebook -%}
+    {%- endif -%}
+    {%- assign social_array = social_links | split: "|" -%}
+    {%- for link in social_array -%}
+      {%- if link != blank -%}{{ link | json }}{% unless forloop.last %},{% endunless %}{%- endif -%}
+    {%- endfor -%}
+  ]
+  {%- endif -%}
+}
+</script>
+
+{% schema %}
+{
+  "name": "Organization JSON-LD",
+  "target": "head",
+  "limit": 1,
+  "templates": ["index"],
+  "settings": [
+    {
+      "type": "url",
+      "id": "social_instagram",
+      "label": "URL Instagram"
+    },
+    {
+      "type": "url",
+      "id": "social_facebook",
+      "label": "URL Facebook"
+    }
+  ]
+}
+{% endschema %}

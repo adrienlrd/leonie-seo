@@ -14,6 +14,7 @@ load_dotenv()
 
 from app.api.apply import router as apply_router  # noqa: E402
 from app.api.generate import router as generate_router  # noqa: E402
+from app.api.jsonld import router as jsonld_router  # noqa: E402
 from app.api.niche import router as niche_router  # noqa: E402
 from app.api.observability import router as observability_router  # noqa: E402
 from app.api.privacy import router as privacy_router  # noqa: E402
@@ -101,6 +102,7 @@ app.include_router(jobs_router)
 app.include_router(generate_router)
 app.include_router(niche_router)
 app.include_router(observability_router)
+app.include_router(jsonld_router)
 
 
 @app.get("/health")
