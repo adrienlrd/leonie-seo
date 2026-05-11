@@ -26,6 +26,7 @@ def _make_router(text: str = "Brief généré.", *, raises: Exception | None = N
 
     router = object.__new__(LLMRouter)
     router._providers = [_FakeProvider()]
+    router._shop = None
     return router
 
 
@@ -170,6 +171,7 @@ def test_generate_blog_briefs_partial_failures():
 
     router = object.__new__(LLMRouter)
     router._providers = [_FlakyProvider()]
+    router._shop = None
 
     gaps = [_gap(query=f"q{i}") for i in range(4)]
     results = generate_blog_briefs(gaps, router, max_workers=1)
@@ -237,6 +239,7 @@ def test_generate_collection_brief_uses_keywords():
 
     router = object.__new__(LLMRouter)
     router._providers = [_CapturingProvider()]
+    router._shop = None
 
     result = generate_collection_brief(
         _cluster(keywords=["harnais", "cuir", "confort", "chien"]), router

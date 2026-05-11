@@ -27,6 +27,7 @@ def _make_router(responses: list) -> LLMRouter:
 
     router = object.__new__(LLMRouter)
     router._providers = [_FakeProvider()]
+    router._shop = None
     return router
 
 
@@ -138,6 +139,7 @@ def test_generate_meta_uses_correct_product_fields():
 
     router = object.__new__(LLMRouter)
     router._providers = [_CapturingProvider()]
+    router._shop = None
 
     products = [
         {"id": "1", "title": "Harnais Chat", "product_type": "Harnais", "body_html": "Desc."}

@@ -75,6 +75,19 @@ _SQLITE_DDL = [
         job_id              TEXT,
         created_at          TEXT NOT NULL DEFAULT (datetime('now'))
     )""",
+    # LLM usage metrics (Phase 7, task 68)
+    """CREATE TABLE IF NOT EXISTS llm_metrics (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop        TEXT,
+        provider    TEXT NOT NULL,
+        model       TEXT NOT NULL,
+        tokens_in   INTEGER NOT NULL DEFAULT 0,
+        tokens_out  INTEGER NOT NULL DEFAULT 0,
+        cost_usd    REAL NOT NULL DEFAULT 0.0,
+        latency_ms  REAL NOT NULL DEFAULT 0.0,
+        error       TEXT,
+        called_at   TEXT NOT NULL
+    )""",
     # Async job queue (Phase 6, task 55)
     """CREATE TABLE IF NOT EXISTS jobs (
         id           TEXT PRIMARY KEY,
@@ -94,6 +107,18 @@ _SQLITE_DDL = [
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
+_PG_LLM_METRICS = """CREATE TABLE IF NOT EXISTS llm_metrics (
+    id          SERIAL PRIMARY KEY,
+    shop        TEXT,
+    provider    TEXT NOT NULL,
+    model       TEXT NOT NULL,
+    tokens_in   INTEGER NOT NULL DEFAULT 0,
+    tokens_out  INTEGER NOT NULL DEFAULT 0,
+    cost_usd    DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    latency_ms  DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    error       TEXT,
+    called_at   TEXT NOT NULL
+)"""
 
 _PG_DDL = [
     """CREATE TABLE IF NOT EXISTS meta_suggestions (
@@ -178,6 +203,7 @@ def _init_postgres(database_url: str) -> None:
         with conn.cursor() as cur:
             for stmt in _PG_DDL:
                 cur.execute(stmt)
+            cur.execute(_PG_LLM_METRICS)
         conn.commit()
 
 

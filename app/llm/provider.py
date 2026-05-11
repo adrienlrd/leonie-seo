@@ -11,6 +11,8 @@ class CompletionResult:
     text: str
     provider: str
     model: str
+    tokens_in: int = 0
+    tokens_out: int = 0
 
 
 class LLMProvider(ABC):

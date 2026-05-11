@@ -50,7 +50,14 @@ class GroqProvider(LLMProvider):
                 temperature=temperature,
             )
             text = response.choices[0].message.content or ""
-            return CompletionResult(text=text.strip(), provider=self.name, model=self.model)
+            usage = response.usage
+            return CompletionResult(
+                text=text.strip(),
+                provider=self.name,
+                model=self.model,
+                tokens_in=usage.prompt_tokens if usage else 0,
+                tokens_out=usage.completion_tokens if usage else 0,
+            )
 
         except _groq.RateLimitError as exc:
             raise LLMRateLimitError(f"Groq rate limit: {exc}") from exc

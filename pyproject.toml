@@ -45,6 +45,7 @@ packages = [
     "app.llm", "app.llm.providers",
     "app.niche", "app.niche.signals",
     "app.apply",
+    "app.observability",
 ]
 
 [tool.pytest.ini_options]
