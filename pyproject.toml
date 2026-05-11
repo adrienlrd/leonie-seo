@@ -40,7 +40,8 @@ llm = ["openai>=1.0.0", "groq>=0.4.0"]
 [tool.setuptools]
 packages = [
     "scripts", "scripts.audit", "scripts.report", "scripts.apply",
-    "app", "app.oauth", "app.api", "app.billing", "app.jobs", "app.llm",
+    "app", "app.oauth", "app.api", "app.billing", "app.jobs",
+    "app.llm", "app.llm.providers",
 ]
 
 [tool.pytest.ini_options]

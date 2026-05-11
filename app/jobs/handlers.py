@@ -44,5 +44,41 @@ async def handle_seo_audit(payload: dict, shop: str | None) -> dict:
         shop (str): Shopify shop domain
         tenant_id (str, optional): config tenant alias
     """
-    # Phase 7 will import and call the real audit pipeline here.
     return {"status": "queued", "shop": shop, "message": "audit pipeline not yet wired (Phase 7)"}
+
+
+@register("meta_generation")
+async def handle_meta_generation(payload: dict, shop: str | None) -> dict:
+    """Generate meta titles + descriptions for Shopify products via LLM.
+
+    Expected payload keys:
+        products (list[dict]): Shopify product dicts (id, title, product_type, body_html).
+        job_id (str): Parent job ID for tracing back to meta_suggestions rows.
+        max_workers (int, optional): Thread pool size (default 10).
+    """
+    import asyncio
+
+    from app.llm import get_router
+    from app.llm.batch import generate_meta_for_products
+    from app.llm.meta_store import save_results
+
+    products = payload.get("products", [])
+    job_id = payload.get("job_id", "unknown")
+    max_workers = int(payload.get("max_workers", 10))
+
+    if not products:
+        return {"generated": 0, "errors": 0, "message": "no products provided"}
+
+    # Run synchronous batch in a thread so we don't block the event loop.
+    loop = asyncio.get_event_loop()
+    router = get_router()
+    results = await loop.run_in_executor(
+        None, lambda: generate_meta_for_products(products, router, max_workers=max_workers)
+    )
+
+    if shop:
+        save_results(results, shop=shop, job_id=job_id)
+
+    ok = sum(1 for r in results if r.success)
+    errors = len(results) - ok
+    return {"generated": ok, "errors": errors, "total": len(results)}

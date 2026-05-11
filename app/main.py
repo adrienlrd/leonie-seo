@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 from app.api.apply import router as apply_router  # noqa: E402
+from app.api.generate import router as generate_router  # noqa: E402
 from app.api.privacy import router as privacy_router  # noqa: E402
 from app.api.audit import router as audit_router  # noqa: E402
 from app.api.help import router as help_router  # noqa: E402
@@ -95,6 +96,7 @@ app.include_router(apply_router)
 app.include_router(suggestions_router)
 app.include_router(help_router)
 app.include_router(jobs_router)
+app.include_router(generate_router)
 
 
 @app.get("/health")

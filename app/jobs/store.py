@@ -26,14 +26,20 @@ def enqueue(
     queue: str,
     payload: dict,
     *,
+    job_id: str | None = None,
     shop: str | None = None,
     delay_seconds: int = 0,
     max_retries: int = _DEFAULT_MAX_RETRIES,
     priority: int = _DEFAULT_PRIORITY,
     db_path: Path | None = None,
 ) -> str:
-    """Insert a job into the queue. Returns the job ID (UUID string)."""
-    job_id = str(uuid.uuid4())
+    """Insert a job into the queue. Returns the job ID (UUID string).
+
+    Args:
+        job_id: Optional pre-generated ID (useful when the ID must be embedded in
+                the payload before insertion). Defaults to a new UUID4.
+    """
+    job_id = job_id or str(uuid.uuid4())
     now = _now()
     path = db_path if db_path is not None else DB_PATH
     with get_conn(path) as conn:

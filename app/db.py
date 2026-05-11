@@ -61,6 +61,20 @@ _SQLITE_DDL = [
         created_at      TEXT NOT NULL,
         updated_at      TEXT NOT NULL
     )""",
+    # LLM meta suggestions (Phase 7, task 60)
+    """CREATE TABLE IF NOT EXISTS meta_suggestions (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop                TEXT NOT NULL,
+        product_id          TEXT NOT NULL,
+        product_title       TEXT NOT NULL,
+        generated_title     TEXT,
+        generated_description TEXT,
+        provider            TEXT,
+        status              TEXT NOT NULL DEFAULT 'pending',
+        error               TEXT,
+        job_id              TEXT,
+        created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+    )""",
     # Async job queue (Phase 6, task 55)
     """CREATE TABLE IF NOT EXISTS jobs (
         id           TEXT PRIMARY KEY,
@@ -82,6 +96,19 @@ _SQLITE_DDL = [
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
 
 _PG_DDL = [
+    """CREATE TABLE IF NOT EXISTS meta_suggestions (
+        id                    SERIAL PRIMARY KEY,
+        shop                  TEXT NOT NULL,
+        product_id            TEXT NOT NULL,
+        product_title         TEXT NOT NULL,
+        generated_title       TEXT,
+        generated_description TEXT,
+        provider              TEXT,
+        status                TEXT NOT NULL DEFAULT 'pending',
+        error                 TEXT,
+        job_id                TEXT,
+        created_at            TIMESTAMP NOT NULL DEFAULT NOW()
+    )""",
     """CREATE TABLE IF NOT EXISTS shop_tokens (
         shop         TEXT PRIMARY KEY,
         access_token TEXT NOT NULL,
