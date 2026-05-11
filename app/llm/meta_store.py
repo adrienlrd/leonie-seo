@@ -77,6 +77,39 @@ def list_suggestions(
     return rows
 
 
+def batch_update_status(
+    suggestion_ids: list[int],
+    status: str,
+    *,
+    db_path: Path | None = None,
+) -> int:
+    """Set the status of multiple suggestions atomically.
+
+    Args:
+        suggestion_ids: List of row primary keys.
+        status: Target status (pending / approved / rejected).
+        db_path: Override DB path (tests only).
+
+    Returns:
+        Number of rows actually updated.
+
+    Raises:
+        ValueError: If status is not a recognised value.
+    """
+    if status not in _VALID_STATUSES:
+        raise ValueError(f"Invalid status '{status}'. Must be one of {_VALID_STATUSES}")
+    if not suggestion_ids:
+        return 0
+    path = db_path if db_path is not None else DB_PATH
+    placeholders = ",".join("?" * len(suggestion_ids))
+    with get_conn(path) as conn:
+        cur = conn.execute(
+            f"UPDATE meta_suggestions SET status = ? WHERE id IN ({placeholders})",  # noqa: S608
+            (status, *suggestion_ids),
+        )
+        return cur.rowcount
+
+
 def update_status(
     suggestion_id: int,
     status: str,
