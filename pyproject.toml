@@ -42,6 +42,7 @@ packages = [
     "scripts", "scripts.audit", "scripts.report", "scripts.apply",
     "app", "app.oauth", "app.api", "app.billing", "app.jobs",
     "app.llm", "app.llm.providers",
+    "app.niche",
 ]
 
 [tool.pytest.ini_options]
