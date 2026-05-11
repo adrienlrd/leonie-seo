@@ -31,6 +31,16 @@ class GenerateMetaResponse(BaseModel):
     message: str
 
 
+class BlogBriefRequest(BaseModel):
+    gaps: list[dict]
+    max_workers: int = 3
+
+
+class CollectionBriefRequest(BaseModel):
+    clusters: list[dict]
+    max_workers: int = 3
+
+
 class ReviewRequest(BaseModel):
     approve: list[int] = []
     reject: list[int] = []
@@ -185,3 +195,69 @@ async def auto_approve_meta(
             f"{skipped} kept pending (failed length check)"
         ),
     )
+
+
+@router.post("/api/shops/{shop}/generate/blog-briefs")
+async def generate_blog_briefs_endpoint(
+    shop: str,
+    body: BlogBriefRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> list[dict]:
+    """Generate SEO blog article briefs for a list of keyword gaps.
+
+    Each brief includes a proposed H1, H2/H3 structure, LSI keywords,
+    differentiator angle, E-E-A-T guidance, and internal CTA link.
+
+    Args:
+        shop: Shopify shop domain.
+        body: gaps — list of keyword gap dicts (from GET /niche/gaps).
+              max_workers — LLM concurrency (default 3).
+    """
+    if not body.gaps:
+        raise HTTPException(status_code=422, detail="gaps list must not be empty")
+
+    import asyncio
+
+    from app.llm import get_router
+    from app.llm.briefs import generate_blog_briefs
+
+    loop = asyncio.get_event_loop()
+    router_llm = get_router()
+    results = await loop.run_in_executor(
+        None,
+        lambda: generate_blog_briefs(body.gaps, router_llm, max_workers=body.max_workers),
+    )
+    return [asdict(r) for r in results]
+
+
+@router.post("/api/shops/{shop}/generate/collection-briefs")
+async def generate_collection_briefs_endpoint(
+    shop: str,
+    body: CollectionBriefRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> list[dict]:
+    """Generate SEO collection page briefs for a list of product clusters.
+
+    Each brief includes H1, meta title, meta description, intro text,
+    LSI keywords, internal link suggestions, and a differentiator angle.
+
+    Args:
+        shop: Shopify shop domain.
+        body: clusters — list of product cluster dicts (from GET /niche/clusters).
+              max_workers — LLM concurrency (default 3).
+    """
+    if not body.clusters:
+        raise HTTPException(status_code=422, detail="clusters list must not be empty")
+
+    import asyncio
+
+    from app.llm import get_router
+    from app.llm.briefs import generate_collection_briefs
+
+    loop = asyncio.get_event_loop()
+    router_llm = get_router()
+    results = await loop.run_in_executor(
+        None,
+        lambda: generate_collection_briefs(body.clusters, router_llm, max_workers=body.max_workers),
+    )
+    return [asdict(r) for r in results]

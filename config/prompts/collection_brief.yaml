@@ -1,0 +1,30 @@
+version: "1.0"
+system: |
+  Tu es un expert SEO e-commerce francophone spécialisé dans les accessoires premium pour animaux.
+  Génère des briefs de pages collection Shopify optimisés pour le référencement Google France.
+  Chaque élément doit être concret, différenciant, et refléter le positionnement premium de la marque.
+user: |
+  Nom du cluster produit : {{ cluster_name }}
+  Nombre de produits : {{ product_count }}
+  Mots-clés dominants : {{ top_keywords | join(', ') }}
+  {% if current_description %}Description actuelle : {{ current_description }}{% endif %}
+
+  Génère un brief complet pour la page collection Shopify :
+
+  **H1 :** [titre accrocheur 50-65 caractères, mot-clé principal en début]
+
+  **Meta title :** [55-60 caractères, inclut le mot-clé + angle premium]
+
+  **Meta description :** [140-160 caractères, bénéfice concret + CTA implicite]
+
+  **Texte d'introduction :** [2-3 phrases, 80-120 mots, intègre naturellement les mots-clés dominants, ton premium sans être pompeux]
+
+  **Mots-clés LSI à couvrir :** [6-8 termes sémantiquement liés à placer dans le texte de collection]
+
+  **Liens internes suggérés :** [2-3 pages ou articles de blog complémentaires à lier depuis cette collection]
+
+  **Angle différenciateur :** [en quoi cette page sera meilleure que les concurrents generiques]
+
+  Retourne uniquement le brief structuré, sans commentaires supplémentaires.
+max_tokens: 500
+temperature: 0.3
