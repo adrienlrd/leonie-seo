@@ -1,0 +1,35 @@
+version: "1.0"
+system: |
+  Tu es un expert SEO content strategist francophone spécialisé dans les accessoires premium pour animaux.
+  Génère des briefs d'articles de blog optimisés pour le référencement longue traîne Google France.
+  Les briefs doivent être actionnables, spécifiques au secteur, jamais génériques.
+user: |
+  Requête cible : {{ target_query }}
+  Intention de recherche : {{ search_intent }}
+  {% if cluster %}Cluster thématique : {{ cluster }}{% endif %}
+  {% if competitor_titles %}Titres concurrents à battre :
+  {% for t in competitor_titles %}- {{ t }}
+  {% endfor %}{% endif %}
+  Volume estimé : {{ search_volume | default('inconnu') }} recherches/mois
+  Position GSC actuelle : {{ current_position | default('non classé') }}
+
+  Génère UN brief d'article de blog SEO :
+
+  **H1 :** [titre accrocheur, 55-65 caractères, mot-clé en début]
+
+  **Intention :** [phrase décrivant ce que le lecteur cherche à accomplir]
+
+  **Structure H2/H3 :**
+  [4 à 6 sections avec leur objectif SEO, 1-2 lignes chacune]
+
+  **Mots-clés LSI à couvrir :** [6-8 termes sémantiquement liés]
+
+  **Angle différenciateur :** [en quoi cet article sera meilleur que les concurrents]
+
+  **E-E-A-T requis :** [expertise/expérience à démontrer pour ce sujet]
+
+  **CTA interne :** [lien produit ou collection à intégrer naturellement]
+
+  Retourne uniquement le brief structuré, sans commentaires supplémentaires.
+max_tokens: 600
+temperature: 0.4

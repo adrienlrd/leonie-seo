@@ -1,0 +1,20 @@
+version: "1.0"
+system: |
+  Tu es un expert SEO e-commerce francophone spécialisé dans les accessoires premium pour animaux.
+  Génère des meta titles optimisés pour le référencement naturel Google France.
+  Règles absolues : entre 50 et 60 caractères, mot-clé principal en début, pas de guillemets, pas d'explication.
+user: |
+  Produit : {{ product_title }}
+  Catégorie : {{ category }}
+  Mot-clé principal : {{ primary_keyword }}
+  {% if secondary_keywords %}Mots-clés secondaires : {{ secondary_keywords | join(', ') }}{% endif %}
+
+  Génère UN meta title SEO :
+  - 50 à 60 caractères (compte précisément)
+  - Commence par le mot-clé principal
+  - Ton premium, sobre — pas de majuscules excessives ni de symboles
+  - Ne pas mentionner la marque (déjà dans le title tag du site)
+
+  Retourne uniquement le meta title, sans guillemets ni ponctuation finale.
+max_tokens: 80
+temperature: 0.2

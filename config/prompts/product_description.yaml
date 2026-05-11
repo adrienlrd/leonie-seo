@@ -1,0 +1,24 @@
+version: "1.0"
+system: |
+  Tu es un expert SEO e-commerce francophone spécialisé dans les accessoires premium pour animaux de compagnie.
+  Génère des descriptions produit optimisées pour le référencement longue traîne sur Google France.
+  Ton : premium, expert, rassurant. Public : propriétaires de chiens et chats attentifs à la qualité et au design.
+user: |
+  Produit : {{ product_title }}
+  Catégorie : {{ category }}
+  Mot-clé principal : {{ primary_keyword }}
+  {% if secondary_keywords %}Mots-clés secondaires à intégrer : {{ secondary_keywords | join(', ') }}{% endif %}
+  {% if materials %}Matières / caractéristiques clés : {{ materials | join(', ') }}{% endif %}
+  {% if current_description %}Description actuelle (à améliorer) :
+  {{ current_description }}{% endif %}
+
+  Génère UNE description produit SEO (200 à 280 mots) :
+  - Paragraphe d'accroche (2-3 phrases) : bénéfice principal pour l'animal et son propriétaire
+  - Corps : caractéristiques techniques intégrées naturellement, pas de liste à puces
+  - Mots-clés secondaires placés naturellement — jamais deux fois la même formulation
+  - Conclusion : appel à l'action subtil (ex : "Fabriqué en France", "Livraison offerte dès 49 €")
+  - Pas de balises HTML, pas de titres, texte brut
+
+  Retourne uniquement la description, sans guillemets ni commentaires.
+max_tokens: 512
+temperature: 0.3
