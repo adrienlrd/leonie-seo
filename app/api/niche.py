@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.api.deps import ShopContext, get_shop_context
 from app.niche.engine import run_niche_analysis
@@ -141,3 +142,39 @@ async def get_niche_report(
 
     report = run_niche_analysis(products, gsc_queries, shop=shop)
     return asdict(report)
+
+
+class SignalRequest(BaseModel):
+    seeds: list[str]
+    sources: list[str] | None = None  # None = all sources
+    geo: str = "FR"
+
+
+@router.post("/api/shops/{shop}/niche/signals")
+async def fetch_niche_signals(
+    shop: str,
+    body: SignalRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> list[dict]:
+    """Fetch keyword signals from Google Suggest, Trends and Reddit for seed keywords.
+
+    Args:
+        shop: Shopify shop domain.
+        body: seeds — list of seed keywords (cluster names or GSC queries).
+              sources — optional subset: ["google_suggest", "trends", "reddit"].
+              geo — country code for regional results (default "FR").
+
+    Returns:
+        Deduplicated keyword signals sorted by relevance_score descending.
+    """
+    if not body.seeds:
+        raise HTTPException(status_code=422, detail="seeds list must not be empty")
+
+    from app.niche.signals.aggregator import fetch_all_signals
+
+    signals = fetch_all_signals(
+        body.seeds,
+        sources=body.sources,
+        geo=body.geo,
+    )
+    return [asdict(s) for s in signals]

@@ -36,13 +36,14 @@ leonie-seo = "scripts.cli:cli"
 dev = ["pytest", "pytest-mock", "ruff"]
 postgres = ["psycopg2-binary"]
 llm = ["openai>=1.0.0", "groq>=0.4.0"]
+niche = ["pytrends"]
 
 [tool.setuptools]
 packages = [
     "scripts", "scripts.audit", "scripts.report", "scripts.apply",
     "app", "app.oauth", "app.api", "app.billing", "app.jobs",
     "app.llm", "app.llm.providers",
-    "app.niche",
+    "app.niche", "app.niche.signals",
 ]
 
 [tool.pytest.ini_options]
