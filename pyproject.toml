@@ -49,6 +49,7 @@ packages = [
     "app.observability",
     "app.jsonld",
     "app.embeddings",
+    "app.impact",
 ]
 
 [tool.pytest.ini_options]
