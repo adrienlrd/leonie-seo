@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from app.llm.prompts import load_prompt
 from app.llm.provider import LLMError
 from app.llm.router import LLMRouter
+from app.niche.ner import enrich_product
 
 _BRAND_WORDS = re.compile(r"\b(léonie|leonie|delacroix|de la croix)\b", re.IGNORECASE)
 
@@ -27,30 +28,31 @@ class MetaResult:
         return self.error is None and bool(self.generated_title)
 
 
-def _extract_keyword(product_title: str, product_type: str) -> str:
-    """Derive a primary keyword — brand name stripped, lowercase.
-
-    spaCy NER (task 67) will replace this with proper entity extraction.
-    """
+def _primary_keyword(product_title: str) -> str:
+    """Derive primary keyword from title — brand name stripped, lowercase."""
     base = _BRAND_WORDS.sub("", product_title).strip(" -–")
     return (base or product_title).lower()
 
 
 def _generate_one(product: dict, router: LLMRouter) -> MetaResult:
-    product_id = str(product.get("id", ""))
-    title = str(product.get("title", ""))
-    product_type = str(product.get("product_type", ""))
-    body = str(product.get("body_html", ""))[:300]
-    primary_keyword = _extract_keyword(title, product_type)
+    enriched = enrich_product(product)
+    product_id = str(enriched.get("id", ""))
+    title = str(enriched.get("title", ""))
+    product_type = str(enriched.get("product_type", ""))
+    body = str(enriched.get("body_html", ""))[:300]
+    entities = enriched.get("_entities")
+
+    keyword = _primary_keyword(title)
     category = product_type or "accessoire animal"
+    secondary_keywords = entities.all_keywords[:6] if entities else []
 
     try:
         title_tmpl = load_prompt("meta_title")
         title_prompt = title_tmpl.render_user(
             product_title=title,
             category=category,
-            primary_keyword=primary_keyword,
-            secondary_keywords=[],
+            primary_keyword=keyword,
+            secondary_keywords=secondary_keywords,
         )
         title_result = router.complete(
             title_prompt,
@@ -63,7 +65,7 @@ def _generate_one(product: dict, router: LLMRouter) -> MetaResult:
         desc_prompt = desc_tmpl.render_user(
             product_title=title,
             meta_title=title_result.text,
-            primary_keyword=primary_keyword,
+            primary_keyword=keyword,
             current_description=body,
         )
         desc_result = router.complete(
