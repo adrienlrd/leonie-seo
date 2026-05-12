@@ -10,6 +10,12 @@ niche: pet_accessories_fr
 base_url: "https://www.leoniedelacroix.com"
 shopify_store_domain: "287c4a-bb.myshopify.com"
 
+# ── Locale + analytics ────────────────────────────────────────────────────
+locale: "fr-FR"
+currency: "EUR"
+ga4_property_id: "properties/459014688"  # see CONTEXT.md
+gsc_property: "sc-domain:leoniedelacroix.com"
+
 # ── Produit → catégorie (pour semantic analysis, internal links, rewrite) ─
 product_categories:
   le-pardessus-pour-chien: vetements_chien

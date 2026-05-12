@@ -58,6 +58,48 @@ def test_load_tenant_has_pagespeed_urls():
     assert any("leoniedelacroix.com" in u for u in cfg.pagespeed_urls)
 
 
+# ── Multi-tenant analytics + locale (added 2026-05-12) ───────────────────
+
+
+def test_load_tenant_has_locale_and_currency():
+    cfg = load_tenant("leoniedelacroix")
+    assert cfg.locale == "fr-FR"
+    assert cfg.currency == "EUR"
+
+
+def test_load_tenant_has_ga4_property_id():
+    cfg = load_tenant("leoniedelacroix")
+    assert cfg.ga4_property_id == "properties/459014688"
+
+
+def test_load_tenant_has_gsc_property():
+    cfg = load_tenant("leoniedelacroix")
+    assert cfg.gsc_property == "sc-domain:leoniedelacroix.com"
+
+
+def test_tenant_config_locale_defaults_when_omitted(tmp_path, monkeypatch):
+    """Backward compat: a tenant YAML without locale/currency/ga4 still loads."""
+    tenants_dir = tmp_path / "tenants"
+    tenants_dir.mkdir()
+    minimal_yaml = """\
+tenant_id: minimal
+name: "Minimal"
+brand: "Minimal"
+niche: pet_accessories_fr
+base_url: "https://minimal.example.com"
+shopify_store_domain: "minimal.myshopify.com"
+"""
+    (tenants_dir / "minimal.yaml").write_text(minimal_yaml)
+    monkeypatch.setattr("scripts._config._CONFIG_DIR", tenants_dir)
+    reset_config_cache()
+
+    cfg = load_tenant("minimal")
+    assert cfg.locale == "fr-FR"  # default
+    assert cfg.currency == "EUR"  # default
+    assert cfg.ga4_property_id is None
+    assert cfg.gsc_property is None
+
+
 def test_load_tenant_seo_rules():
     cfg = load_tenant("leoniedelacroix")
     assert cfg.seo_rules.title_min_chars == 50

@@ -59,6 +59,11 @@ class TenantConfig(BaseModel):
     niche: str
     base_url: str
     shopify_store_domain: str
+    # Per-tenant analytics + locale (added 2026-05-12 — multi-tenant readiness)
+    locale: str = "fr-FR"
+    currency: str = "EUR"
+    ga4_property_id: str | None = None  # e.g. "properties/459014688"
+    gsc_property: str | None = None  # e.g. "sc-domain:leoniedelacroix.com"
     product_categories: dict[str, str] = Field(default_factory=dict)
     categories: list[str] = Field(default_factory=list)
     category_labels: dict[str, str] = Field(default_factory=dict)
