@@ -213,10 +213,14 @@ def main(
 
     sender = os.environ.get("GMAIL_SENDER")
     app_password = os.environ.get("GMAIL_APP_PASSWORD")
-    to = recipient or os.environ.get("ALERT_EMAIL", "adrien.leredde@outlook.com")
+    to = recipient or os.environ.get("ALERT_EMAIL")
 
     if not sender or not app_password:
         raise AlertError("GMAIL_SENDER et GMAIL_APP_PASSWORD requis pour --apply")
+    if not to:
+        raise AlertError(
+            "Destinataire requis : passer --recipient ou définir ALERT_EMAIL."
+        )
 
     send_email(subject, body, sender, to, app_password)
     console.print(f"  [green]✓[/green] Email envoyé → {to}")
