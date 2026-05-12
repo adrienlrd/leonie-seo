@@ -35,8 +35,11 @@ def _suggestion(
 
 
 def _ok_title() -> str:
-    """Return a title exactly 55 chars (within 50-60 target)."""
-    return "x" * 55
+    """Return a title exactly 55 chars within target AND containing the
+    product token "pardessus" so the new keyword-overlap validator passes."""
+    base = "Pardessus chien fabriqué en France — collection "
+    pad = 55 - len(base)
+    return base + ("x" * pad)
 
 
 def _ok_desc() -> str:
@@ -218,3 +221,102 @@ def test_batch_update_status_rejects_invalid_status():
 
     with pytest.raises(ValueError, match="Invalid status"):
         batch_update_status([1, 2], "invalid")
+
+
+# ── Anti-hallucination validators (lot 4 wave 2) ──────────────────────────────
+
+
+def test_compute_diff_title_keyword_ok_when_overlap_present():
+    result = compute_diff(
+        _suggestion(
+            product_title="Pardessus chien premium",
+            generated_title="Pardessus pour chien fabriqué en France | Léonie xx",  # noqa: E501
+            generated_description=_ok_desc(),
+        )
+    )
+    assert result.title_keyword_ok is True
+
+
+def test_compute_diff_title_keyword_fails_when_no_overlap():
+    """The LLM rewrote the title into something unrelated — the model
+    must NOT pass quality check, because we'd otherwise apply a SEO title
+    that says nothing about the actual product."""
+    title = "Découvrez notre collection exceptionnelle de luxe — 55 chars"[:55]
+    result = compute_diff(
+        _suggestion(
+            product_title="Pardessus chien premium",
+            generated_title=title,
+            generated_description=_ok_desc(),
+        )
+    )
+    assert result.title_keyword_ok is False
+    assert result.passes_quality_check is False
+
+
+def test_compute_diff_brand_present_passes_when_brand_in_title():
+    title = "Pardessus chien Léonie Delacroix fabriqué en France xx"
+    title = title[:55] if len(title) > 60 else title + ("x" * max(0, 50 - len(title)))
+    result = compute_diff(
+        _suggestion(generated_title=title, generated_description=_ok_desc()),
+        brand="Léonie Delacroix",
+    )
+    assert result.brand_present_in_title_or_desc is True
+
+
+def test_compute_diff_brand_missing_fails_quality_check():
+    """If we tell compute_diff there's a brand, but the LLM omitted it
+    from BOTH title and description, the result must fail quality check."""
+    desc = "x" * 150  # no brand anywhere
+    result = compute_diff(
+        _suggestion(generated_title=_ok_title(), generated_description=desc),
+        brand="Léonie Delacroix",
+    )
+    assert result.brand_present_in_title_or_desc is False
+    assert result.passes_quality_check is False
+
+
+def test_compute_diff_no_brand_passes_when_not_supplied():
+    """When no brand is passed, the brand check is skipped (None, not False).
+    Backward compat — every test in this file that called compute_diff(s)
+    without `brand=` keeps working."""
+    result = compute_diff(
+        _suggestion(generated_title=_ok_title(), generated_description=_ok_desc())
+    )
+    assert result.brand_present_in_title_or_desc is None
+    assert result.passes_quality_check is True
+
+
+def test_compute_diff_flags_suspicious_claim_free_shipping():
+    desc = ("Pardessus chien premium fabriqué en France. Livraison gratuite "
+            "pour toute commande — matière laine mérinos qualité supérieure abc")[:155]
+    result = compute_diff(
+        _suggestion(generated_title=_ok_title(), generated_description=desc)
+    )
+    assert "free_shipping" in result.suspicious_claims
+    assert result.passes_quality_check is False
+
+
+def test_compute_diff_flags_suspicious_claim_vet_endorsement():
+    desc = ("Approuvé par des vétérinaires français. Matière douce et "
+            "respirante pour le confort de votre animal au quotidien partout ici")[:155]
+    result = compute_diff(
+        _suggestion(generated_title=_ok_title(), generated_description=desc)
+    )
+    assert "vet_endorsement" in result.suspicious_claims
+
+
+def test_compute_diff_empty_title_fails_quality():
+    result = compute_diff(
+        _suggestion(generated_title="   ", generated_description=_ok_desc())
+    )
+    assert result.passes_quality_check is False
+
+
+def test_diff_suggestions_forwards_brand_to_each_call():
+    """The batch helper must pass the brand to every compute_diff call."""
+    suggestions = [
+        _suggestion(id=1, generated_title=_ok_title(), generated_description=_ok_desc()),
+    ]
+    results = diff_suggestions(suggestions, brand="Léonie Delacroix")
+    # No brand token in the placeholder title/desc — must fail brand check
+    assert results[0].brand_present_in_title_or_desc is False
