@@ -93,15 +93,24 @@ _FAKE_TOKEN = {
 
 
 def test_shopify_writer_apply_product_seo_success():
-    """Writer calls Shopify and returns ApplyResult(applied=True) on success."""
+    """Writer reads current SEO, then writes, returns ApplyResult(applied=True).
+    Captures old_title/old_description for rollback in the result."""
     mock_session = MagicMock()
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {
+    # First call: read query — returns current SEO state (the "before").
+    mock_read = MagicMock()
+    mock_read.status_code = 200
+    mock_read.json.return_value = {
+        "data": {"product": {"id": "gid://shopify/Product/1", "seo": {"title": "OLD", "description": "OLD DESC"}}}
+    }
+    mock_read.raise_for_status = MagicMock()
+    # Second call: write mutation — success.
+    mock_write = MagicMock()
+    mock_write.status_code = 200
+    mock_write.json.return_value = {
         "data": {"productUpdate": {"product": {"id": "gid://shopify/Product/1"}, "userErrors": []}}
     }
-    mock_resp.raise_for_status = MagicMock()
-    mock_session.post.return_value = mock_resp
+    mock_write.raise_for_status = MagicMock()
+    mock_session.post.side_effect = [mock_read, mock_write]
 
     writer = ShopifyWriter("test.myshopify.com", "token", delay=0)
     writer._session = mock_session
@@ -110,18 +119,27 @@ def test_shopify_writer_apply_product_seo_success():
 
     assert result.applied is True
     assert result.error is None
-    assert mock_session.post.call_count == 1
+    assert mock_session.post.call_count == 2  # read + write
+    # Old values captured for rollback support
+    assert result.old_title == "OLD"
+    assert result.old_description == "OLD DESC"
 
 
 def test_shopify_writer_returns_error_on_user_errors():
     mock_session = MagicMock()
-    mock_resp = MagicMock()
-    mock_resp.status_code = 200
-    mock_resp.json.return_value = {
+    # Read returns empty SEO (no current values)
+    mock_read = MagicMock()
+    mock_read.status_code = 200
+    mock_read.json.return_value = {"data": {"product": {"seo": {}}}}
+    mock_read.raise_for_status = MagicMock()
+    # Write returns userErrors
+    mock_write = MagicMock()
+    mock_write.status_code = 200
+    mock_write.json.return_value = {
         "data": {"productUpdate": {"userErrors": [{"field": "title", "message": "too long"}]}}
     }
-    mock_resp.raise_for_status = MagicMock()
-    mock_session.post.return_value = mock_resp
+    mock_write.raise_for_status = MagicMock()
+    mock_session.post.side_effect = [mock_read, mock_write]
 
     writer = ShopifyWriter("test.myshopify.com", "token", delay=0)
     writer._session = mock_session
@@ -133,7 +151,9 @@ def test_shopify_writer_returns_error_on_user_errors():
 
 
 def test_shopify_writer_retries_on_429(tmp_path):
-    """Writer retries up to max_retries on 429, then fails if still 429."""
+    """Writer retries up to max_retries on 429 (across both the read and the
+    write step). With 1 retry needed on the read and a direct success on the
+    write, expect 3 HTTP calls total."""
     call_count = [0]
 
     mock_session = MagicMock()
@@ -141,18 +161,29 @@ def test_shopify_writer_retries_on_429(tmp_path):
     mock_resp_429.status_code = 429
     mock_resp_429.headers = {"Retry-After": "0"}
 
-    mock_resp_ok = MagicMock()
-    mock_resp_ok.status_code = 200
-    mock_resp_ok.json.return_value = {
+    mock_resp_read = MagicMock()
+    mock_resp_read.status_code = 200
+    mock_resp_read.json.return_value = {
+        "data": {"product": {"seo": {"title": "OLD", "description": "OLD DESC"}}}
+    }
+    mock_resp_read.raise_for_status = MagicMock()
+
+    mock_resp_write = MagicMock()
+    mock_resp_write.status_code = 200
+    mock_resp_write.json.return_value = {
         "data": {"productUpdate": {"product": {"id": "gid://shopify/Product/1"}, "userErrors": []}}
     }
-    mock_resp_ok.raise_for_status = MagicMock()
+    mock_resp_write.raise_for_status = MagicMock()
 
     def side_effect(*args, **kwargs):
         call_count[0] += 1
-        if call_count[0] < 2:
+        # First call is throttled (429), second succeeds (the retried read),
+        # third is the write mutation
+        if call_count[0] == 1:
             return mock_resp_429
-        return mock_resp_ok
+        if call_count[0] == 2:
+            return mock_resp_read
+        return mock_resp_write
 
     mock_session.post.side_effect = side_effect
 
@@ -162,7 +193,8 @@ def test_shopify_writer_retries_on_429(tmp_path):
     result = writer.apply_product_seo("gid://shopify/Product/1", "Title", "Desc")
 
     assert result.applied is True
-    assert call_count[0] == 2  # 1 retry was enough
+    assert call_count[0] == 3  # 1 retried read + 1 successful read + 1 write
+    assert result.old_title == "OLD"
 
 
 def test_shopify_writer_skips_when_no_content():
@@ -278,7 +310,13 @@ def test_apply_approved_meta_marks_applied_in_db(tmp_path):
     _init_db(db)
     sid = _insert_suggestion(db, "test.myshopify.com", "gid://shopify/Product/1")
 
-    mock_result = ApplyResult(resource_id="gid://shopify/Product/1", applied=True)
+    # Writer captured old values during read-before-write — propagate to result.
+    mock_result = ApplyResult(
+        resource_id="gid://shopify/Product/1",
+        applied=True,
+        old_title="OLD Title",
+        old_description="OLD Description",
+    )
 
     with patch("app.apply.bulk_orchestrator.get_token", return_value=_FAKE_TOKEN):
         with patch("app.apply.bulk_orchestrator.ShopifyWriter") as MockWriter:
@@ -287,12 +325,44 @@ def test_apply_approved_meta_marks_applied_in_db(tmp_path):
 
     conn = sqlite3.connect(db)
     row = conn.execute("SELECT status FROM meta_suggestions WHERE id = ?", (sid,)).fetchone()
-    # Verify seo_changes rows are tagged with the shop (multi-tenant isolation).
-    changes = conn.execute("SELECT shop FROM seo_changes").fetchall()
+    # Verify seo_changes rows are tagged with the shop AND carry the captured
+    # old_value (rollback support — was NULL before lot 4 wave 2).
+    changes = conn.execute("SELECT shop, field, old_value FROM seo_changes").fetchall()
     conn.close()
     assert row[0] == "applied"
     assert all(c[0] == "test.myshopify.com" for c in changes)
     assert len(changes) >= 1
+    by_field = {c[1]: c[2] for c in changes}
+    assert by_field["seo.title"] == "OLD Title"
+    assert by_field["seo.description"] == "OLD Description"
+
+
+def test_apply_approved_meta_handles_missing_old_values(tmp_path):
+    """When the writer couldn't read prior SEO (e.g. Shopify error), the
+    seo_changes row keeps old_value=NULL — rollback is then a no-op for
+    that field but the apply still succeeds."""
+    db = tmp_path / "test.db"
+    _init_db(db)
+    _insert_suggestion(db, "test.myshopify.com", "gid://shopify/Product/2")
+
+    mock_result = ApplyResult(
+        resource_id="gid://shopify/Product/2",
+        applied=True,
+        # old_title and old_description default to None — read failed
+    )
+
+    with patch("app.apply.bulk_orchestrator.get_token", return_value=_FAKE_TOKEN):
+        with patch("app.apply.bulk_orchestrator.ShopifyWriter") as MockWriter:
+            MockWriter.return_value.apply_product_seo.return_value = mock_result
+            apply_approved_meta("test.myshopify.com", dry_run=False, delay=0, db_path=db)
+
+    conn = sqlite3.connect(db)
+    rows = conn.execute(
+        "SELECT old_value FROM seo_changes WHERE resource_id = ?",
+        ("gid://shopify/Product/2",),
+    ).fetchall()
+    conn.close()
+    assert all(r[0] is None for r in rows)
 
 
 def test_apply_approved_meta_respects_max_per_run(tmp_path):

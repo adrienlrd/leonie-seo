@@ -31,6 +31,18 @@ mutation UpdateCollectionSEO($input: CollectionInput!) {
 }
 """
 
+_READ_PRODUCT_SEO = """
+query ReadProductSEO($id: ID!) {
+  product(id: $id) { id seo { title description } }
+}
+"""
+
+_READ_COLLECTION_SEO = """
+query ReadCollectionSEO($id: ID!) {
+  collection(id: $id) { id seo { title description } }
+}
+"""
+
 
 class ShopifyWriteError(Exception):
     """Raised when a Shopify mutation returns userErrors or a non-retryable HTTP error."""
@@ -45,12 +57,18 @@ class ApplyResult:
         applied: True if the mutation succeeded.
         error: Human-readable error message on failure, None on success.
         attempts: Number of HTTP attempts made (including retries).
+        old_title: SEO title BEFORE the mutation (captured for rollback).
+                   None when reading the previous state failed or the field
+                   was empty on Shopify.
+        old_description: SEO description BEFORE the mutation (rollback data).
     """
 
     resource_id: str
     applied: bool
     error: str | None = None
     attempts: int = 1
+    old_title: str | None = None
+    old_description: str | None = None
 
 
 class ShopifyWriter:
@@ -115,13 +133,31 @@ class ShopifyWriter:
 
         raise ShopifyWriteError(f"Max retries ({self._max_retries}) exceeded on {self._endpoint}")
 
+    def _read_seo(self, gid: str, query: str, root_key: str) -> tuple[str | None, str | None]:
+        """Fetch the current seo.title / seo.description from Shopify.
+
+        Returns (None, None) when the read fails — callers should treat
+        absent old values as 'unknown, no rollback possible' rather than
+        bailing on the apply.
+        """
+        try:
+            data = self._post(query, {"id": gid})
+        except (requests.RequestException, ShopifyWriteError) as exc:
+            logger.warning("Failed to read prior SEO for %s (rollback disabled): %s", gid, exc)
+            return None, None
+        resource = (data.get("data") or {}).get(root_key) or {}
+        seo = resource.get("seo") or {}
+        return seo.get("title"), seo.get("description")
+
     def apply_product_seo(
         self,
         product_id: str,
         title: str | None,
         description: str | None,
     ) -> ApplyResult:
-        """Apply a product SEO mutation with retry.
+        """Apply a product SEO mutation with retry. Captures the previous SEO
+        values BEFORE the mutation so the orchestrator can build rollback rows
+        with real old_value data instead of NULL.
 
         Args:
             product_id: Shopify Product GID.
@@ -129,10 +165,14 @@ class ShopifyWriter:
             description: New meta description (None = leave unchanged).
 
         Returns:
-            ApplyResult indicating success or failure.
+            ApplyResult with old_title / old_description populated from the
+            read-before-write step (when reachable).
         """
         if not title and not description:
             return ApplyResult(resource_id=product_id, applied=False, error="no fields to update")
+
+        # Read current values BEFORE writing — required for rollback.
+        old_title, old_desc = self._read_seo(product_id, _READ_PRODUCT_SEO, "product")
 
         seo: dict[str, str] = {}
         if title:
@@ -145,15 +185,32 @@ class ShopifyWriter:
         try:
             data = self._post(_UPDATE_PRODUCT_SEO, variables)
         except (requests.RequestException, ShopifyWriteError) as exc:
-            return ApplyResult(resource_id=product_id, applied=False, error=str(exc))
+            return ApplyResult(
+                resource_id=product_id,
+                applied=False,
+                error=str(exc),
+                old_title=old_title,
+                old_description=old_desc,
+            )
 
         user_errors = (data.get("data") or {}).get("productUpdate", {}).get("userErrors", [])
         if user_errors:
             msg = "; ".join(f"{e['field']}: {e['message']}" for e in user_errors)
-            return ApplyResult(resource_id=product_id, applied=False, error=msg)
+            return ApplyResult(
+                resource_id=product_id,
+                applied=False,
+                error=msg,
+                old_title=old_title,
+                old_description=old_desc,
+            )
 
         time.sleep(self._delay)
-        return ApplyResult(resource_id=product_id, applied=True)
+        return ApplyResult(
+            resource_id=product_id,
+            applied=True,
+            old_title=old_title,
+            old_description=old_desc,
+        )
 
     def apply_collection_seo(
         self,

@@ -46,6 +46,9 @@ def _log_applied(
     generated_title: str | None,
     generated_description: str | None,
     db_path: Path | None,
+    *,
+    old_title: str | None = None,
+    old_description: str | None = None,
 ) -> None:
     """Record a successful apply in seo_changes for rollback support.
 
@@ -55,21 +58,25 @@ def _log_applied(
         generated_title: New SEO title (or None to skip).
         generated_description: New SEO description (or None to skip).
         db_path: Override DB path (tests only).
+        old_title: Previous SEO title captured by the writer before the mutation.
+                   When provided, persisted so the rollback CLI can restore it.
+        old_description: Previous SEO description captured pre-mutation.
     """
     path = db_path if db_path is not None else DB_PATH
     now = datetime.now(UTC).isoformat()
+    pairs = [
+        ("seo.title", generated_title, old_title),
+        ("seo.description", generated_description, old_description),
+    ]
     with get_conn(path) as conn:
-        for field_name, new_value in [
-            ("seo.title", generated_title),
-            ("seo.description", generated_description),
-        ]:
+        for field_name, new_value, old_value in pairs:
             if new_value:
                 conn.execute(
                     """INSERT INTO seo_changes
                        (shop, applied_at, resource_type, resource_id, field,
                         old_value, new_value, status)
-                       VALUES (?, ?, 'product', ?, ?, NULL, ?, 'applied')""",
-                    (shop, now, product_id, field_name, new_value),
+                       VALUES (?, ?, 'product', ?, ?, ?, ?, 'applied')""",
+                    (shop, now, product_id, field_name, old_value, new_value),
                 )
 
 
@@ -158,7 +165,15 @@ def apply_approved_meta(
         report.details.append(detail)
 
         if result.applied:
-            _log_applied(shop, product_id, title, description, db_path)
+            _log_applied(
+                shop,
+                product_id,
+                title,
+                description,
+                db_path,
+                old_title=result.old_title,
+                old_description=result.old_description,
+            )
             applied_ids.append(suggestion_id)
             report.applied += 1
         else:
