@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.ga4.client import parse_report
+from app.ga4.client import GA4Client, parse_report
 from app.ga4.funnel import _url_to_path, build_funnel, summarize_funnel
 from app.ga4.queries import get_organic_by_page
 
@@ -270,3 +270,68 @@ def test_get_organic_by_page_zero_sessions_no_division():
     )
     result = get_organic_by_page(client)
     assert result["/page"]["conversion_rate"] == 0.0
+
+
+# ── Async + token caching (lot 4 wave 2) ─────────────────────────────────────
+
+
+def test_client_with_injected_token_reuses_it_across_calls():
+    """A pre-injected token must be reused without ever touching google-auth."""
+    client = GA4Client(property_id="123", token="injected-tok-123")
+    assert client._bearer() == "injected-tok-123"
+    assert client._bearer() == "injected-tok-123"
+    assert client._creds is None  # no service-account exchange happened
+
+
+def test_run_report_uses_injected_token_in_authorization_header():
+    """Verify the Bearer token is set on the Authorization header."""
+    client = GA4Client(property_id="123", token="injected-tok-123")
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"rows": []}
+    with patch("httpx.post", return_value=mock_resp) as post_mock:
+        client.run_report({"dimensions": [{"name": "pagePath"}]})
+    headers = post_mock.call_args.kwargs["headers"]
+    assert headers["Authorization"] == "Bearer injected-tok-123"
+
+
+def test_run_report_async_uses_async_httpx_client():
+    """The async variant must hit httpx.AsyncClient — not block on httpx.post.
+
+    Uses anyio.from_thread.start_blocking_portal so the test doesn't tear down
+    the asyncio default loop (which other tests in the suite still read via
+    the deprecated asyncio.get_event_loop()).
+    """
+    import httpx
+    from anyio.from_thread import start_blocking_portal
+
+    client = GA4Client(property_id="456", token="async-tok")
+    mock_resp = MagicMock(spec=httpx.Response)
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"rows": []}
+
+    captured = {"headers": None}
+
+    class _FakeAsyncClient:
+        def __init__(self, *a, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return None
+
+        async def post(self, url, json=None, headers=None):
+            captured["headers"] = headers
+            return mock_resp
+
+    with patch("app.ga4.client.httpx.AsyncClient", _FakeAsyncClient):
+        with start_blocking_portal() as portal:
+            result = portal.call(
+                client.run_report_async,
+                {"dimensions": [{"name": "pagePath"}]},
+            )
+    assert result == {"rows": []}
+    assert captured["headers"]["Authorization"] == "Bearer async-tok"
+

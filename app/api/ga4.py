@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Annotated
 
@@ -49,10 +50,11 @@ async def get_organic_funnel(
         )
     gsc_rows = _parse_gsc_csv(gsc_file.read_text())
 
-    # Fetch GA4 organic sessions
+    # Fetch GA4 organic sessions — wrap the sync client call in a thread so
+    # the FastAPI event loop stays free during the ~200-500 ms GA4 round-trip.
     client = _build_ga4_client()
     try:
-        ga4_rows = get_organic_by_page(client, days=days)
+        ga4_rows = await asyncio.to_thread(get_organic_by_page, client, days=days)
     except GA4Error as exc:
         raise HTTPException(status_code=502, detail=f"GA4 API error: {exc}") from exc
 
