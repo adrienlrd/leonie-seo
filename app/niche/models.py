@@ -58,6 +58,13 @@ class NicheReport:
         shop: Shopify shop domain.
         clusters: Detected product clusters, sorted by size desc.
         keyword_gaps: Keyword opportunities, sorted by opportunity_score desc.
+        intent_clusters: Optional GSC query clusters by search intent
+                         (transactional / informational / commercial /
+                         navigational / unknown). Empty when GSC data is
+                         absent. Sorted by total_impressions desc.
+        entity_summary: Aggregate count of NER entities across the catalogue,
+                        keyed first by category (materials / origins /
+                        certifications / targets / properties) then by term.
         total_products: Number of products analysed.
         total_queries: Number of GSC queries analysed.
         generated_at: ISO 8601 timestamp.
@@ -69,3 +76,5 @@ class NicheReport:
     total_products: int
     total_queries: int
     generated_at: str
+    intent_clusters: list = field(default_factory=list)  # list[IntentCluster]
+    entity_summary: dict[str, dict[str, int]] = field(default_factory=dict)
