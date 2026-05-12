@@ -64,6 +64,34 @@ def test_privacy_policy_bilingual(client):
     assert "Privacy Policy" in resp.text
 
 
+def test_privacy_policy_app_store_mode_mentions_neon_and_publisher(client):
+    """In default app_store mode: must declare Neon Postgres host and that
+    the publisher is the data controller — NOT 'self-hosted'."""
+    with patch.dict("os.environ", {"LEONIE_MODE": "app_store"}):
+        resp = client.get("/privacy")
+    assert "Neon Postgres" in resp.text
+    assert "publisher" in resp.text or "éditeur" in resp.text
+    # Must NOT claim the app is self-hosted
+    assert "auto-hébergé" not in resp.text
+
+
+def test_privacy_policy_self_hosted_mode_declares_self_hosted(client):
+    """In self_hosted mode: must declare the merchant is the data controller
+    and that no data leaves their environment."""
+    with patch.dict("os.environ", {"LEONIE_MODE": "self_hosted"}):
+        resp = client.get("/privacy")
+    assert "auto-hébergé" in resp.text or "self-hosted" in resp.text
+
+
+def test_privacy_policy_default_is_app_store_mode(client):
+    """When LEONIE_MODE is unset, the privacy policy must default to the
+    App Store variant (conservative — assumes SaaS hosting)."""
+    env_no_mode = {k: v for k, v in ENV.items() if k != "LEONIE_MODE"}
+    with patch.dict("os.environ", env_no_mode, clear=True):
+        resp = client.get("/privacy")
+    assert "Neon Postgres" in resp.text
+
+
 # ── GET /api/gdpr/export ──────────────────────────────────────────────────────
 
 

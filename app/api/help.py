@@ -132,15 +132,30 @@ _FAQ: list[dict] = [
     {
         "id": "data-privacy",
         "category": "privacy",
-        "question_fr": "Mes données Shopify restent-elles sur mon serveur ?",
-        "question_en": "Does my Shopify data stay on my server?",
-        "answer_fr": (
-            "Oui. Léonie SEO est un outil auto-hébergé. Vos tokens d'accès et données produits "
-            "ne quittent jamais votre environnement (CLI local ou serveur Docker)."
+        "question_fr": "Où mes données sont-elles stockées ?",
+        "question_en": "Where is my data stored?",
+        # Each answer maps deployment mode → text. Resolved at request time
+        # based on LEONIE_MODE env. In App Store mode we MUST NOT claim
+        # "self-hosted" (false statement + App Review rejection risk).
+        "answer_fr_app_store": (
+            "Léonie SEO est une application Shopify hébergée par son éditeur. Vos tokens "
+            "OAuth (chiffrés Fernet), métadonnées produits, et historiques de modifications "
+            "sont stockés sur Neon Postgres (UE). Aucune donnée client individuelle "
+            "(noms, emails, commandes) n'est collectée. Détail complet : voir /privacy."
         ),
-        "answer_en": (
-            "Yes. Léonie SEO is a self-hosted tool. Your access tokens and product data "
-            "never leave your environment (local CLI or Docker server)."
+        "answer_fr_self_hosted": (
+            "En mode self-hosted (CLI), Léonie SEO tourne sur votre infrastructure. "
+            "Vos tokens d'accès et données produits ne quittent jamais votre environnement."
+        ),
+        "answer_en_app_store": (
+            "Léonie SEO is a Shopify application operated by its publisher. Your OAuth "
+            "tokens (Fernet-encrypted), product metadata, and change history are stored "
+            "on Neon Postgres (EU). No individual customer data (names, emails, orders) "
+            "is collected. Full details: see /privacy."
+        ),
+        "answer_en_self_hosted": (
+            "In self-hosted (CLI) mode, Léonie SEO runs on your infrastructure. Your "
+            "access tokens and product data never leave your environment."
         ),
     },
     # ── Support ───────────────────────────────────────────────────────────
@@ -161,11 +176,13 @@ _FAQ: list[dict] = [
         "question_en": "Is the app compatible with all Shopify themes?",
         "answer_fr": (
             "Les fonctions d'audit et de mise à jour meta/alt sont universelles (API Admin). "
-            "Le snippet Liquid hreflang doit être intégré manuellement dans `theme.liquid`."
+            "Les éléments injectés dans le thème (JSON-LD, hreflang) passent par la Theme "
+            "App Extension Shopify — aucune modification manuelle de `theme.liquid` requise."
         ),
         "answer_en": (
             "Audit and meta/alt update features are universal (Admin API). "
-            "The hreflang Liquid snippet must be manually integrated into `theme.liquid`."
+            "Theme injections (JSON-LD, hreflang) flow through the Shopify Theme App "
+            "Extension — no manual `theme.liquid` editing required."
         ),
     },
 ]
@@ -180,6 +197,17 @@ _CATEGORIES: list[dict] = [
 ]
 
 
+def _resolve_answer(item: dict, lang: str, mode: str) -> str:
+    """Return the answer string for an FAQ item, picking the mode-specific
+    variant when present (`answer_<lang>_<mode>`), falling back to the generic
+    `answer_<lang>` key for items that don't need mode branching.
+    """
+    keyed = item.get(f"answer_{lang}_{mode}")
+    if isinstance(keyed, str):
+        return keyed
+    return str(item.get(f"answer_{lang}", ""))
+
+
 @router.get("/faq")
 async def get_faq(lang: str = "fr") -> dict:
     """Return structured FAQ entries and categories.
@@ -188,11 +216,16 @@ async def get_faq(lang: str = "fr") -> dict:
         lang: Language code — "fr" (default) or "en".
 
     Returns:
-        Dict with "categories" list and "items" list, each localised to `lang`.
+        Dict with "categories" list and "items" list, each localised to `lang`
+        AND to the active deployment mode (LEONIE_MODE).
     """
+    import os  # noqa: PLC0415
+
     effective = lang if lang in ("fr", "en") else "fr"
+    raw_mode = os.getenv("LEONIE_MODE", "app_store").strip().lower()
+    mode = raw_mode if raw_mode in ("app_store", "self_hosted") else "app_store"
+
     q_key = f"question_{effective}"
-    a_key = f"answer_{effective}"
     label_key = f"label_{effective}"
 
     categories = [{"id": c["id"], "label": c[label_key]} for c in _CATEGORIES]
@@ -202,7 +235,7 @@ async def get_faq(lang: str = "fr") -> dict:
             "id": item["id"],
             "category": item["category"],
             "question": item[q_key],
-            "answer": item[a_key],
+            "answer": _resolve_answer(item, effective, mode),
         }
         for item in _FAQ
     ]

@@ -87,3 +87,34 @@ def test_faq_has_apply_and_plans_categories(client: TestClient):
     cat_ids = {c["id"] for c in body["categories"]}
     assert "apply" in cat_ids
     assert "plans" in cat_ids
+
+
+def _find(items: list[dict], item_id: str) -> dict:
+    return next(i for i in items if i["id"] == item_id)
+
+
+def test_faq_data_privacy_app_store_mode_mentions_neon(client: TestClient):
+    """In app_store mode the data-privacy answer must mention Neon Postgres
+    and NOT claim the tool is self-hosted (App Store review-safe wording)."""
+    with patch.dict("os.environ", {"LEONIE_MODE": "app_store"}):
+        body = client.get("/api/help/faq").json()
+    answer = _find(body["items"], "data-privacy")["answer"]
+    assert "Neon Postgres" in answer
+    assert "auto-hébergé" not in answer
+
+
+def test_faq_data_privacy_self_hosted_mode_mentions_self_hosted(client: TestClient):
+    """In self_hosted mode the FAQ may claim self-hosted (it's true)."""
+    with patch.dict("os.environ", {"LEONIE_MODE": "self_hosted"}):
+        body = client.get("/api/help/faq").json()
+    answer = _find(body["items"], "data-privacy")["answer"]
+    assert "self-hosted" in answer or "auto-hébergé" in answer
+
+
+def test_faq_theme_compatibility_no_longer_mentions_manual_liquid(client: TestClient):
+    """The theme.liquid manual-edit guidance was wrong: hreflang/JSON-LD go
+    through the Theme App Extension. The FAQ must reflect that."""
+    body = client.get("/api/help/faq?lang=en").json()
+    answer = _find(body["items"], "theme-compatibility")["answer"]
+    assert "manually integrated into `theme.liquid`" not in answer
+    assert "Theme App Extension" in answer
