@@ -15,6 +15,17 @@ from app.llm.provider import (
 _DEFAULT_MODEL = "@cf/meta/llama-3-8b-instruct"
 _BASE_URL = "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}"
 
+# Llama tokenizer ≈ 4 chars/token on European languages — used as a coarse
+# fallback when the Cloudflare response doesn't include a usage block.
+_CHARS_PER_TOKEN = 4
+
+
+def _estimate_tokens(text: str) -> int:
+    """Estimate Llama token count from a string length — ceiling division by 4."""
+    if not text:
+        return 0
+    return (len(text) + _CHARS_PER_TOKEN - 1) // _CHARS_PER_TOKEN
+
 
 class CloudflareProvider(LLMProvider):
     """Llama 3 8B via Cloudflare Workers AI (free tier)."""
@@ -69,7 +80,32 @@ class CloudflareProvider(LLMProvider):
             raise LLMError(f"Cloudflare error {response.status_code}: {response.text}")
 
         data = response.json()
-        text = data.get("result", {}).get("response", "")
+        # Cloudflare wraps everything in {"success": bool, "result": {...},
+        # "errors": [...]}. Trust HTTP 200 OK but still check the body flag.
+        if data.get("success") is False:
+            raise LLMError(f"Cloudflare returned success=false: {data.get('errors', data)}")
+
+        result_block = data.get("result", {}) or {}
+        text = result_block.get("response", "")
         if not text:
             raise LLMError(f"Cloudflare returned empty response: {data}")
-        return CompletionResult(text=text.strip(), provider=self.name, model=self.model)
+
+        # Token accounting — Cloudflare started returning a `usage` block in
+        # 2024-Q4; older accounts still don't. Use it when present, otherwise
+        # estimate from char count so the cost tracker has a non-zero number
+        # for budget alerts.
+        usage = result_block.get("usage") or {}
+        tokens_in = int(usage.get("prompt_tokens") or 0)
+        tokens_out = int(usage.get("completion_tokens") or 0)
+        if tokens_in == 0:
+            tokens_in = _estimate_tokens(system) + _estimate_tokens(prompt)
+        if tokens_out == 0:
+            tokens_out = _estimate_tokens(text)
+
+        return CompletionResult(
+            text=text.strip(),
+            provider=self.name,
+            model=self.model,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+        )

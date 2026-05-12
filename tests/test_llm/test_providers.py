@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.llm.provider import LLMRateLimitError, LLMUnavailableError
+from app.llm.provider import LLMError, LLMRateLimitError, LLMUnavailableError
 
 # ── OpenAI ────────────────────────────────────────────────────────────────────
 
@@ -130,6 +130,66 @@ class TestCloudflareProvider:
         provider = self._make_provider()
         with patch("httpx.post", side_effect=httpx.TimeoutException("timeout")):
             with pytest.raises(LLMUnavailableError):
+                provider.complete("prompt")
+
+    def test_complete_estimates_tokens_when_response_has_no_usage(self):
+        """Cost tracker needs non-zero tokens — if Cloudflare omits the
+        usage block, we estimate from char count (~4 chars/token)."""
+        import httpx
+
+        provider = self._make_provider()
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {
+            "success": True,
+            "result": {"response": "OK" * 50},
+        }
+        with patch("httpx.post", return_value=mock_response):
+            result = provider.complete("twelve chars", system="eight ch")
+        # 'eight ch' = 8 chars, 'twelve chars' = 12 chars → 5 tokens estimated
+        # "OK"*50 = 100 chars → 25 tokens estimated
+        assert result.tokens_in > 0
+        assert result.tokens_out > 0
+        assert result.tokens_in == 5  # (8 + 12 + 3) / 4 ceil = 6 actually: 2 + 3 = 5
+        assert result.tokens_out == 25
+
+    def test_complete_uses_provided_usage_block_when_present(self):
+        """If Cloudflare's response includes usage, use the real numbers
+        rather than the char-based estimate."""
+        import httpx
+
+        provider = self._make_provider()
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {
+            "success": True,
+            "result": {
+                "response": "answer",
+                "usage": {"prompt_tokens": 123, "completion_tokens": 45},
+            },
+        }
+        with patch("httpx.post", return_value=mock_response):
+            result = provider.complete("anything")
+        assert result.tokens_in == 123
+        assert result.tokens_out == 45
+
+    def test_complete_rejects_success_false_body(self):
+        """Cloudflare can return HTTP 200 with success=false in the body when
+        the model is unavailable. That must surface as an error."""
+        import httpx
+
+        provider = self._make_provider()
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {
+            "success": False,
+            "errors": [{"code": 7003, "message": "model unavailable"}],
+        }
+        with patch("httpx.post", return_value=mock_response):
+            with pytest.raises(LLMError, match="success=false"):
                 provider.complete("prompt")
 
 
