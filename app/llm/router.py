@@ -37,7 +37,7 @@ def _record(
             latency_ms,
             error=error,
         )
-    except Exception as exc:  # pragma: no cover
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:  # pragma: no cover
         logger.debug("Metrics recording failed (non-fatal): %s", exc)
 
 
@@ -54,6 +54,18 @@ class LLMRouter:
             raise LLMError("LLMRouter requires at least one provider")
         self._providers = providers
         self._shop = shop
+
+    @property
+    def providers(self) -> list[LLMProvider]:
+        """Return the ordered provider list used by this router."""
+        return self._providers
+
+    @providers.setter
+    def providers(self, value: list[LLMProvider]) -> None:
+        """Replace providers for tests or explicit runtime reconfiguration."""
+        if not value:
+            raise LLMError("LLMRouter requires at least one provider")
+        self._providers = value
 
     def complete(
         self,

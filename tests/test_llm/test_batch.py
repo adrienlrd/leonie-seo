@@ -26,7 +26,7 @@ def _make_router(responses: list) -> LLMRouter:
             return CompletionResult(text=r, provider="fake", model="fake-model")
 
     router = object.__new__(LLMRouter)
-    router._providers = [_FakeProvider()]
+    router.providers = [_FakeProvider()]
     router._shop = None
     return router
 
@@ -152,7 +152,7 @@ def test_generate_meta_uses_correct_product_fields():
             return CompletionResult(text="Result", provider="fake", model="fake")
 
     router = object.__new__(LLMRouter)
-    router._providers = [_CapturingProvider()]
+    router.providers = [_CapturingProvider()]
     router._shop = None
 
     products = [

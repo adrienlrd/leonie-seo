@@ -1,3 +1,8 @@
+# ARCHIVE — AUDIT DOCS HISTORIQUE
+
+> Audit réalisé pendant la migration produit. Il est conservé pour traçabilité.
+> Pour Codex, les sources actives sont `AGENTS.md`, `ROADMAP.md` et `PROGRESS.md`.
+
 # AUDIT DOCS — Lot 1 du grand audit (2026-05-12)
 
 > Lecture comparative des 14 .md du projet. Identification des écarts entre documentation et réalité du code, classés par sévérité. **Ce document est un rapport — il ne corrige rien.**
@@ -7,10 +12,10 @@
 ## Méthodologie
 
 Fichiers lus :
-- Racine : `CLAUDE.md`, `ROADMAP.md`, `PROGRESS.md`, `DECISIONS.md`, `RAPPORT_AUDIT.md`, `AUDIT_CLAUDE_CODE.md`, `PROJECT_BRIEF.md`, `CONTEXT.md`, `README.md`
+- Racine : `AGENTS.md`, `CLAUDE.md` (archive legacy), `ROADMAP.md`, `PROGRESS.md`, `DECISIONS.md`, `RAPPORT_AUDIT.md`, `AUDIT_CLAUDE_CODE.md`, `PROJECT_BRIEF.md`, `CONTEXT.md`, `README.md`
 - `docs/` : `guide-utilisateur.fr.md`, `user-guide.en.md`, `plans.md`
 - `skills/` : `seo-technique.md`, `shopify-graphql.md`, `pet-accessories-niche.md`
-- `frontend/README.md`, `.claude/agents/python-quality.md`, `.claude/agents/shopify-safety.md`
+- `frontend/README.md`, `.codex/agents/python-quality.toml`, `.codex/agents/shopify-safety.toml`, anciens `.claude/agents/*.md`
 
 Référentiels de vérité utilisés pour confronter les autres docs :
 - **ROADMAP.md** (à jour 2026-05-12, 73/75 tâches ✅)
@@ -122,7 +127,7 @@ DECISIONS.md tâche 52 et la mémoire projet confirment : Shopify Billing API es
 - *"50 tâches"* → 75 tâches dans ROADMAP.md
 - Section 11 (best practices Claude Code) cite des sources 2026-mars dans le passé du projet (cohérent en temps mais le texte se présente comme un guide d'onboarding qui ne reflète plus l'état)
 
-**Impact** : Faible — c'est un document de cadrage initial. **Action recommandée** : ajouter un en-tête "ARCHIVE — document de cadrage initial (2026-04-20), conservé pour traçabilité. État courant : voir ROADMAP.md, CLAUDE.md, PROGRESS.md."
+**Impact** : Faible — c'est un document de cadrage initial. **Action recommandée** : ajouter un en-tête "ARCHIVE — document de cadrage initial (2026-04-20), conservé pour traçabilité. État courant : voir ROADMAP.md, AGENTS.md, PROGRESS.md."
 
 ---
 

@@ -287,28 +287,26 @@ def test_compute_diff_no_brand_passes_when_not_supplied():
 
 
 def test_compute_diff_flags_suspicious_claim_free_shipping():
-    desc = ("Pardessus chien premium fabriqué en France. Livraison gratuite "
-            "pour toute commande — matière laine mérinos qualité supérieure abc")[:155]
-    result = compute_diff(
-        _suggestion(generated_title=_ok_title(), generated_description=desc)
-    )
+    desc = (
+        "Pardessus chien premium fabriqué en France. Livraison gratuite "
+        "pour toute commande — matière laine mérinos qualité supérieure abc"
+    )[:155]
+    result = compute_diff(_suggestion(generated_title=_ok_title(), generated_description=desc))
     assert "free_shipping" in result.suspicious_claims
     assert result.passes_quality_check is False
 
 
 def test_compute_diff_flags_suspicious_claim_vet_endorsement():
-    desc = ("Approuvé par des vétérinaires français. Matière douce et "
-            "respirante pour le confort de votre animal au quotidien partout ici")[:155]
-    result = compute_diff(
-        _suggestion(generated_title=_ok_title(), generated_description=desc)
-    )
+    desc = (
+        "Approuvé par des vétérinaires français. Matière douce et "
+        "respirante pour le confort de votre animal au quotidien partout ici"
+    )[:155]
+    result = compute_diff(_suggestion(generated_title=_ok_title(), generated_description=desc))
     assert "vet_endorsement" in result.suspicious_claims
 
 
 def test_compute_diff_empty_title_fails_quality():
-    result = compute_diff(
-        _suggestion(generated_title="   ", generated_description=_ok_desc())
-    )
+    result = compute_diff(_suggestion(generated_title="   ", generated_description=_ok_desc()))
     assert result.passes_quality_check is False
 
 

@@ -5,6 +5,8 @@ niche_id: cosmetics_fr
 label: "Cosmétiques premium FR"
 language: fr
 market: FR
+maturity: template-demo
+scope_note: "Template demo only. Validate live catalog signals, SERP data, and competitor gaps before positioning this as production niche intelligence."
 
 signals:
   premium:

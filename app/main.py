@@ -122,5 +122,6 @@ async def health() -> dict:
         "missing_env": _missing_required_env(),
     }
 
+
 # NOTE: frontend/ (legacy React dashboard) is decommissioned as of task 57.
 # Static file serving removed — shopify-app/ (Remix) is the sole UI layer.

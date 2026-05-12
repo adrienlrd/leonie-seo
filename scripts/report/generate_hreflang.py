@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -263,7 +263,7 @@ def main(
     Path(sitemap_output).write_text(sitemap, encoding="utf-8")
 
     liquid = render_liquid_snippet(entries)
-    date = datetime.utcnow().strftime("%Y-%m-%d")
+    date = datetime.now(UTC).strftime("%Y-%m-%d")
     out_dir = Path(output_dir) / date
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "hreflang.md"

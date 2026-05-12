@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-05-12 — Real-store pilot uses a separate custom-distribution Shopify app
+
+**Context:** Léonie SEO needs real merchant feedback on `leoniedelacroix.com` before the public App Store launch, but Shopify distribution type is a long-lived product choice.
+
+**Decision:** Use a dedicated Shopify Partner app for the pilot, configured for custom distribution and installed directly on the real merchant store through Shopify's generated install link. Keep the future public App Store app separate.
+
+**Reason:** The pilot needs a real-store install path and real callback handling now, while the public App Store app still needs its own future review path, billing posture, and launch timing. Keeping the apps separate prevents the pilot setup from boxing in the public distribution strategy.
+
+**Impact:**
+- `shopify-app/` gains a dedicated operator workflow documented in `docs/pilot-real-store-setup.md`.
+- `shopify app config link --config pilot` is the expected CLI path for the merchant pilot configuration.
+- Persistent sessions, public HTTPS callbacks, and real webhook delivery become pilot prerequisites before task 77.
+- Billing remains outside the merchant charging path for the pilot and is validated again later for the App Store release path.
+
+---
+
 ## 2026-05-10 — Auth interne Remix → Python : secret partagé (Option B)
 
 **Contexte :** Remix (couche app) doit appeler le moteur Python en authentifiant le shop sans re-demander un Shopify JWT à chaque requête serveur-to-serveur.

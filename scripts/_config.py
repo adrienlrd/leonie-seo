@@ -125,6 +125,8 @@ class NicheConfig(BaseModel):
     label: str
     language: str = "fr"
     market: str = "FR"
+    maturity: str = "production"
+    scope_note: str = ""
     signals: NicheSignals = Field(default_factory=NicheSignals)
     eeat_dimensions: NicheEeatDimensions = Field(default_factory=NicheEeatDimensions)
     faq_templates: dict[str, list[dict[str, str]]] = Field(default_factory=dict)

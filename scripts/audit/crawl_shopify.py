@@ -4,7 +4,7 @@ import json
 import os
 import sqlite3
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -176,7 +176,7 @@ def save_snapshot(
     resources: list[dict[str, Any]],
 ) -> None:
     """Insert a timestamped snapshot row for each resource."""
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(UTC).isoformat()
     conn.executemany(
         "INSERT INTO snapshots (snapshot_date, resource_type, resource_id, data_json)"
         " VALUES (?, ?, ?, ?)",

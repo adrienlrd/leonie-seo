@@ -8,6 +8,7 @@ from pathlib import Path
 
 import click
 import yaml
+from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
 
@@ -45,7 +46,7 @@ def list_tenants() -> list[dict[str, str]]:
                     "niche": cfg.niche,
                 }
             )
-        except Exception:
+        except (OSError, ValidationError, yaml.YAMLError, ValueError):
             tenants.append({"tenant_id": path.stem, "name": "?", "domain": "?", "niche": "?"})
     return tenants
 

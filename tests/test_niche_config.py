@@ -21,6 +21,7 @@ def test_load_niche_pet_accessories_fr():
     niche = load_niche("pet_accessories_fr")
     assert niche.niche_id == "pet_accessories_fr"
     assert isinstance(niche, NicheConfig)
+    assert niche.maturity == "production"
 
 
 def test_load_niche_unknown_raises_file_not_found():
@@ -149,16 +150,22 @@ def test_niche_blog_templates_vetements_chien_has_intent():
 def test_load_niche_cosmetics_fr():
     niche = load_niche("cosmetics_fr")
     assert niche.niche_id == "cosmetics_fr"
+    assert niche.maturity == "template-demo"
+    assert niche.scope_note != ""
     assert len(niche.signals.premium) > 0
 
 
 def test_load_niche_mode_fr():
     niche = load_niche("mode_fr")
     assert niche.niche_id == "mode_fr"
+    assert niche.maturity == "template-demo"
+    assert niche.scope_note != ""
     assert len(niche.eeat_dimensions.expertise) > 0
 
 
 def test_load_niche_jardinage_fr():
     niche = load_niche("jardinage_fr")
     assert niche.niche_id == "jardinage_fr"
+    assert niche.maturity == "template-demo"
+    assert niche.scope_note != ""
     assert len(niche.blog_templates) > 0

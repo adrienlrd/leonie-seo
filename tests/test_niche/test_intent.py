@@ -5,53 +5,53 @@ from __future__ import annotations
 from app.niche.intent import (
     IntentCluster,
     QueryIntent,
-    _classify_intent,
     _jaccard,
     _top_terms,
+    classify_intent,
     cluster_gsc_queries,
 )
 
 # ---------------------------------------------------------------------------
-# _classify_intent
+# classify_intent
 # ---------------------------------------------------------------------------
 
 
 def test_classify_intent_informational():
-    assert _classify_intent("comment choisir un harnais pour chien") == QueryIntent.INFORMATIONAL
-    assert _classify_intent("pourquoi mon chat boit peu") == QueryIntent.INFORMATIONAL
-    assert _classify_intent("guide collier chien") == QueryIntent.INFORMATIONAL
+    assert classify_intent("comment choisir un harnais pour chien") == QueryIntent.INFORMATIONAL
+    assert classify_intent("pourquoi mon chat boit peu") == QueryIntent.INFORMATIONAL
+    assert classify_intent("guide collier chien") == QueryIntent.INFORMATIONAL
 
 
 def test_classify_intent_transactional():
-    assert _classify_intent("acheter harnais chien cuir") == QueryIntent.TRANSACTIONAL
-    assert _classify_intent("harnais chien pas cher livraison") == QueryIntent.TRANSACTIONAL
-    assert _classify_intent("prix collier chien design") == QueryIntent.TRANSACTIONAL
+    assert classify_intent("acheter harnais chien cuir") == QueryIntent.TRANSACTIONAL
+    assert classify_intent("harnais chien pas cher livraison") == QueryIntent.TRANSACTIONAL
+    assert classify_intent("prix collier chien design") == QueryIntent.TRANSACTIONAL
 
 
 def test_classify_intent_commercial():
-    assert _classify_intent("meilleur harnais chien 2024") == QueryIntent.COMMERCIAL
-    assert _classify_intent("avis fontaine eau chat") == QueryIntent.COMMERCIAL
-    assert _classify_intent("comparatif collier chien cuir vs nylon") == QueryIntent.COMMERCIAL
+    assert classify_intent("meilleur harnais chien 2024") == QueryIntent.COMMERCIAL
+    assert classify_intent("avis fontaine eau chat") == QueryIntent.COMMERCIAL
+    assert classify_intent("comparatif collier chien cuir vs nylon") == QueryIntent.COMMERCIAL
 
 
 def test_classify_intent_navigational():
-    assert _classify_intent("leonie delacroix harnais") == QueryIntent.NAVIGATIONAL
-    assert _classify_intent("site leoniedelacroix") == QueryIntent.NAVIGATIONAL
+    assert classify_intent("leonie delacroix harnais") == QueryIntent.NAVIGATIONAL
+    assert classify_intent("site leoniedelacroix") == QueryIntent.NAVIGATIONAL
 
 
 def test_classify_intent_unknown():
-    assert _classify_intent("harnais chien") == QueryIntent.UNKNOWN
-    assert _classify_intent("collier chat") == QueryIntent.UNKNOWN
+    assert classify_intent("harnais chien") == QueryIntent.UNKNOWN
+    assert classify_intent("collier chat") == QueryIntent.UNKNOWN
 
 
 def test_classify_intent_transactional_priority_over_commercial():
     # "meilleur" is commercial but "acheter" is transactional → transactional wins
-    assert _classify_intent("acheter meilleur harnais chien") == QueryIntent.TRANSACTIONAL
+    assert classify_intent("acheter meilleur harnais chien") == QueryIntent.TRANSACTIONAL
 
 
 def test_classify_intent_navigational_priority_over_transactional():
     # navigational always wins
-    assert _classify_intent("acheter leonie harnais") == QueryIntent.NAVIGATIONAL
+    assert classify_intent("acheter leonie harnais") == QueryIntent.NAVIGATIONAL
 
 
 # ---------------------------------------------------------------------------

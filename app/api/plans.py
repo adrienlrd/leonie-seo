@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
-from scripts.license import LicenseError, require_valid_license
+from app.billing.self_hosted_license import LicenseError, require_valid_license
 
 
 @dataclass(frozen=True)

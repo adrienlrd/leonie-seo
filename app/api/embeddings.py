@@ -54,8 +54,6 @@ async def index_products(
     indexed = 0
     skipped = 0
 
-    loop = asyncio.get_event_loop()
-
     for product in products:
         product_id = str(product.get("id", ""))
         title = product.get("title", "")
@@ -70,7 +68,7 @@ async def index_products(
             description = re.sub(r"<[^>]+>", " ", product["body_html"]).strip()
             text = f"{title}. {description}"[:512]
 
-        embedding = await loop.run_in_executor(None, lambda t=text: encode_passage(t))
+        embedding = await asyncio.to_thread(encode_passage, text)
         upsert_product_embedding(shop, product_id, title, embedding)
         indexed += 1
 
@@ -98,7 +96,6 @@ async def search_products(
 
     from app.embeddings.encoder import encode_query  # noqa: PLC0415
 
-    loop = asyncio.get_event_loop()
-    query_embedding = await loop.run_in_executor(None, lambda: encode_query(query))
+    query_embedding = await asyncio.to_thread(encode_query, query)
     results = search_similar_products(shop, query_embedding, top_k=top_k)
     return {"query": query, "top_k": top_k, "results": results}

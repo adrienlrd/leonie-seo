@@ -40,8 +40,7 @@ def test_get_latest_crawl_returns_first_id():
 
 
 def test_get_latest_crawl_cached():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     with patch("httpx.get") as mock_get:
         result = client.get_latest_crawl()
         mock_get.assert_not_called()
@@ -68,8 +67,7 @@ def test_get_latest_crawl_raises_on_request_error():
 
 
 def test_query_domain_parses_ndjson():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     body = _ndjson(
         _page("https://miacara.com/"),
         _page("https://miacara.com/products/harnais"),
@@ -82,15 +80,13 @@ def test_query_domain_parses_ndjson():
 
 
 def test_query_domain_returns_empty_on_404():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     with patch("httpx.get", return_value=_mock_response("", 404)):
         assert client.query_domain("unknown-domain.com") == []
 
 
 def test_query_domain_skips_error_records():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     body = _ndjson(
         {"error": "No records found"},
         _page("https://miacara.com/blog"),
@@ -102,8 +98,7 @@ def test_query_domain_skips_error_records():
 
 
 def test_query_domain_skips_malformed_lines():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     body = "not-json\n" + json.dumps(_page("https://miacara.com/"))
     with patch("httpx.get", return_value=_mock_response(body)):
         pages = client.query_domain("miacara.com")
@@ -114,8 +109,7 @@ def test_query_domain_skips_malformed_lines():
 
 
 def test_count_domain_pages_returns_length():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     body = _ndjson(*[_page(f"https://miacara.com/p/{i}") for i in range(5)])
     with patch("httpx.get", return_value=_mock_response(body)):
         assert client.count_domain_pages("miacara.com") == 5
@@ -125,8 +119,7 @@ def test_count_domain_pages_returns_length():
 
 
 def test_get_url_patterns_groups_by_prefix():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     body = _ndjson(
         _page("https://miacara.com/products/a"),
         _page("https://miacara.com/products/b"),
@@ -141,8 +134,7 @@ def test_get_url_patterns_groups_by_prefix():
 
 
 def test_get_url_patterns_sorted_desc():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     body = _ndjson(
         _page("https://x.com/blog/a"),
         _page("https://x.com/blog/b"),
@@ -159,8 +151,7 @@ def test_get_url_patterns_sorted_desc():
 
 
 def test_search_brand_in_urls_deduplicates():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     body = _ndjson(
         _page("https://blog.com/leoniedelacroix-review"),
         _page("https://blog.com/leoniedelacroix-review"),  # duplicate
@@ -172,8 +163,7 @@ def test_search_brand_in_urls_deduplicates():
 
 
 def test_search_brand_in_urls_returns_empty_on_error():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     with patch("httpx.get", return_value=_mock_response("", 404)):
         urls = search_brand_in_urls(client, "leoniedelacroix")
     assert urls == []
@@ -183,8 +173,7 @@ def test_search_brand_in_urls_returns_empty_on_error():
 
 
 def test_compare_competitor_coverage_sorted_desc():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     call_count = [0]
 
     def fake_get(url, **kwargs):
@@ -204,8 +193,7 @@ def test_compare_competitor_coverage_sorted_desc():
 
 
 def test_compare_competitor_coverage_skips_empty_domains():
-    client = CCIndexClient()
-    client._cached_crawl = "CC-MAIN-2024-18"
+    client = CCIndexClient(cached_crawl="CC-MAIN-2024-18")
     with patch("httpx.get", return_value=_mock_response(_ndjson(_page("https://a.com/")))):
         result = compare_competitor_coverage(client, ["a.com", "  ", ""])
     assert "" not in result

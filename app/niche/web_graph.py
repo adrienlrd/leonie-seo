@@ -36,10 +36,21 @@ class CCIndexClient:
         timeout: httpx request timeout in seconds.
     """
 
-    def __init__(self, *, base_url: str = _CC_BASE, timeout: float = 30.0) -> None:
+    def __init__(
+        self,
+        *,
+        base_url: str = _CC_BASE,
+        timeout: float = 30.0,
+        cached_crawl: str | None = None,
+    ) -> None:
         self._base = base_url.rstrip("/")
         self._timeout = timeout
-        self._cached_crawl: str | None = None
+        self._cached_crawl = cached_crawl
+
+    @property
+    def current_crawl(self) -> str | None:
+        """Return the cached crawl ID, if a crawl has already been resolved."""
+        return self._cached_crawl
 
     def get_latest_crawl(self) -> str:
         """Return the most recent CC crawl index identifier.
@@ -196,7 +207,7 @@ class CCIndexClient:
         for page in pages:
             try:
                 path = urlparse(page.url).path
-            except Exception:
+            except ValueError:
                 path = "/"
             parts = path.split("/")
             prefix = f"/{parts[1]}" if len(parts) > 1 and parts[1] else "/"

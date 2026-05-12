@@ -8,8 +8,30 @@ import sys
 from datetime import UTC, datetime
 from typing import Any
 
+_ALLOWED_EXTRA_FIELDS = frozenset(
+    {
+        "shop",
+        "tenant_id",
+        "request_id",
+        "job_id",
+        "queue",
+        "status",
+        "provider",
+        "model",
+        "tokens_in",
+        "tokens_out",
+        "cost_usd",
+        "latency_ms",
+        "duration_ms",
+        "resource_id",
+        "resource_type",
+        "endpoint",
+        "plan",
+    }
+)
 
-class _JsonFormatter(logging.Formatter):
+
+class JsonFormatter(logging.Formatter):
     """Emit log records as single-line JSON objects."""
 
     def format(self, record: logging.LogRecord) -> str:
@@ -19,32 +41,10 @@ class _JsonFormatter(logging.Formatter):
             "logger": record.name,
             "event": record.getMessage(),
         }
-        # Copy extra fields attached via logger.info("...", extra={...})
+        # Copy only safe, structured fields attached via logger.info("...", extra={...}).
+        # This prevents accidental token/secret leakage through arbitrary extras.
         for key, value in record.__dict__.items():
-            if key not in {
-                "msg",
-                "args",
-                "levelname",
-                "levelno",
-                "pathname",
-                "filename",
-                "module",
-                "exc_info",
-                "exc_text",
-                "stack_info",
-                "lineno",
-                "funcName",
-                "created",
-                "msecs",
-                "relativeCreated",
-                "thread",
-                "threadName",
-                "processName",
-                "process",
-                "name",
-                "message",
-                "taskName",
-            }:
+            if key in _ALLOWED_EXTRA_FIELDS:
                 payload[key] = value
 
         if record.exc_info:
@@ -62,11 +62,11 @@ def configure_json_logging(level: str = "INFO") -> None:
         level: Logging level string (DEBUG, INFO, WARNING, ERROR).
     """
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(_JsonFormatter())
+    handler.setFormatter(JsonFormatter())
 
     root = logging.getLogger()
     if not any(
-        isinstance(h, logging.StreamHandler) and isinstance(h.formatter, _JsonFormatter)
+        isinstance(h, logging.StreamHandler) and isinstance(h.formatter, JsonFormatter)
         for h in root.handlers
     ):
         root.addHandler(handler)

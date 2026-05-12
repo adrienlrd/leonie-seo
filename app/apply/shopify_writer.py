@@ -116,14 +116,16 @@ class ShopifyWriter:
             )
 
             if resp.status_code == 429:
-                retry_after = float(resp.headers.get("Retry-After", 2 ** attempt))
+                retry_after = float(resp.headers.get("Retry-After", 2**attempt))
                 wait = min(retry_after, 30.0)
-                logger.warning("Shopify rate limit — retrying in %.1fs (attempt %d)", wait, attempt + 1)
+                logger.warning(
+                    "Shopify rate limit — retrying in %.1fs (attempt %d)", wait, attempt + 1
+                )
                 time.sleep(wait)
                 continue
 
             if resp.status_code >= 500:
-                wait = min(2.0 ** attempt, 30.0)
+                wait = min(2.0**attempt, 30.0)
                 logger.warning("Shopify 5xx (%d) — retrying in %.1fs", resp.status_code, wait)
                 time.sleep(wait)
                 continue
@@ -226,7 +228,9 @@ class ShopifyWriter:
             description: New meta description.
         """
         if not title and not description:
-            return ApplyResult(resource_id=collection_id, applied=False, error="no fields to update")
+            return ApplyResult(
+                resource_id=collection_id, applied=False, error="no fields to update"
+            )
 
         seo: dict[str, str] = {}
         if title:

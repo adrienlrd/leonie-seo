@@ -7,7 +7,10 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db import init_db
 from app.main import app
+from app.oauth.token_store import get_token as real_get_token
+from app.oauth.token_store import save_token
 
 CLIENT_ID = "test_client_id"
 CLIENT_SECRET = "test_client_secret"
@@ -82,6 +85,25 @@ def test_request_with_valid_token_passes(client_auth_on, mocker, tmp_path):
     )
     assert resp.status_code == 200
     assert resp.json()["shop"] == SHOP
+
+
+def test_request_uses_real_encrypted_token_store(monkeypatch, tmp_path):
+    """Route resolution can read a real encrypted OAuth token record."""
+    db = tmp_path / "tokens.db"
+    init_db(db)
+    save_token(SHOP, "shpat_real_token", "read_products", db)
+
+    def _lookup(shop: str) -> dict | None:
+        return real_get_token(shop, db)
+
+    monkeypatch.setattr("app.api.deps.get_token", _lookup)
+    env = {**ENV_AUTH_ON, "LEONIE_REQUIRE_SESSION_TOKEN": "false"}
+    with patch.dict("os.environ", env):
+        client = TestClient(app)
+        resp = client.get(f"/api/shops/{SHOP}/status")
+
+    assert resp.status_code == 200
+    assert resp.json()["installed"] is True
 
 
 def test_auth_disabled_in_dev_mode_allows_request(mocker):

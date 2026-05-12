@@ -1,30 +1,51 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-12** (audit complet + Vagues 1 & 2 de corrections)
+- Dernière session : **2026-05-12** (audit complet + Vagues 1 à 5 de corrections)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
 - Phase 4 : **5/5** ✅
-- Phase 5 : **5/6** ✅ (tâche 49 bloquée — review Shopify en cours)
+- Phase 5 : **5/6** ✅ (tâche 49 supersédée par la tâche 75)
 - Phase 6 : **7/7** ✅ (terminée 2026-05-10)
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
-- Phase 8 : **6/7** 🔄 (tâches 69-74 ✅, tâche 75 ⏳ soumission App Store)
-- **Audit post-Phase 8** : 4 livrables + 16 commits TDD le 2026-05-12 (Vagues 1 & 2)
-- Tests : **1028/1028** ✅ — ruff clean ✅
+- Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; validation Partner manuelle restante)
+- Phase 9 : **1/9** 🔄 (tâche 76 clôturée côté repo, installation pilote réelle à faire ensuite)
+- **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
+- Tests : **1033/1033** ✅ — ruff clean ✅ — Remix typecheck/build ✅
 
-## ⚠️ Audit vision gap — résumé (2026-05-10)
+## État courant pour Codex
+
+- Fichier de règles actif : `AGENTS.md`
+- Ancien fichier `CLAUDE.md` : archive legacy, ne pas l'utiliser comme source de vérité
+- Gestion du contexte : Codex compacte automatiquement ; ne pas utiliser `/compact` ou `/clear`
+- Prochaine tâche ordonnée : **77 — Installer Léonie SEO sur la boutique réelle et valider OAuth, sessions, webhooks et garde-fous**
+
+## Checkpoint de pause — 2026-05-12
+
+- La tâche **76** est terminée côté repo.
+- La reprise doit repartir de la tâche **77**.
+- Le repo est prêt à être checkpointé puis poussé sur Git.
+- À faire manuellement côté Shopify Partner avant ou pendant la tâche 77 :
+  - créer l'app pilote distincte en **Custom distribution** ;
+  - cibler `287c4a-bb.myshopify.com` ;
+  - générer le lien d'installation marchand ;
+  - relier la config CLI `pilot` avec `shopify app config link --config pilot` ;
+  - déployer la config publique une fois l'URL HTTPS prête.
+
+## ⚠️ Archive — audit vision gap initial (2026-05-10)
 
 Un audit complet (`RAPPORT_AUDIT.md`) + analyse critique externe ont évalué la couverture vs. la vision App Store cible.
-**Couverture actuelle : 28 %** — 3 blockers critiques + 4 risques structurels identifiés.
+**Couverture évaluée à l'époque : 28 %** — 3 blockers critiques + 4 risques structurels identifiés.
+Ces blockers ont été traités depuis dans les phases 6 à 8 et les vagues d'audit 1-2.
 
-### Blockers critiques (Phase 6)
+### Blockers critiques identifiés à l'époque (résolus depuis)
 | Bloquant | État | Impact |
 |---|---|---|
-| GDPR webhooks (`customers/redact`, `shop/redact`, `data_request`) | ❌ Absents | Rejet immédiat App Store |
-| Shopify Billing API (`appSubscriptionCreate`) | ❌ Absent | Monétisation impossible via App Store |
-| App Bridge + Polaris | ❌ Absents | Dashboard non embedable dans Shopify Admin |
-| Async job queue | ❌ Absent | Jobs LLM et audits bloquent les requêtes HTTP |
+| GDPR webhooks (`customers/redact`, `shop/redact`, `data_request`) | ✅ Résolu tâche 51 | Rejet immédiat App Store évité |
+| Shopify Billing API (`appSubscriptionCreate`) | ✅ Résolu tâche 52 | Monétisation App Store possible |
+| App Bridge + Polaris | ✅ Résolu tâche 56 | App embedded Shopify Admin |
+| Async job queue | ✅ Résolu tâche 55 | Jobs longs hors requêtes HTTP |
 
 ### Risques structurels identifiés
 - **Architecture pivot** : **Option B retenue** — scaffold Remix propre via Shopify CLI (`shopify-app/`), moteur Python conservé (`scripts/`, `app/llm/`, `app/niche/`). `frontend/` React décommissionné après tâche 57. Voir `DECISIONS.md`.
@@ -32,14 +53,14 @@ Un audit complet (`RAPPORT_AUDIT.md`) + analyse critique externe ont évalué la
 - **Common Crawl** : déféré en Phase 8 après validation des sources légères (Google Suggest, pytrends, Reddit). Évite un puits de complexité prématuré.
 - **Coût LLM** : GPT-4o mini estimé ~4,5 $/1 000 produits si non optimisé. Maîtrisé par : prompts déterministes, templates versionnés, fallbacks gratuits, cost tracker par tenant (tâche 68).
 
-### Axes manquants (Phases 7-8)
-- **IA / LLM** : 0 % — aucun provider, aucun prompt template
-- **Niche Intelligence engine** : 0 % — pytrends/Reddit/SERP analysis absents
-- **Semantic embeddings** : 0 % — pas de pgvector, pas de sentence-transformers
-- **Theme App Extension** : 0 % — JSON-LD via API Admin (fragile), pas d'extension propre
-- **Observabilité** : 0 % — pas de logs structurés, pas de métriques par tenant
-- **GA4 API** : 0 % — corrélation trafic/conversions absente
-- **SQLite → Postgres** : bloquant pour multi-tenant réel (concurrence + pgvector)
+### Axes manquants à l'époque (résolus depuis)
+- **IA / LLM** : ✅ tâches 58-61
+- **Niche Intelligence engine** : ✅ tâches 62-63
+- **Semantic embeddings** : ✅ tâches 64 et 70
+- **Theme App Extension** : ✅ tâche 69
+- **Observabilité** : ✅ tâche 68
+- **GA4 API** : ✅ tâche 73
+- **SQLite → Postgres** : ✅ tâche 54
 
 ### Ce qui est solide (à conserver dans tous les scénarios)
 - Moteur d'audit Python (`scripts/`) — crawl, GSC, PageSpeed, détection ✅
@@ -53,7 +74,7 @@ Un audit complet (`RAPPORT_AUDIT.md`) + analyse critique externe ont évalué la
 
 ### Infrastructure
 - Initialisation repo Git + structure dossiers
-- CLAUDE.md réorganisé avec protocole début de session + ordre des tâches
+- Instructions agent réorganisées avec protocole début de session + ordre des tâches (`AGENTS.md` actif pour Codex)
 - Setup credentials API : Shopify token, Google OAuth, PageSpeed key, GA4 Property ID
 - `.env`, `.env.example`, `.gitignore` configurés
 - `pyproject.toml` avec `[tool.setuptools]` pour discovery correcte
@@ -135,8 +156,7 @@ Un audit complet (`RAPPORT_AUDIT.md`) + analyse critique externe ont évalué la
   - Badge plan dans header React (`tag-plan-free/pro/agency`)
   - 17 tests plans + 10 tests licence
   - **537/537 tests verts** · ruff clean
-- **49** Soumission App Store — **bloquée** (review Shopify, délai estimé 1–3 semaines)
-  - Reprend dès approbation + tâches 51-56 (GDPR, Billing, App Bridge) terminées
+- **49** Soumission App Store — supersédée par la tâche 75 (soumission finale après phases 6-8)
 - **47** `frontend/` — Dashboard React (Vite + React)
   - 3 vues : Dashboard (score + détail composants), Issues (filtrables par sévérité), Appliquer (dry-run → confirm)
   - `api.js` : wrappers fetch vers FastAPI
@@ -157,14 +177,34 @@ Un audit complet (`RAPPORT_AUDIT.md`) + analyse critique externe ont évalué la
   - Nouvelles deps : `fastapi`, `uvicorn[standard]`, `httpx`
   - **449 tests verts** · ruff clean
 
-## ✅ Phase 5 complète (5/6) — Phase 6 démarrée
+## ✅ Phases 1-7 complètes — Phase 8 en finalisation
 
-## ⏳ Prochaine tâche : 51 — GDPR mandatory webhooks
-Implémenter les 3 endpoints GDPR obligatoires pour l'App Store Shopify :
-- `POST /webhooks/customers/data_request` — export données client
-- `POST /webhooks/customers/redact` — suppression données client
-- `POST /webhooks/shop/redact` — suppression données boutique (après désinstallation)
-Chaque webhook doit valider le HMAC Shopify (réutiliser `hmac_validator.py`).
+## ✅ Tâche 75 — Préparation App Store finale côté repo
+Préparation repo terminée le **2026-05-12** :
+- preview locale Shopify stabilisée pour tests réels en dev store ;
+- frontend Remix déclaré via `shopify.web.toml` ;
+- config `shopify.app.local.toml` dédiée au mode localhost ;
+- fallback de session storage local corrigé ;
+- route embedded `auth.$.tsx` ajoutée ;
+- enregistrement des webhooks ignoré automatiquement en localhost ;
+- checklist de soumission documentée dans `docs/app-store-submission-checklist.md`.
+
+La publication publique est volontairement différée derrière une nouvelle séquence de pilote réel sur la boutique Shopify de production.
+
+## ⏳ Phase 9 — Pilote marchand réel avant App Store
+
+**Objectif** : installer et tester Léonie SEO sur la vraie boutique Shopify `leoniedelacroix.com`, observer les frictions réelles, adapter le produit, puis seulement soumettre l'app publiquement.
+
+**Séquence ordonnée** :
+- **76** ✅ Préparer l'environnement pilote hors App Store : stratégie pilote custom séparée, URL publique de test, callbacks, secrets et workflow d'installation directe documentés.
+- **77** Installer l'app sur la boutique réelle et valider OAuth, sessions, webhooks et garde-fous d'environnement.
+- **78** Mettre le pilote en mode lecture seule / dry-run strict pour éviter tout changement marchand involontaire.
+- **79** Exécuter les parcours clés dans les vraies conditions métier.
+- **80** Collecter les retours d'usage et les bugs terrain.
+- **81** Corriger la vague prioritaire issue du pilote.
+- **82** Mesurer la qualité réelle : valeur des suggestions, coûts, jobs, confiance marchande.
+- **83** Décider le go/no-go App Store public.
+- **84** Finaliser et soumettre l'app au Shopify App Store.
 
 ## ⏳ Actions manuelles en attente
 
@@ -185,6 +225,110 @@ Chaque webhook doit valider le HMAC Shopify (réutiliser `hmac_validator.py`).
 - [ ] **Le Tour De Cou Pour Chien** — pos 6.1, 210 impr, CTR 0% → réécrire méta
 
 ## 📋 Historique des sessions
+
+### Session 2026-05-12 (Vague 5 — App Store UI)
+
+**Mission** : compléter l'expérience Remix avant la tâche 75, pour que l'app montre clairement le workflow marchand App Store au lieu d'un simple dashboard technique.
+
+**UI Remix ajoutée** :
+- Navigation App Bridge enrichie : Review IA, Niche, Onboarding, Jobs, Billing, Settings, Privacy.
+- `app.review` : revue des suggestions LLM, qualité, approbation/rejet, auto-approve opt-in, lancement apply en dry-run uniquement.
+- `app.niche` : clusters produits, keyword gaps, intents GSC et signaux légers Google Suggest.
+- `app.onboarding` : checklist installation/backend/crawl/billing/GSC/GA4/permissions + lancement audit asynchrone.
+- `app.settings` : santé backend, installation Shopify, snapshot, budget LLM, locales multilingues.
+- `app.privacy` : lien policy + résumé export GDPR marchand.
+- i18n minimal FR/EN sans nouvelle dépendance.
+
+**Cadrage niche** :
+- `pet_accessories_fr` marqué `production`.
+- `cosmetics_fr`, `mode_fr`, `jardinage_fr` marqués `template-demo` avec note de périmètre, pour éviter toute promesse excessive App Store.
+
+**Vérifications** :
+- `cd shopify-app && npm run typecheck` : OK
+- `cd shopify-app && npm run build` : OK
+- `ruff format --check .` : OK
+- `ruff check .` : clean
+- `pytest` : **1033 passed**
+
+**Reste avant tâche 75** :
+- Validation manuelle Shopify Partner : URLs publiques/tunnel, captures App Store, privacy/billing/GDPR côté Partner Dashboard.
+- Test navigateur embedded réel à faire avec `shopify app dev` et une boutique de test connectée.
+
+### Session 2026-05-12 (Tâche 75 — testabilité App Store et handoff Partner)
+
+**Mission** : rendre l'app réellement testable dans le dev store et clôturer le livrable de préparation App Store côté repo.
+
+**Corrections de testabilité** :
+- `shopify.web.toml` ajouté pour lancer Remix derrière `shopify app dev`.
+- `shopify.app.local.toml` ajouté pour une preview localhost sans subscriptions webhook incompatibles.
+- `auth.$.tsx` ajouté pour la route `/auth/session-token` de la stratégie embedded Shopify.
+- `shopify.server.ts` utilise un session storage mémoire officiel en local si `DATABASE_URL` manque.
+- `shopify.server.ts` n'enregistre plus les webhooks pendant les previews `localhost`.
+
+**Documentation / clôture** :
+- `docs/app-store-submission-checklist.md` documente le test réel en dev store et les tâches restantes dans le Partner Dashboard.
+- `ROADMAP.md` clôt la tâche 75 côté repo.
+
+**Vérifications** :
+- `cd shopify-app && npm run typecheck` : OK
+- `cd shopify-app && npm run build` : OK
+
+### Session 2026-05-12 (replanification post-75 — pilote réel avant App Store)
+
+**Décision produit** : ne pas publier immédiatement au Shopify App Store. Priorité donnée à un pilote réel sur la boutique `leoniedelacroix.com`, afin d'ajuster l'app sur des retours marchands concrets avant la publication publique.
+
+**Roadmap ajoutée** :
+- Phase 9, tâches **76 à 84**.
+- Prochaine tâche ordonnée : **76**.
+- Publication publique App Store repoussée à la tâche **84**, après le pilote, les retours et les corrections prioritaires.
+
+### Session 2026-05-12 (Tâche 76 — préparation pilote marchand réel)
+
+**Mission** : préparer le cadre repo et opératoire pour tester Léonie SEO sur la vraie boutique Shopify avant toute soumission publique App Store.
+
+**Livrables** :
+- `docs/pilot-real-store-setup.md` ajouté : architecture cible, app pilote custom séparée, lien d'installation direct, config `pilot`, secrets et checklist de readiness.
+- `DECISIONS.md` enrichi : le pilote réel utilise une app Shopify distincte de la future app publique.
+- `.env.example` et `shopify-app/.env.example` clarifiés pour une URL HTTPS publique stable, sessions persistantes et backend public/pilot.
+- `README.md` et `docs/app-store-submission-checklist.md` alignés sur la nouvelle séquence Phase 9 avant publication App Store.
+- `.gitignore` ignore `shopify-app/shopify.app.pilot.toml`, généré localement via `shopify app config link --config pilot`.
+
+**État à la sortie** :
+- Tâche **76** terminée côté repo.
+- Actions Shopify Partner encore manuelles avant **77** : créer l'app pilote custom, générer le lien d'installation ciblé sur `287c4a-bb.myshopify.com`, configurer l'URL publique réelle et déployer la config `pilot`.
+
+### Session 2026-05-12 (audit closure Wave 3 & 4)
+
+**Mission** : re-scanner `AUDIT_CODE.md` et `AUDIT_INFRA.md`, fermer les findings encore ouverts sur l'hygiène code, le cleanup legacy et les tests utiles avant la tâche 75.
+
+**Vague 3 — hygiène code** :
+- Remplacé les derniers `except Exception`, `datetime.utcnow()` et `asyncio.get_event_loop()` dans `app/`, `scripts/` et `tests/`.
+- Ajouté des APIs publiques pour éviter les accès privés utiles (`LLMRouter.providers`, `CCIndexClient.current_crawl`, `classify_intent`).
+- Durci les logs structurés : whitelist de champs `extra=` et test anti-fuite de secrets/tokens.
+- `compute_cost()` log désormais un warning explicite pour les modèles LLM inconnus au lieu de sous-estimer silencieusement.
+
+**Vague 4 — cleanup legacy** :
+- `Dockerfile` ne build plus le dashboard React legacy.
+- `frontend/` suivi par Git supprimé ; `.gitignore` ignore désormais le dossier legacy local complet.
+- `app/api/apply.py` n'appelle plus `scripts/apply/update_meta.py` ; il utilise `app/apply/ShopifyWriter`.
+- `app/api/plans.py` n'importe plus `scripts/license.py` ; validation self-hosted déplacée dans `app/billing/self_hosted_license.py`.
+- Ajout de `app/tenant_config.py` pour les besoins app-layer brand/tenant, sans importer `scripts/_config.py`.
+- Ajout de `scripts/README.md` pour clarifier les modules canoniques, legacy et transitoires.
+
+**Tests ajoutés / renforcés** :
+- Cross-shop mismatch sur endpoints `apply` et `audit`.
+- Test route + vrai token store OAuth chiffré.
+- Tests observabilité logging/costs.
+- Tests signaux alignés sur erreurs réalistes (`requests.ConnectionError`, `RuntimeError`, `ImportError` non bloquant).
+
+**Vérifications** :
+- `pytest` : **1033 passed**
+- `ruff check .` : clean
+- Re-scan : aucun `except Exception`, `datetime.utcnow`, `asyncio.get_event_loop`, ni build Docker `frontend`.
+
+**Reste avant tâche 75** :
+- `app/api/audit.py -> scripts/audit + scripts/report` reste un pont transitoire assumé car `scripts/` est encore le moteur d'audit canonique.
+- Tâche 75 toujours ⏳ : soumission App Store finale + checklist Partner.
 
 ### Session 2026-05-12 (audit complet + corrections Wave 1 & 2)
 
@@ -219,7 +363,7 @@ Chaque webhook doit valider le HMAC Shopify (réutiliser `hmac_validator.py`).
 
 **Tests** : 960 → 1028 (+68 nouveaux tests TDD), ruff clean, TypeScript clean (Remix).
 
-**Bilan** : 30 bugs résolus depuis l'audit (17 Wave 1 + 7 Wave 2 + 6 doc D1-D3 + bonus fuite multi-tenant `api/niche.py`). App **techniquement prête pour la review App Store** sur les 10 bloquants audités. Reste : Vague 3 (hygiène : `except Exception`, `datetime.utcnow`, deprecations), Vague 4 (cleanup `frontend/`, scripts legacy), Vague 5 (UI Remix complète, i18n), ou directement tâche 75 (soumission).
+**Bilan** : 30 bugs résolus depuis l'audit (17 Wave 1 + 7 Wave 2 + 6 doc D1-D3 + bonus fuite multi-tenant `api/niche.py`). Les Vagues 3, 4 et 5 ont ensuite fermé l'hygiène code, le cleanup legacy et l'UI Remix App Store. Reste : tâche 75 (soumission).
 
 ### Session 2026-05-08 (Tâche 44 — packaging)
 - `scripts/cli.py` : agrégateur Click — 5 groupes, 26 commandes (setup/license/audit/report/apply)
@@ -266,7 +410,7 @@ Chaque webhook doit valider le HMAC Shopify (réutiliser `hmac_validator.py`).
 - Tâche 28 : weekly_audit.yml pipeline complet
 
 ### Session 2026-05-05 → 2026-05-06 (Phase 2 tâches 16–24)
-- CLAUDE.md réorganisé
+- Instructions agent réorganisées
 - Tâches 16, 22, 23, 24 (37 tests)
 
 ### Session 2026-05-05 (Phase 1 + tâches 17–21)

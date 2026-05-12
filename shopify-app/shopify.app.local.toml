@@ -1,0 +1,24 @@
+name = "Léonie SEO"
+client_id = "53ff34f2abe2ab7e3a2cd334fbd84db8"
+application_url = "https://localhost:3458"
+embedded = true
+
+[access_scopes]
+scopes = "read_products,write_products,read_orders"
+
+[auth]
+redirect_urls = [
+  "https://localhost:3458/auth/callback",
+  "https://localhost:3458/auth/shopify/callback",
+  "http://localhost:3000/auth/callback",
+  "http://localhost:3000/auth/shopify/callback",
+]
+
+[webhooks]
+api_version = "2025-01"
+
+[pos]
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = true

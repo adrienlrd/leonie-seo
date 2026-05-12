@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.apply.shopify_writer import ApplyResult
 from app.main import app
 
 ENV = {
@@ -61,36 +62,34 @@ def test_apply_meta_dry_run_is_default(client: TestClient):
 
 
 def test_apply_meta_dry_run_does_not_call_shopify(client: TestClient, mocker):
-    mock_update = mocker.patch("app.api.apply.update_product_seo")
+    mock_writer = mocker.patch("app.api.apply.ShopifyWriter")
     payload = [{"product_id": PRODUCT_GID, "title": "Title"}]
     with _auth_patches():
         client.post(f"/api/shops/{SHOP}/apply/meta?dry_run=true", json=payload)
-    mock_update.assert_not_called()
+    mock_writer.assert_not_called()
 
 
 def test_apply_meta_apply_calls_shopify(client: TestClient, mocker):
-    mock_update = mocker.patch("app.api.apply.update_product_seo", return_value={})
+    writer = mocker.Mock()
+    writer.apply_product_seo.return_value = ApplyResult(resource_id=PRODUCT_GID, applied=True)
+    mock_writer = mocker.patch("app.api.apply.ShopifyWriter", return_value=writer)
     payload = [{"product_id": PRODUCT_GID, "title": "New Title", "description": "New desc"}]
     with _auth_patches():
         resp = client.post(f"/api/shops/{SHOP}/apply/meta?dry_run=false", json=payload)
     assert resp.status_code == 200
     assert resp.json()[0]["status"] == "applied"
-    mock_update.assert_called_once_with(
-        product_id=PRODUCT_GID,
-        seo_title="New Title",
-        seo_description="New desc",
-        endpoint=f"https://{SHOP}/admin/api/2025-01/graphql.json",
-        headers={"X-Shopify-Access-Token": "shpat_test", "Content-Type": "application/json"},
+    mock_writer.assert_called_once_with(SHOP, "shpat_test")
+    writer.apply_product_seo.assert_called_once_with(PRODUCT_GID, "New Title", "New desc")
+
+
+def test_apply_meta_shopify_writer_error_returns_error_status(client: TestClient, mocker):
+    writer = mocker.Mock()
+    writer.apply_product_seo.return_value = ApplyResult(
+        resource_id=PRODUCT_GID,
+        applied=False,
+        error="Title is too long",
     )
-
-
-def test_apply_meta_shopify_user_error_returns_error_status(client: TestClient, mocker):
-    from scripts.apply.update_meta import ShopifyUserError
-
-    mocker.patch(
-        "app.api.apply.update_product_seo",
-        side_effect=ShopifyUserError("Title is too long"),
-    )
+    mocker.patch("app.api.apply.ShopifyWriter", return_value=writer)
     payload = [{"product_id": PRODUCT_GID, "title": "Title"}]
     with _auth_patches():
         resp = client.post(f"/api/shops/{SHOP}/apply/meta?dry_run=false", json=payload)
@@ -110,4 +109,15 @@ def test_apply_meta_unknown_shop_returns_403(client: TestClient):
         resp = client.post(
             "/api/shops/unknown.myshopify.com/apply/meta", json=[{"product_id": "x"}]
         )
+    assert resp.status_code == 403
+
+
+def test_apply_meta_rejects_internal_shop_mismatch(client: TestClient):
+    headers = {
+        "X-Leonie-Shop": "other.myshopify.com",
+        "X-Internal-Secret": "test-internal-secret",
+    }
+    payload = [{"product_id": PRODUCT_GID, "title": "Title"}]
+    with patch.dict("os.environ", {"INTERNAL_API_SECRET": "test-internal-secret"}):
+        resp = client.post(f"/api/shops/{SHOP}/apply/meta", json=payload, headers=headers)
     assert resp.status_code == 403

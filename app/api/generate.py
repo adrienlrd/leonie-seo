@@ -197,8 +197,7 @@ async def auto_approve_meta(
         approved=approved,
         skipped=skipped,
         message=(
-            f"{approved} approved automatically, "
-            f"{skipped} kept pending (failed length check)"
+            f"{approved} approved automatically, {skipped} kept pending (failed length check)"
         ),
     )
 
@@ -261,11 +260,12 @@ async def generate_blog_briefs_endpoint(
     from app.llm import get_router
     from app.llm.briefs import generate_blog_briefs
 
-    loop = asyncio.get_event_loop()
     router_llm = get_router(shop=shop)
-    results = await loop.run_in_executor(
-        None,
-        lambda: generate_blog_briefs(body.gaps, router_llm, max_workers=body.max_workers),
+    results = await asyncio.to_thread(
+        generate_blog_briefs,
+        body.gaps,
+        router_llm,
+        max_workers=body.max_workers,
     )
     return [asdict(r) for r in results]
 
@@ -294,10 +294,11 @@ async def generate_collection_briefs_endpoint(
     from app.llm import get_router
     from app.llm.briefs import generate_collection_briefs
 
-    loop = asyncio.get_event_loop()
     router_llm = get_router(shop=shop)
-    results = await loop.run_in_executor(
-        None,
-        lambda: generate_collection_briefs(body.clusters, router_llm, max_workers=body.max_workers),
+    results = await asyncio.to_thread(
+        generate_collection_briefs,
+        body.clusters,
+        router_llm,
+        max_workers=body.max_workers,
     )
     return [asdict(r) for r in results]

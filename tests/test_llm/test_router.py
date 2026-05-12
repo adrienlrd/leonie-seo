@@ -123,5 +123,5 @@ def test_get_router_per_shop_returns_distinct_instances(monkeypatch):
     assert r_b._shop == "shop-b.myshopify.com"
     assert r_none._shop is None
     # But the underlying provider list is shared (no rebuild cost per call)
-    assert r_a._providers is r_b._providers
+    assert r_a.providers is r_b.providers
     reset_router()

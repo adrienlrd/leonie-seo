@@ -177,7 +177,7 @@ def generate_meta_all_locales(
             locale = futures[future]
             try:
                 results_map[locale] = future.result()
-            except Exception as exc:
+            except (RuntimeError, TypeError, ValueError) as exc:
                 results_map[locale] = MultilingualMetaResult(
                     locale=locale,
                     locale_name=SUPPORTED_LOCALES[locale],

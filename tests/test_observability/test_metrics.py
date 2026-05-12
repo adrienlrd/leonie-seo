@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from pathlib import Path
 
@@ -50,8 +51,10 @@ def test_compute_cost_groq_free():
     assert compute_cost("llama3-70b-8192", 5000, 2000) == 0.0
 
 
-def test_compute_cost_unknown_model():
+def test_compute_cost_unknown_model(caplog):
+    caplog.set_level(logging.WARNING)
     assert compute_cost("unknown-model-xyz", 9999, 9999) == 0.0
+    assert "Unknown LLM pricing model" in caplog.text
 
 
 def test_compute_cost_zero_tokens():

@@ -9,7 +9,7 @@ def _url_to_path(url: str) -> str:
     """Extract the path from a full URL, stripping trailing slash."""
     try:
         return urlparse(url).path.rstrip("/") or "/"
-    except Exception:
+    except ValueError:
         return url.rstrip("/")
 
 
@@ -85,15 +85,9 @@ def summarize_funnel(funnel: list[dict]) -> dict:
     total_revenue = round(sum(r["revenue"] for r in funnel), 2)
     urls_with_ga4 = sum(1 for r in funnel if r["has_ga4_data"])
 
-    avg_position = (
-        round(sum(r["position"] for r in funnel) / len(funnel), 2) if funnel else 0.0
-    )
-    overall_conv_rate = (
-        round(total_conversions / total_sessions, 4) if total_sessions > 0 else 0.0
-    )
-    overall_session_rate = (
-        round(total_sessions / total_clicks, 4) if total_clicks > 0 else 0.0
-    )
+    avg_position = round(sum(r["position"] for r in funnel) / len(funnel), 2) if funnel else 0.0
+    overall_conv_rate = round(total_conversions / total_sessions, 4) if total_sessions > 0 else 0.0
+    overall_session_rate = round(total_sessions / total_clicks, 4) if total_clicks > 0 else 0.0
 
     return {
         "urls_total": len(funnel),

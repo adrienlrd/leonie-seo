@@ -11,6 +11,6 @@ data/history.db
 .DS_Store
 *.egg-info/
 .pytest_cache/
-frontend/node_modules/
-frontend/dist/
+frontend/
+shopify-app/shopify.app.pilot.toml
 **/.DS_Store

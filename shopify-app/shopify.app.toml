@@ -1,6 +1,6 @@
 name = "Léonie SEO"
 client_id = "53ff34f2abe2ab7e3a2cd334fbd84db8"
-application_url = "https://willow-bag-discuss-grid.trycloudflare.com"
+application_url = "https://localhost:3458"
 embedded = true
 
 [access_scopes]
@@ -8,8 +8,8 @@ scopes = "read_products,write_products,read_orders"
 
 [auth]
 redirect_urls = [
-  "https://willow-bag-discuss-grid.trycloudflare.com/auth/callback",
-  "https://willow-bag-discuss-grid.trycloudflare.com/auth/shopify/callback",
+  "https://localhost:3458/auth/callback",
+  "https://localhost:3458/auth/shopify/callback",
   "http://localhost:3000/auth/callback",
   "http://localhost:3000/auth/shopify/callback",
 ]
@@ -22,16 +22,15 @@ api_version = "2025-01"
   uri = "/webhooks"
 
   [[webhooks.subscriptions]]
-  topics = [ "customers/data_request" ]
-  uri = "/webhooks"
-
-  [[webhooks.subscriptions]]
-  topics = [ "customers/redact" ]
-  uri = "/webhooks"
-
-  [[webhooks.subscriptions]]
-  topics = [ "shop/redact" ]
+  compliance_topics = [
+    "customers/data_request",
+    "customers/redact",
+    "shop/redact",
+  ]
   uri = "/webhooks"
 
 [pos]
 embedded = false
+
+[build]
+automatically_update_urls_on_dev = true

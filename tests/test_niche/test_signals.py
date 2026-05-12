@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
+import requests
 
 from app.niche.signals.models import SignalKeyword
 
@@ -66,7 +66,7 @@ def test_fetch_suggestions_returns_empty_on_error():
     from app.niche.signals.google_suggest import fetch_suggestions
 
     session = MagicMock()
-    session.get.side_effect = ConnectionError("network down")
+    session.get.side_effect = requests.ConnectionError("network down")
     results = fetch_suggestions("harnais chien", session=session)
 
     assert results == []
@@ -148,7 +148,7 @@ def test_fetch_reddit_keywords_returns_empty_on_network_error():
     from app.niche.signals.reddit import fetch_reddit_keywords
 
     session = MagicMock()
-    session.get.side_effect = ConnectionError("timeout")
+    session.get.side_effect = requests.ConnectionError("timeout")
     results = fetch_reddit_keywords("harnais", subreddits=["dogs"], session=session)
 
     assert results == []
@@ -177,8 +177,7 @@ def test_fetch_related_queries_returns_empty_when_pytrends_unavailable():
 
     with patch("app.niche.signals.trends._import_pytrends") as mock_import:
         mock_import.side_effect = ImportError("pytrends not installed")
-        with pytest.raises(ImportError):
-            fetch_related_queries(["harnais chien"])
+        assert fetch_related_queries(["harnais chien"]) == []
 
 
 def test_fetch_related_queries_returns_empty_on_api_error():
@@ -186,7 +185,7 @@ def test_fetch_related_queries_returns_empty_on_api_error():
 
     mock_trend_req_class = MagicMock()
     mock_trend_req_class.return_value.build_payload.return_value = None
-    mock_trend_req_class.return_value.related_queries.side_effect = Exception("rate limited")
+    mock_trend_req_class.return_value.related_queries.side_effect = RuntimeError("rate limited")
 
     with patch("app.niche.signals.trends._import_pytrends", return_value=mock_trend_req_class):
         results = fetch_related_queries(["harnais chien"])

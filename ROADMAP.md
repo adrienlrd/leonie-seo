@@ -1,12 +1,12 @@
 # ROADMAP — SEO Leoniedelacroix.com
-> Mise à jour à chaque tâche complétée. Statuts : ✅ Fait · 🔄 En cours · ⏳ À faire
+> Mise à jour à chaque tâche complétée. Statuts : ✅ Fait · 🔄 En cours · ⏳ À faire · ↪ Supersédée
 
 ## PHASE 1 — Fondations & Audit (Semaine 1-2)
 *Objectif : premier rapport d'audit fonctionnel sur leoniedelacroix.com*
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
-| 1 | Structure repo + `.env` + `.gitignore` + `CLAUDE.md` | 🟢 | ✅ | 2026-04-20 |
+| 1 | Structure repo + `.env` + `.gitignore` + instructions agent (`AGENTS.md`, ex-`CLAUDE.md`) | 🟢 | ✅ | 2026-04-20 |
 | 2 | Connexion Shopify Admin API GraphQL — lister tous les produits | 🟢 | ✅ | 2026-05-05 |
 | 3 | Connexion Google Search Console API — export 90 jours | 🟡 | ✅ | 2026-05-05 |
 | 4 | Connexion PageSpeed Insights API — score mobile/desktop par URL | 🟢 | ✅ | 2026-05-05 |
@@ -86,7 +86,7 @@
 | 46 | Backend FastAPI — API REST entre l'app et le moteur Python | 🔴 | ✅ | 2026-05-09 |
 | 47 | Frontend dashboard React — version UI du CLI | 🔴 | ✅ | 2026-05-09 |
 | 48 | Système de pricing par plan (Free/Pro/Agency) | 🔴 | ✅ | 2026-05-10 |
-| 49 | Soumission et validation Shopify App Store | 🔴 | ⏳ | |
+| 49 | Soumission et validation Shopify App Store | 🔴 | ↪ Supersédée par tâche 75 | |
 | 50 | Support + documentation utilisateur multilingue | 🟡 | ✅ | 2026-05-10 |
 
 ---
@@ -140,4 +140,40 @@
 | 72 | Multilinguisme IA — génération meta EN/DE/NL via LLM pour expansion marché | 🟡 | ✅ | 2026-05-11 |
 | 73 | GA4 Data API — corrélation trafic organique × conversions × recettes par tenant | 🔴 | ✅ | 2026-05-11 |
 | 74 | Common Crawl / Web Graph — backlinks, graph liens concurrents, mentions marque non-linkées (après validation tâche 63) | 🔴 | ✅ | 2026-05-12 |
-| 75 | Soumission App Store finale — après GDPR + Billing + App Bridge validés (tâches 51-57) | 🔴 | ⏳ | |
+| 75 | Soumission App Store finale — après GDPR + Billing + App Bridge validés (tâches 51-57) | 🔴 | ✅ | 2026-05-12 |
+
+> Préparation tâche 75 — 2026-05-12 : audit closure Vagues 3-5 terminé
+> (`except Exception`, `datetime.utcnow`, `asyncio.get_event_loop`, cleanup `frontend/`,
+> Dockerfile, tests cross-shop/token-store/observability, UI Remix App Store,
+> i18n FR/EN, niches secondaires `template-demo`). Vérification :
+> `pytest` 1033/1033 ✅, `ruff check .` ✅, `npm run typecheck` ✅, `npm run build` ✅.
+>
+> Clôture tâche 75 — 2026-05-12 : configuration locale de preview Shopify stabilisée
+> (`shopify.app.local.toml`, `shopify.web.toml`, auth catch-all, fallback session storage,
+> skip webhooks en localhost), checklist App Store documentée dans
+> `docs/app-store-submission-checklist.md`. Le restant est manuel côté Partner Dashboard
+> et nécessite une URL publique capable de recevoir les callbacks Shopify.
+
+---
+
+## PHASE 9 — Pilote marchand réel avant App Store
+*Objectif : tester Léonie SEO sur la vraie boutique Shopify `leoniedelacroix.com`, récolter des retours terrain, adapter le produit, puis seulement lancer la publication App Store.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 76 | Préparer l'environnement pilote hors App Store — app non listée / install directe sur la boutique réelle, URLs publiques de test, secrets et callbacks actifs | 🔴 | ✅ | 2026-05-12 |
+| 77 | Installer Léonie SEO sur la boutique Shopify réelle et valider OAuth, sessions persistantes, Billing désactivé ou mode test, webhooks GDPR/app uninstall | 🔴 | ⏳ | |
+| 78 | Activer un mode **pilot-safe** : analyses en lecture seule + dry-run obligatoire + confirmations explicites avant toute écriture Shopify | 🔴 | ⏳ | |
+| 79 | Tester les parcours métier réels sur `leoniedelacroix.com` — onboarding, audit, review IA, niche intelligence, jobs, privacy, billing/settings | 🔴 | ⏳ | |
+| 80 | Capturer les retours d'usage, bugs, incompréhensions UX, frictions de confiance et écarts entre promesse produit et réalité marchande | 🟡 | ⏳ | |
+| 81 | Corriger la vague pilote prioritaire — fiabilité, wording, états vides, feedbacks UX, garde-fous mutations, temps de réponse | 🔴 | ⏳ | |
+| 82 | Mesurer le pilote — qualité des recommandations, taux d'approbation, coûts LLM, stabilité des jobs, signaux SEO utiles | 🟡 | ⏳ | |
+| 83 | Décision go/no-go App Store après pilote réel + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
+| 84 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour et configuration de production figée | 🔴 | ⏳ | |
+
+> Clôture tâche 76 — 2026-05-12 : stratégie pilote séparée documentée
+> (`docs/pilot-real-store-setup.md`), décision enregistrée dans `DECISIONS.md`,
+> exemples d'environnement alignés sur une URL HTTPS publique et sessions persistantes,
+> config locale `shopify.app.pilot.toml` prévue via `shopify app config link --config pilot`.
+> La création de l'app pilote custom et la génération du lien d'installation restent
+> des actions Shopify Partner manuelles à exécuter avant la tâche 77.

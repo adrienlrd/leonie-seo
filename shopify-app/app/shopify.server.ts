@@ -5,16 +5,26 @@ import {
   LATEST_API_VERSION,
   shopifyApp,
 } from "@shopify/shopify-app-remix/server";
+import { MemorySessionStorage } from "@shopify/shopify-app-session-storage-memory";
 import { PostgreSQLSessionStorage } from "@shopify/shopify-app-session-storage-postgresql";
 
 // Use Postgres session storage when DATABASE_URL is configured (production + staging).
 // The same Neon database provisioned in task 54 stores both app data and OAuth sessions.
 // Cast silences a TypeScript peer-dep skew (shopify-api v11 vs v12); runtime-compatible.
-const pgStorage = process.env.DATABASE_URL
+const sessionStorage = process.env.DATABASE_URL
   ? (new PostgreSQLSessionStorage(process.env.DATABASE_URL) as unknown)
-  : undefined;
+  : (new MemorySessionStorage() as unknown);
+const appUrl = process.env.SHOPIFY_APP_URL || "";
+const skipWebhookRegistration = (() => {
+  try {
+    const hostname = new URL(appUrl).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
+  }
+})();
 
-if (!pgStorage) {
+if (!process.env.DATABASE_URL) {
   console.warn(
     "[shopify.server] DATABASE_URL not set — sessions will not persist across restarts. " +
       "Set DATABASE_URL in shopify-app/.env for production use."
@@ -26,10 +36,10 @@ const shopify = shopifyApp({
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: LATEST_API_VERSION,
   scopes: process.env.SCOPES?.split(","),
-  appUrl: process.env.SHOPIFY_APP_URL || "",
+  appUrl,
   authPathPrefix: "/auth",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sessionStorage: pgStorage as any,
+  sessionStorage: sessionStorage as any,
   distribution: AppDistribution.AppStore,
   webhooks: {
     APP_UNINSTALLED: {
@@ -51,7 +61,13 @@ const shopify = shopifyApp({
   },
   hooks: {
     afterAuth: async ({ session }) => {
-      shopify.registerWebhooks({ session });
+      if (skipWebhookRegistration) {
+        console.info(
+          "[shopify.server] Skipping webhook registration for localhost development."
+        );
+        return;
+      }
+      await shopify.registerWebhooks({ session });
     },
   },
   future: {

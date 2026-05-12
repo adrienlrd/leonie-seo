@@ -320,9 +320,9 @@ def main(
     get_config(tenant)  # preload tenant config
 
     def _snapshot() -> Layout:
-        from datetime import datetime
+        from datetime import UTC, datetime
 
-        ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        ts = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
         return build_layout(
             gsc_summary(gsc),
             eeat_summary(eeat),

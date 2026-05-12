@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -284,8 +284,9 @@ def main(
     queries = top_queries_from_opportunities(opps)
     wins = quick_wins(opps)
 
-    date = datetime.utcnow().strftime("%Y-%m-%d")
-    month = datetime.utcnow().strftime("%Y-%m")
+    now = datetime.now(UTC)
+    date = now.strftime("%Y-%m-%d")
+    month = now.strftime("%Y-%m")
 
     out_dir = Path(output_dir) / month
     out_dir.mkdir(parents=True, exist_ok=True)

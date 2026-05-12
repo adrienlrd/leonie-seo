@@ -1,11 +1,3 @@
-# ── Frontend build stage ──────────────────────────────────────────────
-FROM node:20-slim AS frontend-build
-WORKDIR /frontend
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY frontend/ ./
-RUN npm run build
-
 # ── Python runtime stage ──────────────────────────────────────────────
 FROM python:3.11-slim
 WORKDIR /app
@@ -18,9 +10,6 @@ RUN pip install --no-cache-dir -e ".[dev]"
 COPY scripts/ scripts/
 COPY app/ app/
 COPY config/ config/
-
-# Pull the built React assets in
-COPY --from=frontend-build /frontend/dist /app/frontend/dist
 
 # Runtime mounts (history.db, raw exports, custom tenants, generated reports)
 VOLUME ["/app/data", "/app/reports", "/app/config/tenants"]

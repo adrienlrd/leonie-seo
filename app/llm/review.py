@@ -32,9 +32,20 @@ _MIN_OVERLAP_TOKEN_LENGTH = 4
 # initial generations (free shipping, refund/return, certifications).
 _SUSPICIOUS_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("free_shipping", re.compile(r"\b(livraison\s+gratuite|free\s+shipping)\b", re.IGNORECASE)),
-    ("money_back", re.compile(r"\b(100%\s+rembours|money\s*back|satisfait\s+ou\s+remboursé)\b", re.IGNORECASE)),
-    ("vet_endorsement", re.compile(r"\b(approuvé\s+par\s+(?:des\s+)?vétérinaires?|vet[\s-]approved)\b", re.IGNORECASE)),
-    ("best_in_class", re.compile(r"\b(numéro\s+1|n°?\s*1|#1|best[\s-]?in[\s-]?class)\b", re.IGNORECASE)),
+    (
+        "money_back",
+        re.compile(r"\b(100%\s+rembours|money\s*back|satisfait\s+ou\s+remboursé)\b", re.IGNORECASE),
+    ),
+    (
+        "vet_endorsement",
+        re.compile(
+            r"\b(approuvé\s+par\s+(?:des\s+)?vétérinaires?|vet[\s-]approved)\b", re.IGNORECASE
+        ),
+    ),
+    (
+        "best_in_class",
+        re.compile(r"\b(numéro\s+1|n°?\s*1|#1|best[\s-]?in[\s-]?class)\b", re.IGNORECASE),
+    ),
 )
 
 
@@ -174,9 +185,7 @@ def compute_diff(suggestion: dict, *, brand: str | None = None) -> DiffResult:
     )
 
 
-def diff_suggestions(
-    suggestions: list[dict], *, brand: str | None = None
-) -> list[DiffResult]:
+def diff_suggestions(suggestions: list[dict], *, brand: str | None = None) -> list[DiffResult]:
     """Compute diffs for a list of suggestion rows.
 
     Args:

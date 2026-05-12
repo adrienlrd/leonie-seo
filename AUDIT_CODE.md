@@ -1,3 +1,7 @@
+# ARCHIVE — AUDIT CODE HISTORIQUE
+
+> Rapport d'audit conservé pour traçabilité. Les règles actives Codex sont dans `AGENTS.md`.
+
 # AUDIT CODE — Lot 2 du grand audit (2026-05-12)
 
 > Audit code Python `app/` (12 654 lignes, 40 modules) — 4 sous-arbres scannés en parallèle par 4 agents `general-purpose` indépendants.
@@ -15,7 +19,7 @@
 
 3. **Brand-lock hardcodé** : 4 fichiers contiennent `"Léonie Delacroix"`, `"leoniedelacroix"`, des stopwords FR, ou des subreddits petfood → le moteur IA ne fonctionne en pratique **que pour Léonie**.
 
-**S'y ajoute** un **anti-hallucination quasi-inexistant** sur les outputs LLM (le différenciateur produit), du **code mort** (`app/api/plans.py` jamais monté, modules niche jamais câblés dans `engine.py`), et **16 violations de la règle CLAUDE.md "jamais `except Exception` nu"**.
+**S'y ajoute** un **anti-hallucination quasi-inexistant** sur les outputs LLM (le différenciateur produit), du **code mort** (`app/api/plans.py` jamais monté, modules niche jamais câblés dans `engine.py`), et **16 violations de la règle `AGENTS.md` "jamais `except Exception` nu"**.
 
 ---
 
@@ -67,7 +71,7 @@
 | Fichier | LOC | Alignement | Bugs | Legacy | Multi-tenant |
 |---|---|---|---|---|---|
 | **`__init__.py`** | 60 | ✅ Core | **🔴 L20 `lru_cache(maxsize=1)` sur `get_router()` SANS clé tenant → fuite cross-tenant + `shop=None` partout sauf workaround `multilingual.py:76`** | — | ❌ |
-| **`router.py`** | 107 | ✅ Core | **🔴 L40 `except Exception:` nu (viole règle CLAUDE.md). L104 n'attrape pas les exceptions inattendues du provider → chaîne fallback peut être interrompue.** Pas d'anti-hallucination niveau router | — | 🟡 |
+| **`router.py`** | 107 | ✅ Core | **🔴 L40 `except Exception:` nu (viole règle `AGENTS.md`). L104 n'attrape pas les exceptions inattendues du provider → chaîne fallback peut être interrompue.** Pas d'anti-hallucination niveau router | — | 🟡 |
 | `provider.py` | 60 | ✅ Core | ⚠️ `CompletionResult` ne stocke pas `cost_usd`/`latency_ms`/`request_id` | — | ✅ |
 | `providers/openai.py` | 67 | ✅ Core | ⚠️ Validation `response.choices` non vide absente (IndexError silencieux). Pas de `seed` ni `response_format=json` | — | ✅ |
 | `providers/cloudflare.py` | 75 | ✅ | **⚠️ L71 ne renseigne JAMAIS `tokens_in`/`tokens_out` → coût Cloudflare INVISIBLE dans les métriques** | — | ✅ |
@@ -217,7 +221,7 @@
 | `oauth/gdpr.py` L34-42 : body webhook PII en clair >30j | RGPD | ⚠️ |
 | `observability/logging.py` L13-53 : `extra=` sans whitelist → leak tokens | Logs | ⚠️ |
 
-### ⚠️ Violations CLAUDE.md (règle Python : jamais `except Exception` nu)
+### ⚠️ Violations `AGENTS.md` (règle Python : jamais `except Exception` nu)
 
 Total **16 occurrences** détectées :
 - `db_adapter.py` L85, L97 (acceptable car branche backend, à confirmer)
@@ -297,7 +301,7 @@ Total **16 occurrences** détectées :
 12. **`bulk_orchestrator.py` `old_value=NULL`** : remplir avec la valeur Shopify avant écriture.
 13. **`api/niche.py` `except` invalide** : corriger le tuple `(KeyError, IndexError)` imbriqué.
 
-### Vague 3 — Hygiène code (règle CLAUDE.md + deprecations)
+### Vague 3 — Hygiène code (règle `AGENTS.md` + deprecations)
 
 14. **16 violations `except Exception`** : remplacer par exceptions précises (`json.JSONDecodeError`, `httpx.RequestError`, etc.).
 15. **`asyncio.get_event_loop()` deprecated** : utiliser `asyncio.to_thread`.

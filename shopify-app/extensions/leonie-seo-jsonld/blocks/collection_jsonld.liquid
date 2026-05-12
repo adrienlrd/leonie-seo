@@ -18,7 +18,7 @@
   "description": {{ collection.description | strip_html | truncate: 300 | json }},
   {%- endif -%}
   {%- if collection.image -%}
-  "image": {{ collection.image.src | img_url: 'master' | prepend: 'https:' | json }},
+  "image": {{ collection.image.src | image_url: width: 5760 | prepend: 'https:' | json }},
   {%- endif -%}
   "breadcrumb": {
     "@type": "BreadcrumbList",
@@ -45,7 +45,6 @@
 {
   "name": "Collection JSON-LD",
   "target": "head",
-  "limit": 1,
   "templates": ["collection"]
 }
 {% endschema %}

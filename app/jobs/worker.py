@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -58,7 +59,7 @@ class JobWorker:
                     await asyncio.sleep(self.poll_interval)
             except asyncio.CancelledError:
                 break
-            except Exception:
+            except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error):
                 logger.exception("Unexpected error in JobWorker loop")
                 await asyncio.sleep(self.poll_interval)
         logger.info("JobWorker stopped")
@@ -84,7 +85,9 @@ class JobWorker:
             )
             return
 
-        logger.info("Processing job %s (queue=%s shop=%s attempt=%d)", job_id, queue, shop, retries + 1)
+        logger.info(
+            "Processing job %s (queue=%s shop=%s attempt=%d)", job_id, queue, shop, retries + 1
+        )
         try:
             result = await asyncio.wait_for(
                 handler(job["payload"], shop),
@@ -97,13 +100,11 @@ class JobWorker:
             logger.warning("Job %s timed out after %ds", job_id, self.timeout)
             self._handle_failure(job_id, retries, max_retries, f"timed out after {self.timeout}s")
 
-        except Exception as exc:
+        except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error) as exc:
             logger.warning("Job %s failed: %s", job_id, exc)
             self._handle_failure(job_id, retries, max_retries, str(exc))
 
-    def _handle_failure(
-        self, job_id: str, retries: int, max_retries: int, error: str
-    ) -> None:
+    def _handle_failure(self, job_id: str, retries: int, max_retries: int, error: str) -> None:
         new_retries = retries + 1
         if new_retries <= max_retries:
             next_at = _next_scheduled_at(new_retries)

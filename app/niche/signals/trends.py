@@ -16,8 +16,7 @@ def _import_pytrends():
         return TrendReq
     except ImportError as exc:
         raise ImportError(
-            "pytrends is required for Trends signals. "
-            "Install with: pip install 'leonie-seo[niche]'"
+            "pytrends is required for Trends signals. Install with: pip install 'leonie-seo[niche]'"
         ) from exc
 
 
@@ -43,13 +42,17 @@ def fetch_related_queries(
     if not keywords:
         return []
 
-    TrendReq = _import_pytrends()
+    try:
+        TrendReq = _import_pytrends()
+    except ImportError as exc:
+        logger.warning("Google Trends unavailable: %s", exc)
+        return []
 
     try:
         pytrends = TrendReq(hl=lang, tz=60, timeout=(10, 25))
         pytrends.build_payload(keywords[:5], timeframe=timeframe, geo=geo)
         related = pytrends.related_queries()
-    except Exception as exc:
+    except (RuntimeError, ValueError, KeyError, TypeError) as exc:
         logger.warning("Google Trends error: %s", exc)
         return []
 

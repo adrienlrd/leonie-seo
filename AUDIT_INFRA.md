@@ -1,3 +1,7 @@
+# ARCHIVE — AUDIT INFRA HISTORIQUE
+
+> Rapport d'audit conservé pour traçabilité. Les règles actives Codex sont dans `AGENTS.md`.
+
 # AUDIT INFRA — Lot 3 du grand audit (2026-05-12)
 
 > Audit infrastructure : `scripts/` (8 103 lignes), `shopify-app/` (1 234 LOC Remix + Liquid), `tests/` (11 487 lignes), `frontend/` (vérif décommission), `config/` (14 YAML).
@@ -260,7 +264,7 @@ Le Lot 4 Vague 4 (cleanup code mort) est **plus light que prévu** :
 16. `bulk_orchestrator.py` `old_value=NULL` (Lot 2)
 17. `api/niche.py` `except` tuple invalide (Lot 2)
 
-#### Vague 3 — Hygiène code (règles CLAUDE.md + deprecations)
+#### Vague 3 — Hygiène code (règles `AGENTS.md` + deprecations)
 
 18. 16 violations `except Exception:` (Lot 2) + 1 dans `setup.py:48` (Lot 3)
 19. `asyncio.get_event_loop()` deprecated (Lot 2)

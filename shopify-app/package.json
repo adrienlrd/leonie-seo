@@ -4,6 +4,7 @@
   "scripts": {
     "build": "remix vite:build",
     "dev": "shopify app dev",
+    "web": "remix vite:dev",
     "start": "remix-serve ./build/server/index.js",
     "typecheck": "tsc"
   },
@@ -15,9 +16,10 @@
     "@remix-run/node": "^2.9.2",
     "@remix-run/react": "^2.9.2",
     "@remix-run/serve": "^2.9.2",
-    "@shopify/polaris": "^13.9.5",
     "@shopify/app-bridge-react": "^4.1.5",
+    "@shopify/polaris": "^13.9.5",
     "@shopify/shopify-app-remix": "^3.3.3",
+    "@shopify/shopify-app-session-storage-memory": "^3.0.5",
     "@shopify/shopify-app-session-storage-postgresql": "^3.0.1",
     "isbot": "^4.1.0",
     "react": "^18.2.0",

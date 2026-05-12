@@ -100,7 +100,12 @@ def test_shopify_writer_apply_product_seo_success():
     mock_read = MagicMock()
     mock_read.status_code = 200
     mock_read.json.return_value = {
-        "data": {"product": {"id": "gid://shopify/Product/1", "seo": {"title": "OLD", "description": "OLD DESC"}}}
+        "data": {
+            "product": {
+                "id": "gid://shopify/Product/1",
+                "seo": {"title": "OLD", "description": "OLD DESC"},
+            }
+        }
     }
     mock_read.raise_for_status = MagicMock()
     # Second call: write mutation — success.

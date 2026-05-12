@@ -300,7 +300,7 @@ def test_run_report_async_uses_async_httpx_client():
 
     Uses anyio.from_thread.start_blocking_portal so the test doesn't tear down
     the asyncio default loop (which other tests in the suite still read via
-    the deprecated asyncio.get_event_loop()).
+    the deprecated low-level event loop API).
     """
     import httpx
     from anyio.from_thread import start_blocking_portal
@@ -334,4 +334,3 @@ def test_run_report_async_uses_async_httpx_client():
             )
     assert result == {"rows": []}
     assert captured["headers"]["Authorization"] == "Bearer async-tok"
-

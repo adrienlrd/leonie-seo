@@ -46,7 +46,7 @@ def fetch_all_signals(
             suggestions = fetch_suggestions_bulk(seed_keywords, lang=lang, country=geo)
             all_keywords.extend(suggestions)
             logger.info("Google Suggest: %d keywords fetched", len(suggestions))
-        except Exception as exc:
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
             logger.warning("Google Suggest source failed: %s", exc)
 
     if "trends" in active:
@@ -56,7 +56,7 @@ def fetch_all_signals(
             trend_kws = fetch_related_queries(seed_keywords, geo=geo)
             all_keywords.extend(trend_kws)
             logger.info("Google Trends: %d keywords fetched", len(trend_kws))
-        except Exception as exc:
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
             logger.warning("Google Trends source failed: %s", exc)
 
     if "reddit" in active:
@@ -65,12 +65,10 @@ def fetch_all_signals(
 
             reddit_kws = []
             for seed in seed_keywords:
-                reddit_kws.extend(
-                    fetch_reddit_keywords(seed, subreddits=reddit_subreddits)
-                )
+                reddit_kws.extend(fetch_reddit_keywords(seed, subreddits=reddit_subreddits))
             all_keywords.extend(reddit_kws)
             logger.info("Reddit: %d keywords fetched", len(reddit_kws))
-        except Exception as exc:
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
             logger.warning("Reddit source failed: %s", exc)
 
     # Deduplicate: keep highest relevance_score per keyword

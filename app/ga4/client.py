@@ -29,9 +29,7 @@ def _load_credentials(credentials_file: str | None = None):
     try:
         from google.oauth2 import service_account  # noqa: PLC0415
     except ImportError as exc:
-        raise GA4Error(
-            "google-auth is required. Install it with: pip install google-auth"
-        ) from exc
+        raise GA4Error("google-auth is required. Install it with: pip install google-auth") from exc
 
     path = credentials_file or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     if not path:
@@ -60,16 +58,15 @@ def _get_token(credentials_file: str | None = None) -> str:
         GA4Error: If credentials are missing or auth fails.
     """
     try:
+        from google.auth.exceptions import GoogleAuthError  # noqa: PLC0415
         from google.auth.transport.requests import Request  # noqa: PLC0415
     except ImportError as exc:
-        raise GA4Error(
-            "google-auth is required. Install it with: pip install google-auth"
-        ) from exc
+        raise GA4Error("google-auth is required. Install it with: pip install google-auth") from exc
 
     creds = _load_credentials(credentials_file)
     try:
         creds.refresh(Request())
-    except Exception as exc:
+    except (GoogleAuthError, ValueError) as exc:
         raise GA4Error(f"GA4 authentication failed: {exc}") from exc
 
     return creds.token  # type: ignore[return-value]
@@ -108,12 +105,13 @@ class GA4Client:
             self._creds = _load_credentials(self._credentials_file)
         if self._creds.expired or not self._creds.token:
             try:
+                from google.auth.exceptions import GoogleAuthError  # noqa: PLC0415
                 from google.auth.transport.requests import Request  # noqa: PLC0415
             except ImportError as exc:
                 raise GA4Error("google-auth is required.") from exc
             try:
                 self._creds.refresh(Request())
-            except Exception as exc:
+            except (GoogleAuthError, ValueError) as exc:
                 raise GA4Error(f"GA4 authentication failed: {exc}") from exc
         return self._creds.token  # type: ignore[return-value]
 
@@ -139,9 +137,7 @@ class GA4Client:
             raise GA4Error(f"GA4 request failed: {exc}") from exc
 
         if resp.status_code != 200:
-            raise GA4Error(
-                f"GA4 API error {resp.status_code}: {resp.text[:300]}"
-            )
+            raise GA4Error(f"GA4 API error {resp.status_code}: {resp.text[:300]}")
 
         return resp.json()
 

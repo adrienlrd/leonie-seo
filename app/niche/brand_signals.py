@@ -63,7 +63,5 @@ def compare_competitor_coverage(
         domain = domain.strip().lower()
         if not domain:
             continue
-        results[domain] = client.count_domain_pages(
-            domain, crawl=crawl, limit=limit_per_domain
-        )
+        results[domain] = client.count_domain_pages(domain, crawl=crawl, limit=limit_per_domain)
     return dict(sorted(results.items(), key=lambda kv: -kv[1]))

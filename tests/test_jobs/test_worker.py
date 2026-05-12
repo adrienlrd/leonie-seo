@@ -59,7 +59,7 @@ def test_worker_processes_job_to_completed(db):
     job_id = enqueue("test_ok", {"x": 1}, db_path=db)
     worker = JobWorker(db_path=db)
 
-    asyncio.get_event_loop().run_until_complete(_run_one(worker))
+    asyncio.run(_run_one(worker))
 
     job = get_job(job_id, db_path=db)
     assert job["status"] == "completed"
@@ -74,7 +74,7 @@ def test_worker_retries_on_handler_exception(db):
     job_id = enqueue("test_fail", {}, max_retries=2, db_path=db)
     worker = JobWorker(db_path=db)
 
-    asyncio.get_event_loop().run_until_complete(_run_one(worker))
+    asyncio.run(_run_one(worker))
 
     job = get_job(job_id, db_path=db)
     assert job["status"] == "pending"  # scheduled for retry
@@ -90,7 +90,7 @@ def test_worker_fails_permanently_after_max_retries(db):
     worker = JobWorker(db_path=db)
 
     # First attempt → retries=1, still pending (scheduled in future)
-    asyncio.get_event_loop().run_until_complete(_run_one(worker))
+    asyncio.run(_run_one(worker))
     job = get_job(job_id, db_path=db)
     assert job["retries"] == 1
 
@@ -100,7 +100,7 @@ def test_worker_fails_permanently_after_max_retries(db):
     update_job(job_id, status="pending", scheduled_at=datetime.now(UTC).isoformat(), db_path=db)
 
     # Second attempt → max_retries exceeded → failed
-    asyncio.get_event_loop().run_until_complete(_run_one(worker))
+    asyncio.run(_run_one(worker))
     job = get_job(job_id, db_path=db)
     assert job["status"] == "failed"
     assert job["retries"] == 2
@@ -110,7 +110,7 @@ def test_worker_marks_failed_for_unknown_queue(db):
     job_id = enqueue("no_such_queue", {}, db_path=db)
     worker = JobWorker(db_path=db)
 
-    asyncio.get_event_loop().run_until_complete(_run_one(worker))
+    asyncio.run(_run_one(worker))
 
     job = get_job(job_id, db_path=db)
     assert job["status"] == "failed"
@@ -124,7 +124,7 @@ def test_worker_timeout_triggers_retry(db):
     job_id = enqueue("test_slow", {}, db_path=db)
     worker = JobWorker(timeout=1, db_path=db)
 
-    asyncio.get_event_loop().run_until_complete(_run_one(worker))
+    asyncio.run(_run_one(worker))
 
     job = get_job(job_id, db_path=db)
     assert job["retries"] == 1  # timed out → retry

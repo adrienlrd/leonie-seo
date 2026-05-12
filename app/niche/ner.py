@@ -31,11 +31,7 @@ class ProductEntities:
         seen: set[str] = set()
         result: list[str] = []
         for kw in (
-            self.certifications
-            + self.origins
-            + self.materials
-            + self.properties
-            + self.targets
+            self.certifications + self.origins + self.materials + self.properties + self.targets
         ):
             if kw not in seen:
                 seen.add(kw)
@@ -44,7 +40,9 @@ class ProductEntities:
 
     @property
     def is_empty(self) -> bool:
-        return not any([self.materials, self.certifications, self.origins, self.targets, self.properties])
+        return not any(
+            [self.materials, self.certifications, self.origins, self.targets, self.properties]
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +111,10 @@ _PROPERTIES: list[tuple[str, list[str]]] = [
     ("lavable", [r"lavable", r"machine.?washable", r"lavage en machine"]),
     ("respirant", [r"respirant", r"breathable"]),
     ("rembourré", [r"rembourr[eé]", r"matelassé", r"padded", r"matelasse"]),
-    ("réfléchissant", [r"réfl[eé]chissant", r"reflective", r"haute visibilité", r"haute visibilite"]),
+    (
+        "réfléchissant",
+        [r"réfl[eé]chissant", r"reflective", r"haute visibilité", r"haute visibilite"],
+    ),
     ("anti-traction", [r"anti.?traction", r"no.?pull", r"sans traction"]),
     ("ergonomique", [r"ergonomique", r"ergonomic", r"anatomique"]),
     ("léger", [r"\bl[eé]ger\b", r"\blégers\b", r"\blightweight\b"]),

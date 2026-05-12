@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from app.llm.prompts import load_prompt
 from app.llm.provider import LLMError
 from app.llm.router import LLMRouter
-from app.niche.intent import _classify_intent
+from app.niche.intent import classify_intent
 
 
 @dataclass
@@ -80,7 +80,7 @@ def generate_blog_brief(gap: dict, router: LLMRouter) -> BlogBriefResult:
     impressions = int(gap.get("impressions", 0))
     position = float(gap.get("position", 0.0))
     cluster_name = gap.get("cluster_name")
-    intent = _classify_intent(query).value
+    intent = classify_intent(query).value
 
     result = BlogBriefResult(
         query=query,
@@ -139,7 +139,7 @@ def generate_blog_briefs(
         for future in as_completed(futures):
             try:
                 results.append(future.result())
-            except Exception as exc:  # pragma: no cover — generate_blog_brief catches LLMError
+            except (RuntimeError, TypeError, ValueError) as exc:  # pragma: no cover
                 gap = futures[future]
                 results.append(
                     BlogBriefResult(
@@ -227,7 +227,7 @@ def generate_collection_briefs(
         for future in as_completed(futures):
             try:
                 results.append(future.result())
-            except Exception as exc:  # pragma: no cover
+            except (RuntimeError, TypeError, ValueError) as exc:  # pragma: no cover
                 cluster = futures[future]
                 results.append(
                     CollectionBriefResult(

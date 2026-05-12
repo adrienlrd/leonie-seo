@@ -71,16 +71,18 @@ async def generate_multilingual_meta(
         )
 
     from app.llm import get_router  # noqa: PLC0415
-    from scripts._config import find_tenant_by_shop_domain  # noqa: PLC0415
+    from app.tenant_config import find_tenant_by_shop_domain  # noqa: PLC0415
 
     tenant = find_tenant_by_shop_domain(shop)
     brand = tenant.brand if tenant else None
 
     llm_router = get_router(shop=shop)
-    loop = asyncio.get_event_loop()
-    results = await loop.run_in_executor(
-        None,
-        lambda: generate_meta_all_locales(product, body.locales, llm_router, brand=brand),
+    results = await asyncio.to_thread(
+        generate_meta_all_locales,
+        product,
+        body.locales,
+        llm_router,
+        brand=brand,
     )
 
     return {

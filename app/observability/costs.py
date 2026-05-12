@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # Pricing per 1 million tokens in USD (as of 2025-05).
 # input = prompt tokens, output = completion tokens.
 _PRICING: dict[str, dict[str, float]] = {
@@ -33,7 +37,10 @@ def compute_cost(model: str, tokens_in: int, tokens_out: int) -> float:
         Cost in USD, rounded to 8 decimal places.
         Returns 0.0 for unknown models (no billing data available).
     """
-    pricing = _PRICING.get(model, _UNKNOWN_PRICING)
+    pricing = _PRICING.get(model)
+    if pricing is None:
+        logger.warning("Unknown LLM pricing model %r; cost recorded as 0.0", model)
+        pricing = _UNKNOWN_PRICING
     cost = (tokens_in * pricing["input"] + tokens_out * pricing["output"]) / 1_000_000
     return round(cost, 8)
 

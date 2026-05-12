@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -86,7 +87,7 @@ def decode_key(api_key: str) -> dict:
         padded = b64 + "=" * (-len(b64) % 4)
         raw = base64.urlsafe_b64decode(padded)
         return json.loads(raw)
-    except Exception as e:
+    except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
         raise LicenseError(f"Clé illisible : {e}") from e
 
 

@@ -1,0 +1,153 @@
+export type Locale = "fr" | "en";
+
+type Dictionary = Record<string, string>;
+
+const FR: Dictionary = {
+  dashboard: "Dashboard",
+  review: "Review IA",
+  niche: "Niche",
+  onboarding: "Onboarding",
+  settings: "Réglages",
+  privacy: "Confidentialité",
+  jobs: "Jobs SEO",
+  billing: "Facturation",
+  backDashboard: "Dashboard",
+  language: "Langue",
+  currentPlan: "Plan actuel",
+  backendOffline: "Moteur SEO indisponible",
+  noData: "Aucune donnée disponible",
+  status: "Statut",
+  action: "Action",
+  product: "Produit",
+  title: "Title",
+  description: "Description",
+  quality: "Qualité",
+  approve: "Approuver",
+  reject: "Rejeter",
+  autoApprove: "Auto-approuver",
+  dryRunApply: "Appliquer en dry-run",
+  liveApply: "Appliquer en live",
+  launchAudit: "Lancer un audit SEO",
+  pendingSuggestions: "Suggestions en attente",
+  approved: "Approuvées",
+  rejected: "Rejetées",
+  jobQueued: "Job lancé",
+  clusters: "Clusters produits",
+  gaps: "Keyword gaps",
+  intents: "Intent clusters",
+  signals: "Signaux niche",
+  query: "Requête",
+  impressions: "Impressions",
+  position: "Position",
+  opportunity: "Score",
+  size: "Taille",
+  keywords: "Mots-clés",
+  source: "Source",
+  relevance: "Pertinence",
+  connected: "Connecté",
+  missing: "Manquant",
+  shopify: "Shopify",
+  backend: "Backend",
+  crawl: "Crawl",
+  gsc: "GSC",
+  ga4: "GA4",
+  gdpr: "GDPR",
+  exportData: "Exporter les données",
+  privacyPolicy: "Politique de confidentialité",
+  openPolicy: "Ouvrir la policy",
+  installation: "Installation",
+  observability: "Observabilité",
+  budget: "Budget",
+  locales: "Locales",
+  snapshot: "Snapshot",
+  products: "Produits",
+  collections: "Collections",
+  mode: "Mode",
+  templateDemo: "Template demo",
+  production: "Production",
+};
+
+const EN: Dictionary = {
+  dashboard: "Dashboard",
+  review: "AI Review",
+  niche: "Niche",
+  onboarding: "Onboarding",
+  settings: "Settings",
+  privacy: "Privacy",
+  jobs: "SEO Jobs",
+  billing: "Billing",
+  backDashboard: "Dashboard",
+  language: "Language",
+  currentPlan: "Current plan",
+  backendOffline: "SEO engine unavailable",
+  noData: "No data available",
+  status: "Status",
+  action: "Action",
+  product: "Product",
+  title: "Title",
+  description: "Description",
+  quality: "Quality",
+  approve: "Approve",
+  reject: "Reject",
+  autoApprove: "Auto-approve",
+  dryRunApply: "Dry-run apply",
+  liveApply: "Live apply",
+  launchAudit: "Run SEO audit",
+  pendingSuggestions: "Pending suggestions",
+  approved: "Approved",
+  rejected: "Rejected",
+  jobQueued: "Job queued",
+  clusters: "Product clusters",
+  gaps: "Keyword gaps",
+  intents: "Intent clusters",
+  signals: "Niche signals",
+  query: "Query",
+  impressions: "Impressions",
+  position: "Position",
+  opportunity: "Score",
+  size: "Size",
+  keywords: "Keywords",
+  source: "Source",
+  relevance: "Relevance",
+  connected: "Connected",
+  missing: "Missing",
+  shopify: "Shopify",
+  backend: "Backend",
+  crawl: "Crawl",
+  gsc: "GSC",
+  ga4: "GA4",
+  gdpr: "GDPR",
+  exportData: "Export data",
+  privacyPolicy: "Privacy policy",
+  openPolicy: "Open policy",
+  installation: "Installation",
+  observability: "Observability",
+  budget: "Budget",
+  locales: "Locales",
+  snapshot: "Snapshot",
+  products: "Products",
+  collections: "Collections",
+  mode: "Mode",
+  templateDemo: "Demo template",
+  production: "Production",
+};
+
+const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };
+
+export function getLocale(request: Request): Locale {
+  const url = new URL(request.url);
+  const requested = url.searchParams.get("locale");
+  if (requested === "en" || requested === "fr") {
+    return requested;
+  }
+  const header = request.headers.get("accept-language") || "";
+  return header.toLowerCase().startsWith("en") ? "en" : "fr";
+}
+
+export function t(locale: Locale, key: string): string {
+  return DICTIONARIES[locale][key] ?? DICTIONARIES.fr[key] ?? key;
+}
+
+export function localizedPath(path: string, locale: Locale): string {
+  return `${path}?locale=${locale}`;
+}

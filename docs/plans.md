@@ -60,7 +60,7 @@
 | `POST /api/shops/{shop}/billing/subscribe?plan=pro` | Crée la `appSubscriptionCreate` mutation |
 | `GET /api/billing/confirm` | Callback de confirmation Shopify |
 
-Voir `app/billing/` pour le code, et CLAUDE.md règle 12 pour la règle non-négociable.
+Voir `app/billing/` pour le code, et `AGENTS.md` règle 12 pour la règle non-négociable.
 
 ---
 

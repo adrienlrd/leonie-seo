@@ -148,7 +148,7 @@ def generate_meta_for_products(
         for future in as_completed(futures):
             try:
                 results.append(future.result())
-            except Exception as exc:  # pragma: no cover — defensive, _generate_one catches
+            except (RuntimeError, TypeError, ValueError) as exc:  # pragma: no cover
                 product = futures[future]
                 results.append(
                     MetaResult(

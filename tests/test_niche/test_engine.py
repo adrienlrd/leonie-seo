@@ -37,7 +37,12 @@ def _products() -> list[dict]:
 def _gsc() -> list[dict]:
     return [
         {"query": "acheter harnais chien", "impressions": 1200, "clicks": 30, "position": 8.0},
-        {"query": "comment choisir harnais chien", "impressions": 800, "clicks": 12, "position": 14.0},
+        {
+            "query": "comment choisir harnais chien",
+            "impressions": 800,
+            "clicks": 12,
+            "position": 14.0,
+        },
         {"query": "harnais chien pas cher", "impressions": 600, "clicks": 18, "position": 6.0},
         {"query": "leoniedelacroix harnais", "impressions": 400, "clicks": 35, "position": 1.2},
         # Below the impressions threshold — must be filtered

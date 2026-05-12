@@ -16,7 +16,7 @@ Léonie SEO est un **copilote SEO niche-first pour boutiques Shopify** — conç
 
 **Contraintes respectées** : budget infra ≤ 12 €/mois, fallbacks LLM gratuits, validation marchande avant apply, conformité Shopify App Store (GDPR, Billing API, App Bridge).
 
-### Roadmap en 8 phases (75 tâches)
+### Roadmap en 9 phases (84 tâches)
 
 | Phase | Périmètre | Statut |
 |---|---|---|
@@ -27,7 +27,8 @@ Léonie SEO est un **copilote SEO niche-first pour boutiques Shopify** — conç
 | 5 — App Shopify publique | OAuth, FastAPI, plans, doc | ✅ 5/6 (tâche 49 review) |
 | 6 — Conformité & Infra async | GDPR, Billing API, async queue, App Bridge, Polaris, Postgres | ✅ |
 | 7 — Moteur IA & Niche | LLM provider, Niche Intelligence concrète, observabilité | ✅ |
-| 8 — Scale & App Store final | Theme Extension, embeddings, GA4, Common Crawl, soumission | 🔄 6/7 (tâche 75 restante) |
+| 8 — Scale & App Store final | Theme Extension, embeddings, GA4, Common Crawl, préparation App Store | ✅ |
+| 9 — Pilote marchand réel | App pilote custom, vraie boutique, retours terrain avant publication | 🔄 1/9 |
 
 ---
 
@@ -41,6 +42,10 @@ Léonie SEO se distribue selon **deux modes** :
 | ⚙️ **Self-hosted / CLI** | Agences, devs, déploiements internes | Token Custom App | Licence HMAC `LEONIE_API_KEY` |
 
 Voir [`docs/plans.md`](docs/plans.md) pour le détail.
+
+### Pilote marchand réel avant App Store
+
+Avant la soumission publique, Léonie SEO passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à une URL publique stable. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md).
 
 ## Plans
 
@@ -191,8 +196,6 @@ data/
   raw/            ← exports bruts (gitignored)
 
 reports/          ← rapports horodatés YYYY-MM-DD/
-
-frontend/         ← ⚠️ LEGACY — dashboard React décommissionné (DECISIONS.md 2026-05-10)
 ```
 
 ---
@@ -202,6 +205,7 @@ frontend/         ← ⚠️ LEGACY — dashboard React décommissionné (DECISI
 - [Guide utilisateur (FR)](docs/guide-utilisateur.fr.md)
 - [User guide (EN)](docs/user-guide.en.md)
 - [Détail des plans](docs/plans.md)
+- [Pilote réel avant App Store](docs/pilot-real-store-setup.md)
 
 ---
 

@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/adrienleredde/leonie-seo && file=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); if echo \"$file\" | grep -q '\\.py$'; then ruff check . --quiet 2>&1 | head -20 && pytest tests/ -x -q --tb=short 2>&1 | tail -20; fi",
+            "timeout": 30,
+            "statusMessage": "Vérification ruff + pytest..."
+          }
+        ]
+      }
+    ]
+  }
+}

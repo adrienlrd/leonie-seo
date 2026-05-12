@@ -266,8 +266,7 @@ def _migrate_sqlite_add_shop_columns(conn: sqlite3.Connection) -> None:
 def _pg_has_column(cur, table: str, column: str) -> bool:
     """Return True if `table.column` exists (Postgres information_schema)."""
     cur.execute(
-        "SELECT 1 FROM information_schema.columns "
-        "WHERE table_name = %s AND column_name = %s",
+        "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s",
         (table, column),
     )
     return cur.fetchone() is not None

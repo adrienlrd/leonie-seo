@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -318,7 +318,7 @@ def main(keywords: str, snapshot: str, gsc: str, output_dir: str, tenant: str | 
 
     console.print(f"  {len(opportunities)} opportunités · {len(orphans)} pages orphelines")
 
-    date = datetime.utcnow().strftime("%Y-%m-%d")
+    date = datetime.now(UTC).strftime("%Y-%m-%d")
     out_dir = Path(output_dir) / date
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "internal_links.md"

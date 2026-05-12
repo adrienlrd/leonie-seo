@@ -46,7 +46,7 @@ async def get_competitor_coverage(
 
     return {
         "shop": shop,
-        "crawl": client._cached_crawl,
+        "crawl": client.current_crawl,
         "competitors": coverage,
     }
 
@@ -77,7 +77,7 @@ async def get_url_patterns(
     return {
         "shop": shop,
         "domain": domain,
-        "crawl": client._cached_crawl,
+        "crawl": client.current_crawl,
         "url_patterns": patterns,
         "total_pages_sampled": sum(patterns.values()),
     }
@@ -112,7 +112,7 @@ async def get_brand_signals(
     return {
         "shop": shop,
         "brand_slug": brand_slug,
-        "crawl": client._cached_crawl,
+        "crawl": client.current_crawl,
         "mention_count": len(urls),
         "urls": urls,
     }

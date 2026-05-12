@@ -31,7 +31,7 @@ def _extract_keywords_from_title(title: str) -> list[str]:
     title = re.sub(r"\[.*?\]|\(.*?\)", "", title)
     words = re.findall(r"[a-záàâéèêëîïôùûüç]{3,}", title)
     # Return bigrams as keyword candidates
-    bigrams = [f"{words[i]} {words[i+1]}" for i in range(len(words) - 1)]
+    bigrams = [f"{words[i]} {words[i + 1]}" for i in range(len(words) - 1)]
     return bigrams[:3]  # max 3 candidates per title
 
 
@@ -71,7 +71,7 @@ def fetch_reddit_keywords(
                 continue
             resp.raise_for_status()
             data = resp.json()
-        except Exception as exc:
+        except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
             logger.warning("Reddit error for subreddit r/%s query '%s': %s", subreddit, query, exc)
             continue
 

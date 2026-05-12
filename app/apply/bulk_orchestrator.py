@@ -114,12 +114,14 @@ def apply_approved_meta(
 
     if dry_run:
         for row in suggestions:
-            report.details.append({
-                "suggestion_id": row["id"] if isinstance(row, dict) else row[0],
-                "product_id": row["product_id"] if isinstance(row, dict) else row[2],
-                "applied": False,
-                "dry_run": True,
-            })
+            report.details.append(
+                {
+                    "suggestion_id": row["id"] if isinstance(row, dict) else row[0],
+                    "product_id": row["product_id"] if isinstance(row, dict) else row[2],
+                    "applied": False,
+                    "dry_run": True,
+                }
+            )
         report.skipped = len(suggestions)
         return report
 
@@ -128,8 +130,12 @@ def apply_approved_meta(
         logger.error("No OAuth token found for shop %s — cannot apply", shop)
         report.skipped = len(suggestions)
         report.details = [
-            {"suggestion_id": None, "product_id": None, "applied": False,
-             "error": "no OAuth token for shop"}
+            {
+                "suggestion_id": None,
+                "product_id": None,
+                "applied": False,
+                "error": "no OAuth token for shop",
+            }
         ]
         return report
 

@@ -47,7 +47,7 @@ def fetch_suggestions(
         data = resp.json()
         # Response format: [seed, [suggestion1, suggestion2, ...], ...]
         suggestions: list[str] = data[1] if len(data) > 1 else []
-    except Exception as exc:
+    except (requests.RequestException, ValueError, IndexError, TypeError) as exc:
         logger.warning("Google Suggest error for '%s': %s", seed, exc)
         return []
 

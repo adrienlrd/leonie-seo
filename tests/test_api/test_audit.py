@@ -127,3 +127,13 @@ def test_get_issues_unknown_shop_returns_403(client: TestClient):
     with patch("app.api.deps.get_token", return_value=None):
         resp = client.get("/api/shops/unknown.myshopify.com/audit/issues")
     assert resp.status_code == 403
+
+
+def test_get_issues_rejects_internal_shop_mismatch(client: TestClient):
+    headers = {
+        "X-Leonie-Shop": "other.myshopify.com",
+        "X-Internal-Secret": "test-internal-secret",
+    }
+    with patch.dict("os.environ", {"INTERNAL_API_SECRET": "test-internal-secret"}):
+        resp = client.get(f"/api/shops/{SHOP}/audit/issues", headers=headers)
+    assert resp.status_code == 403

@@ -153,13 +153,67 @@ _NAVIGATIONAL_SIGNALS = {
 # ---------------------------------------------------------------------------
 
 _STOPWORDS = {
-    "le", "la", "les", "un", "une", "des", "de", "du", "et", "en",
-    "pour", "par", "sur", "avec", "dans", "à", "au", "aux", "se", "si",
-    "ne", "ou", "mais", "donc", "or", "ni", "car", "que", "qui", "quoi",
-    "dont", "où", "ce", "son", "sa", "ses", "mon", "ma", "mes",
-    "ton", "ta", "tes", "nous", "vous", "ils", "elles", "je", "tu",
-    "il", "elle", "on", "plus", "très", "bien", "aussi", "tout", "tous",
-    "cette", "cet", "pas", "est",
+    "le",
+    "la",
+    "les",
+    "un",
+    "une",
+    "des",
+    "de",
+    "du",
+    "et",
+    "en",
+    "pour",
+    "par",
+    "sur",
+    "avec",
+    "dans",
+    "à",
+    "au",
+    "aux",
+    "se",
+    "si",
+    "ne",
+    "ou",
+    "mais",
+    "donc",
+    "or",
+    "ni",
+    "car",
+    "que",
+    "qui",
+    "quoi",
+    "dont",
+    "où",
+    "ce",
+    "son",
+    "sa",
+    "ses",
+    "mon",
+    "ma",
+    "mes",
+    "ton",
+    "ta",
+    "tes",
+    "nous",
+    "vous",
+    "ils",
+    "elles",
+    "je",
+    "tu",
+    "il",
+    "elle",
+    "on",
+    "plus",
+    "très",
+    "bien",
+    "aussi",
+    "tout",
+    "tous",
+    "cette",
+    "cet",
+    "pas",
+    "est",
 }
 
 _MIN_TERM_LEN = 3
@@ -212,6 +266,18 @@ def _classify_intent(query: str) -> QueryIntent:
         return QueryIntent.COMMERCIAL
 
     return QueryIntent.UNKNOWN
+
+
+def classify_intent(query: str) -> QueryIntent:
+    """Classify a query into an intent category.
+
+    Args:
+        query: Raw search query.
+
+    Returns:
+        QueryIntent enum value.
+    """
+    return _classify_intent(query)
 
 
 def _compute_tfidf(corpus: list[list[str]]) -> list[dict[str, float]]:
@@ -339,9 +405,9 @@ def cluster_gsc_queries(
         Flat list of IntentCluster sorted by total_impressions desc.
     """
     filtered = [
-        r for r in gsc_queries
-        if isinstance(r.get("query"), str)
-        and r.get("impressions", 0) >= min_impressions
+        r
+        for r in gsc_queries
+        if isinstance(r.get("query"), str) and r.get("impressions", 0) >= min_impressions
     ]
 
     if not filtered:

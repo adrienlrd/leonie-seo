@@ -23,7 +23,7 @@
   {%- if product.images.size > 0 -%}
   "image": [
     {%- for image in product.images -%}
-      {{ image.src | img_url: 'master' | prepend: 'https:' | json }}{% unless forloop.last %},{% endunless %}
+      {{ image.src | image_url: width: 5760 | prepend: 'https:' | json }}{% unless forloop.last %},{% endunless %}
     {%- endfor -%}
   ],
   {%- endif -%}
@@ -77,7 +77,6 @@
 {
   "name": "Product JSON-LD",
   "target": "head",
-  "limit": 1,
   "templates": ["product"]
 }
 {% endschema %}

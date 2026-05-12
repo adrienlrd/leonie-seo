@@ -31,7 +31,7 @@ def _make_router(text: str = "", *, raises: Exception | None = None) -> LLMRoute
             return CompletionResult(text=text, provider="fake", model="fake-model")
 
     router = object.__new__(LLMRouter)
-    router._providers = [_FakeProvider()]
+    router.providers = [_FakeProvider()]
     router._shop = None
     return router
 
@@ -218,7 +218,7 @@ def test_generate_meta_all_locales_partial_failure_does_not_stop():
             return CompletionResult(text="TITLE: T\nDESCRIPTION: D.", provider="flaky", model="m")
 
     router = object.__new__(LLMRouter)
-    router._providers = [_FlakyProvider()]
+    router.providers = [_FlakyProvider()]
     router._shop = None
 
     results = generate_meta_all_locales(_PRODUCT, ["en", "de", "nl"], router, max_workers=1)

@@ -82,7 +82,7 @@ def get_conn(db_path: Path | None = None) -> Generator[_Conn, None, None]:
         try:
             yield _Conn(raw, is_pg=True)
             raw.commit()
-        except Exception:
+        except psycopg2.Error:
             raw.rollback()
             raise
         finally:
@@ -94,7 +94,7 @@ def get_conn(db_path: Path | None = None) -> Generator[_Conn, None, None]:
         try:
             yield _Conn(raw, is_pg=False)
             raw.commit()
-        except Exception:
+        except sqlite3.Error:
             raw.rollback()
             raise
         finally:

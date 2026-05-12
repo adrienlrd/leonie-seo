@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import smtplib
-from datetime import datetime
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -195,7 +195,7 @@ def main(
         f"  CWV: {len(cwv_alerts)} · Positions: {len(pos_alerts)} · CTR faible: {len(ctr_alerts)}"
     )
 
-    date = datetime.utcnow().strftime("%Y-%m-%d")
+    date = datetime.now(UTC).strftime("%Y-%m-%d")
     body = build_alert_summary(cwv_alerts, pos_alerts, ctr_alerts, date, site_name=cfg.domain)
 
     subject = (
@@ -218,9 +218,7 @@ def main(
     if not sender or not app_password:
         raise AlertError("GMAIL_SENDER et GMAIL_APP_PASSWORD requis pour --apply")
     if not to:
-        raise AlertError(
-            "Destinataire requis : passer --recipient ou définir ALERT_EMAIL."
-        )
+        raise AlertError("Destinataire requis : passer --recipient ou définir ALERT_EMAIL.")
 
     send_email(subject, body, sender, to, app_password)
     console.print(f"  [green]✓[/green] Email envoyé → {to}")

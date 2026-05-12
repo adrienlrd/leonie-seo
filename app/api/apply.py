@@ -3,12 +3,11 @@
 import asyncio
 from typing import Annotated
 
-import requests
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import ShopContext, require_feature
-from scripts.apply.update_meta import ShopifyUserError, update_product_seo
+from app.apply.shopify_writer import ApplyResult, ShopifyWriter
 
 router = APIRouter(prefix="/api", tags=["apply"])
 
@@ -25,23 +24,25 @@ class MetaUpdateResult(BaseModel):
     detail: str | None = None
 
 
-def _classify_error(exc: Exception, product_id: str) -> MetaUpdateResult:
-    """Map a Shopify call failure to a structured user-facing error."""
-    if isinstance(exc, ShopifyUserError):
-        return MetaUpdateResult(product_id=product_id, status="error", detail=str(exc))
-    if isinstance(exc, requests.HTTPError):
-        return MetaUpdateResult(
-            product_id=product_id,
-            status="error",
-            detail=f"Shopify HTTP {exc.response.status_code if exc.response else '?'}: {exc}",
-        )
-    if isinstance(exc, requests.Timeout | requests.ConnectionError):
+def _from_apply_result(result: ApplyResult) -> MetaUpdateResult:
+    """Map a writer result to a structured API response."""
+    if result.applied:
+        return MetaUpdateResult(product_id=result.resource_id, status="applied")
+    return MetaUpdateResult(
+        product_id=result.resource_id,
+        status="error",
+        detail=result.error or "Shopify update was not applied",
+    )
+
+
+def _classify_error(exc: OSError, product_id: str) -> MetaUpdateResult:
+    """Map a transport failure to a structured user-facing error."""
+    if isinstance(exc, OSError):
         return MetaUpdateResult(
             product_id=product_id,
             status="error",
             detail=f"Network error reaching Shopify: {exc}",
         )
-    # Unexpected — re-raise so it surfaces in logs rather than silently swallowed
     raise exc
 
 
@@ -72,25 +73,17 @@ async def apply_meta(
             continue
 
         try:
-            # update_product_seo is sync (uses requests). Run in a thread to
+            # ShopifyWriter is sync (uses requests). Run in a thread to
             # avoid blocking the event loop during Shopify's response window.
-            await asyncio.to_thread(
-                update_product_seo,
-                product_id=upd.product_id,
-                seo_title=upd.title,
-                seo_description=upd.description,
-                endpoint=ctx.graphql_endpoint,
-                headers=ctx.graphql_headers,
+            result = await asyncio.to_thread(
+                lambda: ShopifyWriter(ctx.shop, ctx.access_token).apply_product_seo(
+                    upd.product_id,
+                    upd.title,
+                    upd.description,
+                )
             )
-            results.append(
-                MetaUpdateResult(product_id=upd.product_id, status="applied").model_dump()
-            )
-        except (
-            ShopifyUserError,
-            requests.HTTPError,
-            requests.Timeout,
-            requests.ConnectionError,
-        ) as exc:
+            results.append(_from_apply_result(result).model_dump())
+        except OSError as exc:
             results.append(_classify_error(exc, upd.product_id).model_dump())
 
     return results

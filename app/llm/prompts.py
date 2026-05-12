@@ -77,8 +77,7 @@ def load_prompt(name: str, prompts_dir: Path | None = None) -> PromptTemplate:
     if not path.exists():
         available = [p.stem for p in directory.glob("*.yaml")] if directory.exists() else []
         raise PromptError(
-            f"Prompt template '{name}' not found at {path}. "
-            f"Available: {available or 'none'}"
+            f"Prompt template '{name}' not found at {path}. Available: {available or 'none'}"
         )
 
     try:

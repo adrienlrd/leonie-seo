@@ -25,7 +25,7 @@ def _make_router(text: str = "Brief généré.", *, raises: Exception | None = N
             return CompletionResult(text=text, provider="fake", model="fake-model")
 
     router = object.__new__(LLMRouter)
-    router._providers = [_FakeProvider()]
+    router.providers = [_FakeProvider()]
     router._shop = None
     return router
 
@@ -68,24 +68,38 @@ def _cluster(
 
 def test_blog_brief_result_success_property():
     r = BlogBriefResult(
-        query="q", intent="informational", cluster_name=None,
-        impressions=50, current_position=9.0, brief="Le brief", provider="fake",
+        query="q",
+        intent="informational",
+        cluster_name=None,
+        impressions=50,
+        current_position=9.0,
+        brief="Le brief",
+        provider="fake",
     )
     assert r.success is True
 
 
 def test_blog_brief_result_failure_when_error():
     r = BlogBriefResult(
-        query="q", intent="informational", cluster_name=None,
-        impressions=50, current_position=9.0, error="LLM failed",
+        query="q",
+        intent="informational",
+        cluster_name=None,
+        impressions=50,
+        current_position=9.0,
+        error="LLM failed",
     )
     assert r.success is False
 
 
 def test_blog_brief_result_failure_when_empty_brief():
     r = BlogBriefResult(
-        query="q", intent="informational", cluster_name=None,
-        impressions=50, current_position=9.0, brief="", provider="fake",
+        query="q",
+        intent="informational",
+        cluster_name=None,
+        impressions=50,
+        current_position=9.0,
+        brief="",
+        provider="fake",
     )
     assert r.success is False
 
@@ -170,7 +184,7 @@ def test_generate_blog_briefs_partial_failures():
             return CompletionResult(text="brief", provider="flaky", model="m")
 
     router = object.__new__(LLMRouter)
-    router._providers = [_FlakyProvider()]
+    router.providers = [_FlakyProvider()]
     router._shop = None
 
     gaps = [_gap(query=f"q{i}") for i in range(4)]
@@ -190,14 +204,19 @@ def test_generate_blog_briefs_partial_failures():
 
 def test_collection_brief_result_success_property():
     r = CollectionBriefResult(
-        cluster_name="harnais chien", product_count=5, brief="brief", provider="fake",
+        cluster_name="harnais chien",
+        product_count=5,
+        brief="brief",
+        provider="fake",
     )
     assert r.success is True
 
 
 def test_collection_brief_result_failure_when_error():
     r = CollectionBriefResult(
-        cluster_name="harnais chien", product_count=5, error="failed",
+        cluster_name="harnais chien",
+        product_count=5,
+        error="failed",
     )
     assert r.success is False
 
@@ -238,7 +257,7 @@ def test_generate_collection_brief_uses_keywords():
             return CompletionResult(text="brief", provider="cap", model="m")
 
     router = object.__new__(LLMRouter)
-    router._providers = [_CapturingProvider()]
+    router.providers = [_CapturingProvider()]
     router._shop = None
 
     result = generate_collection_brief(

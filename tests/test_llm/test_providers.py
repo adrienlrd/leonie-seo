@@ -223,7 +223,7 @@ class TestGetRouter:
             from app.llm import get_router
 
             router = get_router()
-        assert any(p.name == "openai" for p in router._providers)
+        assert any(p.name == "openai" for p in router.providers)
         reset_router()
 
     def test_get_router_builds_groq_provider_when_key_set(self):
@@ -239,5 +239,5 @@ class TestGetRouter:
             from app.llm import get_router
 
             router = get_router()
-        assert any(p.name == "groq" for p in router._providers)
+        assert any(p.name == "groq" for p in router.providers)
         reset_router()
