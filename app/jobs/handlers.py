@@ -71,7 +71,7 @@ async def handle_meta_generation(payload: dict, shop: str | None) -> dict:
 
     # Run synchronous batch in a thread so we don't block the event loop.
     loop = asyncio.get_event_loop()
-    router = get_router()
+    router = get_router(shop=shop)
     results = await loop.run_in_executor(
         None, lambda: generate_meta_for_products(products, router, max_workers=max_workers)
     )

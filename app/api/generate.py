@@ -262,7 +262,7 @@ async def generate_blog_briefs_endpoint(
     from app.llm.briefs import generate_blog_briefs
 
     loop = asyncio.get_event_loop()
-    router_llm = get_router()
+    router_llm = get_router(shop=shop)
     results = await loop.run_in_executor(
         None,
         lambda: generate_blog_briefs(body.gaps, router_llm, max_workers=body.max_workers),
@@ -295,7 +295,7 @@ async def generate_collection_briefs_endpoint(
     from app.llm.briefs import generate_collection_briefs
 
     loop = asyncio.get_event_loop()
-    router_llm = get_router()
+    router_llm = get_router(shop=shop)
     results = await loop.run_in_executor(
         None,
         lambda: generate_collection_briefs(body.clusters, router_llm, max_workers=body.max_workers),

@@ -70,10 +70,9 @@ async def generate_multilingual_meta(
             detail=f"Product {body.product_id} not found in snapshot.",
         )
 
-    from app.llm import LLMRouter, get_router  # noqa: PLC0415
+    from app.llm import get_router  # noqa: PLC0415
 
-    base_router = get_router()
-    llm_router = LLMRouter(base_router._providers, shop=shop)
+    llm_router = get_router(shop=shop)
     loop = asyncio.get_event_loop()
     results = await loop.run_in_executor(
         None,

@@ -94,3 +94,34 @@ def test_router_tries_second_fallback_when_first_also_fails():
     result = router.complete("prompt")
     assert result.provider == "cloudflare"
     assert result.text == "third wins"
+
+
+# ── get_router shop attribution (added 2026-05-12) ────────────────────────────
+
+
+def test_get_router_per_shop_returns_distinct_instances(monkeypatch):
+    """get_router(shop=A) and get_router(shop=B) must return separate routers
+    so each call's metrics are attributed to its own tenant.
+
+    Regression test for the lru_cache(maxsize=1) bug that returned a single
+    shared router with shop=None for all callers.
+    """
+    from app.llm import get_router, reset_router
+
+    reset_router()
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("CF_ACCOUNT_ID", raising=False)
+    monkeypatch.delenv("CF_API_TOKEN", raising=False)
+
+    r_a = get_router(shop="shop-a.myshopify.com")
+    r_b = get_router(shop="shop-b.myshopify.com")
+    r_none = get_router()
+
+    assert r_a is not r_b
+    assert r_a._shop == "shop-a.myshopify.com"
+    assert r_b._shop == "shop-b.myshopify.com"
+    assert r_none._shop is None
+    # But the underlying provider list is shared (no rebuild cost per call)
+    assert r_a._providers is r_b._providers
+    reset_router()
