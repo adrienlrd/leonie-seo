@@ -21,9 +21,14 @@ _DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
 def _load_snapshot(shop: str) -> list[dict]:
     """Load the most recent Shopify product snapshot for a shop.
 
-    Returns an empty list if no snapshot is found (non-blocking).
+    Looks only in `data/raw/{shop}/snapshot_*.json` — never falls back to
+    the legacy flat path, which would leak data across tenants in
+    multi-tenant deployments. Returns an empty list if no snapshot exists.
     """
-    candidates = sorted(_DATA_DIR.glob("snapshot_*.json"), reverse=True)
+    shop_dir = _DATA_DIR / shop
+    if not shop_dir.exists():
+        return []
+    candidates = sorted(shop_dir.glob("snapshot_*.json"), reverse=True)
     for path in candidates:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -37,9 +42,13 @@ def _load_snapshot(shop: str) -> list[dict]:
 def _load_gsc(shop: str) -> list[dict]:
     """Load the most recent GSC query export for a shop.
 
-    Returns an empty list if no export is found.
+    Looks only in `data/raw/{shop}/gsc_*.json` — same multi-tenant safety
+    rationale as `_load_snapshot`. Returns an empty list if no export exists.
     """
-    candidates = sorted(_DATA_DIR.glob("gsc_*.json"), reverse=True)
+    shop_dir = _DATA_DIR / shop
+    if not shop_dir.exists():
+        return []
+    candidates = sorted(shop_dir.glob("gsc_*.json"), reverse=True)
     for path in candidates:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -62,7 +71,7 @@ def _load_gsc(shop: str) -> list[dict]:
                         }
                     )
             return normalised
-        except (json.JSONDecodeError, OSError, (KeyError, IndexError)):
+        except (json.JSONDecodeError, OSError, KeyError, IndexError):
             continue
     return []
 
