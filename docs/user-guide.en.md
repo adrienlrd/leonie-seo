@@ -6,7 +6,7 @@
 2. [Installation](#installation)
 3. [Configuration](#configuration)
 4. [Getting started — CLI mode](#getting-started--cli-mode)
-5. [Getting started — Web dashboard](#getting-started--web-dashboard)
+5. [Embedded Shopify App](#embedded-shopify-app)
 6. [CLI reference](#cli-reference)
 7. [Plans](#plans)
 8. [FAQ](#faq)
@@ -150,32 +150,35 @@ leonie-seo apply redirects --file data/raw/redirects.csv --apply
 
 ---
 
-## Getting started — Web dashboard
+## Embedded Shopify App
 
-### Start the API and frontend
+> **Recommended distribution mode** for Shopify merchants: Léonie SEO is embedded in the Shopify Admin (App Bridge + Polaris) via the Remix scaffold in `shopify-app/`.
+
+### Python backend (FastAPI)
 
 ```bash
-# FastAPI backend (port 8000)
+# Start the Python backend (port 8000)
 uvicorn app.main:app --reload
-
-# React dashboard in dev (port 5173)
-cd frontend && npm run dev
 ```
 
-Open `http://localhost:5173/?shop=xxx.myshopify.com` in your browser.
+### Embedded Remix app
 
-### Available tabs
+```bash
+cd shopify-app
+npm install
+npm run dev
+```
 
-| Tab | Description |
-|---|---|
-| **Dashboard** | Global SEO score, product/issue counters |
-| **Issues** | Filtered list of detected problems |
-| **Apply** | Update meta titles and descriptions |
-| **Help** | FAQ and documentation |
+The app connects to a Shopify development store via Shopify CLI. Full documentation for this layer lives in `shopify-app/README.md`.
 
-### Plan badge
+### Distribution modes
 
-The badge in the header (FREE / PRO / AGENCY) shows your active plan. It is resolved from `LEONIE_API_KEY` in your `.env`.
+| Mode | Audience | Authentication | Billing |
+|---|---|---|---|
+| **Shopify App Store** | Shopify merchants (multi-tenant) | Shopify OAuth | Shopify Billing API (`appSubscriptionCreate`) |
+| **Self-hosted / CLI** | Internal use, agencies, devs | Custom App token | HMAC license `LEONIE_API_KEY` |
+
+> The **legacy React dashboard** (`frontend/`) has been decommissioned in favour of the embedded Remix app — see `DECISIONS.md` 2026-05-10.
 
 ---
 

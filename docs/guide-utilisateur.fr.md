@@ -6,7 +6,7 @@
 2. [Installation](#installation)
 3. [Configuration](#configuration)
 4. [Premiers pas — Mode CLI](#premiers-pas--mode-cli)
-5. [Premiers pas — Dashboard web](#premiers-pas--dashboard-web)
+5. [Application Shopify embedded](#application-shopify-embedded)
 6. [Référence des commandes CLI](#référence-des-commandes-cli)
 7. [Les plans](#les-plans)
 8. [FAQ](#faq)
@@ -150,32 +150,35 @@ leonie-seo apply redirects --file data/raw/redirects.csv --apply
 
 ---
 
-## Premiers pas — Dashboard web
+## Application Shopify embedded
 
-### Lancer l'API et le frontend
+> **Mode de distribution recommandé** pour les marchands Shopify : l'application Léonie SEO est embarquée dans l'admin Shopify (App Bridge + Polaris) via le scaffold Remix dans `shopify-app/`.
+
+### Backend Python (API FastAPI)
 
 ```bash
-# API FastAPI (port 8000)
+# Démarre le backend Python (port 8000)
 uvicorn app.main:app --reload
-
-# Dashboard React en dev (port 5173)
-cd frontend && npm run dev
 ```
 
-Ouvrez `http://localhost:5173/?shop=xxx.myshopify.com` dans votre navigateur.
+### Application Remix embedded
 
-### Onglets disponibles
+```bash
+cd shopify-app
+npm install
+npm run dev
+```
 
-| Onglet | Description |
-|---|---|
-| **Dashboard** | Score SEO global, compteurs produits/issues |
-| **Issues** | Liste filtrée des problèmes détectés |
-| **Appliquer** | Mise à jour des méta-titres et descriptions |
-| **Aide** | FAQ et documentation |
+L'app se connecte à un magasin de développement Shopify via Shopify CLI. La doc complète de cette couche est dans `shopify-app/README.md`.
 
-### Badge plan
+### Modes de distribution
 
-Le badge dans l'en-tête (FREE / PRO / AGENCY) indique votre plan actif. Il est résolu depuis `LEONIE_API_KEY` dans votre `.env`.
+| Mode | Cible | Authentification | Facturation |
+|---|---|---|---|
+| **Shopify App Store** | Marchands Shopify (multi-tenant) | OAuth Shopify | Shopify Billing API (`appSubscriptionCreate`) |
+| **Self-hosted / CLI** | Usage interne, agences, dev | Token Custom App | Licence HMAC `LEONIE_API_KEY` |
+
+> Le **dashboard React legacy** (`frontend/`) a été décommissionné en faveur de l'app Remix embedded — voir `DECISIONS.md` 2026-05-10.
 
 ---
 
