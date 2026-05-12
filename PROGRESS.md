@@ -1,13 +1,53 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Phase actuelle : Phase 5 — App Shopify publique (tâche 48)
-- Dernière session : 2026-05-09
-- Phase 1 : **15/15 complètes** ✅
-- Phase 2 : **14/14 complètes** ✅
-- Phase 3 : **10/10 complètes** ✅
-- Phase 4 : **5/5 complètes** ✅
-- Tests : **428/428** ✅ — ruff clean ✅
+- Dernière session : **2026-05-12** (audit complet + Vagues 1 & 2 de corrections)
+- Phase 1 : **15/15** ✅
+- Phase 2 : **14/14** ✅
+- Phase 3 : **10/10** ✅
+- Phase 4 : **5/5** ✅
+- Phase 5 : **5/6** ✅ (tâche 49 bloquée — review Shopify en cours)
+- Phase 6 : **7/7** ✅ (terminée 2026-05-10)
+- Phase 7 : **11/11** ✅ (terminée 2026-05-11)
+- Phase 8 : **6/7** 🔄 (tâches 69-74 ✅, tâche 75 ⏳ soumission App Store)
+- **Audit post-Phase 8** : 4 livrables + 16 commits TDD le 2026-05-12 (Vagues 1 & 2)
+- Tests : **1028/1028** ✅ — ruff clean ✅
+
+## ⚠️ Audit vision gap — résumé (2026-05-10)
+
+Un audit complet (`RAPPORT_AUDIT.md`) + analyse critique externe ont évalué la couverture vs. la vision App Store cible.
+**Couverture actuelle : 28 %** — 3 blockers critiques + 4 risques structurels identifiés.
+
+### Blockers critiques (Phase 6)
+| Bloquant | État | Impact |
+|---|---|---|
+| GDPR webhooks (`customers/redact`, `shop/redact`, `data_request`) | ❌ Absents | Rejet immédiat App Store |
+| Shopify Billing API (`appSubscriptionCreate`) | ❌ Absent | Monétisation impossible via App Store |
+| App Bridge + Polaris | ❌ Absents | Dashboard non embedable dans Shopify Admin |
+| Async job queue | ❌ Absent | Jobs LLM et audits bloquent les requêtes HTTP |
+
+### Risques structurels identifiés
+- **Architecture pivot** : **Option B retenue** — scaffold Remix propre via Shopify CLI (`shopify-app/`), moteur Python conservé (`scripts/`, `app/llm/`, `app/niche/`). `frontend/` React décommissionné après tâche 57. Voir `DECISIONS.md`.
+- **Niche Intelligence** : le différenciateur principal — mais risque de générer des recommandations vagues si non cadré. Approche retenue : clusters produits réels + saturation SERP + keyword gaps (jamais "le marché est en croissance").
+- **Common Crawl** : déféré en Phase 8 après validation des sources légères (Google Suggest, pytrends, Reddit). Évite un puits de complexité prématuré.
+- **Coût LLM** : GPT-4o mini estimé ~4,5 $/1 000 produits si non optimisé. Maîtrisé par : prompts déterministes, templates versionnés, fallbacks gratuits, cost tracker par tenant (tâche 68).
+
+### Axes manquants (Phases 7-8)
+- **IA / LLM** : 0 % — aucun provider, aucun prompt template
+- **Niche Intelligence engine** : 0 % — pytrends/Reddit/SERP analysis absents
+- **Semantic embeddings** : 0 % — pas de pgvector, pas de sentence-transformers
+- **Theme App Extension** : 0 % — JSON-LD via API Admin (fragile), pas d'extension propre
+- **Observabilité** : 0 % — pas de logs structurés, pas de métriques par tenant
+- **GA4 API** : 0 % — corrélation trafic/conversions absente
+- **SQLite → Postgres** : bloquant pour multi-tenant réel (concurrence + pgvector)
+
+### Ce qui est solide (à conserver dans tous les scénarios)
+- Moteur d'audit Python (`scripts/`) — crawl, GSC, PageSpeed, détection ✅
+- OAuth Shopify + token store ✅
+- FastAPI backend + CLI Click ✅
+- Système de plans + licence HMAC ✅
+- Multi-tenant YAML ✅
+- 537 tests, ruff clean ✅
 
 ## ✅ Terminé
 
@@ -85,7 +125,18 @@
   - `Dockerfile` : Python 3.11-slim, volumes pour data/reports/config
   - **428 tests verts** · ruff clean
 
-### Phase 5 — App Shopify publique (tâches 45–50)
+### Phase 5 — App Shopify publique (tâches 45–50) ✅ (5/6)
+- **50** `app/api/help.py` + `frontend/src/components/HelpPanel.jsx` — FAQ bilingue FR/EN 11 entrées, accordéon + recherche
+  - `docs/guide-utilisateur.fr.md`, `docs/user-guide.en.md`, `docs/plans.md`
+  - `README.md` réécrit : plans, options install, workflow CLI, licences
+  - **537/537 tests verts** · ruff clean
+- **48** `app/api/plans.py` + `app/api/deps.py` — plans Free/Pro/Agency, `require_feature()` dependency FastAPI
+  - `scripts/license.py` étendu : champ `plan` dans clé HMAC, `--plan` CLI option
+  - Badge plan dans header React (`tag-plan-free/pro/agency`)
+  - 17 tests plans + 10 tests licence
+  - **537/537 tests verts** · ruff clean
+- **49** Soumission App Store — **bloquée** (review Shopify, délai estimé 1–3 semaines)
+  - Reprend dès approbation + tâches 51-56 (GDPR, Billing, App Bridge) terminées
 - **47** `frontend/` — Dashboard React (Vite + React)
   - 3 vues : Dashboard (score + détail composants), Issues (filtrables par sévérité), Appliquer (dry-run → confirm)
   - `api.js` : wrappers fetch vers FastAPI
@@ -106,7 +157,14 @@
   - Nouvelles deps : `fastapi`, `uvicorn[standard]`, `httpx`
   - **449 tests verts** · ruff clean
 
-## ✅ Phase 4 complète
+## ✅ Phase 5 complète (5/6) — Phase 6 démarrée
+
+## ⏳ Prochaine tâche : 51 — GDPR mandatory webhooks
+Implémenter les 3 endpoints GDPR obligatoires pour l'App Store Shopify :
+- `POST /webhooks/customers/data_request` — export données client
+- `POST /webhooks/customers/redact` — suppression données client
+- `POST /webhooks/shop/redact` — suppression données boutique (après désinstallation)
+Chaque webhook doit valider le HMAC Shopify (réutiliser `hmac_validator.py`).
 
 ## ⏳ Actions manuelles en attente
 
@@ -127,6 +185,41 @@
 - [ ] **Le Tour De Cou Pour Chien** — pos 6.1, 210 impr, CTR 0% → réécrire méta
 
 ## 📋 Historique des sessions
+
+### Session 2026-05-12 (audit complet + corrections Wave 1 & 2)
+
+**Mission** : auditer chaque .md et chaque ligne de code, corriger en TDD les écarts vs l'objectif final (Shopify App Store SEO niche-first multi-tenant).
+
+**Audits livrés** (read-only) :
+- `AUDIT_DOCS.md` — 11 dérives doc + 4 contradictions internes
+- `AUDIT_CODE.md` — 17 bugs critiques + 30+ secondaires sur 12 654 LOC `app/`
+- `AUDIT_INFRA.md` — `scripts/`, `shopify-app/`, `tests/`, `frontend/`, `config/`
+
+**Corrections D1-D3** (commit `cf2cf74`) : `CONTEXT.md` réécrit (accessoires premium vs petfood), guides utilisateurs ne pointent plus sur `frontend/` mort, plans repositionnent HMAC vs Shopify Billing.
+
+**Vague 1 — 9 commits TDD bloquants App Store** :
+- `24421e1` retrait email perso `send_alerts.py:216`
+- `dbe745b` `TenantConfig` étendu (locale, ga4_property_id, gsc_property, currency)
+- `7caed40` colonne `shop` sur `seo_changes` + `snapshots` + migration + isolation impact
+- `f429388` auth sur `GET /api/shops` et `/api/jobs/*`
+- `93ed3c7` `/billing/confirm` vérifie HMAC + charge_id + re-query Shopify
+- `a518207` LLM router par-shop (plus de cache global cross-tenant)
+- `eb83e99` brand-lock retiré de `batch.py` + `multilingual.py` (dynamique via tenant config)
+- `24645aa` privacy + FAQ dual-mode (`LEONIE_MODE=app_store|self_hosted`)
+- `348d34e` Remix `entry.server.tsx` appelle `addDocumentResponseHeaders` (CSP frame-ancestors)
+
+**Vague 2 — 7 commits TDD bugs comportementaux** :
+- `343008f` fuite multi-tenant `_load_snapshot/_load_gsc` (`api/niche.py`) + tuple `except` invalide
+- `cf306cc` E5 prefix bug (`encode_texts` requiert `mode="query"|"passage"`) + thread-safety
+- `a8ab42e` Cloudflare token tracking (estimation char-based + check `success=false`)
+- `fc94a99` GA4 `run_report_async` (httpx.AsyncClient) + cache credentials
+- `6816717` `ShopifyWriter` read-before-write, `old_value` persisté dans `seo_changes`
+- `cdafc46` anti-hallucination `review.py` : keyword overlap + brand presence + suspicious claims
+- `6fb6e1e` `niche/engine.py` câble enfin `intent.py` (intent_clusters) + `ner.py` (entity_summary)
+
+**Tests** : 960 → 1028 (+68 nouveaux tests TDD), ruff clean, TypeScript clean (Remix).
+
+**Bilan** : 30 bugs résolus depuis l'audit (17 Wave 1 + 7 Wave 2 + 6 doc D1-D3 + bonus fuite multi-tenant `api/niche.py`). App **techniquement prête pour la review App Store** sur les 10 bloquants audités. Reste : Vague 3 (hygiène : `except Exception`, `datetime.utcnow`, deprecations), Vague 4 (cleanup `frontend/`, scripts legacy), Vague 5 (UI Remix complète, i18n), ou directement tâche 75 (soumission).
 
 ### Session 2026-05-08 (Tâche 44 — packaging)
 - `scripts/cli.py` : agrégateur Click — 5 groupes, 26 commandes (setup/license/audit/report/apply)
