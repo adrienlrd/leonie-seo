@@ -5,6 +5,8 @@ import { RemixServer } from "@remix-run/react";
 import { isbot } from "isbot";
 import { renderToPipeableStream } from "react-dom/server";
 
+import { addDocumentResponseHeaders } from "./shopify.server";
+
 const ABORT_DELAY = 5_000;
 
 export default function handleRequest(
@@ -13,6 +15,12 @@ export default function handleRequest(
   responseHeaders: Headers,
   remixContext: EntryContext
 ) {
+  // CRITICAL for embedded apps — sets Content-Security-Policy: frame-ancestors
+  // https://*.myshopify.com https://admin.shopify.com (plus a few related
+  // security headers Shopify's App Review requires). Without this header the
+  // app cannot be iframed inside the Shopify Admin and App Store review fails.
+  addDocumentResponseHeaders(request, responseHeaders);
+
   return isbot(request.headers.get("user-agent") ?? "")
     ? handleBotRequest(request, responseStatusCode, responseHeaders, remixContext)
     : handleBrowserRequest(request, responseStatusCode, responseHeaders, remixContext);
