@@ -17,6 +17,7 @@ from app.api.embeddings import router as embeddings_router  # noqa: E402
 from app.api.impact import router as impact_router  # noqa: E402
 from app.api.multilingual import router as multilingual_router  # noqa: E402
 from app.api.ga4 import router as ga4_router  # noqa: E402
+from app.api.web_graph import router as web_graph_router  # noqa: E402
 from app.api.generate import router as generate_router  # noqa: E402
 from app.api.jsonld import router as jsonld_router  # noqa: E402
 from app.api.niche import router as niche_router  # noqa: E402
@@ -111,6 +112,7 @@ app.include_router(embeddings_router)
 app.include_router(impact_router)
 app.include_router(multilingual_router)
 app.include_router(ga4_router)
+app.include_router(web_graph_router)
 
 
 @app.get("/health")
