@@ -137,15 +137,93 @@ def test_cancel_active_subscription_succeeds(client, monkeypatch):
 
 
 def test_billing_confirm_activates_pending_subscription(client, db, monkeypatch):
+    """Happy path: pending sub exists + Shopify confirms ACTIVE → activate."""
     monkeypatch.setattr(
         "app.billing.router.get_subscription",
         lambda shop: {"status": "pending", "subscription_id": SUB_GID},
     )
     monkeypatch.setattr(
-        "app.billing.router.update_subscription_status", lambda *a, **kw: True
+        "app.billing.router.get_token",
+        lambda shop, *a, **kw: {"access_token": "shpat_test"},
+    )
+    monkeypatch.setattr(
+        "app.billing.router.get_active_subscriptions",
+        lambda shop, token: [{"id": SUB_GID, "name": "Pro", "status": "ACTIVE"}],
+    )
+    update_calls = []
+    monkeypatch.setattr(
+        "app.billing.router.update_subscription_status",
+        lambda *a, **kw: update_calls.append(a) or True,
     )
     resp = client.get(f"/billing/confirm?shop={SHOP}", follow_redirects=False)
     assert resp.status_code in (302, 307)
+    assert "billing=confirmed" in resp.headers["location"]
+    assert update_calls == [(SUB_GID, "active")]
+
+
+def test_billing_confirm_rejects_without_pending_subscription(client, db, monkeypatch):
+    """No pending sub in DB → no activation, redirect with no_pending marker."""
+    monkeypatch.setattr("app.billing.router.get_subscription", lambda shop: None)
+    update_calls = []
+    monkeypatch.setattr(
+        "app.billing.router.update_subscription_status",
+        lambda *a, **kw: update_calls.append(a) or True,
+    )
+    resp = client.get(
+        f"/billing/confirm?shop=attacker.myshopify.com",  # noqa: F541
+        follow_redirects=False,
+    )
+    assert resp.status_code in (302, 307)
+    assert "billing=no_pending" in resp.headers["location"]
+    assert update_calls == []
+
+
+def test_billing_confirm_rejects_when_shopify_says_not_active(client, db, monkeypatch):
+    """DB has pending sub but Shopify API returns nothing matching → no activation.
+
+    This is the critical bypass test: without this re-query, an attacker
+    could trigger /billing/confirm?shop=foo and activate a sub without paying.
+    """
+    monkeypatch.setattr(
+        "app.billing.router.get_subscription",
+        lambda shop: {"status": "pending", "subscription_id": SUB_GID},
+    )
+    monkeypatch.setattr(
+        "app.billing.router.get_token",
+        lambda shop, *a, **kw: {"access_token": "shpat_test"},
+    )
+    # Shopify says the sub is PENDING (not ACTIVE) — merchant didn't approve
+    monkeypatch.setattr(
+        "app.billing.router.get_active_subscriptions",
+        lambda shop, token: [{"id": SUB_GID, "name": "Pro", "status": "PENDING"}],
+    )
+    update_calls = []
+    monkeypatch.setattr(
+        "app.billing.router.update_subscription_status",
+        lambda *a, **kw: update_calls.append(a) or True,
+    )
+    resp = client.get(f"/billing/confirm?shop={SHOP}", follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert "billing=not_active" in resp.headers["location"]
+    assert update_calls == []
+
+
+def test_billing_confirm_no_oauth_token_redirects_with_auth_missing(client, db, monkeypatch):
+    """If we don't have the shop's OAuth token, we can't verify → no activation."""
+    monkeypatch.setattr(
+        "app.billing.router.get_subscription",
+        lambda shop: {"status": "pending", "subscription_id": SUB_GID},
+    )
+    monkeypatch.setattr("app.billing.router.get_token", lambda shop, *a, **kw: None)
+    update_calls = []
+    monkeypatch.setattr(
+        "app.billing.router.update_subscription_status",
+        lambda *a, **kw: update_calls.append(a) or True,
+    )
+    resp = client.get(f"/billing/confirm?shop={SHOP}", follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert "billing=auth_missing" in resp.headers["location"]
+    assert update_calls == []
 
 
 # ── POST /shopify/webhooks/app_subscriptions/update ──────────────────────────

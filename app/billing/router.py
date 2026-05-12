@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Annotated
 
@@ -11,13 +12,22 @@ from pydantic import BaseModel
 
 from app.api.deps import ShopContext, get_shop_context
 from app.api.plans import plan_summary
-from app.billing.client import BILLING_PLANS, BillingError, cancel_subscription, create_subscription
+from app.billing.client import (
+    BILLING_PLANS,
+    BillingError,
+    cancel_subscription,
+    create_subscription,
+    get_active_subscriptions,
+)
 from app.billing.subscription_store import (
     get_plan_for_shop,
     get_subscription,
     update_subscription_status,
     upsert_subscription,
 )
+from app.oauth.token_store import get_token
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/shops/{shop}", tags=["billing"])
 
@@ -121,15 +131,65 @@ billing_confirm_router = APIRouter(tags=["billing"])
 
 
 @billing_confirm_router.get("/billing/confirm")
-async def billing_confirm(shop: str) -> RedirectResponse:
+async def billing_confirm(shop: str, charge_id: str | None = None) -> RedirectResponse:
     """Activate a pending subscription after Shopify merchant approval.
 
-    Shopify redirects here after the merchant approves the charge.
-    We mark the pending subscription as active and redirect to the dashboard.
-    """
-    sub = get_subscription(shop)
-    if sub and sub["status"] == "pending" and sub["subscription_id"]:
-        update_subscription_status(sub["subscription_id"], "active")
+    Security model — Shopify redirects here after the merchant approves the
+    charge; the URL is not HMAC-signed, so we MUST re-query Shopify with the
+    shop's OAuth token to verify the subscription is actually active.
 
+    Steps:
+    1. Look up the pending subscription stored for this shop.
+    2. Resolve the OAuth token for the shop from token_store.
+    3. Query Shopify's currentAppInstallation.activeSubscriptions.
+    4. Confirm the stored subscription_id appears in the active list with
+       status == "ACTIVE". Only then activate locally.
+
+    Without this verification, any unauthenticated request to
+    /billing/confirm?shop=foo.myshopify.com would activate a pending plan
+    without payment — a billing bypass.
+
+    Args:
+        shop: Shopify shop domain (from Shopify's redirect query string).
+        charge_id: Shopify's charge identifier (informational; included by
+                   Shopify but not trusted as proof on its own).
+    """
     app_url = os.getenv("APP_URL", "http://localhost:5173")
+
+    sub = get_subscription(shop)
+    if not sub or sub["status"] != "pending" or not sub["subscription_id"]:
+        logger.info(
+            "billing.confirm: no pending subscription for shop=%s (charge_id=%s)",
+            shop,
+            charge_id,
+        )
+        return RedirectResponse(url=f"{app_url}/?shop={shop}&billing=no_pending")
+
+    # Resolve OAuth token to query Shopify Billing API
+    token_record = get_token(shop)
+    if not token_record:
+        logger.warning("billing.confirm: no OAuth token for shop=%s", shop)
+        return RedirectResponse(url=f"{app_url}/?shop={shop}&billing=auth_missing")
+
+    try:
+        active = get_active_subscriptions(shop, token_record["access_token"])
+    except BillingError as exc:
+        logger.error("billing.confirm: Shopify API error for shop=%s: %s", shop, exc)
+        return RedirectResponse(url=f"{app_url}/?shop={shop}&billing=verify_failed")
+
+    expected_id = sub["subscription_id"]
+    matched = next(
+        (s for s in active if s.get("id") == expected_id and s.get("status") == "ACTIVE"),
+        None,
+    )
+    if matched is None:
+        logger.warning(
+            "billing.confirm: subscription %s not active on Shopify for shop=%s",
+            expected_id,
+            shop,
+        )
+        return RedirectResponse(url=f"{app_url}/?shop={shop}&billing=not_active")
+
+    update_subscription_status(expected_id, "active")
+    logger.info("billing.confirm: activated subscription %s for shop=%s", expected_id, shop)
     return RedirectResponse(url=f"{app_url}/?shop={shop}&billing=confirmed")
