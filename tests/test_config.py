@@ -77,6 +77,28 @@ def test_load_tenant_has_gsc_property():
     assert cfg.gsc_property == "sc-domain:leoniedelacroix.com"
 
 
+def test_find_tenant_by_shop_domain_returns_leoniedelacroix():
+    """Resolves the tenant from its shopify_store_domain."""
+    from scripts._config import find_tenant_by_shop_domain
+
+    cfg = find_tenant_by_shop_domain("287c4a-bb.myshopify.com")
+    assert cfg is not None
+    assert cfg.tenant_id == "leoniedelacroix"
+    assert cfg.brand == "Léonie Delacroix"
+
+
+def test_find_tenant_by_shop_domain_unknown_returns_none():
+    from scripts._config import find_tenant_by_shop_domain
+
+    assert find_tenant_by_shop_domain("unknown-shop.myshopify.com") is None
+
+
+def test_find_tenant_by_shop_domain_empty_input_returns_none():
+    from scripts._config import find_tenant_by_shop_domain
+
+    assert find_tenant_by_shop_domain("") is None
+
+
 def test_tenant_config_locale_defaults_when_omitted(tmp_path, monkeypatch):
     """Backward compat: a tenant YAML without locale/currency/ga4 still loads."""
     tenants_dir = tmp_path / "tenants"

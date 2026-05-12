@@ -71,19 +71,33 @@ def test_meta_result_not_success_when_empty_title():
 
 
 def test_primary_keyword_strips_brand_name():
-    kw = _primary_keyword("Pardessus Léonie pour chien")
+    kw = _primary_keyword("Pardessus Léonie pour chien", brand="Léonie Delacroix")
     assert "léonie" not in kw.lower()
     assert "pardessus" in kw
 
 
 def test_primary_keyword_returns_lowercase():
-    kw = _primary_keyword("Fontaine À Eau Chat")
+    kw = _primary_keyword("Fontaine À Eau Chat", brand="Léonie Delacroix")
     assert kw == kw.lower()
 
 
 def test_primary_keyword_falls_back_to_title_when_all_brand():
-    kw = _primary_keyword("Léonie")
+    kw = _primary_keyword("Léonie", brand="Léonie Delacroix")
     assert kw  # not empty
+
+
+def test_primary_keyword_without_brand_returns_full_title():
+    """When no brand is provided, the title passes through unchanged (lowercased)."""
+    kw = _primary_keyword("Pardessus Léonie pour chien")
+    assert kw == "pardessus léonie pour chien"
+
+
+def test_primary_keyword_with_different_brand_per_tenant():
+    """Multi-tenant: brand="Bijou de Paris" must strip Bijou and Paris tokens."""
+    kw = _primary_keyword("Collier Bijou Paris Or", brand="Bijou de Paris")
+    assert "bijou" not in kw
+    assert "paris" not in kw
+    assert "collier" in kw
 
 
 # ── generate_meta_for_products ────────────────────────────────────────────────

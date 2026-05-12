@@ -6,6 +6,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
+from app.llm.batch import _brand_pattern  # shared brand-token regex builder
 from app.llm.prompts import load_prompt
 from app.llm.provider import LLMError
 from app.llm.router import LLMRouter
@@ -19,7 +20,6 @@ SUPPORTED_LOCALES: dict[str, str] = {
 
 _TITLE_RE = re.compile(r"TITLE:\s*(.+)", re.IGNORECASE)
 _DESC_RE = re.compile(r"DESCRIPTION:\s*(.+)", re.IGNORECASE)
-_BRAND_WORDS = re.compile(r"\b(léonie|leonie|delacroix|de la croix)\b", re.IGNORECASE)
 
 
 @dataclass
@@ -47,8 +47,12 @@ class MultilingualMetaResult:
         return self.error is None and bool(self.title)
 
 
-def _primary_keyword(product_title: str) -> str:
-    base = _BRAND_WORDS.sub("", product_title).strip(" -–")
+def _primary_keyword(product_title: str, brand: str | None = None) -> str:
+    """Derive primary keyword from title — brand name stripped, lowercase."""
+    pattern = _brand_pattern(brand)
+    if pattern is None:
+        return product_title.lower()
+    base = pattern.sub("", product_title).strip(" -–")
     return (base or product_title).lower()
 
 
@@ -69,13 +73,18 @@ def generate_meta_locale(
     product: dict,
     locale: str,
     router: LLMRouter,
+    *,
+    brand: str | None = None,
 ) -> MultilingualMetaResult:
     """Generate SEO meta title and description for a product in a specific locale.
 
     Args:
-        product: Shopify product dict (title, product_type, body_html, id).
+        product: Shopify product dict (title, product_type, body_html, id, vendor).
         locale: Target locale code — must be in SUPPORTED_LOCALES.
         router: Configured LLMRouter instance.
+        brand: Merchant brand to use in the generated copy. When None, falls
+               back to the product's `vendor` field. Always pass the tenant
+               config brand in multi-tenant contexts.
 
     Returns:
         MultilingualMetaResult with title and description on success.
@@ -91,8 +100,8 @@ def generate_meta_locale(
 
     product_title = str(product.get("title", ""))
     product_type = str(product.get("product_type", "accessoire animal"))
-    brand = "Léonie Delacroix"
-    primary_keyword = _primary_keyword(product_title)
+    effective_brand = brand or str(product.get("vendor", "")) or ""
+    primary_keyword = _primary_keyword(product_title, effective_brand)
 
     # Extract secondary keywords from NER entities if available
     entities = product.get("_entities")
@@ -104,7 +113,7 @@ def generate_meta_locale(
         prompt = tmpl.render_user(
             product_title=product_title,
             product_type=product_type,
-            brand=brand,
+            brand=effective_brand,
             primary_keyword=primary_keyword,
             secondary_keywords=secondary_keywords,
             locale=locale,
@@ -135,6 +144,7 @@ def generate_meta_all_locales(
     locales: list[str],
     router: LLMRouter,
     *,
+    brand: str | None = None,
     max_workers: int = 4,
 ) -> list[MultilingualMetaResult]:
     """Generate SEO meta tags for a product across multiple locales in parallel.
@@ -143,6 +153,8 @@ def generate_meta_all_locales(
         product: Shopify product dict.
         locales: List of locale codes to generate for.
         router: Configured LLMRouter instance.
+        brand: Merchant brand passed through to every per-locale generation.
+               Falls back to product.vendor when None.
         max_workers: Thread pool size (default 4 — one per locale).
 
     Returns:
@@ -153,12 +165,13 @@ def generate_meta_all_locales(
         raise ValueError(f"Unsupported locales: {invalid}. Supported: {list(SUPPORTED_LOCALES)}")
 
     if len(locales) == 1:
-        return [generate_meta_locale(product, locales[0], router)]
+        return [generate_meta_locale(product, locales[0], router, brand=brand)]
 
     results_map: dict[str, MultilingualMetaResult] = {}
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
-            pool.submit(generate_meta_locale, product, locale, router): locale for locale in locales
+            pool.submit(generate_meta_locale, product, locale, router, brand=brand): locale
+            for locale in locales
         }
         for future in as_completed(futures):
             locale = futures[future]

@@ -167,6 +167,36 @@ def get_config(tenant_id: str | None = None) -> TenantConfig:
     return load_tenant(resolved)
 
 
+def find_tenant_by_shop_domain(shop_domain: str) -> TenantConfig | None:
+    """Scan config/tenants/*.yaml for the tenant whose shopify_store_domain matches.
+
+    Used by app/api/ routes to resolve the merchant brand (and other tenant
+    settings) from the OAuth-resolved shop domain without requiring TENANT_ID.
+
+    Args:
+        shop_domain: Shopify shop domain (e.g. "287c4a-bb.myshopify.com").
+
+    Returns:
+        The matching TenantConfig, or None if no tenant file declares it.
+    """
+    if not shop_domain:
+        return None
+    if not _CONFIG_DIR.exists():
+        return None
+    for path in _CONFIG_DIR.glob("*.yaml"):
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+        except (yaml.YAMLError, OSError):
+            continue
+        if isinstance(data, dict) and data.get("shopify_store_domain") == shop_domain:
+            try:
+                return TenantConfig.model_validate(data)
+            except ValueError:
+                continue
+    return None
+
+
 @lru_cache(maxsize=8)
 def load_niche(niche_id: str) -> NicheConfig:
     """Load and validate a niche config from YAML.

@@ -92,12 +92,19 @@ def test_parse_response_missing_title_returns_empty_strings():
 
 
 def test_primary_keyword_strips_brand():
-    assert "léonie" not in _primary_keyword("Harnais Léonie Delacroix Premium")
-    assert "harnais" in _primary_keyword("Harnais Léonie Delacroix Premium")
+    kw = _primary_keyword("Harnais Léonie Delacroix Premium", brand="Léonie Delacroix")
+    assert "léonie" not in kw
+    assert "delacroix" not in kw
+    assert "harnais" in kw
 
 
 def test_primary_keyword_fallback_to_full_title():
-    assert _primary_keyword("Léonie") == "léonie"
+    assert _primary_keyword("Léonie", brand="Léonie Delacroix") == "léonie"
+
+
+def test_primary_keyword_no_brand_returns_lowercased_title():
+    """When brand is None/empty, the title passes through unchanged."""
+    assert _primary_keyword("Harnais Léonie", brand=None) == "harnais léonie"
 
 
 # ---------------------------------------------------------------------------
