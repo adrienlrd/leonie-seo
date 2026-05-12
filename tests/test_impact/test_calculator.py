@@ -229,6 +229,7 @@ def _init_db(db_path: Path) -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS seo_changes (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                shop          TEXT,
                 applied_at    TEXT NOT NULL,
                 resource_type TEXT NOT NULL,
                 resource_id   TEXT NOT NULL,
@@ -259,8 +260,8 @@ def test_build_impact_report_with_changes(tmp_path):
     _init_db(db)
     with sqlite3.connect(db) as conn:
         conn.execute(
-            "INSERT INTO seo_changes (applied_at, resource_type, resource_id, field, old_value, new_value, status)"
-            " VALUES (datetime('now'), 'product', '123', 'title', 'Old', 'New', 'applied')"
+            "INSERT INTO seo_changes (shop, applied_at, resource_type, resource_id, field, old_value, new_value, status)"
+            " VALUES ('287c4a-bb.myshopify.com', datetime('now'), 'product', '123', 'title', 'Old', 'New', 'applied')"
         )
 
     report = build_impact_report(
@@ -274,6 +275,34 @@ def test_build_impact_report_with_changes(tmp_path):
     assert report["summary"]["urls_with_gsc_data"] == 1
     assert report["summary"]["total_clicks_gained_estimate"] > 0
     assert report["by_url"][0]["title"] == "Harnais Premium"
+
+
+def test_build_impact_report_isolates_by_shop(tmp_path):
+    """A change logged for shop A must NOT appear in shop B's report."""
+    db = tmp_path / "iso.db"
+    _init_db(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO seo_changes (shop, applied_at, resource_type, resource_id, field, old_value, new_value, status)"
+            " VALUES ('shop-a.myshopify.com', datetime('now'), 'product', '123', 'title', 'Old', 'New', 'applied')"
+        )
+
+    report_b = build_impact_report(
+        "shop-b.myshopify.com",
+        _SNAPSHOT,
+        db_path=db,
+        gsc_csv_text=_GSC_CSV,
+    )
+    assert report_b["summary"]["urls_changed"] == 0
+    assert report_b["by_url"] == []
+
+    report_a = build_impact_report(
+        "shop-a.myshopify.com",
+        _SNAPSHOT,
+        db_path=db,
+        gsc_csv_text=_GSC_CSV,
+    )
+    assert report_a["summary"]["urls_changed"] == 1
 
 
 def test_build_impact_report_no_changes_returns_empty(tmp_path):

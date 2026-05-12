@@ -100,3 +100,78 @@ def test_no_database_url_get_conn_none_uses_default_sqlite():
         from app.db_adapter import DB_PATH as _DEFAULT
 
         assert _DEFAULT == DB_PATH
+
+
+# ── Multi-tenant shop column migration (added 2026-05-12) ─────────────────────
+
+
+def _sqlite_columns(db_path, table):
+    """Return the list of column names for a SQLite table."""
+    import sqlite3 as _sqlite3
+
+    with _sqlite3.connect(db_path) as conn:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return [r[1] for r in rows]
+
+
+def test_seo_changes_has_shop_column_on_fresh_db(tmp_path):
+    """A brand-new SQLite DB must have the shop column on seo_changes."""
+    db = tmp_path / "fresh.db"
+    init_db(db)
+    assert "shop" in _sqlite_columns(db, "seo_changes")
+
+
+def test_snapshots_has_shop_column_on_fresh_db(tmp_path):
+    """A brand-new SQLite DB must have the shop column on snapshots."""
+    db = tmp_path / "fresh.db"
+    init_db(db)
+    assert "shop" in _sqlite_columns(db, "snapshots")
+
+
+def test_legacy_db_is_migrated_to_add_shop_column(tmp_path):
+    """A DB created with the legacy schema (no shop column) gets the column added."""
+    import sqlite3 as _sqlite3
+
+    db = tmp_path / "legacy.db"
+    # Simulate the pre-migration schema explicitly (no shop column).
+    with _sqlite3.connect(db) as conn:
+        conn.execute(
+            """CREATE TABLE seo_changes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                applied_at TEXT NOT NULL,
+                resource_type TEXT NOT NULL,
+                resource_id TEXT NOT NULL,
+                field TEXT NOT NULL,
+                old_value TEXT, new_value TEXT, status TEXT NOT NULL)"""
+        )
+        conn.execute(
+            """CREATE TABLE snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                snapshot_date TEXT NOT NULL,
+                resource_type TEXT NOT NULL,
+                resource_id TEXT NOT NULL,
+                data_json TEXT NOT NULL)"""
+        )
+        conn.execute(
+            "INSERT INTO seo_changes "
+            "(applied_at, resource_type, resource_id, field, old_value, new_value, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("2026-05-10T00:00:00Z", "product", "gid://1", "seo.title", "old", "new", "applied"),
+        )
+    # Migrate
+    init_db(db)
+    # The legacy row survives, shop is NULL
+    cols = _sqlite_columns(db, "seo_changes")
+    assert "shop" in cols
+    with _sqlite3.connect(db) as conn:
+        row = conn.execute("SELECT shop, status FROM seo_changes").fetchone()
+    assert row[0] is None
+    assert row[1] == "applied"
+
+
+def test_migration_is_idempotent(tmp_path):
+    """Calling init_db twice must not raise (column already exists)."""
+    db = tmp_path / "twice.db"
+    init_db(db)
+    init_db(db)  # second call must be a no-op for the migration
+    assert "shop" in _sqlite_columns(db, "seo_changes")

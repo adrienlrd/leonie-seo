@@ -41,12 +41,21 @@ class BulkApplyReport:
 
 
 def _log_applied(
+    shop: str,
     product_id: str,
     generated_title: str | None,
     generated_description: str | None,
     db_path: Path | None,
 ) -> None:
-    """Record a successful apply in seo_changes for rollback support."""
+    """Record a successful apply in seo_changes for rollback support.
+
+    Args:
+        shop: Shopify shop domain — required for multi-tenant isolation.
+        product_id: Shopify product GID.
+        generated_title: New SEO title (or None to skip).
+        generated_description: New SEO description (or None to skip).
+        db_path: Override DB path (tests only).
+    """
     path = db_path if db_path is not None else DB_PATH
     now = datetime.now(UTC).isoformat()
     with get_conn(path) as conn:
@@ -57,9 +66,10 @@ def _log_applied(
             if new_value:
                 conn.execute(
                     """INSERT INTO seo_changes
-                       (applied_at, resource_type, resource_id, field, old_value, new_value, status)
-                       VALUES (?, 'product', ?, ?, NULL, ?, 'applied')""",
-                    (now, product_id, field_name, new_value),
+                       (shop, applied_at, resource_type, resource_id, field,
+                        old_value, new_value, status)
+                       VALUES (?, ?, 'product', ?, ?, NULL, ?, 'applied')""",
+                    (shop, now, product_id, field_name, new_value),
                 )
 
 
@@ -148,7 +158,7 @@ def apply_approved_meta(
         report.details.append(detail)
 
         if result.applied:
-            _log_applied(product_id, title, description, db_path)
+            _log_applied(shop, product_id, title, description, db_path)
             applied_ids.append(suggestion_id)
             report.applied += 1
         else:

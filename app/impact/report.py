@@ -4,32 +4,35 @@ from __future__ import annotations
 
 import csv
 import io
-import sqlite3
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from app.db_adapter import DB_PATH
+from app.db_adapter import DB_PATH, get_conn
 from app.impact.calculator import aggregate_impact, compute_url_impact
 
 
 def _load_seo_changes(
+    shop: str,
     days: int,
     *,
     db_path: Path | None = None,
 ) -> list[dict]:
-    """Read applied seo_changes from the last `days` days."""
+    """Read applied seo_changes from the last `days` days, filtered by shop.
+
+    Rows with NULL shop (pre-migration legacy data) are excluded — they can't
+    be confidently attributed to a tenant in a multi-tenant deployment.
+    """
     path = db_path or DB_PATH
     cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
 
-    with sqlite3.connect(path) as conn:
-        conn.row_factory = sqlite3.Row
+    with get_conn(path) as conn:
         rows = conn.execute(
             """SELECT resource_type, resource_id, field, old_value, new_value, applied_at
                FROM seo_changes
-               WHERE status = 'applied' AND applied_at >= ?
+               WHERE status = 'applied' AND shop = ? AND applied_at >= ?
                ORDER BY applied_at DESC""",
-            (cutoff,),
+            (shop, cutoff),
         ).fetchall()
 
     return [dict(r) for r in rows]
@@ -59,16 +62,15 @@ def _parse_gsc_csv(csv_text: str) -> dict[str, dict]:
 
 
 def _find_gsc_file(shop: str) -> Path | None:
-    """Locate the GSC performance CSV for a shop."""
+    """Locate the per-shop GSC performance CSV.
+
+    Multi-tenant: only the shop-specific path is checked. The legacy global
+    fallback (`data/raw/gsc_performance.csv`) was removed in the lot 4 wave 1
+    audit fix — it leaked one tenant's GSC data to all other tenants.
+    """
     project_root = Path(__file__).parents[2]
-    candidates = [
-        project_root / "data" / "raw" / shop / "gsc_performance.csv",
-        project_root / "data" / "raw" / "gsc_performance.csv",
-    ]
-    for path in candidates:
-        if path.exists():
-            return path
-    return None
+    path = project_root / "data" / "raw" / shop / "gsc_performance.csv"
+    return path if path.exists() else None
 
 
 def _product_url(shop_domain: str, handle: str) -> str:
@@ -112,8 +114,8 @@ def build_impact_report(
         gsc_file = _find_gsc_file(shop)
         gsc = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
 
-    # Load applied changes
-    changes_rows = _load_seo_changes(days, db_path=db_path)
+    # Load applied changes (filtered by shop — multi-tenant safe)
+    changes_rows = _load_seo_changes(shop, days, db_path=db_path)
 
     # Group changes by resource
     by_resource: dict[str, list[dict]] = defaultdict(list)

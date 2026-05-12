@@ -30,6 +30,7 @@ _SQLITE_DDL = [
     )""",
     """CREATE TABLE IF NOT EXISTS seo_changes (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop          TEXT,
         applied_at    TEXT NOT NULL,
         resource_type TEXT NOT NULL,
         resource_id   TEXT NOT NULL,
@@ -40,6 +41,7 @@ _SQLITE_DDL = [
     )""",
     """CREATE TABLE IF NOT EXISTS snapshots (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop          TEXT,
         snapshot_date TEXT NOT NULL,
         resource_type TEXT NOT NULL,
         resource_id   TEXT NOT NULL,
@@ -190,6 +192,7 @@ _PG_DDL = [
     )""",
     """CREATE TABLE IF NOT EXISTS seo_changes (
         id            SERIAL PRIMARY KEY,
+        shop          TEXT,
         applied_at    TEXT NOT NULL,
         resource_type TEXT NOT NULL,
         resource_id   TEXT NOT NULL,
@@ -200,6 +203,7 @@ _PG_DDL = [
     )""",
     """CREATE TABLE IF NOT EXISTS snapshots (
         id            SERIAL PRIMARY KEY,
+        shop          TEXT,
         snapshot_date TEXT NOT NULL,
         resource_type TEXT NOT NULL,
         resource_id   TEXT NOT NULL,
@@ -239,6 +243,43 @@ _PG_DDL = [
 ]
 
 
+# ── Migrations ────────────────────────────────────────────────────────────────
+# Idempotent ALTER TABLE for tables that pre-date the multi-tenant `shop` column.
+# Run after CREATE TABLE IF NOT EXISTS so brand-new tables already have the column.
+
+_TABLES_NEEDING_SHOP_COLUMN = ("seo_changes", "snapshots")
+
+
+def _sqlite_has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    """Return True if `table.column` exists (SQLite introspection via pragma)."""
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(r[1] == column for r in rows)
+
+
+def _migrate_sqlite_add_shop_columns(conn: sqlite3.Connection) -> None:
+    """Add the multi-tenant `shop` column to legacy tables if missing."""
+    for table in _TABLES_NEEDING_SHOP_COLUMN:
+        if not _sqlite_has_column(conn, table, "shop"):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN shop TEXT")
+
+
+def _pg_has_column(cur, table: str, column: str) -> bool:
+    """Return True if `table.column` exists (Postgres information_schema)."""
+    cur.execute(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name = %s AND column_name = %s",
+        (table, column),
+    )
+    return cur.fetchone() is not None
+
+
+def _migrate_postgres_add_shop_columns(cur) -> None:
+    """Add the multi-tenant `shop` column to legacy Postgres tables if missing."""
+    for table in _TABLES_NEEDING_SHOP_COLUMN:
+        if not _pg_has_column(cur, table, "shop"):
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN shop TEXT")
+
+
 def _init_postgres(database_url: str) -> None:
     import psycopg2  # noqa: PLC0415
 
@@ -249,6 +290,7 @@ def _init_postgres(database_url: str) -> None:
             cur.execute(_PG_LLM_METRICS)
             for stmt in _PG_EMBEDDINGS:
                 cur.execute(stmt)
+            _migrate_postgres_add_shop_columns(cur)
         conn.commit()
 
 
@@ -270,3 +312,4 @@ def init_db(db_path: Path | None = None) -> None:
     with sqlite3.connect(db_path) as conn:
         for stmt in _SQLITE_DDL:
             conn.execute(stmt)
+        _migrate_sqlite_add_shop_columns(conn)

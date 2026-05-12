@@ -36,6 +36,7 @@ def _init_db(db_path: Path) -> None:
     conn.execute("""
         CREATE TABLE IF NOT EXISTS seo_changes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shop TEXT,
             applied_at TEXT,
             resource_type TEXT,
             resource_id TEXT,
@@ -286,8 +287,12 @@ def test_apply_approved_meta_marks_applied_in_db(tmp_path):
 
     conn = sqlite3.connect(db)
     row = conn.execute("SELECT status FROM meta_suggestions WHERE id = ?", (sid,)).fetchone()
+    # Verify seo_changes rows are tagged with the shop (multi-tenant isolation).
+    changes = conn.execute("SELECT shop FROM seo_changes").fetchall()
     conn.close()
     assert row[0] == "applied"
+    assert all(c[0] == "test.myshopify.com" for c in changes)
+    assert len(changes) >= 1
 
 
 def test_apply_approved_meta_respects_max_per_run(tmp_path):
