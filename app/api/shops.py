@@ -5,16 +5,21 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.deps import ShopContext, get_shop_context
+from app.api.deps import ShopContext, get_shop_context, require_internal_secret
 from app.api.plans import plan_summary
 from app.oauth.token_store import list_tokens
 
 router = APIRouter(prefix="/api", tags=["shops"])
 
 
-@router.get("/shops")
+@router.get("/shops", dependencies=[Depends(require_internal_secret)])
 async def list_shops() -> list[dict]:
-    """List all shops that have completed OAuth installation."""
+    """List all shops that have completed OAuth installation.
+
+    Admin endpoint — requires X-Internal-Secret. Returns the multi-tenant
+    install registry, so it must never be reachable from the public internet
+    without the internal secret.
+    """
     return list_tokens()
 
 

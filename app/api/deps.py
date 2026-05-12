@@ -123,6 +123,70 @@ def get_shop_context(
     )
 
 
+def require_internal_secret(
+    x_internal_secret: Annotated[str | None, Header()] = None,
+) -> None:
+    """Dependency: require a valid X-Internal-Secret header (admin endpoints).
+
+    Used for endpoints that don't carry a `{shop}` path segment but must still
+    be protected — e.g. GET /api/shops (lists every installed tenant).
+
+    Raises:
+        HTTPException 403 if the header is missing or doesn't match
+        INTERNAL_API_SECRET, or 500 if the server is misconfigured.
+    """
+    if x_internal_secret is None:
+        raise HTTPException(status_code=403, detail="Missing X-Internal-Secret header")
+    _validate_internal_secret(x_internal_secret)
+
+
+def get_authenticated_shop(
+    x_leonie_shop: Annotated[str | None, Header()] = None,
+    x_internal_secret: Annotated[str | None, Header()] = None,
+    authorization: Annotated[str | None, Header()] = None,
+) -> str:
+    """Dependency: resolve the authenticated shop without requiring it in the path.
+
+    Used by endpoints like POST /api/jobs and GET /api/jobs/{job_id} that
+    carry the shop in the body or in the job's owner field.
+
+    Auth modes (same as get_shop_context):
+    1. Internal call from Remix — X-Leonie-Shop + X-Internal-Secret.
+    2. External call — Shopify session token in Authorization header.
+
+    Returns:
+        The authenticated shop domain.
+
+    Raises:
+        HTTPException 401/403 on missing or invalid credentials.
+    """
+    if x_leonie_shop and x_internal_secret:
+        _validate_internal_secret(x_internal_secret)
+        return x_leonie_shop
+
+    # Fall back to session token (external clients)
+    if not _auth_required():
+        # Dev mode: allow X-Leonie-Shop without internal secret
+        if x_leonie_shop:
+            return x_leonie_shop
+        primary = os.getenv("SHOPIFY_STORE_DOMAIN", "")
+        if primary:
+            return primary
+        raise HTTPException(status_code=403, detail="No shop context available")
+
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Missing Bearer session token in Authorization header",
+        )
+    token = authorization[7:].strip()
+    try:
+        payload = verify_session_token(token)
+    except SessionTokenError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    return shop_from_payload(payload)
+
+
 def require_feature(feature: str):
     """Dependency factory: raises 403 when the active plan lacks a feature."""
 

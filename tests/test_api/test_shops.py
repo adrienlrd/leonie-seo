@@ -16,7 +16,10 @@ ENV = {
     "SHOPIFY_CLIENT_SECRET": "client_secret",
     "SHOPIFY_SCOPES": "read_products",
     "APP_URL": "https://example.com",
+    "INTERNAL_API_SECRET": "test-internal-secret",
 }
+
+_INTERNAL_HEADERS = {"X-Internal-Secret": "test-internal-secret"}
 
 
 @pytest.fixture()
@@ -25,9 +28,20 @@ def client():
         yield TestClient(app)
 
 
+def test_list_shops_without_internal_secret_returns_403(client: TestClient):
+    """GET /api/shops is an admin endpoint — must reject without X-Internal-Secret."""
+    resp = client.get("/api/shops")
+    assert resp.status_code == 403
+
+
+def test_list_shops_wrong_internal_secret_returns_403(client: TestClient):
+    resp = client.get("/api/shops", headers={"X-Internal-Secret": "wrong"})
+    assert resp.status_code == 403
+
+
 def test_list_shops_empty(client: TestClient, mocker):
     mocker.patch("app.api.shops.list_tokens", return_value=[])
-    resp = client.get("/api/shops")
+    resp = client.get("/api/shops", headers=_INTERNAL_HEADERS)
     assert resp.status_code == 200
     assert resp.json() == []
 
@@ -37,7 +51,7 @@ def test_list_shops_with_installs(client: TestClient, mocker):
         "app.api.shops.list_tokens",
         return_value=[{"shop": "test.myshopify.com", "scope": "read_products"}],
     )
-    resp = client.get("/api/shops")
+    resp = client.get("/api/shops", headers=_INTERNAL_HEADERS)
     assert resp.status_code == 200
     assert len(resp.json()) == 1
     assert resp.json()[0]["shop"] == "test.myshopify.com"
