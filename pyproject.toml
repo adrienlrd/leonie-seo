@@ -27,6 +27,7 @@ dependencies = [
     "httpx",
     "cryptography",
     "pyjwt",
+    "jinja2",
 ]
 
 [project.scripts]
