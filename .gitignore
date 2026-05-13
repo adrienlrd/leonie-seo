@@ -1,4 +1,6 @@
 .env
+render-env-values.local.txt
+shopify-app/.env.pilot.local
 credentials.json
 oauth_client.json
 token.json

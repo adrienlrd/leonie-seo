@@ -33,7 +33,7 @@ services:
     runtime: python
     plan: free
     region: frankfurt
-    buildCommand: pip install -e ".[postgres,llm,niche,embeddings]"
+    buildCommand: pip install -e ".[postgres,llm,niche]"
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     autoDeployTrigger: commit
     healthCheckPath: /health

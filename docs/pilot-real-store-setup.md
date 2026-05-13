@@ -121,6 +121,8 @@ The repository includes a `render.yaml` Blueprint for the pilot:
 
 The Blueprint uses the Free Render instance type for both services to keep the pilot inexpensive. Free web services can spin down after idle periods and take about a minute to wake back up, so upgrade later if pilot sessions need faster always-on responsiveness.
 
+The pilot install excludes the optional embeddings package to keep Render Free deploys lighter. Semantic embeddings can be enabled later by adding the `embeddings` extra once the core install, OAuth, sessions, and webhooks are validated.
+
 ### Render setup sequence
 
 1. In Render, create a new Blueprint from this Git repository.

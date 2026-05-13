@@ -2,14 +2,13 @@
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install package in editable mode (cached layer)
-COPY pyproject.toml requirements.txt ./
-RUN pip install --no-cache-dir -e ".[dev]"
-
-# Copy backend source + config
+# Copy package metadata, runtime source and config before editable install.
+# Editable installs inspect package directories declared in pyproject.toml.
+COPY pyproject.toml requirements.txt README.md ./
 COPY scripts/ scripts/
 COPY app/ app/
 COPY config/ config/
+RUN pip install --no-cache-dir -e ".[postgres,llm,niche]"
 
 # Runtime mounts (history.db, raw exports, custom tenants, generated reports)
 VOLUME ["/app/data", "/app/reports", "/app/config/tenants"]
