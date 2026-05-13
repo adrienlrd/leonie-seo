@@ -11,8 +11,20 @@ import { PostgreSQLSessionStorage } from "@shopify/shopify-app-session-storage-p
 // Use Postgres session storage when DATABASE_URL is configured (production + staging).
 // The same Neon database provisioned in task 54 stores both app data and OAuth sessions.
 // Cast silences a TypeScript peer-dep skew (shopify-api v11 vs v12); runtime-compatible.
-const sessionStorage = process.env.DATABASE_URL
-  ? (new PostgreSQLSessionStorage(process.env.DATABASE_URL) as unknown)
+function requireSslMode(databaseUrl: string): string {
+  const url = new URL(databaseUrl);
+  if (!url.searchParams.has("sslmode")) {
+    url.searchParams.set("sslmode", "require");
+  }
+  return url.toString();
+}
+
+const databaseUrl = process.env.DATABASE_URL
+  ? requireSslMode(process.env.DATABASE_URL)
+  : undefined;
+
+const sessionStorage = databaseUrl
+  ? (new PostgreSQLSessionStorage(databaseUrl) as unknown)
   : (new MemorySessionStorage() as unknown);
 const appUrl = process.env.SHOPIFY_APP_URL || "";
 const skipWebhookRegistration = (() => {
