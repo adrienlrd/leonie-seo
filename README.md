@@ -45,7 +45,7 @@ Voir [`docs/plans.md`](docs/plans.md) pour le détail.
 
 ### Pilote marchand réel avant App Store
 
-Avant la soumission publique, Léonie SEO passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à une URL publique stable. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md).
+Avant la soumission publique, Léonie SEO passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à l'URL stable `https://pilot.leoniedelacroix.com`. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md).
 
 ## Plans
 

@@ -33,6 +33,16 @@
   - relier la config CLI `pilot` avec `shopify app config link --config pilot` ;
   - déployer la config publique une fois l'URL HTTPS prête.
 
+## Reprise 2026-05-13 — Tâche 77 en cours
+
+- L'app Shopify `Léonie SEO Pilot` a été créée dans l'organisation `Léonie Delacroix`.
+- `shopify-app/shopify.app.pilot.toml` est lié à cette app et versionné dans le repo.
+- L'origine stable retenue est `https://pilot.leoniedelacroix.com`.
+- Un Blueprint Render `render.yaml` prépare deux services :
+  - `leonie-seo-pilot-web` pour Remix ;
+  - `leonie-seo-pilot-api` pour FastAPI.
+- La prochaine action externe est de créer les deux services Render depuis le Blueprint, renseigner les secrets, raccorder le DNS du sous-domaine, puis déployer la config Shopify `pilot`.
+
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 
 Un audit complet (`RAPPORT_AUDIT.md`) + analyse critique externe ont évalué la couverture vs. la vision App Store cible.
@@ -291,7 +301,7 @@ La publication publique est volontairement différée derrière une nouvelle sé
 - `DECISIONS.md` enrichi : le pilote réel utilise une app Shopify distincte de la future app publique.
 - `.env.example` et `shopify-app/.env.example` clarifiés pour une URL HTTPS publique stable, sessions persistantes et backend public/pilot.
 - `README.md` et `docs/app-store-submission-checklist.md` alignés sur la nouvelle séquence Phase 9 avant publication App Store.
-- `.gitignore` ignore `shopify-app/shopify.app.pilot.toml`, généré localement via `shopify app config link --config pilot`.
+- `shopify-app/shopify.app.pilot.toml` est désormais versionné pour figer l'identité et les URLs du pilote réel.
 
 **État à la sortie** :
 - Tâche **76** terminée côté repo.

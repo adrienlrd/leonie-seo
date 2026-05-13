@@ -12,5 +12,4 @@ data/history.db
 *.egg-info/
 .pytest_cache/
 frontend/
-shopify-app/shopify.app.pilot.toml
 **/.DS_Store
