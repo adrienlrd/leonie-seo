@@ -80,6 +80,8 @@
 - Retest génération IA : le job `meta_generation` est passé `completed` et a généré 21 suggestions, visibles dans Review IA.
 - Bug UI pilote identifié : la colonne Produit de Review IA devenait trop large avec un titre produit long et masquait les colonnes à droite.
 - Correctif prêt à déployer : Review IA contraint les largeurs Produit/Titre/Description et force le retour à la ligne des textes longs.
+- Retest Review IA : approuver/rejeter une suggestion retire bien la ligne du tableau pending.
+- Correctif prêt à déployer : Review IA affiche le nombre de suggestions approuvées prêtes, renomme l'action en `Prévisualiser l'application`, bloque l'action si rien n'est approuvé, et confirme qu'aucune modification Shopify n'est faite en mode prévisualisation.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 

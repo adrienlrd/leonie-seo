@@ -37,6 +37,7 @@ interface LoaderData {
   locale: Locale;
   shop: string;
   suggestions: DiffSuggestion[];
+  approvedCount: number;
   error?: string;
 }
 
@@ -55,24 +56,36 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const locale = getLocale(request);
 
   try {
-    const resp = await callBackendForShop(shop, `/api/shops/${shop}/generate/meta/diff?limit=50`, {
-      accessToken: session.accessToken,
-    });
+    const [resp, approvedResp] = await Promise.all([
+      callBackendForShop(shop, `/api/shops/${shop}/generate/meta/diff?limit=50`, {
+        accessToken: session.accessToken,
+      }),
+      callBackendForShop(
+        shop,
+        `/api/shops/${shop}/generate/meta/results?status=approved&limit=500`,
+        {
+          accessToken: session.accessToken,
+        }
+      ),
+    ]);
     if (!resp.ok) {
       return json<LoaderData>({
         locale,
         shop,
         suggestions: [],
+        approvedCount: 0,
         error: `${resp.status}`,
       });
     }
     const suggestions = await readJson<DiffSuggestion[]>(resp);
-    return json<LoaderData>({ locale, shop, suggestions });
+    const approved = approvedResp.ok ? await readJson<unknown[]>(approvedResp) : [];
+    return json<LoaderData>({ locale, shop, suggestions, approvedCount: approved.length });
   } catch {
     return json<LoaderData>({
       locale,
       shop,
       suggestions: [],
+      approvedCount: 0,
       error: t(locale, "backendOffline"),
     });
   }
@@ -85,6 +98,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const form = await request.formData();
   const intent = String(form.get("intent") || "");
   const id = Number(form.get("id"));
+  const approvedCount = Number(form.get("approvedCount") || 0);
 
   try {
     if (intent === "generate-meta") {
@@ -136,16 +150,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (intent === "apply-dry-run") {
+      if (approvedCount <= 0) {
+        return json<ActionData>({ error: t(locale, "noApprovedSuggestions") });
+      }
       const resp = await callBackendForShop(shop, `/api/shops/${shop}/generate/meta/apply`, {
         method: "POST",
         accessToken: session.accessToken,
-        body: JSON.stringify({ dry_run: true, max_per_run: 50, delay: 0.5 }),
+        body: JSON.stringify({ dry_run: true, max_per_run: approvedCount, delay: 0.5 }),
       });
       if (!resp.ok) {
         return json<ActionData>({ error: `${resp.status}` });
       }
       const data = await readJson<{ job_id: string }>(resp);
-      return json<ActionData>({ message: `${t(locale, "jobQueued")} ${data.job_id.slice(0, 8)}` });
+      return json<ActionData>({
+        message: `${t(locale, "previewQueued")} ${data.job_id.slice(0, 8)} - ${t(locale, "noShopifyWrite")}`,
+      });
     }
   } catch {
     return json<ActionData>({ error: t(locale, "backendOffline") });
@@ -181,7 +200,7 @@ const DESCRIPTION_CELL_STYLE = {
 } as const;
 
 export default function Review() {
-  const { locale, suggestions, error } = useLoaderData<typeof loader>();
+  const { locale, suggestions, approvedCount, error } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -265,6 +284,9 @@ export default function Review() {
             <Text as="h2" variant="headingMd">
               {t(locale, "pendingSuggestions")}
             </Text>
+            <Badge tone={approvedCount > 0 ? "success" : "info"}>
+              {`${approvedCount} ${t(locale, "approvedReady")}`}
+            </Badge>
             <InlineStack gap="200">
               <Button
                 disabled={busy}
@@ -280,8 +302,13 @@ export default function Review() {
               </Button>
               <Button
                 variant="primary"
-                disabled={busy}
-                onClick={() => submit({ intent: "apply-dry-run" }, { method: "post" })}
+                disabled={busy || approvedCount === 0}
+                onClick={() =>
+                  submit(
+                    { intent: "apply-dry-run", approvedCount: String(approvedCount) },
+                    { method: "post" }
+                  )
+                }
               >
                 {t(locale, "dryRunApply")}
               </Button>
