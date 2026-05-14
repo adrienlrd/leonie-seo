@@ -58,6 +58,9 @@
   - `LEONIE_BILLING_MODE=disabled` bloque toute création d'abonnement pendant le pilote ;
   - `/api/shops/{shop}/jobs` vérifie l'appel interne Remix sans exiger de token Shopify stocké côté Python.
 - À redéployer sur Render puis retester : relancer un audit, recharger Jobs SEO, vérifier que le job apparaît et passe `pending` → `completed` ou expose une erreur claire.
+- Retest après redéploiement : les jobs d'audit apparaissent bien et passent `completed`.
+- Nouveau bug pilote identifié : la navigation App Bridge sélectionnait parfois un onglet sans charger la route Remix, ou nécessitait plusieurs clics/rechargements.
+- Correctif prêt à déployer : `NavMenu` utilise maintenant des ancres HTML `<a href=...>` au lieu de `Link` Remix, conformément à App Bridge v4.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 
