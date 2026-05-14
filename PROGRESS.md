@@ -87,6 +87,7 @@
 - Correctif prêt à déployer : la prévisualisation dry-run lit désormais les champs SEO actuels du produit directement dans Shopify quand un token OAuth est disponible, sans mutation, et Jobs SEO indique si l'avant vient de Shopify ou du crawl.
 - Correctif prêt à déployer : Review IA affiche désormais un panneau `Audit qualité` pour les suggestions visibles, avec nombre de suggestions OK, suggestions à relire, longueurs moyennes title/description, et principaux motifs de rejet qualité.
 - Hotfix prêt à déployer : Review IA normalise les données reçues du backend avant rendu pour éviter une erreur serveur si une suggestion contient une valeur absente ou inattendue.
+- Correctif prêt à déployer : les suggestions `À relire` sont maintenant visibles directement dans la colonne Qualité, et l'audit affiche un motif générique quand le backend ne fournit pas de détail technique.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 

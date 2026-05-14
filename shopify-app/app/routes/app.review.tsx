@@ -222,14 +222,32 @@ function collectQualityIssues(suggestions: DiffSuggestion[]): Array<[string, num
   const counts = new Map<string, number>();
   for (const suggestion of suggestions) {
     const summary = suggestion.summary || "ok";
-    if (suggestion.passes_quality_check || summary === "ok") {
+    if (suggestion.passes_quality_check) {
       continue;
     }
-    for (const issue of summary.split("; ").filter(Boolean)) {
+    const issues =
+      summary === "ok" ? ["__unspecified_quality_issue__"] : summary.split("; ").filter(Boolean);
+    for (const issue of issues) {
       counts.set(issue, (counts.get(issue) ?? 0) + 1);
     }
   }
   return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+}
+
+function qualityLabel(locale: Locale, suggestion: DiffSuggestion): string {
+  if (suggestion.passes_quality_check) {
+    return "OK";
+  }
+  if (suggestion.summary && suggestion.summary !== "ok") {
+    return suggestion.summary;
+  }
+  return t(locale, "qualityNeedsReview");
+}
+
+function issueLabel(locale: Locale, issue: string): string {
+  return issue === "__unspecified_quality_issue__"
+    ? t(locale, "unspecifiedQualityIssue")
+    : issue;
 }
 
 function QualityAudit({
@@ -284,7 +302,7 @@ function QualityAudit({
               <InlineStack gap="200" key={issue} align="start">
                 <Badge tone="warning">{String(count)}</Badge>
                 <Text as="span" tone="subdued">
-                  {issue}
+                  {issueLabel(locale, issue)}
                 </Text>
               </InlineStack>
             ))
@@ -355,7 +373,7 @@ export default function Review() {
       <IndexTable.Cell>
         <BlockStack gap="100">
           <Badge tone={qualityTone(suggestion.passes_quality_check)}>
-            {suggestion.passes_quality_check ? "OK" : suggestion.summary}
+            {qualityLabel(locale, suggestion)}
           </Badge>
           <Text as="span" variant="bodySm" tone="subdued">
             {suggestion.title_length}/{suggestion.desc_length}
