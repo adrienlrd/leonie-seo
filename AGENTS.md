@@ -1,255 +1,164 @@
-# AGENTS.md — Léonie SEO
+# AGENTS.md — leonie-seo
 
-## 1. CONTEXTE BUSINESS & VISION PRODUIT
+## 1. Project purpose
 
-### Projet actuel — leoniedelacroix.com
-- Site Shopify **accessoires premium pour chiens et chats**, fabriqués en France
-- URL : https://www.leoniedelacroix.com · Domaine : 287c4a-bb.myshopify.com
-- **Catalogue** : vêtements chien/chat (pardessus, pull, harnais), fontaines eau, griffoirs, bols design
-- **Objectif SEO** : 5 000–10 000 visites organiques/mois, 40–100 conversions/mois
-- Concurrents : Miacara, Zara Pets, Ferplast
+`leonie-seo` is a Shopify SEO automation project built first for `leoniedelacroix.com`, then intended to become a public Shopify App.
 
-### Vision produit finale — Shopify App publique
-**One-liner** : *"L'IA SEO qui identifie ta niche rentable, écrit ton contenu, et l'applique proprement sur ton Shopify. En 1 install."*
+Current business context:
 
-- App native Shopify App Store : install 1 clic, embedded dans l'Admin, Polaris UI
-- Génération IA de contenu SEO (GPT-4o mini + Cloudflare Workers AI fallback)
-- **Niche Intelligence** : détection clusters produits réels, saturation SERP, keyword gaps vs concurrents
-- Application directe via Admin API avec validation marchande à chaque étape (review par batch, auto-approve opt-in)
-- Mesure d'impact via GSC + GA4 sur URLs modifiées
-- Distribution FR + EN, freemium Shopify (Free/Pro/Agency)
-- Budget infra cible : ≤ 12 €/mois jusqu'à 100 stores
+- Store: Léonie Delacroix
+- Website: `https://www.leoniedelacroix.com`
+- Shopify domain: `287c4a-bb.myshopify.com`
+- Market: premium pet accessories for dogs and cats, with a French-made positioning where applicable
+- Product types: dog/cat clothing, coats, pullovers, harnesses, fountains, scratching posts, design bowls, and related pet accessories
+- SEO goal: grow qualified organic traffic and conversions through technical SEO, niche content, structured data, and measurable search performance improvements
 
-**Différenciateur vs concurrents** (Smart SEO, AVADA, TinyIMG, Booster SEO) :
-- Le marché est saturé sur : meta tags automatiques, alt texts, compression images, schema basique
-- Notre angle : **niche-first** — "quel contenu longue traîne mon catalogue peut réellement dominer ?" vs templates génériques
-- Pas un générateur de metas. Un copilote qui priorise, contextualise, applique proprement, et mesure l'impact.
+Product vision:
 
-### Architecture retenue — Option B : scaffold Remix + moteur Python
-- **Couche app** : nouveau dossier `shopify-app/` scaffoldé via Shopify CLI (Remix) — App Bridge v4, Polaris, OAuth, sessions multi-tenant, Billing API, GDPR webhooks
-- **Moteur SEO/IA** : `scripts/`, `app/llm/`, `app/niche/`, `app/jobs/` conservés intégralement en Python
-- `shopify-app/` appelle le backend Python via HTTP interne
-- `frontend/` React existant décommissionné après tâche 57
-- Décision documentée dans `DECISIONS.md`
+> Niche-first Shopify SEO app: identify realistic long-tail opportunities from the merchant’s actual catalog, generate useful SEO content, apply it safely to Shopify, and measure the impact.
 
----
+This is not a generic meta tag generator. The differentiator is:
 
-## 2. DÉBUT DE SESSION — OBLIGATOIRE
+- niche intelligence
+- product-cluster detection
+- keyword gaps
+- SERP saturation analysis
+- safe Shopify application
+- measurable impact through GSC, GA4, and Shopify data
 
-**À chaque session, dans cet ordre avant toute action :**
-1. Lire `PROGRESS.md` — état actuel, tâches faites, blocages
-2. Lire `ROADMAP.md` — identifier la prochaine tâche ⏳ non faite
-3. Proposer explicitement cette tâche à l'utilisateur avant de coder
+Target product:
 
-**Ne jamais sauter de tâches.** Suivre l'ordre de ROADMAP.md sauf demande explicite.
-**Ne jamais coder sans que le plan soit validé par l'utilisateur.**
+- Public Shopify App Store app
+- Embedded Shopify Admin app
+- Merchant-reviewed recommendations
+- Safe batch application
+- Free/Pro/Agency pricing
+- French and English support
+- Infrastructure cost target: keep the early-stage MVP inexpensive and avoid unnecessary managed services
 
----
+## 2. Source of truth
 
-## 3. ÉTAT DES PHASES
+Do not use this file as the source of truth for current task status.
 
-| Phase | Tâches | Objectif | Statut |
-|---|---|---|---|
-| 1 — Audit & Fondations | 1–15 | Rapport SEO fonctionnel | ✅ Complète |
-| 2 — Application supervisée | 16–29 | Corrections automatisées | ✅ Complète |
-| 3 — Contenu SEO & Niche | 30–39 | Contenu IA niche accessoires animaux | ✅ Complète |
-| 4 — Productisation CLI | 40–44 | Outil vendable, multi-tenant | ✅ Complète |
-| 5 — App Shopify v1 | 45–50 | OAuth + API + Dashboard | ✅ Complète (49 supersédée par 75) |
-| 6 — Conformité & Infra async | 51–57 | GDPR + Billing + Queue + App Bridge | ✅ Complète |
-| 7 — Moteur IA & Niche | 58–68 | Génération LLM + Niche Intelligence concrète | ✅ Complète |
-| **8 — Scale & App Store final** | **69–75** | **Theme Extension + Common Crawl + soumission** | **🔄 6/7 — tâche 75 restante** |
+Use these files instead:
 
-**Prochaine tâche ordonnée :** `75` — Soumission App Store finale, après vérification des prérequis GDPR, Billing, App Bridge, documentation, secrets, tunnels/URLs et checklists Shopify Partner.
+- `ROADMAP.md`: roadmap, task order, task status, completed work, upcoming work
+- `PROGRESS.md`: latest working state, current blockers, last commands run, verification status, next recommended step
+- `DECISIONS.md`: durable technical decisions and open decisions
+- `CONTEXT.md`: market, competitors, strategic keywords, brand positioning
+- `README.md`: human-facing setup and usage documentation when present
 
----
+Rules:
 
-## 4. RÈGLES NON NÉGOCIABLES
+- When the user asks to continue the roadmap, read `PROGRESS.md` first, then `ROADMAP.md`, then propose the next pending task.
+- When the user gives an explicit task, prioritize that task over roadmap order.
+- Do not assume that a module is implemented because this file mentions it. Verify in code, tests, `ROADMAP.md`, and `PROGRESS.md`.
+- If `ROADMAP.md` and code disagree, trust the code and report the mismatch.
+- If `PROGRESS.md` and `ROADMAP.md` disagree, inspect both and ask the user or make the smallest safe assumption.
 
-1. **Plan avant code** — toute tâche >15 lignes → plan validé d'abord
-2. **Dry-run par défaut** — scripts `apply/` : `--dry-run` par défaut, `--apply` explicite
-3. **Confirmation humaine** avant chaque écriture Shopify
-4. **Jamais de secrets en dur** — `.env` uniquement, `.env.example` tenu à jour
-5. **Pas de modification de handles** — risque 404 massif, interdit définitivement
-6. **Commits atomiques** — format `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`
-7. **Tests minimaux** — un test unitaire mocké par fonction qui touche une API
-8. **Pas d'hallucination** — si une donnée manque, lever une exception explicite
-9. **ROADMAP.md** — mettre à jour statut + date après chaque tâche terminée
-10. **Revue Shopify safety** — avant tout `--apply`, faire une revue sécurité Shopify ; utiliser le subagent Codex `shopify-safety` seulement si la délégation est disponible/autorisée, sinon faire la revue localement avec les mêmes critères
-11. **GDPR obligatoire** — tout stockage de données marchand implique les 3 webhooks GDPR
-12. **Shopify Billing API** — toute monétisation passe par `appSubscriptionCreate`, jamais un système maison en production App Store
-13. **Pas de theme.liquid modifié** — injection contenu uniquement via Theme App Extensions ou metafields
-14. **Niche Intelligence = concret** — les recommandations doivent identifier des clusters, gaps, et saturation SERP réels ; jamais de généralités type "le marché est en croissance"
-15. **Async queue dès Phase 6** — tout job long (audit, LLM batch, webhook) passe par la queue tâche 55 ; pas de blocking requests en production
-16. **Common Crawl en dernier** — valider les sources légères (Google Suggest, pytrends, Reddit, tâche 63) avant d'investir dans le Web Graph (tâche 74)
+## 3. Language rules
 
----
+- Communicate with the user in French.
+- Write code, comments, docstrings, commit messages, branch names, technical documentation, function names, class names, variables, and file names in English.
+- Do not write French inside code comments or docstrings.
+- Preserve French in user-facing French documentation, product copy, SEO content, merchant-facing UI text, emails, and marketing pages.
+- Preserve English in user-facing English documentation and UI text.
 
-## 5. WORKFLOW OBLIGATOIRE
+## 4. Start-of-session workflow
 
-1. **Explore** → lire PROGRESS.md + ROADMAP.md + fichiers concernés
-2. **Plan** → bullet points soumis à l'utilisateur, pas de code avant validation
-3. **Implement** → coder le plan approuvé uniquement
-4. **Verify** → tests verts + ruff clean + prouver que ça marche
-5. **Update** → ROADMAP.md (statut + date) + PROGRESS.md + commit atomique
+Before broad, risky, roadmap-related, architecture-changing, Shopify-writing, deployment, or App Store submission work:
 
----
+1. Read `PROGRESS.md`.
+2. Read `ROADMAP.md`.
+3. Read the relevant files for the requested task.
+4. Summarize current state in 3–6 bullets.
+5. Propose a short implementation plan.
+6. Wait for user approval before coding.
 
-## 6. STACK TECHNIQUE
+For small, low-risk, clearly scoped tasks:
 
-### Back-end (existant)
-- Python 3.11+ · FastAPI + uvicorn · Click + Rich
-- Shopify Admin API GraphQL (version 2025-01 minimum)
-- SQLite stdlib (→ migrer vers Neon Postgres en Phase 6, tâche 54)
-- Chiffrement Fernet (`cryptography`) · JWT PyJWT
-- Dépendances autorisées : `requests`, `pandas`, `python-dotenv`, `pydantic`, `click`, `rich`, `google-auth`, `google-api-python-client`, `pyyaml`, `fastapi`, `uvicorn`, `httpx`, `cryptography`, `pyjwt`
+- Act directly.
+- Keep the diff minimal.
+- Summarize what changed and how it was verified.
 
-### Infrastructure async (implémentée — tâche 55)
-- **Async job queue** : Postgres-backed (pattern pg-boss simplifié en Python) — pas de Redis pour rester ≤ 12 €/mois
-- Gère : audits background, batch LLM, retry exponentiels, rate-limit Shopify, synchro GSC
+Examples of tasks that require a plan first:
 
-### Couche app Shopify (implémentée — tâche 56)
-- **Scaffold** : Shopify CLI → `shopify app create` → Remix (TypeScript)
-- **Inclus d'emblée** : App Bridge v4, Polaris, OAuth Shopify, sessions multi-tenant, routing
-- **Dossier** : `shopify-app/` (nouveau, indépendant du Python)
-- `frontend/` React existant → décommissionné après tâche 57
+- Changing architecture
+- Adding or replacing dependencies
+- Modifying Shopify write behavior
+- Creating or changing billing behavior
+- Changing GDPR handling
+- Modifying database schema
+- Adding async jobs
+- Preparing App Store submission
+- Refactoring multiple modules
+- Touching production configuration
+- Running destructive commands
 
-### IA & NLP (implémentée — Phase 7)
-- LLM principal : OpenAI GPT-4o mini (`openai` SDK) — prompts déterministes, templates versionnés
-- Fallback gratuit : Cloudflare Workers AI (`httpx`) + Groq (`groq` SDK)
-- Embeddings : `sentence-transformers` local (`multilingual-e5-base`) — 0 €, ~400 Mo
-- NLP : `spacy` + `fr_core_news_lg` pour entity extraction (matières, certifications, origines)
-- **Pas de LangChain** — sur-engineering pour des prompts déterministes
+Examples of tasks that do not require prior approval:
 
-### Niche Intelligence (implémentée — tâches 62-63)
-- Étape 1 — sources légères (tâche 63) : Google Suggest + pytrends + Reddit scraping
-- Étape 2 — moteur (tâche 62) : clustering produits, analyse saturation SERP, keyword gaps vs concurrents
-- Étape 3 — avancé (tâche 74) : Common Crawl / Web Graph backlinks
+- Fixing a typo
+- Updating a small test
+- Fixing an obvious import error
+- Formatting a file
+- Improving a small doc section
+- Reading files and reporting findings
 
-### Base de données (implémentée — Phases 6 & 8)
-- Neon Postgres serverless (scale-to-zero, free tier 0,5 Go) pour le multi-tenant
-- SQLite conservé comme fallback/local historique selon modules
-- Extension `pgvector` activée pour embeddings (tâche 70)
+## 5. Mandatory safety rules
 
-### APIs externes
-- Shopify Admin API GraphQL
-- Google Search Console API
-- PageSpeed Insights API
-- GA4 Data API
-- Ahrefs Webmaster Tools API si disponible côté tenant/config
-- Screaming Frog Free via exports CSV manuels
+These rules override normal implementation convenience.
 
-### Modules implémentés à maintenir
-- `app/llm/` — provider abstraction + prompts
-- `app/niche/` — Niche Intelligence engine
-- `app/jobs/` — async queue Postgres-backed
-- `app/billing/` — Shopify Billing API wrapper
-- `app/observability/` — logs structurés + métriques tenant + coût LLM
-- `shopify-app/extensions/` — Shopify Theme App Extension JSON-LD
+### Shopify safety
 
-**Demander confirmation avant toute autre dépendance.**
+- Dry-run is the default for all Shopify write scripts.
+- Any real Shopify write must require an explicit `--apply` or equivalent.
+- Never write to Shopify without human confirmation.
+- Never modify product handles, collection handles, page handles, blog handles, or URL slugs unless the user explicitly asks and redirect handling is part of the plan.
+- Never edit `theme.liquid` directly.
+- Prefer Theme App Extensions, app blocks, metafields, metaobjects, or documented Shopify extension points.
+- Before any Shopify mutation, review:
+  - target store
+  - affected resources
+  - mutation type
+  - rollback path
+  - rate limits
+  - dry-run output
+  - user confirmation
+- Use GraphQL Admin API for new Shopify Admin work.
+- Use a currently supported Shopify Admin API version, configured in one central place.
+- Do not hardcode Shopify store URLs, access tokens, API keys, secrets, customer data, or merchant private data.
 
----
+### GDPR and privacy
 
-## 7. GESTION DU CONTEXTE AVEC CODEX
+- Any merchant-data storage must support required Shopify GDPR webhooks:
+  - customer data request
+  - customer data erasure
+  - shop data erasure
+- Store only the data needed for the feature.
+- Avoid storing customer personal data unless strictly required.
+- Do not log access tokens, secrets, authorization headers, cookies, customer personal data, or raw webhook secrets.
+- Treat tenant data as isolated by default.
 
-- Codex Desktop compacte automatiquement le contexte quand nécessaire ; ne pas utiliser les anciennes commandes Claude Code `/compact` ou `/clear`.
-- Ne pas utiliser les anciennes commandes Claude Code `/review`, `/plan` ou `!<cmd>` comme workflow ; demander simplement une review ou un plan en langage naturel, et laisser Codex utiliser ses outils.
-- Pour les tâches longues, préserver l'état durable dans `PROGRESS.md` avant de continuer : objectif, fichiers touchés, commandes lancées, tests, blocages, prochaine étape.
-- Après une compaction ou reprise de session, relire `PROGRESS.md`, `ROADMAP.md`, puis les fichiers concernés avant de modifier.
-- Si le fil devient ambigu, s'appuyer sur les fichiers du repo plutôt que sur la mémoire de conversation.
-- Utiliser `update_plan` pour suivre les tâches complexes pendant la session, et mettre à jour `PROGRESS.md` pour tout suivi qui doit survivre à la session.
+### Billing
 
----
+- Production App Store billing must use Shopify Billing API.
+- Do not implement a custom off-Shopify billing system for App Store production use.
+- Billing changes require a plan and explicit user approval.
 
-## 8. SUBAGENTS CODEX (`.codex/agents/`)
+### External services
 
-- `shopify-safety` — critères de review sécurité avant tout `--apply`
-- `python-quality` — critères de review qualité avant chaque commit
+- Prefer official documentation for Shopify, Google, OpenAI, Cloudflare, Neon, Render, and other external services.
+- Do not perform real external mutations unless the user explicitly asks.
+- Use dry-run, preview, staging, or test mode when available.
+- Keep API versions and external service assumptions centralized and easy to update.
 
-Dans Codex, la délégation à un subagent n'est utilisée que si elle est explicitement disponible et appropriée. Sinon, appliquer localement les mêmes critères de review.
+## 6. Architecture rules
 
----
+Use Clean Architecture unless a local module already follows another explicit pattern.
 
-## 9. ARBORESCENCE
+Expected dependency direction:
 
-```
-shopify-app/            ← [Phase 6] Scaffold Remix (Shopify CLI) — couche app
-  app/                  ← routes Remix (UI Polaris, App Bridge v4, OAuth sessions)
-  extensions/           ← [Phase 8] Theme App Extension (JSON-LD)
-  package.json          ← dépendances Node (@shopify/polaris, app-bridge, remix)
-
-app/                    ← Backend Python (moteur SEO/IA — conservé intégralement)
-  api/                  ← endpoints REST appelés par shopify-app/ via HTTP
-  jobs/                 ← [Phase 6] async queue Postgres-backed
-  llm/                  ← [Phase 7] provider abstraction + prompts Jinja2
-  niche/                ← [Phase 7] Niche Intelligence engine
-  observability/        ← [Phase 7] logs structurés, métriques, coût LLM
-  db.py                 ← schéma SQLite (→ Postgres Phase 6)
-  main.py               ← entry point FastAPI (port 8000)
-
-scripts/                ← pipeline CLI (moteur SEO — réutilisable)
-  audit/                ← lecture seule (crawl, GSC, PageSpeed, detection)
-  apply/                ← écriture Shopify (dry-run par défaut)
-  report/               ← génération rapports Markdown
-
-frontend/               ← Dashboard React LEGACY (décommissionné après tâche 57)
-
-config/
-  tenants/              ← YAML par boutique (leoniedelacroix.yaml)
-  niches/               ← YAML par secteur (pet_accessories_fr, etc.)
-  prompts/              ← [Phase 7] templates Jinja2 par type de contenu
-
-data/
-  history.db            ← SQLite (→ Neon Postgres Phase 6)
-  raw/                  ← exports bruts (gitignored)
-
-reports/YYYY-MM-DD/     ← rapports horodatés
-.github/workflows/      ← CI/CD hebdomadaire
-```
-
----
-
-## 10. COMMANDES FRÉQUENTES
-
-```bash
-# Audit SEO
-leonie-seo audit crawl          # snapshot catalogue Shopify
-leonie-seo audit gsc            # données GSC 90 jours
-leonie-seo audit pagespeed      # Core Web Vitals
-leonie-seo audit detect         # détection problèmes
-
-# Rapports
-leonie-seo report weekly        # rapport Markdown hebdomadaire
-leonie-seo report delta         # comparaison avant/après
-
-# Application (dry-run par défaut)
-leonie-seo apply meta --dry-run
-leonie-seo apply meta --apply
-leonie-seo apply alt --dry-run
-leonie-seo apply rollback --last 5
-
-# Licences
-leonie-seo license issue --tenant <id> --plan pro --days 365
-leonie-seo license check
-
-# API web
-uvicorn app.main:app --reload   # port 8000
-cd shopify-app && npm run dev    # app Remix Shopify
-```
-
----
-
-## 11. FICHIERS DE RÉFÉRENCE
-
-| Fichier | Rôle |
-|---|---|
-| `ROADMAP.md` | Statuts ✅/🔄/⏳ des 75 tâches — **mettre à jour après chaque tâche** |
-| `PROGRESS.md` | État session par session, blocages, métriques |
-| `DECISIONS.md` | Journal des choix techniques + décisions ouvertes |
-| `RAPPORT_AUDIT.md` | Archive de l'audit gap initial — historique, pas état courant |
-| `AUDIT_CLAUDE_CODE.md` | Archive du brief d'audit Claude Code — historique, pas consigne active Codex |
-| `CONTEXT.md` | Fiche marché, concurrents, mots-clés stratégiques |
-| `docs/guide-utilisateur.fr.md` | Guide marchand FR |
-| `docs/user-guide.en.md` | Merchant guide EN |
-| `skills/seo-technique.md` | Seuils et règles de scoring SEO |
-| `skills/shopify-graphql.md` | Patterns GraphQL sûrs et rate limiting |
+```text
+presentation -> application/use cases -> domain
+infrastructure -> application/use cases -> domain
+domain -> no infrastructure dependencies
