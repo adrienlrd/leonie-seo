@@ -87,6 +87,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const id = Number(form.get("id"));
 
   try {
+    if (intent === "generate-meta") {
+      const resp = await callBackendForShop(
+        shop,
+        `/api/shops/${shop}/generate/meta/from-snapshot`,
+        {
+          method: "POST",
+          accessToken: session.accessToken,
+          body: JSON.stringify({ limit: 25, max_workers: 5 }),
+        }
+      );
+      if (!resp.ok) {
+        return json<ActionData>({ error: `${resp.status}` });
+      }
+      const data = await readJson<{ job_id: string; queued: number }>(resp);
+      return json<ActionData>({
+        message: `${t(locale, "jobQueued")} ${data.job_id.slice(0, 8)} (${data.queued})`,
+      });
+    }
+
     if (intent === "approve" || intent === "reject") {
       const body =
         intent === "approve" ? { approve: [id], reject: [] } : { approve: [], reject: [id] };
@@ -219,6 +238,12 @@ export default function Review() {
               {t(locale, "pendingSuggestions")}
             </Text>
             <InlineStack gap="200">
+              <Button
+                disabled={busy}
+                onClick={() => submit({ intent: "generate-meta" }, { method: "post" })}
+              >
+                {t(locale, "generateMeta")}
+              </Button>
               <Button
                 disabled={busy || suggestions.length === 0}
                 onClick={() => submit({ intent: "auto-approve" }, { method: "post" })}

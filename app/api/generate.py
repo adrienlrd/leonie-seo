@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.api.deps import ShopContext, get_shop_context
+from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.jobs.store import enqueue
 from app.llm.meta_store import batch_update_status, list_suggestions
 from app.llm.review import diff_suggestions
@@ -23,6 +24,11 @@ router = APIRouter(tags=["generate"])
 class GenerateMetaRequest(BaseModel):
     products: list[dict]
     max_workers: int = 10
+
+
+class GenerateFromSnapshotRequest(BaseModel):
+    limit: int = 25
+    max_workers: int = 5
 
 
 class GenerateMetaResponse(BaseModel):
@@ -101,6 +107,41 @@ async def enqueue_meta_generation(
         job_id=job_id,
         queued=len(body.products),
         message=f"{len(body.products)} products queued for meta generation",
+    )
+
+
+@router.post("/api/shops/{shop}/generate/meta/from-snapshot", response_model=GenerateMetaResponse)
+async def enqueue_meta_generation_from_snapshot(
+    shop: str,
+    body: GenerateFromSnapshotRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> GenerateMetaResponse:
+    """Enqueue meta generation from the latest read-only Shopify crawl snapshot."""
+    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    products = (snapshot or {}).get("products", [])
+    if not products:
+        raise HTTPException(
+            status_code=404, detail="No product snapshot found. Run an audit first."
+        )
+
+    limit = max(1, min(body.limit, 100))
+    max_workers = max(1, min(body.max_workers, 10))
+    selected_products = products[:limit]
+    job_id = str(uuid.uuid4())
+    enqueue(
+        "meta_generation",
+        payload={
+            "products": selected_products,
+            "max_workers": max_workers,
+            "job_id": job_id,
+        },
+        job_id=job_id,
+        shop=ctx.shop,
+    )
+    return GenerateMetaResponse(
+        job_id=job_id,
+        queued=len(selected_products),
+        message=f"{len(selected_products)} products queued for meta generation",
     )
 
 

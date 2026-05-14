@@ -71,6 +71,9 @@
 - À retester après redéploiement : lancer un audit SEO, attendre `completed`, puis vérifier Onboarding `Crawl OK` avec produits/collections et Niche avec clusters produits.
 - Bug pilote après retest : le job `seo_audit` passait `completed`, mais Onboarding restait `Crawl TODO / 0 produits`.
 - Correctif prêt à déployer : les endpoints Status, Audit et Niche lisent désormais le snapshot depuis `data/raw/{shop}/...` puis basculent sur la table durable `snapshots` si le fichier local manque.
+- Retest crawl : Onboarding affiche les produits après audit.
+- Correctif prêt à déployer : Review IA dispose d'un bouton `Générer suggestions IA` qui lance un job `meta_generation` depuis le dernier snapshot produit, sans écriture Shopify.
+- À retester : cliquer `Générer suggestions IA`, attendre le job `completed`, puis recharger Review IA pour afficher les suggestions pending.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 
