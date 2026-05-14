@@ -33,6 +33,7 @@ interface BulkApplyDetail {
   product_title?: string;
   current_title?: string;
   current_description?: string;
+  current_seo_read?: boolean;
   generated_title?: string;
   generated_description?: string;
   dry_run?: boolean;
@@ -165,6 +166,9 @@ function PreviewDetails({ job }: { job: Job }) {
               <Text as="p" variant="bodyMd" fontWeight="bold">
                 {detail.product_title || detail.product_id || "Produit"}
               </Text>
+              <Badge tone={detail.current_seo_read ? "success" : "warning"}>
+                {detail.current_seo_read ? "Avant lu depuis Shopify" : "Avant estimé depuis le crawl"}
+              </Badge>
               <div style={PREVIEW_TEXT_STYLE}>
                 <Text as="p" tone="subdued">
                   Avant titre: {detail.current_title || "Non renseigné"}

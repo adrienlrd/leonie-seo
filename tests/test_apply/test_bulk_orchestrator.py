@@ -209,6 +209,34 @@ def test_shopify_writer_skips_when_no_content():
     assert "no fields" in result.error
 
 
+def test_shopify_writer_reads_product_seo_without_mutation():
+    mock_session = MagicMock()
+    mock_read = MagicMock()
+    mock_read.status_code = 200
+    mock_read.json.return_value = {
+        "data": {
+            "product": {
+                "id": "gid://shopify/Product/1",
+                "seo": {"title": "SEO title", "description": "SEO description"},
+            }
+        }
+    }
+    mock_read.raise_for_status = MagicMock()
+    mock_session.post.return_value = mock_read
+
+    writer = ShopifyWriter("test.myshopify.com", "token", delay=0)
+    writer._session = mock_session
+
+    title, description = writer.read_product_seo("gid://shopify/Product/1")
+
+    assert title == "SEO title"
+    assert description == "SEO description"
+    assert mock_session.post.call_count == 1
+    sent_query = mock_session.post.call_args.kwargs["json"]["query"]
+    assert "query ReadProductSEO" in sent_query
+    assert "mutation UpdateProductSEO" not in sent_query
+
+
 # ---------------------------------------------------------------------------
 # BulkApplyReport
 # ---------------------------------------------------------------------------
@@ -244,10 +272,30 @@ def test_apply_approved_meta_dry_run(tmp_path):
     assert report.details[0]["product_title"] == "Harnais chien"
     assert report.details[0]["current_title"] == "Harnais chien"
     assert report.details[0]["current_description"] == ""
+    assert report.details[0]["current_seo_read"] is False
     assert report.details[0]["generated_title"] == "New meta title"
     assert report.details[0]["generated_description"].startswith("New meta desc")
     assert report.details[0]["action"] == "would_apply"
     assert "no Shopify write" in report.details[0]["note"]
+
+
+def test_apply_approved_meta_dry_run_reads_current_shopify_seo_when_token_exists(tmp_path):
+    db = tmp_path / "test.db"
+    _init_db(db)
+    _insert_suggestion(db, "test.myshopify.com", "gid://shopify/Product/1")
+
+    with patch("app.apply.bulk_orchestrator.get_token", return_value=_FAKE_TOKEN):
+        with patch("app.apply.bulk_orchestrator.ShopifyWriter") as MockWriter:
+            writer = MockWriter.return_value
+            writer.read_product_seo.return_value = ("Live SEO title", "Live SEO description")
+            report = apply_approved_meta("test.myshopify.com", dry_run=True, db_path=db)
+
+    assert report.dry_run is True
+    assert report.details[0]["current_title"] == "Live SEO title"
+    assert report.details[0]["current_description"] == "Live SEO description"
+    assert report.details[0]["current_seo_read"] is True
+    writer.read_product_seo.assert_called_once_with("gid://shopify/Product/1")
+    writer.apply_product_seo.assert_not_called()
 
 
 def test_apply_approved_meta_dry_run_no_suggestions(tmp_path):

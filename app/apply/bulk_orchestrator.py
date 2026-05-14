@@ -113,14 +113,29 @@ def apply_approved_meta(
         return report
 
     if dry_run:
+        token_record = get_token(shop, db_path)
+        writer = (
+            ShopifyWriter(shop, token_record["access_token"], delay=0) if token_record else None
+        )
         for row in suggestions:
+            product_id = row["product_id"] if isinstance(row, dict) else row[2]
+            product_title = row.get("product_title", "") if isinstance(row, dict) else ""
+            current_title = product_title
+            current_description = ""
+            current_seo_read = False
+            if writer:
+                seo_title, seo_description = writer.read_product_seo(product_id)
+                current_title = seo_title or ""
+                current_description = seo_description or ""
+                current_seo_read = True
             report.details.append(
                 {
                     "suggestion_id": row["id"] if isinstance(row, dict) else row[0],
-                    "product_id": row["product_id"] if isinstance(row, dict) else row[2],
-                    "product_title": row.get("product_title", "") if isinstance(row, dict) else "",
-                    "current_title": row.get("product_title", "") if isinstance(row, dict) else "",
-                    "current_description": "",
+                    "product_id": product_id,
+                    "product_title": product_title,
+                    "current_title": current_title,
+                    "current_description": current_description,
+                    "current_seo_read": current_seo_read,
                     "generated_title": (
                         row.get("generated_title", "") if isinstance(row, dict) else ""
                     ),

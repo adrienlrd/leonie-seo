@@ -151,6 +151,18 @@ class ShopifyWriter:
         seo = resource.get("seo") or {}
         return seo.get("title"), seo.get("description")
 
+    def read_product_seo(self, product_id: str) -> tuple[str | None, str | None]:
+        """Fetch current product SEO fields without writing to Shopify.
+
+        Args:
+            product_id: Shopify Product GID.
+
+        Returns:
+            Tuple `(seo_title, seo_description)`. Values are None when Shopify
+            has no explicit SEO value or when the read fails.
+        """
+        return self._read_seo(product_id, _READ_PRODUCT_SEO, "product")
+
     def apply_product_seo(
         self,
         product_id: str,
