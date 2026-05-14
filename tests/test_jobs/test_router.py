@@ -131,18 +131,14 @@ def test_get_job_other_shop_returns_404(client):
 
 
 def test_list_shop_jobs_returns_jobs_for_shop(client):
-    # /api/shops/{shop}/jobs uses get_shop_context, which needs a token lookup.
-    # Mock get_token to simulate an installed shop.
-    fake_token = {"access_token": "shpat_test", "scope": "read_products"}
-    with patch("app.api.deps.get_token", return_value=fake_token):
-        client.post("/api/jobs", json={"queue": "seo_audit"}, headers=_HEADERS_FOR(SHOP))
-        client.post(
-            "/api/jobs",
-            json={"queue": "seo_audit"},
-            headers=_HEADERS_FOR("other.myshopify.com"),
-        )
+    client.post("/api/jobs", json={"queue": "seo_audit"}, headers=_HEADERS_FOR(SHOP))
+    client.post(
+        "/api/jobs",
+        json={"queue": "seo_audit"},
+        headers=_HEADERS_FOR("other.myshopify.com"),
+    )
 
-        resp = client.get(f"/api/shops/{SHOP}/jobs", headers=_HEADERS_FOR(SHOP))
+    resp = client.get(f"/api/shops/{SHOP}/jobs", headers=_HEADERS_FOR(SHOP))
 
     assert resp.status_code == 200
     body = resp.json()
@@ -153,13 +149,19 @@ def test_list_shop_jobs_returns_jobs_for_shop(client):
 
 
 def test_list_shop_jobs_filters_by_status(client):
-    fake_token = {"access_token": "shpat_test", "scope": "read_products"}
-    with patch("app.api.deps.get_token", return_value=fake_token):
-        client.post("/api/jobs", json={"queue": "seo_audit"}, headers=_HEADERS_FOR(SHOP))
-        resp = client.get(
-            f"/api/shops/{SHOP}/jobs?status=pending",
-            headers=_HEADERS_FOR(SHOP),
-        )
+    client.post("/api/jobs", json={"queue": "seo_audit"}, headers=_HEADERS_FOR(SHOP))
+    resp = client.get(
+        f"/api/shops/{SHOP}/jobs?status=pending",
+        headers=_HEADERS_FOR(SHOP),
+    )
     assert resp.status_code == 200
     for job in resp.json()["jobs"]:
         assert job["status"] == "pending"
+
+
+def test_list_shop_jobs_rejects_shop_mismatch(client):
+    resp = client.get(
+        f"/api/shops/{SHOP}/jobs",
+        headers=_HEADERS_FOR("other.myshopify.com"),
+    )
+    assert resp.status_code == 403

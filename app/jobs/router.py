@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 
-from app.api.deps import ShopContext, get_authenticated_shop, get_shop_context
+from app.api.deps import get_authenticated_shop
 from app.jobs.handlers import registered_queues
 from app.jobs.store import enqueue, get_job, list_jobs
 
@@ -64,11 +64,18 @@ async def get_job_status(
 
 @router.get("/shops/{shop}/jobs")
 async def list_shop_jobs(
-    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    shop: str,
+    authenticated_shop: Annotated[str, Depends(get_authenticated_shop)],
     queue: str | None = None,
     status: str | None = None,
     limit: int = 50,
 ) -> dict:
-    """List recent jobs for a tenant, optionally filtered by queue or status."""
-    jobs = list_jobs(shop=ctx.shop, queue=queue, status=status, limit=min(limit, 200))
-    return {"shop": ctx.shop, "jobs": jobs, "count": len(jobs)}
+    """List recent jobs for a tenant, optionally filtered by queue or status.
+
+    Listing jobs only needs tenant ownership, not a Shopify Admin API token.
+    Remix authenticates this route with X-Leonie-Shop + X-Internal-Secret.
+    """
+    if authenticated_shop != shop:
+        raise HTTPException(status_code=403, detail="Authenticated shop does not match path")
+    jobs = list_jobs(shop=authenticated_shop, queue=queue, status=status, limit=min(limit, 200))
+    return {"shop": authenticated_shop, "jobs": jobs, "count": len(jobs)}

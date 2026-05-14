@@ -41,7 +41,23 @@
 - Un Blueprint Render `render.yaml` prépare deux services :
   - `leonie-seo-pilot-web` pour Remix ;
   - `leonie-seo-pilot-api` pour FastAPI.
-- La prochaine action externe est de créer les deux services Render depuis le Blueprint, renseigner les secrets, raccorder le DNS du sous-domaine, puis déployer la config Shopify `pilot`.
+- Les deux services Render sont déployés et répondent :
+  - `https://leonie-seo-pilot-api.onrender.com/health` retourne `status=ok` ;
+  - `https://leonie-seo-pilot-web.onrender.com/healthz` retourne `ok`.
+- `PYTHON_BACKEND_URL` du service web pointe bien vers `https://leonie-seo-pilot-api.onrender.com`.
+- Le domaine custom `https://pilot.leoniedelacroix.com` est vérifié dans Render.
+- La configuration Shopify `pilot` a été déployée et publiée en version `leonie-seo-pilot-2`.
+- L'app pilote a été retrouvée dans le Developer Dashboard via l'URL directe et installée sur la boutique réelle `Léonie Delacroix`.
+- Point d'organisation à traiter plus tard : clarifier/supprimer l'organisation legacy `Léonie Delacroic` pour ne garder que `Léonie Delacroix` comme espace Partner opérationnel.
+- Validation pilote réelle :
+  - OAuth et chargement embedded dans l'Admin Shopify fonctionnent ;
+  - la navigation entre Dashboard, Review IA, Niche, Onboarding, Jobs SEO, Facturation, Réglage et Confidentialité fonctionne ;
+  - le plan Free remonte correctement ;
+  - le lancement d'audit crée un job côté UI, mais la page Jobs SEO ne le listait pas à cause d'un endpoint backend qui exigeait un token OAuth Python pour lire la queue.
+- Correctifs prêts à déployer :
+  - `LEONIE_BILLING_MODE=disabled` bloque toute création d'abonnement pendant le pilote ;
+  - `/api/shops/{shop}/jobs` vérifie l'appel interne Remix sans exiger de token Shopify stocké côté Python.
+- À redéployer sur Render puis retester : relancer un audit, recharger Jobs SEO, vérifier que le job apparaît et passe `pending` → `completed` ou expose une erreur claire.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 

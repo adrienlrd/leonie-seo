@@ -36,6 +36,10 @@ class SubscribeRequest(BaseModel):
     plan: str  # "pro" or "agency"
 
 
+def _billing_mode() -> str:
+    return os.getenv("LEONIE_BILLING_MODE", "live").strip().lower()
+
+
 @router.get("/billing/plans")
 async def list_plans(shop: str) -> dict:
     """Return available plans with prices and features."""
@@ -73,6 +77,9 @@ async def subscribe(
 
     The merchant must visit the confirmation URL to approve the charge.
     """
+    if _billing_mode() == "disabled":
+        raise HTTPException(status_code=403, detail="Billing is disabled for this environment.")
+
     if body.plan not in BILLING_PLANS:
         raise HTTPException(status_code=400, detail=f"Unknown plan: '{body.plan}'")
 

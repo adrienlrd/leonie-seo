@@ -84,6 +84,12 @@ def test_subscribe_returns_confirmation_url(client, db, monkeypatch):
     assert "confirmation_url" in resp.json()
 
 
+def test_subscribe_returns_403_when_billing_disabled(client, monkeypatch):
+    monkeypatch.setenv("LEONIE_BILLING_MODE", "disabled")
+    resp = client.post(f"/api/shops/{SHOP}/billing/subscribe", json={"plan": "pro"})
+    assert resp.status_code == 403
+
+
 def test_subscribe_unknown_plan_returns_400(client):
     resp = client.post(f"/api/shops/{SHOP}/billing/subscribe", json={"plan": "enterprise"})
     assert resp.status_code == 400
