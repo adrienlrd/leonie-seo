@@ -118,8 +118,19 @@ def apply_approved_meta(
                 {
                     "suggestion_id": row["id"] if isinstance(row, dict) else row[0],
                     "product_id": row["product_id"] if isinstance(row, dict) else row[2],
+                    "product_title": row.get("product_title", "") if isinstance(row, dict) else "",
+                    "current_title": row.get("product_title", "") if isinstance(row, dict) else "",
+                    "current_description": "",
+                    "generated_title": (
+                        row.get("generated_title", "") if isinstance(row, dict) else ""
+                    ),
+                    "generated_description": (
+                        row.get("generated_description", "") if isinstance(row, dict) else ""
+                    ),
                     "applied": False,
                     "dry_run": True,
+                    "action": "would_apply",
+                    "note": "preview only - no Shopify write was performed",
                 }
             )
         report.skipped = len(suggestions)

@@ -82,6 +82,8 @@
 - Correctif prêt à déployer : Review IA contraint les largeurs Produit/Titre/Description et force le retour à la ligne des textes longs.
 - Retest Review IA : approuver/rejeter une suggestion retire bien la ligne du tableau pending.
 - Correctif prêt à déployer : Review IA affiche le nombre de suggestions approuvées prêtes, renomme l'action en `Prévisualiser l'application`, bloque l'action si rien n'est approuvé, et confirme qu'aucune modification Shopify n'est faite en mode prévisualisation.
+- Retest prévisualisation : le job `bulk_apply` en dry-run passe `completed`.
+- Correctif prêt à déployer : le rapport dry-run contient maintenant les produits concernés, le titre courant connu, les nouvelles meta proposées, et Jobs SEO affiche une carte de prévisualisation détaillée sans écriture Shopify.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 

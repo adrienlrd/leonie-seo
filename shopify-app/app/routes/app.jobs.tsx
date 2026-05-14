@@ -6,7 +6,9 @@ import {
   BlockStack,
   Box,
   Card,
+  Divider,
   IndexTable,
+  InlineStack,
   Page,
   Text,
 } from "@shopify/polaris";
@@ -23,6 +25,27 @@ interface Job {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+}
+
+interface BulkApplyDetail {
+  suggestion_id?: number;
+  product_id?: string;
+  product_title?: string;
+  current_title?: string;
+  current_description?: string;
+  generated_title?: string;
+  generated_description?: string;
+  dry_run?: boolean;
+  action?: string;
+  note?: string;
+}
+
+interface BulkApplyResult {
+  dry_run?: boolean;
+  applied?: number;
+  skipped?: number;
+  errors?: number;
+  details?: BulkApplyDetail[];
 }
 
 interface LoaderData {
@@ -81,6 +104,10 @@ function summarizeResult(result: Job["result"]): string {
     return `${generated}/${total} générés${suffix}`;
   }
 
+  if (result.dry_run === true && Array.isArray(result.details)) {
+    return `Prévisualisation: ${result.details.length} suggestion(s), aucune écriture Shopify`;
+  }
+
   const products = result.products;
   const collections = result.collections;
   if (typeof products === "number" || typeof collections === "number") {
@@ -90,8 +117,83 @@ function summarizeResult(result: Job["result"]): string {
   return JSON.stringify(result).slice(0, 120);
 }
 
+function asBulkPreview(job: Job): BulkApplyResult | null {
+  if (job.queue !== "bulk_apply" || typeof job.result !== "object" || job.result === null) {
+    return null;
+  }
+  if (job.result.dry_run !== true || !Array.isArray(job.result.details)) {
+    return null;
+  }
+  return job.result as BulkApplyResult;
+}
+
+const PREVIEW_TEXT_STYLE = {
+  maxWidth: "560px",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+} as const;
+
+function PreviewDetails({ job }: { job: Job }) {
+  const preview = asBulkPreview(job);
+  if (!preview || !preview.details || preview.details.length === 0) {
+    return null;
+  }
+
+  const details = preview.details.slice(0, 10);
+  const remaining = preview.details.length - details.length;
+
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack gap="200" align="space-between">
+          <BlockStack gap="100">
+            <Text as="h2" variant="headingMd">
+              Prévisualisation d'application
+            </Text>
+            <Text as="p" tone="subdued">
+              Job {job.id.slice(0, 8)} - aucune modification Shopify n'a été faite.
+            </Text>
+          </BlockStack>
+          <Badge tone="info">{`${preview.details.length} suggestion(s)`}</Badge>
+        </InlineStack>
+
+        {details.map((detail, index) => (
+          <BlockStack gap="200" key={`${job.id}-${detail.suggestion_id ?? index}`}>
+            {index > 0 && <Divider />}
+            <BlockStack gap="100">
+              <Text as="p" variant="bodyMd" fontWeight="bold">
+                {detail.product_title || detail.product_id || "Produit"}
+              </Text>
+              <div style={PREVIEW_TEXT_STYLE}>
+                <Text as="p" tone="subdued">
+                  Avant titre: {detail.current_title || "Non renseigné"}
+                </Text>
+                <Text as="p">Après titre: {detail.generated_title || "Non renseigné"}</Text>
+                <Text as="p" tone="subdued">
+                  Avant meta description: {detail.current_description || "Non renseignée"}
+                </Text>
+                <Text as="p">
+                  Après meta description: {detail.generated_description || "Non renseignée"}
+                </Text>
+              </div>
+            </BlockStack>
+          </BlockStack>
+        ))}
+
+        {remaining > 0 && (
+          <Text as="p" tone="subdued">
+            +{remaining} autre(s) suggestion(s) dans ce dry-run.
+          </Text>
+        )}
+      </BlockStack>
+    </Card>
+  );
+}
+
 export default function Jobs() {
   const { jobs } = useLoaderData<typeof loader>();
+  const previewJobs = jobs.filter((job) => asBulkPreview(job) !== null);
 
   const resourceName = { singular: "job", plural: "jobs" };
   const rowMarkup = jobs.map((job, index) => (
@@ -155,6 +257,9 @@ export default function Jobs() {
             </IndexTable>
           )}
         </Card>
+        {previewJobs.map((job) => (
+          <PreviewDetails job={job} key={`preview-${job.id}`} />
+        ))}
       </BlockStack>
     </Page>
   );

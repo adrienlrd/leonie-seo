@@ -241,6 +241,13 @@ def test_apply_approved_meta_dry_run(tmp_path):
     assert report.errors == 0
     assert len(report.details) == 2
     assert all(d["dry_run"] for d in report.details)
+    assert report.details[0]["product_title"] == "Harnais chien"
+    assert report.details[0]["current_title"] == "Harnais chien"
+    assert report.details[0]["current_description"] == ""
+    assert report.details[0]["generated_title"] == "New meta title"
+    assert report.details[0]["generated_description"].startswith("New meta desc")
+    assert report.details[0]["action"] == "would_apply"
+    assert "no Shopify write" in report.details[0]["note"]
 
 
 def test_apply_approved_meta_dry_run_no_suggestions(tmp_path):
