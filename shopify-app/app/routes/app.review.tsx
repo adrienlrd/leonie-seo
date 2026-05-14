@@ -51,6 +51,29 @@ async function readJson<T>(resp: Response): Promise<T> {
   return (await resp.json()) as T;
 }
 
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function asNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeSuggestion(raw: unknown): DiffSuggestion {
+  const row = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return {
+    suggestion_id: asNumber(row.suggestion_id),
+    product_id: asString(row.product_id),
+    product_title: asString(row.product_title),
+    generated_title: asString(row.generated_title),
+    generated_description: asString(row.generated_description),
+    title_length: asNumber(row.title_length),
+    desc_length: asNumber(row.desc_length),
+    passes_quality_check: row.passes_quality_check === true,
+    summary: asString(row.summary) || "ok",
+  };
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
@@ -78,9 +101,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         error: `${resp.status}`,
       });
     }
-    const suggestions = await readJson<DiffSuggestion[]>(resp);
+    const rawSuggestions = await readJson<unknown>(resp);
+    const suggestions = Array.isArray(rawSuggestions)
+      ? rawSuggestions.map(normalizeSuggestion)
+      : [];
     const approved = approvedResp.ok ? await readJson<unknown[]>(approvedResp) : [];
-    return json<LoaderData>({ locale, shop, suggestions, approvedCount: approved.length });
+    return json<LoaderData>({
+      locale,
+      shop,
+      suggestions,
+      approvedCount: Array.isArray(approved) ? approved.length : 0,
+    });
   } catch {
     return json<LoaderData>({
       locale,
@@ -179,20 +210,22 @@ function qualityTone(ok: boolean): "success" | "critical" {
 }
 
 function averageLength(values: number[]): string {
-  if (values.length === 0) {
+  const validValues = values.filter((value) => Number.isFinite(value));
+  if (validValues.length === 0) {
     return "0";
   }
-  const total = values.reduce((sum, value) => sum + value, 0);
-  return Math.round(total / values.length).toString();
+  const total = validValues.reduce((sum, value) => sum + value, 0);
+  return Math.round(total / validValues.length).toString();
 }
 
 function collectQualityIssues(suggestions: DiffSuggestion[]): Array<[string, number]> {
   const counts = new Map<string, number>();
   for (const suggestion of suggestions) {
-    if (suggestion.passes_quality_check || suggestion.summary === "ok") {
+    const summary = suggestion.summary || "ok";
+    if (suggestion.passes_quality_check || summary === "ok") {
       continue;
     }
-    for (const issue of suggestion.summary.split("; ").filter(Boolean)) {
+    for (const issue of summary.split("; ").filter(Boolean)) {
       counts.set(issue, (counts.get(issue) ?? 0) + 1);
     }
   }
@@ -300,7 +333,7 @@ export default function Review() {
               {suggestion.product_title}
             </Text>
             <Text as="span" variant="bodySm" tone="subdued">
-              {suggestion.product_id.replace("gid://shopify/Product/", "#")}
+              {suggestion.product_id.replace("gid://shopify/Product/", "#") || "#"}
             </Text>
           </BlockStack>
         </div>
