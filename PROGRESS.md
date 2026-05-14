@@ -74,6 +74,9 @@
 - Retest crawl : Onboarding affiche les produits après audit.
 - Correctif prêt à déployer : Review IA dispose d'un bouton `Générer suggestions IA` qui lance un job `meta_generation` depuis le dernier snapshot produit, sans écriture Shopify.
 - À retester : cliquer `Générer suggestions IA`, attendre le job `completed`, puis recharger Review IA pour afficher les suggestions pending.
+- Bug pilote identifié : un job `meta_generation` est resté en `running` plus de 12 minutes.
+- Correctif prêt à déployer : le worker récupère les jobs `running` trop vieux après redémarrage/timeout, les remet en `pending` ou `failed` selon les retries, capture les erreurs LLM configurables, et Jobs SEO affiche maintenant le résultat ou l'erreur du job.
+- À retester après redéploiement : recharger Jobs SEO, vérifier que l'ancien job n'est plus bloqué en `running`, puis relancer `Générer suggestions IA` si nécessaire.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 

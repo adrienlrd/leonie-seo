@@ -19,6 +19,7 @@ interface Job {
   status: string;
   shop: string;
   retries: number;
+  result?: Record<string, unknown> | string | null;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
@@ -59,6 +60,36 @@ const STATUS_TONE: Record<
   failed: "critical",
 };
 
+function summarizeResult(result: Job["result"]): string {
+  if (!result) {
+    return "—";
+  }
+  if (typeof result === "string") {
+    return result;
+  }
+
+  const error = result.error;
+  if (typeof error === "string" && error.length > 0) {
+    return error;
+  }
+
+  const generated = result.generated;
+  const total = result.total;
+  const errors = result.errors;
+  if (typeof generated === "number" && typeof total === "number") {
+    const suffix = typeof errors === "number" && errors > 0 ? `, ${errors} erreurs` : "";
+    return `${generated}/${total} générés${suffix}`;
+  }
+
+  const products = result.products;
+  const collections = result.collections;
+  if (typeof products === "number" || typeof collections === "number") {
+    return `${products ?? 0} produits, ${collections ?? 0} collections`;
+  }
+
+  return JSON.stringify(result).slice(0, 120);
+}
+
 export default function Jobs() {
   const { jobs } = useLoaderData<typeof loader>();
 
@@ -76,6 +107,11 @@ export default function Jobs() {
       <IndexTable.Cell>
         <Text as="span" variant="bodySm" tone="subdued">
           {job.retries}
+        </Text>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Text as="span" variant="bodySm" tone="subdued">
+          {summarizeResult(job.result)}
         </Text>
       </IndexTable.Cell>
       <IndexTable.Cell>
@@ -109,6 +145,7 @@ export default function Jobs() {
                 { title: "Queue" },
                 { title: "Statut" },
                 { title: "Tentatives" },
+                { title: "Résultat" },
                 { title: "Créé le" },
                 { title: "ID" },
               ]}

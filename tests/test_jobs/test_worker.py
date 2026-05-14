@@ -130,6 +130,24 @@ def test_worker_timeout_triggers_retry(db):
     assert job["retries"] == 1  # timed out → retry
 
 
+def test_worker_retries_on_llm_error(db):
+    from app.llm.provider import LLMError
+
+    @register("test_llm_error")
+    async def _llm_error(payload, shop):
+        raise LLMError("No LLM provider configured")
+
+    job_id = enqueue("test_llm_error", {}, db_path=db)
+    worker = JobWorker(db_path=db)
+
+    asyncio.run(_run_one(worker))
+
+    job = get_job(job_id, db_path=db)
+    assert job["status"] == "pending"
+    assert job["retries"] == 1
+    assert "No LLM provider configured" in job["result"]["error"]
+
+
 def test_seo_audit_handler_uses_stored_access_token(monkeypatch):
     from app.jobs.handlers import handle_seo_audit
 

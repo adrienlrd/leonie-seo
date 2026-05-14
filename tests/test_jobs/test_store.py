@@ -5,7 +5,15 @@ from __future__ import annotations
 import pytest
 
 from app.db import init_db
-from app.jobs.store import claim_next, enqueue, get_job, list_jobs, update_job
+from app.db_adapter import get_conn
+from app.jobs.store import (
+    claim_next,
+    enqueue,
+    get_job,
+    list_jobs,
+    recover_stale_running_jobs,
+    update_job,
+)
 
 
 @pytest.fixture()
@@ -92,6 +100,43 @@ def test_claim_next_filters_by_queue(db):
     claimed = claim_next(queue="seo_audit", db_path=db)
     assert claimed is not None
     assert claimed["queue"] == "seo_audit"
+
+
+# ── stale running recovery ────────────────────────────────────────────────────
+
+
+def test_recover_stale_running_jobs_requeues_old_job(db):
+    from datetime import UTC, datetime, timedelta
+
+    job_id = enqueue("meta_generation", {}, db_path=db)
+    claim_next(db_path=db)
+    old_started_at = (datetime.now(UTC) - timedelta(minutes=20)).isoformat()
+    with get_conn(db) as conn:
+        conn.execute("UPDATE jobs SET started_at = ? WHERE id = ?", (old_started_at, job_id))
+
+    repaired = recover_stale_running_jobs(stale_after_seconds=300, db_path=db)
+
+    job = get_job(job_id, db_path=db)
+    assert repaired == 1
+    assert job["status"] == "pending"
+    assert job["retries"] == 1
+    assert "stale running job recovered" in job["result"]["error"]
+
+
+def test_recover_stale_running_jobs_fails_after_max_retries(db):
+    from datetime import UTC, datetime, timedelta
+
+    job_id = enqueue("meta_generation", {}, max_retries=0, db_path=db)
+    claim_next(db_path=db)
+    old_started_at = (datetime.now(UTC) - timedelta(minutes=20)).isoformat()
+    with get_conn(db) as conn:
+        conn.execute("UPDATE jobs SET started_at = ? WHERE id = ?", (old_started_at, job_id))
+
+    recover_stale_running_jobs(stale_after_seconds=300, db_path=db)
+
+    job = get_job(job_id, db_path=db)
+    assert job["status"] == "failed"
+    assert job["retries"] == 1
 
 
 # ── update_job ────────────────────────────────────────────────────────────────

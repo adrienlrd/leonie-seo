@@ -9,7 +9,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from app.jobs.handlers import get_handler
-from app.jobs.store import claim_next, update_job
+from app.jobs.store import claim_next, recover_stale_running_jobs, update_job
+from app.llm.provider import LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,12 @@ class JobWorker:
         self,
         poll_interval: float = _DEFAULT_POLL_INTERVAL,
         timeout: int = _DEFAULT_TIMEOUT,
+        stale_after_seconds: int | None = None,
         db_path: Path | None = None,
     ) -> None:
         self.poll_interval = poll_interval
         self.timeout = timeout
+        self.stale_after_seconds = stale_after_seconds or timeout + 60
         self._db_path = db_path
         self._running = False
 
@@ -52,6 +55,12 @@ class JobWorker:
         logger.info("JobWorker started (poll_interval=%.1fs)", self.poll_interval)
         while self._running:
             try:
+                recovered = recover_stale_running_jobs(
+                    stale_after_seconds=self.stale_after_seconds,
+                    db_path=self._db_path,
+                )
+                if recovered:
+                    logger.warning("Recovered %d stale running job(s)", recovered)
                 job = claim_next(db_path=self._db_path)
                 if job:
                     await self._process(job)
@@ -59,7 +68,7 @@ class JobWorker:
                     await asyncio.sleep(self.poll_interval)
             except asyncio.CancelledError:
                 break
-            except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error):
+            except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error, LLMError):
                 logger.exception("Unexpected error in JobWorker loop")
                 await asyncio.sleep(self.poll_interval)
         logger.info("JobWorker stopped")
@@ -100,7 +109,7 @@ class JobWorker:
             logger.warning("Job %s timed out after %ds", job_id, self.timeout)
             self._handle_failure(job_id, retries, max_retries, f"timed out after {self.timeout}s")
 
-        except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error) as exc:
+        except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error, LLMError) as exc:
             logger.warning("Job %s failed: %s", job_id, exc)
             self._handle_failure(job_id, retries, max_retries, str(exc))
 

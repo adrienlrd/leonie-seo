@@ -148,6 +148,76 @@ def claim_next(queue: str | None = None, db_path: Path | None = None) -> dict | 
     return get_job(job_id, db_path)
 
 
+def recover_stale_running_jobs(
+    *,
+    stale_after_seconds: int,
+    db_path: Path | None = None,
+) -> int:
+    """Requeue or fail jobs left in running state by a crashed worker.
+
+    Render deploys, process restarts, or unhandled handler failures can leave a
+    job marked as running even though no worker is still processing it. This
+    repair step is intentionally conservative: it only touches jobs whose
+    started_at timestamp is older than the worker timeout window.
+    """
+    path = db_path if db_path is not None else DB_PATH
+    now = _now()
+    cutoff = (datetime.now(UTC) - timedelta(seconds=stale_after_seconds)).isoformat()
+    repaired = 0
+
+    with get_conn(path) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, retries, max_retries
+            FROM jobs
+            WHERE status = 'running'
+              AND started_at IS NOT NULL
+              AND started_at <= ?
+            """,
+            (cutoff,),
+        ).fetchall()
+
+        for row in rows:
+            new_retries = int(row["retries"]) + 1
+            max_retries = int(row["max_retries"])
+            result = json.dumps(
+                {
+                    "error": f"stale running job recovered after {stale_after_seconds}s",
+                    "attempt": new_retries,
+                }
+            )
+
+            if new_retries <= max_retries:
+                conn.execute(
+                    """
+                    UPDATE jobs
+                    SET status = 'pending',
+                        retries = ?,
+                        result = ?,
+                        scheduled_at = ?,
+                        started_at = NULL,
+                        completed_at = NULL
+                    WHERE id = ? AND status = 'running'
+                    """,
+                    (new_retries, result, now, row["id"]),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE jobs
+                    SET status = 'failed',
+                        retries = ?,
+                        result = ?,
+                        completed_at = ?
+                    WHERE id = ? AND status = 'running'
+                    """,
+                    (new_retries, result, now, row["id"]),
+                )
+            repaired += 1
+
+    return repaired
+
+
 def update_job(
     job_id: str,
     *,
