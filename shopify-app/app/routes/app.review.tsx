@@ -158,6 +158,28 @@ function qualityTone(ok: boolean): "success" | "critical" {
   return ok ? "success" : "critical";
 }
 
+const PRODUCT_CELL_STYLE = {
+  maxWidth: "220px",
+  minWidth: "180px",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+} as const;
+
+const TITLE_CELL_STYLE = {
+  maxWidth: "280px",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+} as const;
+
+const DESCRIPTION_CELL_STYLE = {
+  maxWidth: "360px",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+} as const;
+
 export default function Review() {
   const { locale, suggestions, error } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
@@ -168,24 +190,30 @@ export default function Review() {
   const rows = suggestions.map((suggestion, index) => (
     <IndexTable.Row id={String(suggestion.suggestion_id)} key={suggestion.suggestion_id} position={index}>
       <IndexTable.Cell>
-        <BlockStack gap="100">
-          <Text as="span" variant="bodyMd" fontWeight="bold">
-            {suggestion.product_title}
+        <div style={PRODUCT_CELL_STYLE}>
+          <BlockStack gap="100">
+            <Text as="span" variant="bodyMd" fontWeight="bold">
+              {suggestion.product_title}
+            </Text>
+            <Text as="span" variant="bodySm" tone="subdued">
+              {suggestion.product_id.replace("gid://shopify/Product/", "#")}
+            </Text>
+          </BlockStack>
+        </div>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <div style={TITLE_CELL_STYLE}>
+          <Text as="span" variant="bodySm">
+            {suggestion.generated_title}
           </Text>
+        </div>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <div style={DESCRIPTION_CELL_STYLE}>
           <Text as="span" variant="bodySm" tone="subdued">
-            {suggestion.product_id.replace("gid://shopify/Product/", "#")}
+            {suggestion.generated_description}
           </Text>
-        </BlockStack>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" variant="bodySm">
-          {suggestion.generated_title}
-        </Text>
-      </IndexTable.Cell>
-      <IndexTable.Cell>
-        <Text as="span" variant="bodySm" tone="subdued">
-          {suggestion.generated_description}
-        </Text>
+        </div>
       </IndexTable.Cell>
       <IndexTable.Cell>
         <BlockStack gap="100">
