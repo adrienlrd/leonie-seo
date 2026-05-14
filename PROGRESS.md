@@ -85,6 +85,7 @@
 - Retest prévisualisation : le job `bulk_apply` en dry-run passe `completed`.
 - Correctif prêt à déployer : le rapport dry-run contient maintenant les produits concernés, le titre courant connu, les nouvelles meta proposées, et Jobs SEO affiche une carte de prévisualisation détaillée sans écriture Shopify.
 - Correctif prêt à déployer : la prévisualisation dry-run lit désormais les champs SEO actuels du produit directement dans Shopify quand un token OAuth est disponible, sans mutation, et Jobs SEO indique si l'avant vient de Shopify ou du crawl.
+- Correctif prêt à déployer : Review IA affiche désormais un panneau `Audit qualité` pour les suggestions visibles, avec nombre de suggestions OK, suggestions à relire, longueurs moyennes title/description, et principaux motifs de rejet qualité.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 

@@ -12,6 +12,7 @@ import {
   Box,
   Button,
   Card,
+  Divider,
   IndexTable,
   InlineStack,
   Page,
@@ -177,6 +178,90 @@ function qualityTone(ok: boolean): "success" | "critical" {
   return ok ? "success" : "critical";
 }
 
+function averageLength(values: number[]): string {
+  if (values.length === 0) {
+    return "0";
+  }
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return Math.round(total / values.length).toString();
+}
+
+function collectQualityIssues(suggestions: DiffSuggestion[]): Array<[string, number]> {
+  const counts = new Map<string, number>();
+  for (const suggestion of suggestions) {
+    if (suggestion.passes_quality_check || suggestion.summary === "ok") {
+      continue;
+    }
+    for (const issue of suggestion.summary.split("; ").filter(Boolean)) {
+      counts.set(issue, (counts.get(issue) ?? 0) + 1);
+    }
+  }
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+}
+
+function QualityAudit({
+  locale,
+  suggestions,
+}: {
+  locale: Locale;
+  suggestions: DiffSuggestion[];
+}) {
+  const passed = suggestions.filter((suggestion) => suggestion.passes_quality_check).length;
+  const needsReview = suggestions.length - passed;
+  const averageTitle = averageLength(suggestions.map((suggestion) => suggestion.title_length));
+  const averageDescription = averageLength(
+    suggestions.map((suggestion) => suggestion.desc_length)
+  );
+  const issues = collectQualityIssues(suggestions).slice(0, 4);
+
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack gap="300" align="space-between">
+          <Text as="h2" variant="headingMd">
+            {t(locale, "qualityAudit")}
+          </Text>
+          <Text as="span" tone="subdued">
+            {suggestions.length} {t(locale, "visibleSuggestions")}
+          </Text>
+        </InlineStack>
+
+        <InlineStack gap="200">
+          <Badge tone="success">{`${passed} ${t(locale, "qualityPassed")}`}</Badge>
+          <Badge tone={needsReview > 0 ? "warning" : "success"}>
+            {`${needsReview} ${t(locale, "qualityNeedsReview")}`}
+          </Badge>
+          <Badge tone="info">
+            {`${t(locale, "averageLengths")} ${averageTitle}/${averageDescription}`}
+          </Badge>
+        </InlineStack>
+
+        <Divider />
+
+        <BlockStack gap="100">
+          <Text as="p" variant="bodyMd" fontWeight="bold">
+            {t(locale, "mainIssues")}
+          </Text>
+          {issues.length === 0 ? (
+            <Text as="p" tone="subdued">
+              {t(locale, "noQualityIssues")}
+            </Text>
+          ) : (
+            issues.map(([issue, count]) => (
+              <InlineStack gap="200" key={issue} align="start">
+                <Badge tone="warning">{String(count)}</Badge>
+                <Text as="span" tone="subdued">
+                  {issue}
+                </Text>
+              </InlineStack>
+            ))
+          )}
+        </BlockStack>
+      </BlockStack>
+    </Card>
+  );
+}
+
 const PRODUCT_CELL_STYLE = {
   maxWidth: "220px",
   minWidth: "180px",
@@ -323,6 +408,8 @@ export default function Review() {
             </Text>
           </Card>
         )}
+
+        {suggestions.length > 0 && <QualityAudit locale={locale} suggestions={suggestions} />}
 
         <Card>
           {suggestions.length === 0 ? (
