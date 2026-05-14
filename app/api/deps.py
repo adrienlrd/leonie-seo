@@ -73,6 +73,7 @@ def get_shop_context(
     authorization: Annotated[str | None, Header()] = None,
     x_leonie_shop: Annotated[str | None, Header()] = None,
     x_internal_secret: Annotated[str | None, Header()] = None,
+    x_shopify_access_token: Annotated[str | None, Header()] = None,
 ) -> ShopContext:
     """Resolve Shopify credentials for a shop, after auth gate.
 
@@ -94,21 +95,25 @@ def get_shop_context(
     else:
         _verify_token_matches_shop(authorization, shop)
 
-    record = get_token(shop)
-    if record:
-        token = record["access_token"]
+    if is_internal and x_shopify_access_token:
+        token = x_shopify_access_token
         snapshot = _RAW_DIR / shop / "shopify_snapshot.json"
     else:
-        primary_shop = os.getenv("SHOPIFY_STORE_DOMAIN", "")
-        primary_token = os.getenv("SHOPIFY_ACCESS_TOKEN", "")
-        if shop == primary_shop and primary_token:
-            token = primary_token
-            snapshot = _SNAPSHOT_DEFAULT
+        record = get_token(shop)
+        if record:
+            token = record["access_token"]
+            snapshot = _RAW_DIR / shop / "shopify_snapshot.json"
         else:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Shop '{shop}' is not installed. Complete OAuth first.",
-            )
+            primary_shop = os.getenv("SHOPIFY_STORE_DOMAIN", "")
+            primary_token = os.getenv("SHOPIFY_ACCESS_TOKEN", "")
+            if shop == primary_shop and primary_token:
+                token = primary_token
+                snapshot = _SNAPSHOT_DEFAULT
+            else:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Shop '{shop}' is not installed. Complete OAuth first.",
+                )
 
     return ShopContext(
         shop=shop,

@@ -68,7 +68,7 @@ async function safeBackendJson<T>(
   shop: string,
   path: string,
   fallback: T,
-  options?: RequestInit
+  options?: RequestInit & { accessToken?: string }
 ): Promise<T> {
   const resp = await callBackendForShop(shop, path, options);
   if (!resp.ok) {
@@ -86,7 +86,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const report = await safeBackendJson<NicheReport | null>(
       shop,
       `/api/shops/${shop}/niche/report`,
-      null
+      null,
+      { accessToken: session.accessToken }
     );
     const seeds = [
       ...(report?.keyword_gaps ?? []).slice(0, 3).map((gap) => gap.query),
@@ -100,6 +101,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             [],
             {
               method: "POST",
+              accessToken: session.accessToken,
               body: JSON.stringify({ seeds, sources: ["google_suggest"], geo: "FR" }),
             }
           )

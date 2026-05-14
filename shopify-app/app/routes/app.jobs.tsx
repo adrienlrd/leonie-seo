@@ -35,7 +35,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let jobs: Job[] = [];
   try {
-    const resp = await callBackendForShop(shop, `/api/shops/${shop}/jobs?limit=50`);
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/jobs?limit=50`, {
+      accessToken: session.accessToken,
+    });
     if (resp.ok) {
       const data = (await resp.json()) as { jobs: Job[] };
       jobs = data.jobs;

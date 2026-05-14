@@ -144,6 +144,23 @@ def test_internal_auth_accepted_when_secret_matches(mocker):
     assert resp.json()["shop"] == SHOP
 
 
+def test_internal_auth_accepts_session_access_token_without_stored_token(mocker):
+    """Remix can pass the Shopify session access token to Python over the internal channel."""
+    mocker.patch("app.api.deps.get_token", return_value=None)
+    with patch.dict("os.environ", ENV_INTERNAL):
+        client = TestClient(app)
+        resp = client.get(
+            f"/api/shops/{SHOP}/status",
+            headers={
+                "X-Leonie-Shop": SHOP,
+                "X-Internal-Secret": INTERNAL_SECRET,
+                "X-Shopify-Access-Token": "shpat_from_remix_session",
+            },
+        )
+    assert resp.status_code == 200
+    assert resp.json()["installed"] is True
+
+
 def test_internal_auth_rejects_wrong_secret(mocker):
     """A wrong internal secret must return 403 regardless of other headers."""
     mocker.patch("app.api.deps.get_token", return_value={"access_token": "shpat_t"})

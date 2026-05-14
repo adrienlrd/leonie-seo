@@ -55,7 +55,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const locale = getLocale(request);
 
   try {
-    const resp = await callBackendForShop(shop, `/api/shops/${shop}/generate/meta/diff?limit=50`);
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/generate/meta/diff?limit=50`, {
+      accessToken: session.accessToken,
+    });
     if (!resp.ok) {
       return json<LoaderData>({
         locale,
@@ -90,6 +92,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         intent === "approve" ? { approve: [id], reject: [] } : { approve: [], reject: [id] };
       const resp = await callBackendForShop(shop, `/api/shops/${shop}/generate/meta/review`, {
         method: "POST",
+        accessToken: session.accessToken,
         body: JSON.stringify(body),
       });
       if (!resp.ok) {
@@ -104,7 +107,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const resp = await callBackendForShop(
         shop,
         `/api/shops/${shop}/generate/meta/auto-approve`,
-        { method: "POST" }
+        { method: "POST", accessToken: session.accessToken }
       );
       if (!resp.ok) {
         return json<ActionData>({ error: `${resp.status}` });
@@ -116,6 +119,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (intent === "apply-dry-run") {
       const resp = await callBackendForShop(shop, `/api/shops/${shop}/generate/meta/apply`, {
         method: "POST",
+        accessToken: session.accessToken,
         body: JSON.stringify({ dry_run: true, max_per_run: 50, delay: 0.5 }),
       });
       if (!resp.ok) {

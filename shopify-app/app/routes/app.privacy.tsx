@@ -38,7 +38,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const privacyUrl = `${backendUrl}/privacy`;
 
   try {
-    const resp = await callBackendForShop(shop, `/api/gdpr/export?shop=${shop}`);
+    const resp = await callBackendForShop(shop, `/api/gdpr/export?shop=${shop}`, {
+      accessToken: session.accessToken,
+    });
     const exportPayload = resp.ok ? ((await resp.json()) as ExportPayload) : null;
     return json<LoaderData>({ locale, privacyUrl, exportPayload });
   } catch {

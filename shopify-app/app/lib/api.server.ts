@@ -3,14 +3,19 @@
  *
  * Two functions:
  * - callBackend()        — unauthenticated call (health checks, public endpoints)
- * - callBackendForShop() — authenticated internal call (adds X-Leonie-Shop +
- *                          X-Internal-Secret so Python can resolve the shop context)
+ * - callBackendForShop() — authenticated internal call (adds X-Leonie-Shop,
+ *                          X-Internal-Secret, and optionally the Shopify
+ *                          session access token so Python can resolve context)
  */
 
 const PYTHON_BACKEND_URL =
   process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
 
 const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET || "";
+
+type BackendRequestInit = RequestInit & {
+  accessToken?: string;
+};
 
 export async function callBackend(
   path: string,
@@ -32,8 +37,9 @@ export async function callBackend(
 export async function callBackendForShop(
   shop: string,
   path: string,
-  options: RequestInit = {}
+  options: BackendRequestInit = {}
 ): Promise<Response> {
+  const { accessToken, ...requestOptions } = options;
   const headers = new Headers(options.headers as HeadersInit | undefined);
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -42,13 +48,16 @@ export async function callBackendForShop(
   if (INTERNAL_API_SECRET) {
     headers.set("X-Internal-Secret", INTERNAL_API_SECRET);
   }
-  return callBackend(path, { ...options, headers });
+  if (accessToken) {
+    headers.set("X-Shopify-Access-Token", accessToken);
+  }
+  return callBackend(path, { ...requestOptions, headers });
 }
 
 export async function callBackendJsonForShop<T = unknown>(
   shop: string,
   path: string,
-  options: RequestInit = {}
+  options: BackendRequestInit = {}
 ): Promise<T> {
   const resp = await callBackendForShop(shop, path, options);
   if (!resp.ok) {

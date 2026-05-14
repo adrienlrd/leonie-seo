@@ -37,7 +37,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let jobs: Job[] = [];
   try {
-    const resp = await callBackendForShop(shop, `/api/shops/${shop}/jobs?limit=5`);
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/jobs?limit=5`, {
+      accessToken: session.accessToken,
+    });
     if (resp.ok) {
       const data = (await resp.json()) as { jobs: Job[] };
       jobs = data.jobs;
@@ -56,6 +58,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const resp = await callBackendForShop(shop, "/api/jobs", {
       method: "POST",
+      accessToken: session.accessToken,
       body: JSON.stringify({ queue: "seo_audit", shop }),
     });
     const data = (await resp.json()) as { job_id: string };

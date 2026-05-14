@@ -61,6 +61,10 @@
 - Retest après redéploiement : les jobs d'audit apparaissent bien et passent `completed`.
 - Nouveau bug pilote identifié : la navigation App Bridge sélectionnait parfois un onglet sans charger la route Remix, ou nécessitait plusieurs clics/rechargements.
 - Correctif prêt à déployer : `NavMenu` utilise maintenant des ancres HTML `<a href=...>` au lieu de `Link` Remix, conformément à App Bridge v4.
+- Retest navigation : amélioration confirmée.
+- Nouveau bug pilote identifié : Review IA affichait `403`, Onboarding affichait Shopify en `TODO`, et Niche restait vide car le backend Python ne recevait pas le token OAuth géré par Remix.
+- Correctif prêt à déployer : Remix relaie le token `authenticate.admin` au backend uniquement sur le canal interne protégé (`X-Leonie-Shop` + `X-Internal-Secret`), et Python accepte ce token comme contexte d'installation sans l'exposer au navigateur.
+- Données attendues après correctif : Onboarding doit passer Shopify en `OK`; Review IA ne doit plus afficher `403` mais probablement `Aucune donnée disponible`; Niche restera vide tant qu'un vrai snapshot crawl/GSC n'est pas produit.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 

@@ -59,14 +59,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   try {
-    const resp = await callBackendForShop(shop, `/api/shops/${shop}/status`);
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/status`, {
+      accessToken: session.accessToken,
+    });
     if (resp.ok) status = (await resp.json()) as ShopStatus;
   } catch {
     status = null;
   }
 
   try {
-    const resp = await callBackendForShop(shop, `/api/shops/${shop}/jobs?limit=10`);
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/jobs?limit=10`, {
+      accessToken: session.accessToken,
+    });
     if (resp.ok) {
       const data = (await resp.json()) as { count: number };
       recentJobs = data.count;
@@ -85,6 +89,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const resp = await callBackendForShop(shop, "/api/jobs", {
       method: "POST",
+      accessToken: session.accessToken,
       body: JSON.stringify({ queue: "seo_audit" }),
     });
     if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });

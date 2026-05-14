@@ -36,7 +36,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let plans: Plan[] = [];
   let currentPlan = "free";
   try {
-    const resp = await callBackendForShop(shop, `/api/shops/${shop}/billing/plans`);
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/billing/plans`, {
+      accessToken: session.accessToken,
+    });
     if (resp.ok) {
       const data = (await resp.json()) as {
         plans: Plan[];
@@ -63,6 +65,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "cancel") {
     await callBackendForShop(shop, `/api/shops/${shop}/billing/cancel`, {
       method: "POST",
+      accessToken: session.accessToken,
     });
     return redirect("/app/billing");
   }
@@ -73,6 +76,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       `/api/shops/${shop}/billing/subscribe`,
       {
         method: "POST",
+        accessToken: session.accessToken,
         body: JSON.stringify({ plan: planId }),
       }
     );

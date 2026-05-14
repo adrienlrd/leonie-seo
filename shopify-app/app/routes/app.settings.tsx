@@ -42,12 +42,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   try {
     health = await readIfOk(await callBackend("/health"));
-    status = await readIfOk(await callBackendForShop(shop, `/api/shops/${shop}/status`));
+    status = await readIfOk(
+      await callBackendForShop(shop, `/api/shops/${shop}/status`, {
+        accessToken: session.accessToken,
+      })
+    );
     budget = await readIfOk(
-      await callBackendForShop(shop, `/api/shops/${shop}/observability/budget`)
+      await callBackendForShop(shop, `/api/shops/${shop}/observability/budget`, {
+        accessToken: session.accessToken,
+      })
     );
     const localeData = await readIfOk<{ locales: LoaderData["locales"] }>(
-      await callBackendForShop(shop, `/api/shops/${shop}/multilingual/locales`)
+      await callBackendForShop(shop, `/api/shops/${shop}/multilingual/locales`, {
+        accessToken: session.accessToken,
+      })
     );
     locales = localeData?.locales ?? [];
   } catch {
