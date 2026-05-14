@@ -86,6 +86,23 @@ def test_enqueue_scopes_to_authenticated_shop(client):
     assert detail["shop"] == SHOP
 
 
+def test_enqueue_audit_saves_session_access_token(client, monkeypatch):
+    saved: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(
+        "app.jobs.router.save_token",
+        lambda shop, token, scope: saved.append((shop, token, scope)),
+    )
+
+    resp = client.post(
+        "/api/jobs",
+        json={"queue": "seo_audit"},
+        headers={**_HEADERS_FOR(SHOP), "X-Shopify-Access-Token": "shpat_from_remix"},
+    )
+
+    assert resp.status_code == 202
+    assert saved == [(SHOP, "shpat_from_remix", "read_products")]
+
+
 # ── GET /api/jobs/{job_id} ────────────────────────────────────────────────────
 
 

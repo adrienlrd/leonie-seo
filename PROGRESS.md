@@ -65,6 +65,10 @@
 - Nouveau bug pilote identifié : Review IA affichait `403`, Onboarding affichait Shopify en `TODO`, et Niche restait vide car le backend Python ne recevait pas le token OAuth géré par Remix.
 - Correctif prêt à déployer : Remix relaie le token `authenticate.admin` au backend uniquement sur le canal interne protégé (`X-Leonie-Shop` + `X-Internal-Secret`), et Python accepte ce token comme contexte d'installation sans l'exposer au navigateur.
 - Données attendues après correctif : Onboarding doit passer Shopify en `OK`; Review IA ne doit plus afficher `403` mais probablement `Aucune donnée disponible`; Niche restera vide tant qu'un vrai snapshot crawl/GSC n'est pas produit.
+- Retest OAuth/backend : Onboarding affiche Shopify `OK`, Review IA n'affiche plus `403`, Niche reste vide faute de crawl réel.
+- Correctif prêt à déployer : le job `seo_audit` exécute maintenant un crawl Shopify GraphQL en lecture seule, sauvegarde `data/raw/{shop}/shopify_snapshot.json`, `data/raw/{shop}/snapshot_<timestamp>.json`, et insère les lignes `snapshots` avec le shop.
+- Sécurité pilote : le token Shopify transmis par Remix est sauvegardé via `token_store` chiffré, pas dans le payload persistant du job.
+- À retester après redéploiement : lancer un audit SEO, attendre `completed`, puis vérifier Onboarding `Crawl OK` avec produits/collections et Niche avec clusters produits.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 

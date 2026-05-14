@@ -130,6 +130,24 @@ def test_worker_timeout_triggers_retry(db):
     assert job["retries"] == 1  # timed out → retry
 
 
+def test_seo_audit_handler_uses_stored_access_token(monkeypatch):
+    from app.jobs.handlers import handle_seo_audit
+
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "app.oauth.token_store.get_token", lambda shop: {"access_token": "shpat_stored"}
+    )
+    monkeypatch.setattr(
+        "app.jobs.audit_snapshot.crawl_shopify_catalog_for_job",
+        lambda shop, access_token: calls.append((shop, access_token)) or {"products": 1},
+    )
+
+    result = asyncio.run(handle_seo_audit({}, "store.myshopify.com"))
+
+    assert result["products"] == 1
+    assert calls == [("store.myshopify.com", "shpat_stored")]
+
+
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 

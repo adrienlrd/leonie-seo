@@ -38,13 +38,29 @@ def registered_queues() -> list[str]:
 
 @register("seo_audit")
 async def handle_seo_audit(payload: dict, shop: str | None) -> dict:
-    """Run a full SEO audit for a shop (stub — full pipeline wired in Phase 7).
+    """Run a read-only Shopify catalog crawl for a shop.
 
     Expected payload keys:
         shop (str): Shopify shop domain
-        tenant_id (str, optional): config tenant alias
+        access_token (str): Shopify Admin API token from the embedded app session
     """
-    return {"status": "queued", "shop": shop, "message": "audit pipeline not yet wired (Phase 7)"}
+    import asyncio
+
+    from app.jobs.audit_snapshot import crawl_shopify_catalog_for_job
+
+    if not shop:
+        raise ValueError("shop is required for seo_audit")
+
+    access_token = str(payload.get("access_token") or "")
+    if not access_token:
+        from app.oauth.token_store import get_token
+
+        record = get_token(shop)
+        access_token = str(record.get("access_token", "")) if record else ""
+    if not access_token:
+        raise ValueError("access_token is required for seo_audit")
+
+    return await asyncio.to_thread(crawl_shopify_catalog_for_job, shop, access_token)
 
 
 @register("meta_generation")

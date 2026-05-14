@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import os
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, Header, HTTPException, Path
 from pydantic import BaseModel
 
 from app.api.deps import get_authenticated_shop
 from app.jobs.handlers import registered_queues
 from app.jobs.store import enqueue, get_job, list_jobs
+from app.oauth.token_store import save_token
 
 router = APIRouter(prefix="/api", tags=["jobs"])
 
@@ -26,6 +28,7 @@ class EnqueueRequest(BaseModel):
 async def create_job(
     body: EnqueueRequest,
     authenticated_shop: Annotated[str, Depends(get_authenticated_shop)],
+    x_shopify_access_token: Annotated[str | None, Header()] = None,
 ) -> dict:
     """Enqueue a background job. Returns job ID immediately (non-blocking).
 
@@ -35,9 +38,16 @@ async def create_job(
     """
     if body.queue not in registered_queues():
         raise HTTPException(status_code=400, detail=f"Unknown queue '{body.queue}'")
+    payload = dict(body.payload)
+    if body.queue == "seo_audit" and x_shopify_access_token:
+        save_token(
+            authenticated_shop,
+            x_shopify_access_token,
+            os.getenv("SHOPIFY_SCOPES", ""),
+        )
     job_id = enqueue(
         body.queue,
-        body.payload,
+        payload,
         shop=authenticated_shop,
         delay_seconds=body.delay_seconds,
         max_retries=body.max_retries,
