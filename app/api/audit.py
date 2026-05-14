@@ -1,12 +1,12 @@
 """Audit endpoints — issues and SEO score from cached crawl data."""
 
-import json
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import ShopContext, get_shop_context
+from app.api.snapshot_store import load_snapshot_from_file_or_db
 from scripts.audit.detect_issues import (
     detect_alt_text_issues,
     detect_duplicate_content,
@@ -22,16 +22,18 @@ _PROJECT_ROOT = Path(__file__).parents[2]
 _RULES_PATH = str(_PROJECT_ROOT / "config" / "seo_rules.yaml")
 
 
-def _load_snapshot(path: Path) -> dict[str, Any]:
-    if not path.exists():
+def _load_snapshot(ctx: ShopContext) -> dict[str, Any]:
+    try:
+        snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    if snapshot is None:
         raise HTTPException(
             status_code=404,
             detail="No crawl data found. Run 'leonie-seo audit crawl' first.",
         )
-    try:
-        return json.loads(path.read_text())
-    except (json.JSONDecodeError, OSError) as exc:
-        raise HTTPException(status_code=500, detail=f"Snapshot unreadable: {exc}") from exc
+    return snapshot
 
 
 def _detect_all_issues(snapshot: dict[str, Any]) -> list[Issue]:
@@ -54,7 +56,7 @@ async def get_issues(
     severity: str | None = None,
 ) -> list[dict]:
     """Return all SEO issues from the last crawl, optionally filtered by severity."""
-    snapshot = _load_snapshot(ctx.snapshot_path)
+    snapshot = _load_snapshot(ctx)
     issues = _detect_all_issues(snapshot)
 
     if severity:
@@ -66,7 +68,7 @@ async def get_issues(
 @router.get("/shops/{shop}/audit/score")
 async def get_score(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict:
     """Return the SEO score (0–100) from the last crawl."""
-    snapshot = _load_snapshot(ctx.snapshot_path)
+    snapshot = _load_snapshot(ctx)
 
     products = snapshot.get("products", [])
     collections = snapshot.get("collections", [])

@@ -1,12 +1,14 @@
 """Tests for audit endpoints."""
 
 import json
+import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db import init_db
 from app.main import app
 
 ENV = {
@@ -121,6 +123,37 @@ def test_get_score_no_snapshot_returns_404(client: TestClient, tmp_path: Path):
     ):
         resp = client.get(f"/api/shops/{SHOP}/audit/score")
     assert resp.status_code == 404
+
+
+def test_get_issues_falls_back_to_db_snapshot(client: TestClient, tmp_path: Path):
+    db = tmp_path / "history.db"
+    init_db(db)
+    product = _SNAPSHOT["products"][0]
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """
+            INSERT INTO snapshots
+                (shop, snapshot_date, resource_type, resource_id, data_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                SHOP,
+                "2026-05-14T12:00:00Z",
+                "product",
+                product["id"],
+                json.dumps(product),
+            ),
+        )
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", tmp_path / "missing.json"),
+        patch("app.api.snapshot_store.DB_PATH", db),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/audit/issues")
+
+    assert resp.status_code == 200
+    assert any(issue["issue_type"] == "missing_meta_title" for issue in resp.json())
 
 
 def test_get_issues_unknown_shop_returns_403(client: TestClient):

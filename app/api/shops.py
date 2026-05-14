@@ -1,12 +1,12 @@
 """Shop management endpoints."""
 
-import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import ShopContext, get_shop_context, require_internal_secret
 from app.api.plans import plan_summary
+from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.oauth.token_store import list_tokens
 
 router = APIRouter(prefix="/api", tags=["shops"])
@@ -26,16 +26,17 @@ async def list_shops() -> list[dict]:
 @router.get("/shops/{shop}/status")
 async def shop_status(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict:
     """Return shop auth status and whether crawl data is available."""
-    snapshot_exists = ctx.snapshot_path.exists()
     snapshot_date: str | None = None
     product_count = 0
     collection_count = 0
 
-    if snapshot_exists:
-        try:
-            data = json.loads(ctx.snapshot_path.read_text())
-        except (json.JSONDecodeError, OSError) as exc:
-            raise HTTPException(status_code=500, detail="Snapshot file is corrupted") from exc
+    try:
+        data = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    snapshot_exists = data is not None
+    if data is not None:
         snapshot_date = data.get("snapshot_date")
         product_count = len(data.get("products", []))
         collection_count = len(data.get("collections", []))

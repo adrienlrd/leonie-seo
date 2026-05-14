@@ -1,12 +1,14 @@
 """Tests for shop management endpoints."""
 
 import json
+import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.db import init_db
 from app.main import app
 
 ENV = {
@@ -95,3 +97,36 @@ def test_shop_status_no_snapshot(client: TestClient, tmp_path: Path):
     assert resp.status_code == 200
     assert resp.json()["snapshot_available"] is False
     assert resp.json()["product_count"] == 0
+
+
+def test_shop_status_falls_back_to_db_snapshot(client: TestClient, tmp_path: Path):
+    db = tmp_path / "history.db"
+    init_db(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """
+            INSERT INTO snapshots
+                (shop, snapshot_date, resource_type, resource_id, data_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                "287c4a-bb.myshopify.com",
+                "2026-05-14T12:00:00Z",
+                "product",
+                "gid://shopify/Product/1",
+                json.dumps({"id": "gid://shopify/Product/1", "title": "Harnais"}),
+            ),
+        )
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", tmp_path / "missing.json"),
+        patch("app.api.snapshot_store.DB_PATH", db),
+    ):
+        resp = client.get("/api/shops/287c4a-bb.myshopify.com/status")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["snapshot_available"] is True
+    assert body["product_count"] == 1
+    assert body["snapshot_date"] == "2026-05-14T12:00:00Z"

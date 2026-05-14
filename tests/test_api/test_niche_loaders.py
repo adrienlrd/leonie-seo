@@ -11,12 +11,14 @@ Covers two lot 4 wave 2 fixes:
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from app.api import niche as niche_module
+from app.db import init_db
 
 
 @pytest.fixture()
@@ -63,6 +65,31 @@ def test_load_snapshot_does_not_fall_back_to_flat_path(data_dir):
     )
     result = niche_module._load_snapshot("any.myshopify.com")
     assert result == []
+
+
+def test_load_snapshot_falls_back_to_db_snapshot(data_dir, tmp_path):
+    db = tmp_path / "history.db"
+    init_db(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            """
+            INSERT INTO snapshots
+                (shop, snapshot_date, resource_type, resource_id, data_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                "shop.myshopify.com",
+                "2026-05-14T12:00:00Z",
+                "product",
+                "gid://shopify/Product/1",
+                json.dumps({"id": "gid://shopify/Product/1", "title": "Harnais"}),
+            ),
+        )
+
+    with patch("app.api.snapshot_store.DB_PATH", db):
+        result = niche_module._load_snapshot("shop.myshopify.com")
+
+    assert result == [{"id": "gid://shopify/Product/1", "title": "Harnais"}]
 
 
 def test_load_gsc_returns_empty_when_shop_dir_missing(data_dir):

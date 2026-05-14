@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import ShopContext, get_shop_context
+from app.api.snapshot_store import load_latest_snapshot_from_db
 from app.niche.engine import run_niche_analysis
 
 router = APIRouter(tags=["niche"])
@@ -27,7 +28,8 @@ def _load_snapshot(shop: str) -> list[dict]:
     """
     shop_dir = _DATA_DIR / shop
     if not shop_dir.exists():
-        return []
+        snapshot = load_latest_snapshot_from_db(shop)
+        return snapshot.get("products", []) if snapshot else []
     candidates = sorted(shop_dir.glob("snapshot_*.json"), reverse=True)
     for path in candidates:
         try:
@@ -36,7 +38,8 @@ def _load_snapshot(shop: str) -> list[dict]:
             return products
         except (json.JSONDecodeError, OSError):
             continue
-    return []
+    snapshot = load_latest_snapshot_from_db(shop)
+    return snapshot.get("products", []) if snapshot else []
 
 
 def _load_gsc(shop: str) -> list[dict]:
