@@ -11,12 +11,53 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **12/21** 🔄 (tâches 83-94 clôturées ; prochaine tâche 95)
+- Phase 10 : **13/21** 🔄 (tâches 83-95 clôturées ; prochaine tâche 96)
 - Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1152/1152** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1159/1159** ✅ — ruff clean ✅ — Remix typecheck/build ✅
 
 ## Tâche 94 — Redirections 301 supervisées le 2026-05-16
+
+## Tâche 95 — JSON-LD Structured Data Dashboard le 2026-05-16
+
+### Objectif
+Tableau de bord JSON-LD : validation Schema.org et prévisualisation des balises pour Organisation, Produits et Collections.
+
+### Réalisations
+- Endpoint  — génère et valide JSON-LD pour toutes les ressources du snapshot GraphQL
+- Helpers , , 
+- Validation Schema.org avec champs requis par type (, , ,  pour Product)
+- Route Remix  — tabs Organisation/Produits/Collections, badge valid/invalid, prévisualisation JSON-LD expandable
+- Lien NavMenu + clés i18n FR/EN 
+- 7 tests unitaires, ruff clean, TypeScript typecheck clean
+
+### Fichiers modifiés
+-  — endpoint  + helpers GraphQL-format
+-  — 7 tests
+-  — route Remix
+-  — NavMenu
+-  — clé 
+
+### Validations
+- ============================= test session starts ==============================
+platform darwin -- Python 3.11.5, pytest-7.4.0, pluggy-1.0.0 -- /Users/adrienleredde/anaconda3/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/adrienleredde/leonie-seo
+configfile: pyproject.toml
+plugins: mock-3.15.1, anyio-4.13.0
+collecting ... collected 7 items
+
+tests/test_api/test_jsonld_status.py::test_jsonld_status_returns_organization PASSED [ 14%]
+tests/test_api/test_jsonld_status.py::test_jsonld_status_products_included PASSED [ 28%]
+tests/test_api/test_jsonld_status.py::test_jsonld_status_collections_included PASSED [ 42%]
+tests/test_api/test_jsonld_status.py::test_jsonld_status_valid_counts PASSED [ 57%]
+tests/test_api/test_jsonld_status.py::test_jsonld_status_product_has_offers PASSED [ 71%]
+tests/test_api/test_jsonld_status.py::test_jsonld_status_no_snapshot_still_returns_org PASSED [ 85%]
+tests/test_api/test_jsonld_status.py::test_jsonld_status_extension_note_present PASSED [100%]
+
+============================== 7 passed in 1.16s =============================== : 7/7 ✅
+- All checks passed! : clean ✅
+-  : clean ✅
 
 - Ajout de `apply_redirect()` dans `app/apply/shopify_writer.py` (mutation `urlRedirectCreate`).
 - Ajout de `app/api/redirects.py` :
