@@ -5,6 +5,7 @@ type Dictionary = Record<string, string>;
 const FR: Dictionary = {
   dashboard: "Dashboard",
   audit: "Audit",
+  longtail: "Longue traîne",
   review: "Review IA",
   niche: "Niche",
   onboarding: "Onboarding",
@@ -84,6 +85,7 @@ const FR: Dictionary = {
 const EN: Dictionary = {
   dashboard: "Dashboard",
   audit: "Audit",
+  longtail: "Long tail",
   review: "AI Review",
   niche: "Niche",
   onboarding: "Onboarding",

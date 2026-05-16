@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-16** (clôture tâche 88)
+- Dernière session : **2026-05-16** (clôture tâche 89)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -11,10 +11,30 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **6/21** 🔄 (tâches 83-88 clôturées ; prochaine tâche 89)
+- Phase 10 : **7/21** 🔄 (tâches 83-89 clôturées ; prochaine tâche 90)
 - Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1106/1106** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1120/1120** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 89 — Analyse longue traîne dans l'app le 2026-05-16
+
+- Ajout de `app/api/longtail.py` : `GET /api/shops/{shop}/audit/longtail?top=N` (défaut 50) ;
+  - charge `config/keywords.yaml` (404 si absent) ;
+  - charge snapshot Shopify depuis DB/fichier (404 si absent) ;
+  - charge `gsc_performance.csv` du shop (DataFrame vide avec colonnes correctes si absent) ;
+  - appelle `build_gap_report()` du CLI existant sans duplication de logique ;
+  - retourne summary (ranking / on_site / gap) + rows triés par statut et score.
+- Ajout de `app/main.py` : inclusion du `longtail_router`.
+- Nouvelle route Remix `shopify-app/app/routes/app.longtail.tsx` :
+  - résumé 3 compteurs (ranking / sur site sans trafic / gaps) ;
+  - filtres par statut et par catégorie de mots-clés ;
+  - liste avec badge statut, position GSC, impressions, clics, recommandation lisible ;
+  - message si GSC non connectée.
+- Ajout du lien "Longue traîne" dans le NavMenu entre Audit et Review IA.
+- Ajout des clés i18n `longtail` FR/EN.
+- 5 tests dans `tests/test_api/test_longtail.py`.
+- Vérification : `pytest` **1120 passed** · ruff OK · typecheck OK · build OK.
+- Prochaine tâche : **90 — Détection cannibalisation**.
 
 ## Tâche 88 — Matrice ICE dans l'app le 2026-05-16
 

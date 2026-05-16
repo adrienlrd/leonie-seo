@@ -242,7 +242,7 @@
 | 86 | Ajouter un import crawl technique — upload CSV Screaming Frog ou crawl externe, détection 404, redirects, canonical, duplicates et chaînes de redirection | 🔴 | ✅ | 2026-05-16 |
 | 87 | Étendre l'audit UI — afficher toutes les issues `scripts/audit/detect_issues.py` dans l'app avec filtres, gravité, ressource touchée et cause lisible | 🟡 | ✅ | 2026-05-16 |
 | 88 | Ajouter la matrice ICE dans l'app — prioriser les corrections par impact, confiance et effort, avec tri marchand exploitable | 🟡 | ✅ | 2026-05-16 |
-| 89 | Porter l'analyse longue traîne — comparer catalogue, GSC et requêtes niche pour révéler les manques mots-clés par produit/collection | 🟡 | ⏳ | |
+| 89 | Porter l'analyse longue traîne — comparer catalogue, GSC et requêtes niche pour révéler les manques mots-clés par produit/collection | 🟡 | ✅ | 2026-05-16 |
 | 90 | Porter la détection cannibalisation — identifier les pages en compétition sur une même requête et proposer consolidation, canonical ou différenciation | 🔴 | ⏳ | |
 | 91 | Ajouter le maillage interne — détecter opportunités blog/collection/produit, générer ancres suggérées et préparer une prévisualisation sans écriture | 🔴 | ⏳ | |
 | 92 | Porter l'alt text IA — générer, revoir, approuver/rejeter et appliquer en dry-run les textes alternatifs images, avec limites qualité et accessibilité | 🟡 | ⏳ | |

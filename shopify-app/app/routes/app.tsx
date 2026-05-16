@@ -28,6 +28,7 @@ export default function App() {
           {t(locale, "dashboard")}
         </a>
         <a href={localizedPath("/app/audit", locale)}>{t(locale, "audit")}</a>
+        <a href={localizedPath("/app/longtail", locale)}>{t(locale, "longtail")}</a>
         <a href={localizedPath("/app/review", locale)}>{t(locale, "review")}</a>
         <a href={localizedPath("/app/niche", locale)}>{t(locale, "niche")}</a>
         <a href={localizedPath("/app/onboarding", locale)}>
