@@ -1,14 +1,21 @@
-# CLAUDE.md — Archive legacy
+@AGENTS.md
 
-Ce fichier est conserve uniquement pour compatibilite avec les anciennes sessions Claude Code.
+## Claude Code specific instructions
 
-Les consignes actives du projet pour Codex sont dans `AGENTS.md`.
+Use `permissionMode: plan` or switch to plan mode before:
+- Large refactors or architecture changes
+- Database schema or migration changes
+- Shopify OAuth, billing, webhook, or API scope changes
+- Deployment or production config changes
 
-Regle de reprise :
-1. Lire `AGENTS.md`.
-2. Lire `PROGRESS.md`.
-3. Lire `ROADMAP.md`.
-4. Identifier la prochaine tache `⏳`.
-5. Proposer un plan avant tout changement important.
+Prefer read-only exploration before editing.
 
-Ne pas utiliser les anciennes commandes Claude Code `/compact`, `/clear`, `/review` ou `!<cmd>` comme workflow projet. Codex gere la compaction de contexte automatiquement et utilise les outils disponibles dans la session.
+Use project subagents from `.claude/agents/` when relevant:
+- `code-reviewer`
+- `test-triage`
+- `shopify-architecture-reviewer`
+
+Do not duplicate rules from `AGENTS.md` here.
+If a rule conflicts with `AGENTS.md`, `AGENTS.md` wins unless the user explicitly says otherwise.
+
+Update `docs/AI_HANDOFF.md` after every meaningful change.
