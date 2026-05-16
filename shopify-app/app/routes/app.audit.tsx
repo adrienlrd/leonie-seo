@@ -48,11 +48,27 @@ interface CrawlStatus {
   issues: CrawlIssue[];
 }
 
+interface IceRow {
+  ice_score: number;
+  impact: number;
+  confidence: number;
+  effort: number;
+  resource_type: string;
+  resource_title: string;
+  issue_type: string;
+  severity: string;
+  impressions: number;
+  position: number | null;
+  url: string | null;
+  detail: string;
+}
+
 interface LoaderData {
   locale: Locale;
   shop: string;
   issues: Issue[];
   score: SEOScore | null;
+  ice: IceRow[];
   error: string | null;
 }
 
@@ -133,8 +149,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let score: SEOScore | null = null;
   let error: string | null = null;
 
+  let ice: IceRow[] = [];
+
   try {
-    const [issuesResp, scoreResp, crawlResp] = await Promise.all([
+    const [issuesResp, scoreResp, crawlResp, iceResp] = await Promise.all([
       callBackendForShop(shop, `/api/shops/${shop}/audit/issues`, {
         accessToken: session.accessToken,
       }),
@@ -142,6 +160,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         accessToken: session.accessToken,
       }),
       callBackendForShop(shop, `/api/shops/${shop}/crawl/status`, {
+        accessToken: session.accessToken,
+      }),
+      callBackendForShop(shop, `/api/shops/${shop}/audit/ice?top=10`, {
         accessToken: session.accessToken,
       }),
     ]);
@@ -161,6 +182,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         issues = [...issues, ...crawlIssues];
       }
     }
+
+    if (iceResp.ok) ice = (await iceResp.json()) as IceRow[];
   } catch {
     error = t(locale, "backendOffline");
   }
@@ -170,7 +193,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9)
   );
 
-  return json<LoaderData>({ locale, shop, issues, score, error });
+  return json<LoaderData>({ locale, shop, issues, score, ice, error });
 };
 
 // ---------------------------------------------------------------------------
@@ -181,7 +204,7 @@ const SEVERITIES = ["critical", "high", "medium", "low", "info"] as const;
 const RESOURCE_TYPES = ["product", "collection", "image", "page", "redirect"] as const;
 
 export default function Audit() {
-  const { locale, issues, score, error } = useLoaderData<typeof loader>();
+  const { locale, issues, score, ice, error } = useLoaderData<typeof loader>();
   const [activeSeverity, setActiveSeverity] = useState<string | null>(null);
   const [activeResourceType, setActiveResourceType] = useState<string | null>(null);
 
@@ -238,6 +261,55 @@ export default function Audit() {
                   ) : null
                 )}
               </InlineStack>
+            </BlockStack>
+          </Card>
+        )}
+
+        {/* ICE priority matrix */}
+        {ice.length > 0 && (
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">Priorités ICE (top 10)</Text>
+              <BlockStack gap="200">
+                {ice.map((row, idx) => (
+                  <BlockStack key={`ice-${idx}`} gap="100">
+                    <InlineStack align="space-between" wrap>
+                      <InlineStack gap="200" wrap>
+                        <Badge tone={SEVERITY_TONE[row.severity] ?? "new"}>
+                          {row.severity}
+                        </Badge>
+                        <Text as="span" fontWeight="semibold">
+                          {ISSUE_TYPE_LABELS[row.issue_type] ?? row.issue_type}
+                        </Text>
+                        <Text as="span" tone="subdued">
+                          {row.resource_title.length > 50
+                            ? `${row.resource_title.slice(0, 50)}…`
+                            : row.resource_title}
+                        </Text>
+                      </InlineStack>
+                      <InlineStack gap="300">
+                        <Text as="span" tone="subdued" variant="bodySm">
+                          {`ICE ${Math.round(row.ice_score)}`}
+                        </Text>
+                        <Text as="span" tone="subdued" variant="bodySm">
+                          {`I${row.impact} C${row.confidence} E${row.effort}`}
+                        </Text>
+                        {row.impressions > 0 && (
+                          <Text as="span" tone="subdued" variant="bodySm">
+                            {`${row.impressions} imp.`}
+                          </Text>
+                        )}
+                      </InlineStack>
+                    </InlineStack>
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      {row.detail}
+                    </Text>
+                    {idx < ice.length - 1 && (
+                      <div style={{ borderTop: "1px solid var(--p-color-border)", marginTop: 4 }} />
+                    )}
+                  </BlockStack>
+                ))}
+              </BlockStack>
             </BlockStack>
           </Card>
         )}

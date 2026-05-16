@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-16** (clôture tâche 87)
+- Dernière session : **2026-05-16** (clôture tâche 88)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -11,10 +11,32 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **4/21** 🔄 (tâches 83-86 clôturées ; prochaine tâche 87)
+- Phase 10 : **6/21** 🔄 (tâches 83-88 clôturées ; prochaine tâche 89)
 - Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1101/1101** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1106/1106** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 88 — Matrice ICE dans l'app le 2026-05-16
+
+- Ajout de `app/api/ice.py` :
+  - `GET /api/shops/{shop}/audit/ice?top=N` (défaut 20) ;
+  - charge le snapshot, appelle `build_ice_matrix()` du CLI sans duplication de code ;
+  - charge et score les issues crawl via `_crawl_issue_to_model()` + `score_issue()` ;
+  - tri décroissant par `ice_score`, retourne top N rows.
+- Mise à jour de `app/main.py` : inclusion du `ice_router`.
+- Mise à jour de `shopify-app/app/routes/app.audit.tsx` :
+  - interface `IceRow` et champ `ice: IceRow[]` dans `LoaderData` ;
+  - loader : fetch `/audit/ice?top=10` en parallèle avec les autres requêtes ;
+  - carte "Priorités ICE (top 10)" affichant badge sévérité, label issue_type, titre ressource, score ICE, I/C/E individuels, impressions GSC, et détail ;
+  - carte placée entre le score global et la liste d'issues.
+- 4 nouveaux tests dans `tests/test_api/test_ice.py` (sorted list, top param, crawl issues, 404 sans snapshot).
+- Vérification :
+  - `pytest tests/test_api/test_ice.py` : **4 passed** ;
+  - `ruff check app/api/ice.py` : OK ;
+  - `pytest` : **1106 passed** ;
+  - `cd shopify-app && npm run typecheck` : OK ;
+  - `cd shopify-app && npm run build` : OK.
+- Prochaine tâche : **89 — Analyse long tail GSC**.
 
 ## Tâche 87 — Audit UI étendu dans l'app le 2026-05-16
 
