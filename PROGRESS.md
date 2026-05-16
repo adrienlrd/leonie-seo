@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-16** (clôture tâche 90)
+- Dernière session : **2026-05-16** (clôture tâche 91)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -11,10 +11,30 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **8/21** 🔄 (tâches 83-90 clôturées ; prochaine tâche 91)
+- Phase 10 : **9/21** 🔄 (tâches 83-91 clôturées ; prochaine tâche 92)
 - Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1124/1124** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1131/1131** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 91 — Maillage interne dans l'app le 2026-05-16
+
+- Ajout de `app/api/internal_links.py` : `GET /api/shops/{shop}/audit/internal-links?top=N` ;
+  - matcher générique par chevauchement de tokens (sans handles hardcodés) → fonctionne pour tout tenant ;
+  - catégorie `brand` exclue du matching ;
+  - détection pages orphelines si `gsc_performance.csv` disponible (produits sans impressions GSC) ;
+  - retourne `{available, total_opportunities, total_orphans, gsc_connected, summary, opportunities, orphans}`.
+- Mise à jour de `app/main.py` : inclusion de `internal_links_router`.
+- Nouvelle route Remix `shopify-app/app/routes/app.internal-links.tsx` :
+  - résumé 3 compteurs (opportunités / orphelines / statut GSC) ;
+  - deux onglets : "Opportunités" et "Pages orphelines" ;
+  - onglet opportunités : badge type (produit/collection), mot-clé source, cible, ancre suggérée, score ;
+  - onglet orphelines : titre, chemin, recommandation d'action ;
+  - message d'invitation à connecter GSC si non connectée.
+- Ajout du lien "Maillage interne" dans le NavMenu après "Cannibalisation".
+- Ajout des clés i18n `internalLinks` FR/EN.
+- 7 tests dans `tests/test_api/test_internal_links.py`.
+- Vérification : **7 passed** · ruff OK · typecheck OK.
+- Prochaine tâche : **92 — Alt text IA**.
 
 ## Tâche 90 — Détection cannibalisation dans l'app le 2026-05-16
 
