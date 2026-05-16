@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useActionData, useLoaderData, useNavigation, useSubmit } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigation, useSubmit } from "@remix-run/react";
 import {
   Badge,
   BlockStack,
@@ -12,7 +12,7 @@ import {
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { callBackend, callBackendForShop } from "../lib/api.server";
+import { callBackend, callBackendForShop, callBackendMultipartForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
 
 interface ShopStatus {
@@ -63,6 +63,22 @@ interface PageSpeedStatus {
   alerts: PageSpeedAlert[];
 }
 
+interface CrawlIssue {
+  url: string;
+  issue_type: string;
+  severity: string;
+  detail: string;
+}
+
+interface CrawlStatus {
+  available: boolean;
+  url_count: number;
+  issue_count: number;
+  by_severity: Record<string, number>;
+  issues: CrawlIssue[];
+  imported_at: string | null;
+}
+
 interface LoaderData {
   locale: Locale;
   shop: string;
@@ -70,6 +86,7 @@ interface LoaderData {
   status: ShopStatus | null;
   gsc: GSCStatus | null;
   pagespeed: PageSpeedStatus | null;
+  crawl: CrawlStatus | null;
   recentJobs: number;
 }
 
@@ -88,6 +105,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let status: ShopStatus | null = null;
   let gsc: GSCStatus | null = null;
   let pagespeed: PageSpeedStatus | null = null;
+  let crawl: CrawlStatus | null = null;
   let recentJobs = 0;
 
   try {
@@ -136,7 +154,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     pagespeed = null;
   }
 
-  return json<LoaderData>({ locale, shop, health, status, gsc, pagespeed, recentJobs });
+  try {
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/crawl/status`, {
+      accessToken: session.accessToken,
+    });
+    if (resp.ok) crawl = (await resp.json()) as CrawlStatus;
+  } catch {
+    crawl = null;
+  }
+
+  return json<LoaderData>({ locale, shop, health, status, gsc, pagespeed, crawl, recentJobs });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -176,6 +203,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
       const data = (await resp.json()) as { job_id: string };
       return json<ActionData>({ jobId: data.job_id });
+    }
+
+    if (intent === "crawl_upload") {
+      const overviewFile = form.get("overview");
+      if (!overviewFile || !(overviewFile instanceof File) || overviewFile.size === 0) {
+        return json<ActionData>({ error: "Fichier overview CSV manquant." });
+      }
+      const backendForm = new FormData();
+      backendForm.append("overview", overviewFile, overviewFile.name);
+      const redirectsFile = form.get("redirects");
+      if (redirectsFile instanceof File && redirectsFile.size > 0) {
+        backendForm.append("redirects", redirectsFile, redirectsFile.name);
+      }
+      const resp = await callBackendMultipartForShop(
+        shop,
+        `/api/shops/${shop}/crawl/upload`,
+        backendForm,
+        session.accessToken,
+      );
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
+      const data = (await resp.json()) as { url_count: number; issue_count: number };
+      return json<ActionData>({ jobId: `Crawl: ${data.url_count} URLs · ${data.issue_count} issues` });
     }
 
     const resp = await callBackendForShop(shop, "/api/jobs", {
@@ -218,7 +267,7 @@ function Step({
 }
 
 export default function Onboarding() {
-  const { locale, shop, health, status, gsc, pagespeed, recentJobs } = useLoaderData<typeof loader>();
+  const { locale, shop, health, status, gsc, pagespeed, crawl, recentJobs } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
@@ -264,6 +313,15 @@ export default function Onboarding() {
                   pagespeed?.available
                     ? `${pagespeed.url_count} URL(s) · mobile ${Math.round((pagespeed.mobile_average ?? 0) * 100)}%`
                     : "Analyse performance à lancer"
+                }
+              />
+              <Step
+                label="Crawl technique"
+                done={Boolean(crawl?.available)}
+                detail={
+                  crawl?.available
+                    ? `${crawl.url_count} URLs · ${crawl.issue_count} issue(s)`
+                    : "Exporter un CSV Screaming Frog et l'importer"
                 }
               />
             </BlockStack>
@@ -398,6 +456,64 @@ export default function Onboarding() {
               <Text as="p" tone="subdued">
                 Lancez une analyse pour mesurer mobile/desktop sur les URLs les plus importantes.
               </Text>
+            )}
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="300">
+            <InlineStack align="space-between">
+              <Text as="h2" variant="headingMd">
+                Crawl technique
+              </Text>
+              <Badge tone={crawl?.available ? "success" : "warning"}>
+                {crawl?.available ? `${crawl.url_count} URLs` : "À importer"}
+              </Badge>
+            </InlineStack>
+            <Text as="p" tone="subdued">
+              Importez un export CSV Screaming Frog (vue «&nbsp;Internal&nbsp;») pour détecter les
+              404, chaînes de redirection, canonicals et titres dupliqués.
+            </Text>
+            {crawl?.available && (
+              <InlineGrid columns={["oneThird", "oneThird", "oneThird"]} gap="300">
+                <Text as="p" tone="subdued">
+                  Issues: {crawl.issue_count}
+                </Text>
+                <Text as="p" tone="subdued">
+                  Critiques: {crawl.by_severity?.critical ?? 0}
+                </Text>
+                <Text as="p" tone="subdued">
+                  Hautes: {crawl.by_severity?.high ?? 0}
+                </Text>
+              </InlineGrid>
+            )}
+            {(crawl?.issues ?? []).filter((i) => i.severity === "critical").slice(0, 3).map((issue) => (
+              <BlockStack gap="100" key={issue.url + issue.issue_type}>
+                <InlineStack gap="200">
+                  <Badge tone="critical">{issue.issue_type.replace(/_/g, " ")}</Badge>
+                  <Text as="span" tone="subdued">{issue.url}</Text>
+                </InlineStack>
+                <Text as="p" tone="subdued">{issue.detail}</Text>
+              </BlockStack>
+            ))}
+            <Form method="post" encType="multipart/form-data">
+              <input type="hidden" name="intent" value="crawl_upload" />
+              <BlockStack gap="200">
+                <Text as="p" variant="bodySm">
+                  Overview CSV (obligatoire — export «&nbsp;Internal&nbsp;» Screaming Frog)
+                </Text>
+                <input type="file" name="overview" accept=".csv" />
+                <Text as="p" variant="bodySm">
+                  CSV codes réponse (optionnel — export «&nbsp;Response Codes&nbsp;» Screaming Frog)
+                </Text>
+                <input type="file" name="redirects" accept=".csv" />
+                <Button submit variant="primary" loading={navigation.state !== "idle"}>
+                  Analyser le crawl
+                </Button>
+              </BlockStack>
+            </Form>
+            {actionData?.error && (
+              <Text as="p" tone="critical">{actionData.error}</Text>
             )}
           </BlockStack>
         </Card>

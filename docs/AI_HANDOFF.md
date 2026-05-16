@@ -10,36 +10,27 @@
 ## Last completed task
 
 - **Date:** 2026-05-16
-- **Agent:** ChatGPT / GitHub connector
-- **Goal:** Make the repository AI-ready for Codex and Claude Code.
-- **Summary:** Added Claude Code handoff through `CLAUDE.md`, created AI handoff, architecture and command docs, sanitized shared Claude settings, added Claude subagents, and completed `.gitignore` AI/local safety rules.
+- **Agent:** Claude Code (claude-sonnet-4-6)
+- **Goal:** Task 86 — Add a technical crawl import in the embedded Shopify app.
+- **Summary:** Added `app/crawl/` Python module with CSV parsing and issue detection, two FastAPI endpoints (`GET /crawl/status`, `POST /crawl/upload`), a multipart upload helper in `api.server.ts`, and a full Crawl technique card in the Onboarding page. Added `python-multipart` to `pyproject.toml`.
 - **Files created:**
-  - `docs/AI_HANDOFF.md`
-  - `docs/ARCHITECTURE.md`
-  - `docs/COMMANDS.md`
-  - `.claude/agents/code-reviewer.md`
-  - `.claude/agents/test-triage.md`
-  - `.claude/agents/shopify-architecture-reviewer.md`
+  - `app/crawl/__init__.py`
+  - `app/crawl/client.py`
+  - `app/api/crawl.py`
+  - `tests/test_crawl/__init__.py`
+  - `tests/test_crawl/test_client.py`
+  - `tests/test_api/test_crawl.py`
 - **Files modified:**
-  - `CLAUDE.md`
-  - `.claude/settings.json`
-  - `.gitignore`
+  - `app/main.py` (router import + include)
+  - `shopify-app/app/lib/api.server.ts` (callBackendMultipartForShop)
+  - `shopify-app/app/routes/app.onboarding.tsx` (CrawlStatus types, loader, action, UI card)
+  - `pyproject.toml` (python-multipart dependency)
+  - `PROGRESS.md`, `ROADMAP.md`
 - **Decisions made:**
-  - Keep `AGENTS.md` as the shared source of truth.
-  - Make `CLAUDE.md` import `@AGENTS.md` instead of duplicating rules.
-  - Replace local absolute-path Claude hooks with safe shared plan-mode settings.
-  - Do not add hooks because no safe shared validation script was confirmed.
-- **Tests run:** Not run from the connector environment.
-- **Tests skipped:**
-  - `ruff check .` — skipped because the GitHub connector cannot execute repo commands.
-  - `pytest` — skipped because the GitHub connector cannot execute repo commands.
-  - `cd shopify-app && npm run typecheck` — skipped because the GitHub connector cannot execute repo commands.
-  - `cd shopify-app && npm run build` — skipped because the GitHub connector cannot execute repo commands.
-- **Issues found:**
-  - `CLAUDE.md` was a legacy archive and did not import `@AGENTS.md`.
-  - `.claude/settings.json` contained a local absolute path and project-personal hook.
-  - `docs/AI_HANDOFF.md`, `docs/ARCHITECTURE.md`, and `docs/COMMANDS.md` were missing.
-- **Next recommended step:** Run local validation commands and continue with roadmap task 86.
+  - Crawl upload is synchronous (no background job) — CSV parsing is fast enough for direct response.
+  - `python-multipart` added as a standard FastAPI peer dependency for file uploads.
+- **Tests run:** `ruff check .` ✅, `pytest` 1101/1101 ✅, `npm run typecheck` ✅, `npm run build` ✅.
+- **Next recommended step:** Task 87 — Étendre l'audit UI (afficher toutes les issues `detect_issues.py` dans l'app avec filtres, gravité, ressource touchée).
 
 ## Open decisions
 

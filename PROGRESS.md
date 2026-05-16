@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-16** (clôture tâche 85)
+- Dernière session : **2026-05-16** (clôture tâche 86)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -11,17 +11,40 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **3/21** 🔄 (tâches 83-85 clôturées ; prochaine tâche 86)
+- Phase 10 : **4/21** 🔄 (tâches 83-86 clôturées ; prochaine tâche 87)
 - Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1084/1084** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1101/1101** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 86 — Import crawl technique ajouté dans l'app le 2026-05-16
+
+- Ajout du module `app/crawl/` :
+  - parse CSV Screaming Frog overview + redirects depuis bytes uploadés ;
+  - détection 404, chaînes de redirection, 302 temporaires, titres dupliqués, descriptions dupliquées, canonical manquant, canonical non-self ;
+  - stockage shop-scopé `data/raw/{shop}/crawl_report.json` + horodaté ;
+  - `latest_crawl_status(shop)` retourne disponibilité, url_count, issue_count, by_severity et liste d'issues.
+- Ajout des endpoints :
+  - `GET /api/shops/{shop}/crawl/status` ;
+  - `POST /api/shops/{shop}/crawl/upload` (multipart CSV, traitement synchrone).
+- Ajout de `callBackendMultipartForShop` dans `shopify-app/app/lib/api.server.ts` pour les uploads multipart sans Content-Type forcé.
+- L'Onboarding Shopify affiche maintenant :
+  - un Step `Crawl technique` dans la checklist d'installation ;
+  - une card dédiée avec statut, compteurs par sévérité, top issues critiques, et formulaire d'upload CSV (overview obligatoire + redirects optionnel).
+- `python-multipart` ajouté à `pyproject.toml` (dépendance standard FastAPI pour les uploads).
+- Vérification :
+  - ciblée : `pytest tests/test_crawl/ tests/test_api/test_crawl.py` : **17 passed** ;
+  - `ruff check .` : OK ;
+  - `pytest` : **1101 passed** ;
+  - `cd shopify-app && npm run typecheck` : OK ;
+  - `cd shopify-app && npm run build` : OK.
+- Prochaine tâche : **87 — Étendre l'audit UI**.
 
 ## État courant pour Codex
 
 - Fichier de règles actif : `AGENTS.md`
 - Ancien fichier `CLAUDE.md` : archive legacy, ne pas l'utiliser comme source de vérité
 - Gestion du contexte : Codex compacte automatiquement ; ne pas utiliser `/compact` ou `/clear`
-- Tâche suivante : **86 — Ajouter un import crawl technique dans l'app**
+- Tâche suivante : **87 — Étendre l'audit UI**
 
 ## Checkpoint de pause — 2026-05-12
 

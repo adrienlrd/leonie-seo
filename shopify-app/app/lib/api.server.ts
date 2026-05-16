@@ -54,6 +54,24 @@ export async function callBackendForShop(
   return callBackend(path, { ...requestOptions, headers });
 }
 
+/**
+ * Multipart file upload to the backend on behalf of a specific shop.
+ * Does NOT set Content-Type so fetch handles the multipart boundary automatically.
+ */
+export async function callBackendMultipartForShop(
+  shop: string,
+  path: string,
+  formData: FormData,
+  accessToken?: string,
+): Promise<Response> {
+  const url = `${PYTHON_BACKEND_URL}${path}`;
+  const headers = new Headers();
+  headers.set("X-Leonie-Shop", shop);
+  if (INTERNAL_API_SECRET) headers.set("X-Internal-Secret", INTERNAL_API_SECRET);
+  if (accessToken) headers.set("X-Shopify-Access-Token", accessToken);
+  return fetch(url, { method: "POST", headers, body: formData });
+}
+
 export async function callBackendJsonForShop<T = unknown>(
   shop: string,
   path: string,

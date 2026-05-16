@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 from app.api.apply import router as apply_router  # noqa: E402
+from app.api.crawl import router as crawl_router  # noqa: E402
 from app.api.embeddings import router as embeddings_router  # noqa: E402
 from app.api.impact import router as impact_router  # noqa: E402
 from app.api.multilingual import router as multilingual_router  # noqa: E402
@@ -109,6 +110,7 @@ app.include_router(jobs_router)
 app.include_router(generate_router)
 app.include_router(gsc_router)
 app.include_router(pagespeed_router)
+app.include_router(crawl_router)
 app.include_router(niche_router)
 app.include_router(observability_router)
 app.include_router(jsonld_router)
