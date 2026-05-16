@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-16** (clôture tâche 89)
+- Dernière session : **2026-05-16** (clôture tâche 90)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -11,10 +11,29 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **7/21** 🔄 (tâches 83-89 clôturées ; prochaine tâche 90)
+- Phase 10 : **8/21** 🔄 (tâches 83-90 clôturées ; prochaine tâche 91)
 - Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1120/1120** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1124/1124** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 90 — Détection cannibalisation dans l'app le 2026-05-16
+
+- Ajout de `app/api/cannibalization.py` : `GET /api/shops/{shop}/audit/cannibalization?min_impressions=10&top=50` ;
+  - lit `gsc_query_page.csv` depuis `data/raw/{shop}/` ;
+  - retourne `available: false` avec message si fichier absent ;
+  - appelle `detect_cannibal_pairs()` + `_recommendation()` du module CLI existant ;
+  - summary {high / medium / low} selon seuils severity 0.6 / 0.3 ;
+  - rows triés par sévérité décroissante.
+- Mise à jour de `app/main.py` : inclusion du `cannibalization_router`.
+- Nouvelle route Remix `shopify-app/app/routes/app.cannibalization.tsx` :
+  - résumé 3 compteurs (haute / moyenne / faible sévérité) ;
+  - filtres par niveau de sévérité ;
+  - liste de paires : badge sévérité, requête, URL principale vs cannibale (path court), positions, types de page, écart de positions, recommandation lisible.
+- Ajout du lien "Cannibalisation" dans le NavMenu après "Longue traîne".
+- Ajout des clés i18n `cannibalization` FR/EN.
+- 4 tests dans `tests/test_api/test_cannibalization.py`.
+- Vérification : `pytest` **1124 passed** · ruff OK · typecheck OK.
+- Prochaine tâche : **91 — Maillage interne**.
 
 ## Tâche 89 — Analyse longue traîne dans l'app le 2026-05-16
 
