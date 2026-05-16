@@ -23,6 +23,7 @@ from app.gsc.client import (
 from app.gsc.oauth_state import GoogleOAuthStateError, create_state, verify_state
 from app.gsc.token_store import get_google_token
 from app.jobs.store import enqueue
+from app.shop_config_store import delete_shop_config, get_shop_config, set_shop_config
 
 router = APIRouter(tags=["gsc"])
 
@@ -50,14 +51,19 @@ async def gsc_status(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> 
     }
 
 
+_PKCE_CONFIG_KEY = "gsc_pkce_verifier"
+
+
 @router.post("/api/shops/{shop}/gsc/authorize")
 async def gsc_authorize(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict:
     """Return the Google OAuth consent URL for the current shop."""
     try:
         state = create_state(ctx.shop)
-        authorization_url = build_authorization_url(state)
+        authorization_url, code_verifier = build_authorization_url(state)
     except (GoogleOAuthStateError, GSCConfigurationError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    if code_verifier:
+        set_shop_config(ctx.shop, _PKCE_CONFIG_KEY, code_verifier)
     return {"authorization_url": authorization_url}
 
 
@@ -126,8 +132,11 @@ async def gsc_callback(
     """Handle the Google OAuth callback and store encrypted credentials."""
     try:
         shop = verify_state(state)
-        credentials = exchange_code_for_token(code)
+        code_verifier = get_shop_config(shop, _PKCE_CONFIG_KEY)
+        credentials = exchange_code_for_token(code, code_verifier=code_verifier)
         save_credentials(shop, credentials)
+        if code_verifier:
+            delete_shop_config(shop, _PKCE_CONFIG_KEY)
     except (GoogleOAuthStateError, GSCConfigurationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return """

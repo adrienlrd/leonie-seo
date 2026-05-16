@@ -62,8 +62,13 @@ def _flow() -> Flow:
     return Flow.from_client_secrets_file(str(path), scopes=GSC_SCOPES, redirect_uri=_redirect_uri())
 
 
-def build_authorization_url(state: str) -> str:
-    """Build a Google OAuth consent URL for Search Console."""
+def build_authorization_url(state: str) -> tuple[str, str | None]:
+    """Build a Google OAuth consent URL for Search Console.
+
+    Returns (url, code_verifier). code_verifier is set when the library
+    automatically enables PKCE (google_auth_oauthlib >= 1.x). The caller
+    must persist it and pass it back to exchange_code_for_token.
+    """
     flow = _flow()
     authorization_url, _ = flow.authorization_url(
         access_type="offline",
@@ -71,13 +76,20 @@ def build_authorization_url(state: str) -> str:
         prompt="consent",
         state=state,
     )
-    return authorization_url
+    # Capture PKCE verifier if the library generated one automatically.
+    code_verifier: str | None = getattr(flow, "code_verifier", None) or getattr(
+        getattr(flow, "oauth2session", None), "_code_verifier", None
+    )
+    return authorization_url, code_verifier
 
 
-def exchange_code_for_token(code: str) -> Credentials:
+def exchange_code_for_token(code: str, code_verifier: str | None = None) -> Credentials:
     """Exchange an OAuth callback code for Google credentials."""
     flow = _flow()
-    flow.fetch_token(code=code)
+    kwargs: dict[str, str] = {"code": code}
+    if code_verifier:
+        kwargs["code_verifier"] = code_verifier
+    flow.fetch_token(**kwargs)
     return flow.credentials
 
 

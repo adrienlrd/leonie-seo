@@ -48,7 +48,7 @@ def test_gsc_authorize_returns_authorization_url(monkeypatch) -> None:
     with (
         patch.dict("os.environ", ENV),
         patch("app.api.gsc.create_state", return_value="state"),
-        patch("app.api.gsc.build_authorization_url", return_value="https://accounts.google.com/o/oauth2/auth"),
+        patch("app.api.gsc.build_authorization_url", return_value=("https://accounts.google.com/o/oauth2/auth", None)),
     ):
         resp = TestClient(app).post("/api/shops/store.myshopify.com/gsc/authorize", headers=HEADERS)
 
