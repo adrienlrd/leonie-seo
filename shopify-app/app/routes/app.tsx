@@ -31,6 +31,7 @@ export default function App() {
         <a href={localizedPath("/app/longtail", locale)}>{t(locale, "longtail")}</a>
         <a href={localizedPath("/app/cannibalization", locale)}>{t(locale, "cannibalization")}</a>
         <a href={localizedPath("/app/internal-links", locale)}>{t(locale, "internalLinks")}</a>
+        <a href={localizedPath("/app/alt-text", locale)}>{t(locale, "altText")}</a>
         <a href={localizedPath("/app/review", locale)}>{t(locale, "review")}</a>
         <a href={localizedPath("/app/niche", locale)}>{t(locale, "niche")}</a>
         <a href={localizedPath("/app/onboarding", locale)}>

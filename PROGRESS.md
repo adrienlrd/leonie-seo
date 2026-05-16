@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-16** (clôture tâche 91)
+- Dernière session : **2026-05-16** (clôture tâche 92)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -11,10 +11,26 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **9/21** 🔄 (tâches 83-91 clôturées ; prochaine tâche 92)
+- Phase 10 : **10/21** 🔄 (tâches 83-92 clôturées ; prochaine tâche 93)
 - Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1131/1131** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1138/1138** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 92 — Alt text IA dans l'app le 2026-05-16
+
+- Ajout de `apply_image_alt()` dans `app/apply/shopify_writer.py` (mutation `productImageUpdate`) avec retry rate-limit.
+- Ajout de `app/api/alt_text.py` :
+  - `GET /api/shops/{shop}/audit/alt-text` : parcourt le snapshot, retourne les images sans alt text avec une suggestion (titre produit + vue N, max 125 chars), `quality_ok` et `char_count` par ligne.
+  - `POST /api/shops/{shop}/audit/alt-text/apply` : body `{dry_run: bool, confirm_live_write: bool, items: [...]}` ; valide longueur et non-vide avant d'appeler `ShopifyWriter.apply_image_alt` ; retourne preview en dry-run, résultats réels sinon.
+- Sécurité : `require_shopify_write_allowed` bloque les écritures live sans `confirm_live_write`.
+- Nouveau route Remix `shopify-app/app/routes/app.alt-text.tsx` :
+  - Loader : GET suggestions.
+  - Action : POST apply (dry-run ou live).
+  - UI : liste par image avec miniature, old alt, `TextField` éditable + compteur de caractères, toggle approuver/rejeter, bouton "Tout approuver", prévisualisation dry-run, confirmation avant écriture live.
+- Ajout du lien NavMenu et des clés i18n `altText` FR/EN.
+- 7 tests dans `tests/test_api/test_alt_text.py`.
+- Vérification : **7 passed** · ruff OK · typecheck OK.
+- Prochaine tâche : **93 — Réécriture descriptions produits**.
 
 ## Tâche 91 — Maillage interne dans l'app le 2026-05-16
 

@@ -43,6 +43,15 @@ query ReadCollectionSEO($id: ID!) {
 }
 """
 
+_UPDATE_IMAGE_ALT = """
+mutation productImageUpdate($productId: ID!, $image: ImageInput!) {
+  productImageUpdate(productId: $productId, image: $image) {
+    image { id altText }
+    userErrors { field message }
+  }
+}
+"""
+
 
 class ShopifyWriteError(Exception):
     """Raised when a Shopify mutation returns userErrors or a non-retryable HTTP error."""
@@ -264,3 +273,36 @@ class ShopifyWriter:
 
         time.sleep(self._delay)
         return ApplyResult(resource_id=collection_id, applied=True)
+
+    def apply_image_alt(
+        self,
+        product_id: str,
+        image_id: str,
+        alt_text: str,
+    ) -> ApplyResult:
+        """Update the alt text of a product image with retry.
+
+        Args:
+            product_id: Shopify Product GID.
+            image_id: Shopify ProductImage GID.
+            alt_text: New alt text (max 125 chars).
+        """
+        variables = {
+            "productId": product_id,
+            "image": {"id": image_id, "altText": alt_text},
+        }
+
+        try:
+            data = self._post(_UPDATE_IMAGE_ALT, variables)
+        except (requests.RequestException, ShopifyWriteError) as exc:
+            return ApplyResult(resource_id=image_id, applied=False, error=str(exc))
+
+        user_errors = (
+            (data.get("data") or {}).get("productImageUpdate", {}).get("userErrors", [])
+        )
+        if user_errors:
+            msg = "; ".join(f"{e['field']}: {e['message']}" for e in user_errors)
+            return ApplyResult(resource_id=image_id, applied=False, error=msg)
+
+        time.sleep(self._delay)
+        return ApplyResult(resource_id=image_id, applied=True)
