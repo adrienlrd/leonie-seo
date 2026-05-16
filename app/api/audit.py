@@ -54,13 +54,16 @@ def _detect_all_issues(snapshot: dict[str, Any]) -> list[Issue]:
 async def get_issues(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     severity: str | None = None,
+    resource_type: str | None = None,
 ) -> list[dict]:
-    """Return all SEO issues from the last crawl, optionally filtered by severity."""
+    """Return all SEO issues from the last crawl, optionally filtered by severity or resource type."""
     snapshot = _load_snapshot(ctx)
     issues = _detect_all_issues(snapshot)
 
     if severity:
         issues = [i for i in issues if i.severity == severity]
+    if resource_type:
+        issues = [i for i in issues if i.resource_type == resource_type]
 
     return [i.model_dump() for i in issues]
 

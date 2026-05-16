@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-16** (clôture tâche 86)
+- Dernière session : **2026-05-16** (clôture tâche 87)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -15,6 +15,28 @@
 - Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
 - Tests : **1101/1101** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 87 — Audit UI étendu dans l'app le 2026-05-16
+
+- Ajout de `app/api/audit.py` : filtre `resource_type` sur `GET /api/shops/{shop}/audit/issues`.
+- Nouvelle route Remix `shopify-app/app/routes/app.audit.tsx` :
+  - loader : fetch issues Shopify (depuis snapshot), score SEO et issues crawl en parallèle ;
+  - fusion et tri des issues Shopify + crawl par sévérité ;
+  - filtres client-side par sévérité (critical / high / medium / low / info) et par type de ressource (produit / collection / image / page / redirect) avec compteurs ;
+  - score global + composants + résumé sévérités en haut de page ;
+  - liste des issues avec badge sévérité, badge type ressource, label lisible issue_type, titre ressource tronqué et détail lisible ;
+  - état vide si aucune donnée ou backend hors-ligne ;
+  - limite d'affichage à 200 issues avec message si dépassé.
+- Ajout du lien "Audit" dans le NavMenu (`app.tsx`), entre Dashboard et Review IA.
+- Ajout de la clé i18n `audit` FR/EN dans `i18n.ts`.
+- 1 nouveau test `test_get_issues_resource_type_filter` dans `tests/test_api/test_audit.py`.
+- Vérification :
+  - `pytest tests/test_api/test_audit.py` : **11 passed** ;
+  - `ruff check .` : OK ;
+  - `pytest` : **1102 passed** ;
+  - `cd shopify-app && npm run typecheck` : OK ;
+  - `cd shopify-app && npm run build` : OK.
+- Prochaine tâche : **88 — Ajouter la matrice ICE dans l'app**.
 
 ## Tâche 86 — Import crawl technique ajouté dans l'app le 2026-05-16
 
@@ -44,7 +66,7 @@
 - Fichier de règles actif : `AGENTS.md`
 - Ancien fichier `CLAUDE.md` : archive legacy, ne pas l'utiliser comme source de vérité
 - Gestion du contexte : Codex compacte automatiquement ; ne pas utiliser `/compact` ou `/clear`
-- Tâche suivante : **87 — Étendre l'audit UI**
+- Tâche suivante : **88 — Ajouter la matrice ICE dans l'app**
 
 ## Checkpoint de pause — 2026-05-12
 

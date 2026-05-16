@@ -94,6 +94,17 @@ def test_get_issues_severity_filter(client: TestClient, snapshot_file: Path):
         assert issue["severity"] == "critical"
 
 
+def test_get_issues_resource_type_filter(client: TestClient, snapshot_file: Path):
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/audit/issues?resource_type=product")
+    assert resp.status_code == 200
+    for issue in resp.json():
+        assert issue["resource_type"] == "product"
+
+
 def test_get_issues_no_snapshot_returns_404(client: TestClient, tmp_path: Path):
     with (
         patch("app.api.deps.get_token", return_value=None),
