@@ -15,7 +15,7 @@ from app.llm.provider import LLMError
 logger = logging.getLogger(__name__)
 
 _DEFAULT_POLL_INTERVAL = 5.0  # seconds between polls when queue is empty
-_DEFAULT_TIMEOUT = 300  # seconds per job before it is marked failed
+_DEFAULT_TIMEOUT = 600  # seconds per job before it is marked failed
 
 
 def _retry_delay(retries: int) -> int:

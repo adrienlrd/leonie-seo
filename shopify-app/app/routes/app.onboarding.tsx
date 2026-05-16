@@ -202,7 +202,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const resp = await callBackendForShop(shop, `/api/shops/${shop}/pagespeed/import`, {
         method: "POST",
         accessToken: session.accessToken,
-        body: JSON.stringify({ max_urls: 5 }),
+        body: JSON.stringify({ max_urls: 3 }),
       });
       if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
       const data = (await resp.json()) as { job_id: string };
