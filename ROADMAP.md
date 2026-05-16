@@ -324,3 +324,56 @@
 |---|---|---|---|---|
 | 104 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
 | 105 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour et configuration de production figée | 🔴 | ⏳ | |
+
+---
+
+## PHASE 12 — Différenciation marché : Revenue-Aware SEO & Shopify-native intelligence
+*Objectif : transformer Léonie SEO d’une app SEO généraliste en assistant SEO business-native pour Shopify : priorisation par revenu potentiel, marge, stock, risque, saisonnalité et preuve d’impact.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 106 | Revenue-Aware SEO Prioritization — croiser GSC, GA4 et Shopify pour prioriser les actions par trafic potentiel, conversion, revenu, marge, stock, risque et effort ; afficher pages/actions, gain estimé, effort, risque, raison lisible et niveau de confiance | 🔴 | ⏳ | |
+| 107 | SEO Risk Guard — identifier les pages déjà performantes ou stables, les marquer “À ne pas toucher” / “Modification risquée”, bloquer les écritures automatiques sauf confirmation forte et propager la protection aux workflows meta, contenu, JSON-LD, maillage et redirects | 🟡 | ⏳ | |
+| 108 | SEO Impact Ledger — historiser chaque action avec snapshot avant/après, source, utilisateur, job ID, page, métriques GSC/GA4 avant puis après 7/30/60 jours, relier le journal au rollback et afficher impact estimé vs observé | 🔴 | ⏳ | |
+| 109 | Smart Collection Builder — détecter les opportunités de collections SEO via catalogue, tags, types produits, requêtes GSC, signaux niche et stock ; proposer nom, handle, H1, metas, description, produits, liens internes et dry-run avant création | 🔴 | ⏳ | |
+| 110 | SEO Experiment Tracking — suivre les actions comme expériences contrôlées avec cohortes pages modifiées / pages similaires non modifiées, période avant/après et résultats GSC/GA4/revenu à 7/30/60 jours avec conclusion positive, neutre, négative ou inconclusive | 🔴 | ⏳ | |
+| 111 | Weekly SEO Action Assistant — agréger GSC, score revenue-aware, risque, PageSpeed, crawl, stock, saisonnalité et ledger pour afficher seulement 3 actions SEO prioritaires par semaine avec gain potentiel, effort, risque et preview | 🟡 | ⏳ | |
+| 112 | Competitor SERP Monitor — suivre les concurrents visibles sur les requêtes GSC prioritaires, comparer type de page, contenu, prix visible, avis, FAQ, schema, longueur et angle SEO, puis recommander collection, contenu, FAQ, maillage ou enrichissement produit | 🔴 | ⏳ | |
+| 113 | AI Product Facts Layer — structurer les faits produit Shopify utiles aux metas, descriptions, FAQ, JSON-LD, snippets et AI Search ; détecter faits confirmés/manquants, proposer enrichissements vérifiables et afficher un score de complétude factuelle | 🔴 | ⏳ | |
+| 114 | Product Lifecycle SEO — gérer le SEO des produits en rupture, supprimés, non publiés, saisonniers, remplacés ou avec variantes épuisées ; recommander conserver, rediriger, ajouter alternatives, modifier contenu ou préparer relance saisonnière | 🔴 | ⏳ | |
+| 115 | Indexation & Page Pruning Advisor — détecter collections vides, tags faibles, filtres, résultats de recherche, pages orphelines, duplicats, pages sans impressions, cannibalisation et anciennes pages produit ; recommander conserver, noindex, canonical, redirect, enrichir ou supprimer | 🔴 | ⏳ | |
+
+### Détail des objectifs Phase 12
+
+- **106 Revenue-Aware SEO Prioritization** : donne au marchand une liste d'actions classées par impact business probable au lieu d'un simple score SEO. À créer en croisant GSC, GA4, Shopify, stock, statut produit, variantes, panier moyen et marge si disponible. Output : tableau pages/actions, gain estimé, effort, risque, raison lisible et confiance faible/moyenne/forte. Garde-fous : fallback GSC + Shopify + panier moyen global si GA4 ou marge manque, et aucune estimation présentée comme une promesse.
+
+- **107 SEO Risk Guard** : évite que l'app abîme une page qui gagne déjà du trafic ou du revenu. À créer avec détection top 3, CTR supérieur à la moyenne, revenus organiques élevés, conversion élevée et stabilité 30/60/90 jours. Output : pages protégées, raison, niveau de risque et recommandation. Garde-fous : blocage des modifications automatiques et confirmation forte avant écriture Shopify dans les workflows sensibles.
+
+- **108 SEO Impact Ledger** : transforme l'app en système de preuve, pas seulement en outil d'exécution. À créer en enregistrant état avant/après, utilisateur, job ID, source de recommandation, métriques GSC/GA4 et mesures après 7/30/60 jours. Output : journal chronologique, impact estimé vs observé et rollback si possible. Garde-fous : snapshot obligatoire, distinction corrélation/causalité et état “impact non encore mesurable”.
+
+- **109 Smart Collection Builder** : propose des collections Shopify à partir d'une vraie demande de recherche et du catalogue disponible. À créer avec catalogue, tags, types produits, requêtes GSC, signaux niche et stock. Output : cartes de collections suggérées avec preview nom, handle, H1, metas, description, produits, liens internes et estimation d'opportunité. Garde-fous : éviter collections trop pauvres, cannibales ou déjà existantes, et ne jamais publier sans validation.
+
+- **110 SEO Experiment Tracking** : mesure les changements SEO comme des expériences observées, ce qui rend les gains plus crédibles. À créer avec cohortes pages modifiées / non modifiées, périodes avant/après et suivi impressions, clics, CTR, position, sessions organiques, conversions et revenu. Output : vue expérience, comparaison et conclusion simple. Garde-fous : signaler saisonnalité, updates Google, faible volume et ne pas présenter cela comme un A/B test parfait.
+
+- **111 Weekly SEO Action Assistant** : réduit la complexité en 3 décisions actionnables par semaine. À créer en agrégeant opportunités GSC, score revenue-aware, Risk Guard, PageSpeed, crawl, stock, saisonnalité et ledger. Output : carte dashboard avec 3 actions, gain potentiel, effort, risque et preview. Garde-fous : ne pas répéter des recommandations faibles, masquer l'incertain et privilégier l'impact business au volume d'erreurs.
+
+- **112 Competitor SERP Monitor** : montre pourquoi un concurrent gagne une requête importante et quoi faire sans copier. À créer avec suivi limité des requêtes GSC prioritaires, récupération ou import des concurrents SERP, classification des pages et comparaison contenu/prix/avis/FAQ/schema/angle. Output : tableau par requête, concurrents qui montent, raison probable et action recommandée. Garde-fous : plafonner les requêtes, éviter le scraping agressif, proposer un import CSV au départ et interdire la copie de contenu.
+
+- **113 AI Product Facts Layer** : crée une base de faits fiables pour enrichir les pages sans hallucination. À créer en extrayant matière, dimensions, compatibilité, origine, usage, entretien, poids, garanties, livraison, retours, preuves de confiance et certifications depuis Shopify. Output : fiche faits produit, faits détectés, faits manquants, recommandations et score de complétude. Garde-fous : ne jamais inventer origine, matière, certification ou garantie, et séparer fait confirmé / suggestion à vérifier.
+
+- **114 Product Lifecycle SEO** : protège le trafic SEO quand un produit change de statut commercial. À créer en détectant ruptures avec trafic, produits supprimés ou non publiés, variantes épuisées, produits saisonniers, remplacements et collections saisonnières. Output : dashboard cycle de vie, alertes de risque, recommandations par cas et preview des redirections ou modifications. Garde-fous : ne pas rediriger automatiquement une page qui reçoit encore du trafic qualifié, demander confirmation forte et intégrer rollback.
+
+- **115 Indexation & Page Pruning Advisor** : aide à nettoyer les pages faibles sans détruire des actifs SEO. À créer en détectant collections vides, tags faibles, filtres, recherche interne, pages orphelines, duplicats, pages sans impressions, cannibalisation et anciennes pages produit. Output : tableau pages à nettoyer, raison, action recommandée, risque et preview technique. Garde-fous : aucun noindex/redirect automatique, validation explicite, protection des pages avec trafic, backlinks ou revenu et intégration du SEO Risk Guard.
+
+### Priorité produit recommandée
+
+1. **106 Revenue-Aware SEO Prioritization** — C'est le cœur différenciant. Sans ça, l'app reste une app SEO classique.
+2. **108 SEO Impact Ledger** — Permet de prouver la valeur et prépare le rollback avancé.
+3. **107 SEO Risk Guard** — Donne confiance et évite de casser les pages performantes.
+4. **111 Weekly SEO Action Assistant** — Transforme toute la complexité en 3 actions simples.
+5. **109 Smart Collection Builder** — Très Shopify-native et potentiellement très vendeur.
+6. **114 Product Lifecycle SEO** — Très pertinent pour les marchands avec stock, ruptures et produits supprimés.
+7. **115 Indexation & Page Pruning Advisor** — Utile mais dangereux, donc à faire après les garde-fous.
+8. **110 SEO Experiment Tracking** — Important pour prouver l'impact, mais dépend du ledger et des données GA4/GSC.
+9. **113 AI Product Facts Layer** — Très utile pour enrichir les pages, mais doit rester strict pour éviter les hallucinations.
+10. **112 Competitor SERP Monitor** — Différenciant mais coûteux. À garder après validation marché ou avec import manuel au départ.
