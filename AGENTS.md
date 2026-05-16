@@ -1,164 +1,173 @@
-# AGENTS.md — leonie-seo
+# AGENTS.md — Léonie SEO
 
-## 1. Project purpose
+## 1. Project overview
 
-`leonie-seo` is a Shopify SEO automation project built first for `leoniedelacroix.com`, then intended to become a public Shopify App.
+- **Name:** Léonie SEO
+- **Goal:** Shopify SEO automation pipeline and public Shopify app for niche-first SEO recommendations, supervised content generation, SEO audits, and safe Shopify application.
+- **App type:** Shopify public app plus self-hosted/CLI mode.
+- **Short-term vision:** Complete Phase 10 parity between CLI capabilities and the embedded Shopify app, then prepare App Store go/no-go.
+- **Long-term vision:** Become a Shopify-native SEO copilot that prioritizes actions by niche opportunity, measurable impact, merchant validation, and safe execution.
 
-Current business context:
+Before modifying code, an agent must:
 
-- Store: Léonie Delacroix
-- Website: `https://www.leoniedelacroix.com`
-- Shopify domain: `287c4a-bb.myshopify.com`
-- Market: premium pet accessories for dogs and cats, with a French-made positioning where applicable
-- Product types: dog/cat clothing, coats, pullovers, harnesses, fountains, scratching posts, design bowls, and related pet accessories
-- SEO goal: grow qualified organic traffic and conversions through technical SEO, niche content, structured data, and measurable search performance improvements
+1. Read this file entirely.
+2. Inspect `git status --short` when working locally.
+3. Read `docs/AI_HANDOFF.md` for current agent state.
+4. Read `PROGRESS.md` for roadmap progress and next task.
+5. Read `docs/COMMANDS.md` to identify relevant validation commands.
+6. Keep diffs small and focused.
 
-Product vision:
+## 2. Tech stack
 
-> Niche-first Shopify SEO app: identify realistic long-tail opportunities from the merchant’s actual catalog, generate useful SEO content, apply it safely to Shopify, and measure the impact.
+Detected from the repository files reviewed:
 
-This is not a generic meta tag generator. The differentiator is:
+- **Primary language:** Python 3.11+ and TypeScript.
+- **Backend framework:** FastAPI.
+- **CLI framework:** Click.
+- **Frontend framework:** Remix + React.
+- **Shopify integration:** Shopify embedded app, App Bridge, Polaris, OAuth, Billing, webhooks, Theme App Extension.
+- **Database:** Postgres support and legacy SQLite/history storage are documented.
+- **ORM:** Not clearly detected from reviewed files.
+- **Package manager:** pip for Python, npm for `shopify-app/`.
+- **Lint:** Ruff.
+- **Format:** Not configured as a dedicated command.
+- **Type checker:** TypeScript `tsc` for `shopify-app/`; Python type checker not configured.
+- **Test framework:** pytest.
+- **Build tool:** Remix/Vite build in `shopify-app/`; Docker for backend image.
+- **Deployment:** Docker and Render pilot deployment are documented.
 
-- niche intelligence
-- product-cluster detection
-- keyword gaps
-- SERP saturation analysis
-- safe Shopify application
-- measurable impact through GSC, GA4, and Shopify data
+## 3. Repository structure
 
-Target product:
+- `app/` — Python backend, FastAPI routes, OAuth, billing, jobs, integrations and application services. Modify with tests. Avoid casual changes to Shopify auth, billing, jobs or write guards.
+- `scripts/` — Click CLI and reusable SEO engines for audit, apply and reports. Preserve CLI compatibility and dry-run defaults.
+- `shopify-app/` — Shopify embedded Remix app with React, App Bridge and Polaris. Validate with typecheck/build after UI changes.
+- `shopify-app/extensions/` — Shopify extension surface. Modify only with Shopify compatibility checks.
+- `config/` — tenant, niche and prompt configuration. Do not commit private values.
+- `data/` — local data and generated exports. Do not commit sensitive or generated merchant data.
+- `reports/` — generated reports. Avoid committing generated outputs unless explicitly requested.
+- `tests/` — Python tests. Update with logic changes.
+- `docs/` — project, pilot, architecture, commands and handoff documentation. Keep current after meaningful work.
+- `.claude/` — shared Claude Code settings and subagents. Keep shareable and non-local.
 
-- Public Shopify App Store app
-- Embedded Shopify Admin app
-- Merchant-reviewed recommendations
-- Safe batch application
-- Free/Pro/Agency pricing
-- French and English support
-- Infrastructure cost target: keep the early-stage MVP inexpensive and avoid unnecessary managed services
+## 4. Architecture rules
 
-## 2. Source of truth
+- Respect the existing architecture.
+- Do not reorganize files or folders without explicit request.
+- If a domain layer exists, it must not depend on infrastructure or presentation layers.
+- If Clean Architecture is present, dependencies must point inward.
+- No infrastructure imports inside domain code.
+- No generic helpers for one-off use cases.
+- No speculative abstraction.
+- Prefer simple, readable, testable modules.
+- Reuse existing `scripts/` logic from the app when possible instead of duplicating SEO engines.
+- No new dependency without a documented reason.
+- Do not change Shopify OAuth, billing, webhooks, scopes, or production deployment config without explicit request.
 
-Do not use this file as the source of truth for current task status.
-
-Use these files instead:
-
-- `ROADMAP.md`: roadmap, task order, task status, completed work, upcoming work
-- `PROGRESS.md`: latest working state, current blockers, last commands run, verification status, next recommended step
-- `DECISIONS.md`: durable technical decisions and open decisions
-- `CONTEXT.md`: market, competitors, strategic keywords, brand positioning
-- `README.md`: human-facing setup and usage documentation when present
-
-Rules:
-
-- When the user asks to continue the roadmap, read `PROGRESS.md` first, then `ROADMAP.md`, then propose the next pending task.
-- When the user gives an explicit task, prioritize that task over roadmap order.
-- Do not assume that a module is implemented because this file mentions it. Verify in code, tests, `ROADMAP.md`, and `PROGRESS.md`.
-- If `ROADMAP.md` and code disagree, trust the code and report the mismatch.
-- If `PROGRESS.md` and `ROADMAP.md` disagree, inspect both and ask the user or make the smallest safe assumption.
-
-## 3. Language rules
+## 5. Coding standards
 
 - Communicate with the user in French.
-- Write code, comments, docstrings, commit messages, branch names, technical documentation, function names, class names, variables, and file names in English.
-- Do not write French inside code comments or docstrings.
-- Preserve French in user-facing French documentation, product copy, SEO content, merchant-facing UI text, emails, and marketing pages.
-- Preserve English in user-facing English documentation and UI text.
+- Use English for code identifiers, filenames, comments, docstrings, commits and technical implementation details.
+- Preserve French for merchant-facing French documentation, UI copy and product copy.
+- Use type hints for Python functions and methods when Python is changed.
+- Keep functions small and explicit.
+- Avoid clever one-liners unless clearly readable.
+- Comments should explain non-obvious intent, not restate code.
+- No `except: pass`.
+- No bare `except Exception` without documented justification.
+- Validate inputs at system boundaries.
+- Avoid changing public behavior unless the task explicitly requires it.
 
-## 4. Start-of-session workflow
+## 6. Testing and validation
 
-Before broad, risky, roadmap-related, architecture-changing, Shopify-writing, deployment, or App Store submission work:
+Use `docs/COMMANDS.md` as the command reference.
 
-1. Read `PROGRESS.md`.
-2. Read `ROADMAP.md`.
-3. Read the relevant files for the requested task.
-4. Summarize current state in 3–6 bullets.
-5. Propose a short implementation plan.
-6. Wait for user approval before coding.
+| Purpose | Command |
+|---|---|
+| Install | `pip install -e .` / `pip install -e .[dev]` |
+| Backend dev | `uvicorn app.main:app --host 0.0.0.0 --port 8000` |
+| CLI help | `leonie-seo --help` |
+| Python lint | `ruff check .` |
+| Python tests | `pytest` |
+| Shopify install | `cd shopify-app && npm install` |
+| Shopify dev | `cd shopify-app && npm run dev` |
+| Shopify typecheck | `cd shopify-app && npm run typecheck` |
+| Shopify build | `cd shopify-app && npm run build` |
+| Docker build | `docker build -t leonie-seo .` |
 
-For small, low-risk, clearly scoped tasks:
+Rule: before marking a task done, run the relevant validation commands or explicitly explain why they were not run.
 
-- Act directly.
-- Keep the diff minimal.
-- Summarize what changed and how it was verified.
+## 7. Git workflow for AI agents
 
-Examples of tasks that require a plan first:
+- Start with `git status --short` when working locally.
+- Never overwrite user changes.
+- Never mix unrelated changes.
+- Never reformat the whole project unless explicitly requested.
+- Keep diffs small.
+- In every final summary, list files created, files modified, commands run, commands failed, tests run, tests not run with reason, and open risks.
 
-- Changing architecture
-- Adding or replacing dependencies
-- Modifying Shopify write behavior
-- Creating or changing billing behavior
-- Changing GDPR handling
-- Modifying database schema
-- Adding async jobs
-- Preparing App Store submission
-- Refactoring multiple modules
-- Touching production configuration
-- Running destructive commands
+## 8. Codex-specific workflow
 
-Examples of tasks that do not require prior approval:
+- Read `AGENTS.md` before editing.
+- For simple tasks: edit directly, then validate.
+- For complex tasks: produce a short plan before editing.
+- Use only relevant files as context.
+- Avoid dumping long logs into the conversation.
+- Use sub-tasks only for exploration, testing, analysis and triage.
+- Do not run multiple agents that write to the same files in parallel.
+- Codex normally reads `~/.codex/AGENTS.md`, then repo `AGENTS.md` files from root to current folder. `CODEX_HOME` may change the home path.
+- Use nested `AGENTS.md` only when a subdirectory has genuinely different rules.
+- Do not create `AGENTS.override.md` unless a temporary override is explicitly needed and documented.
 
-- Fixing a typo
-- Updating a small test
-- Fixing an obvious import error
-- Formatting a file
-- Improving a small doc section
-- Reading files and reporting findings
+## 9. Claude Code-specific workflow
 
-## 5. Mandatory safety rules
+Claude Code reads `CLAUDE.md`, which imports this file via `@AGENTS.md`.
 
-These rules override normal implementation convenience.
+Use plan mode before:
 
-### Shopify safety
+- Large refactors
+- Architecture changes
+- Database schema or migration changes
+- Shopify OAuth changes
+- Shopify billing changes
+- Webhook changes
+- API scope changes
+- Deployment or production config changes
 
-- Dry-run is the default for all Shopify write scripts.
-- Any real Shopify write must require an explicit `--apply` or equivalent.
-- Never write to Shopify without human confirmation.
-- Never modify product handles, collection handles, page handles, blog handles, or URL slugs unless the user explicitly asks and redirect handling is part of the plan.
-- Never edit `theme.liquid` directly.
-- Prefer Theme App Extensions, app blocks, metafields, metaobjects, or documented Shopify extension points.
-- Before any Shopify mutation, review:
-  - target store
-  - affected resources
-  - mutation type
-  - rollback path
-  - rate limits
-  - dry-run output
-  - user confirmation
-- Use GraphQL Admin API for new Shopify Admin work.
-- Use a currently supported Shopify Admin API version, configured in one central place.
-- Do not hardcode Shopify store URLs, access tokens, API keys, secrets, customer data, or merchant private data.
+Prefer read-only exploration before editing.
 
-### GDPR and privacy
+Use subagents for code review, test triage, Shopify architecture review, security review and UI/UX review when relevant.
 
-- Any merchant-data storage must support required Shopify GDPR webhooks:
-  - customer data request
-  - customer data erasure
-  - shop data erasure
-- Store only the data needed for the feature.
-- Avoid storing customer personal data unless strictly required.
-- Do not log access tokens, secrets, authorization headers, cookies, customer personal data, or raw webhook secrets.
-- Treat tenant data as isolated by default.
+Hooks are allowed only for validation or safety. Hooks must not be destructive and must not bypass confirmations. Do not add project hooks unless the called script already exists and is safe.
 
-### Billing
+Never let Claude Code and Codex modify the same files simultaneously.
 
-- Production App Store billing must use Shopify Billing API.
-- Do not implement a custom off-Shopify billing system for App Store production use.
-- Billing changes require a plan and explicit user approval.
+## 10. AI handoff protocol
 
-### External services
+After every meaningful task, update `docs/AI_HANDOFF.md` with:
 
-- Prefer official documentation for Shopify, Google, OpenAI, Cloudflare, Neon, Render, and other external services.
-- Do not perform real external mutations unless the user explicitly asks.
-- Use dry-run, preview, staging, or test mode when available.
-- Keep API versions and external service assumptions centralized and easy to update.
+- Date
+- Agent name
+- Task goal
+- Summary of changes
+- Files created
+- Files modified
+- Decisions made
+- Validations run
+- Validations skipped, with reason
+- Open issues
+- Next recommended action
 
-## 6. Architecture rules
+Continue using `PROGRESS.md` for detailed roadmap status and `docs/AI_HANDOFF.md` for compact agent handoff.
 
-Use Clean Architecture unless a local module already follows another explicit pattern.
+## 11. Safety rules
 
-Expected dependency direction:
-
-```text
-presentation -> application/use cases -> domain
-infrastructure -> application/use cases -> domain
-domain -> no infrastructure dependencies
+- Never expose secrets.
+- Never hardcode credentials.
+- Never modify production config without explicit request.
+- Never run destructive commands without confirmation.
+- Never delete migrations, data files or schemas without justification.
+- Never commit `.env`, `.env.*`, `.claude/settings.local.json`, or `CLAUDE.local.md`.
+- Treat generated folders and dependency folders as non-editable unless the task explicitly requires otherwise.
+- Dry-run is the default for Shopify write behavior.
+- Real Shopify writes require explicit confirmation and existing write guards.
+- Billing, OAuth, webhooks and deployment changes require a plan and explicit approval.
