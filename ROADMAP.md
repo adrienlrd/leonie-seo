@@ -317,17 +317,7 @@
 
 ---
 
-## PHASE 11 — Soumission publique Shopify App Store
-*Objectif : publier l'app seulement après le pilote réel et après la parité fonctionnelle prioritaire entre scripts CLI et app embedded.*
-
-| # | Tâche | Difficulté | Statut | Date |
-|---|---|---|---|---|
-| 104 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
-| 105 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour et configuration de production figée | 🔴 | ⏳ | |
-
----
-
-## PHASE 12 — Différenciation marché : Revenue-Aware SEO & Shopify-native intelligence
+## PHASE 11 — Différenciation marché : Revenue-Aware SEO & Shopify-native intelligence
 *Objectif : transformer Léonie SEO d’une app SEO généraliste en assistant SEO business-native pour Shopify : priorisation par revenu potentiel, marge, stock, risque, saisonnalité et preuve d’impact.*
 
 | # | Tâche | Difficulté | Statut | Date |
@@ -343,7 +333,7 @@
 | 114 | Product Lifecycle SEO — gérer le SEO des produits en rupture, supprimés, non publiés, saisonniers, remplacés ou avec variantes épuisées ; recommander conserver, rediriger, ajouter alternatives, modifier contenu ou préparer relance saisonnière | 🔴 | ⏳ | |
 | 115 | Indexation & Page Pruning Advisor — détecter collections vides, tags faibles, filtres, résultats de recherche, pages orphelines, duplicats, pages sans impressions, cannibalisation et anciennes pages produit ; recommander conserver, noindex, canonical, redirect, enrichir ou supprimer | 🔴 | ⏳ | |
 
-### Détail des objectifs Phase 12
+### Détail des objectifs Phase 11
 
 - **106 Revenue-Aware SEO Prioritization** : donne au marchand une liste d'actions classées par impact business probable au lieu d'un simple score SEO. À créer en croisant GSC, GA4, Shopify, stock, statut produit, variantes, panier moyen et marge si disponible. Output : tableau pages/actions, gain estimé, effort, risque, raison lisible et confiance faible/moyenne/forte. Garde-fous : fallback GSC + Shopify + panier moyen global si GA4 ou marge manque, et aucune estimation présentée comme une promesse.
 
@@ -377,3 +367,13 @@
 8. **110 SEO Experiment Tracking** — Important pour prouver l'impact, mais dépend du ledger et des données GA4/GSC.
 9. **113 AI Product Facts Layer** — Très utile pour enrichir les pages, mais doit rester strict pour éviter les hallucinations.
 10. **112 Competitor SERP Monitor** — Différenciant mais coûteux. À garder après validation marché ou avec import manuel au départ.
+
+---
+
+## PHASE 12 — Soumission publique Shopify App Store
+*Objectif : publier l'app seulement après le pilote réel et après la parité fonctionnelle prioritaire entre scripts CLI et app embedded.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 104 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
+| 105 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour et configuration de production figée | 🔴 | ⏳ | |

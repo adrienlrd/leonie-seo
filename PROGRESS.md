@@ -12,7 +12,8 @@
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
 - Phase 10 : **13/21** 🔄 (tâches 83-95 clôturées ; prochaine tâche 96)
-- Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
+- Phase 11 : **0/10** ⏳ (Revenue-Aware SEO & Shopify-native intelligence, tâches 106-115)
+- Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 104-105)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
 - Tests : **1159/1159** ✅ — ruff clean ✅ — Remix typecheck/build ✅
 
@@ -323,7 +324,7 @@ tests/test_api/test_jsonld_status.py::test_jsonld_status_extension_note_present 
 - La roadmap a été réorganisée :
   - les anciennes tâches App Store finales ont été déplacées après la parité fonctionnelle ;
   - la Phase 10 porte les fonctionnalités restantes des scripts CLI vers l'app Shopify ;
-  - la Phase 11 devient le go/no-go puis la soumission publique Shopify App Store.
+  - la Phase 11 est Revenue-Aware SEO & Shopify-native intelligence (tâches 106-115) ; la Phase 12 est la soumission publique Shopify App Store (tâches 104-105).
 - Vérifications locales du 2026-05-15 :
   - `ruff check .` : OK ;
   - `pytest` : **1050 passed** ;
@@ -698,8 +699,8 @@ La publication publique est volontairement différée derrière une nouvelle sé
 - **81** ✅ Corriger la vague prioritaire issue du pilote.
 - **82** ✅ Mesurer la qualité réelle : valeur des suggestions, coûts, jobs, confiance marchande.
 - **83-103** Porter les fonctionnalités scripts CLI restantes dans l'app Shopify embedded.
-- **104** Décider le go/no-go App Store public.
-- **105** Finaliser et soumettre l'app au Shopify App Store.
+- **104** (Phase 12) Décider le go/no-go App Store public.
+- **105** (Phase 12) Finaliser et soumettre l'app au Shopify App Store.
 
 ## ⏳ Actions manuelles en attente
 
@@ -773,7 +774,7 @@ La publication publique est volontairement différée derrière une nouvelle sé
 **Décision produit** : ne pas publier immédiatement au Shopify App Store. Priorité donnée à un pilote réel sur la boutique `leoniedelacroix.com`, afin d'ajuster l'app sur des retours marchands concrets avant la publication publique.
 
 **Roadmap ajoutée** :
-- Phase 9 initiale ajoutée, puis réorganisée depuis en Phase 9 tâches **76 à 82**, Phase 10 tâches **83 à 103**, Phase 11 tâches **104 à 105**.
+- Phase 9 initiale ajoutée, puis réorganisée depuis en Phase 9 tâches **76 à 82**, Phase 10 tâches **83 à 103**, Phase 12 tâches **104 à 105** ; Phase 11 tâches **106 à 115** (Revenue-Aware SEO).
 - Prochaine tâche ordonnée : **76**.
 - Publication publique App Store repoussée à la tâche **105**, après le pilote, les retours, les corrections prioritaires et la parité scripts CLI → app Shopify.
 
