@@ -19,6 +19,9 @@ class TenantSummary:
     tenant_id: str
     brand: str
     shopify_store_domain: str
+    base_url: str | None = None
+    gsc_property: str | None = None
+    pagespeed_urls: tuple[str, ...] = ()
 
 
 def _read_tenant(path: Path) -> TenantSummary | None:
@@ -32,6 +35,9 @@ def _read_tenant(path: Path) -> TenantSummary | None:
         tenant_id=tenant_id,
         brand=brand,
         shopify_store_domain=domain,
+        base_url=str(data.get("base_url", "")).strip() or None,
+        gsc_property=str(data.get("gsc_property", "")).strip() or None,
+        pagespeed_urls=tuple(str(url).strip() for url in data.get("pagespeed_urls", []) if url),
     )
 
 

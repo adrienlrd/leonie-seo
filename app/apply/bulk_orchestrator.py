@@ -11,6 +11,7 @@ from app.apply.shopify_writer import ShopifyWriter
 from app.db_adapter import DB_PATH, get_conn
 from app.llm.meta_store import batch_update_status, list_suggestions
 from app.oauth.token_store import get_token
+from app.safety import require_shopify_write_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,7 @@ def apply_approved_meta(
     dry_run: bool = True,
     max_per_run: int = _MAX_PER_RUN_DEFAULT,
     delay: float = 0.5,
+    confirm_live_write: bool = False,
     db_path: Path | None = None,
 ) -> BulkApplyReport:
     """Apply all approved meta suggestions for a shop to Shopify.
@@ -100,12 +102,18 @@ def apply_approved_meta(
                  The report shows what would be applied.
         max_per_run: Maximum suggestions to process per call (prevents timeouts).
         delay: Seconds between Shopify mutations (rate-limit guard).
+        confirm_live_write: Required for live writes outside pilot-safe mode.
         db_path: Override DB path (tests only).
 
     Returns:
         BulkApplyReport with per-suggestion outcomes.
     """
     report = BulkApplyReport(shop=shop, dry_run=dry_run)
+    require_shopify_write_allowed(
+        action="bulk_apply",
+        dry_run=dry_run,
+        confirmed=confirm_live_write,
+    )
 
     suggestions = list_suggestions(shop, status="approved", limit=max_per_run, db_path=db_path)
     if not suggestions:

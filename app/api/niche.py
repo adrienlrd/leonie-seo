@@ -125,7 +125,7 @@ async def get_niche_gaps(
     if not gsc_queries:
         raise HTTPException(
             status_code=404,
-            detail="No GSC data found. Run 'leonie-seo audit gsc' first.",
+            detail="No GSC data found. Connect Google Search Console in the app first.",
         )
 
     clusters = cluster_products(products)
@@ -177,7 +177,7 @@ async def get_intent_clusters(
     if not gsc_queries:
         raise HTTPException(
             status_code=404,
-            detail="No GSC data found. Run 'leonie-seo audit gsc' first.",
+            detail="No GSC data found. Connect Google Search Console in the app first.",
         )
 
     clusters = cluster_gsc_queries(gsc_queries, min_impressions=min_impressions)

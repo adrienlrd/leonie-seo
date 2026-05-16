@@ -22,6 +22,7 @@ from scripts.audit.fetch_gsc import main as fetch_gsc_main
 from scripts.audit.fetch_pagespeed import main as pagespeed_main
 from scripts.audit.parse_screaming_frog import main as screaming_frog_main
 from scripts.license import cli as license_cli
+from scripts.pilot_smoke import smoke_public
 from scripts.report.analyze_semantics import main as semantics_main
 from scripts.report.dashboard import main as dashboard_main
 from scripts.report.detect_internal_links import main as links_main
@@ -100,6 +101,17 @@ apply.add_command(redirects_main, name="create-redirects")
 apply.add_command(schema_main, name="add-schema")
 apply.add_command(rewrite_main, name="rewrite-descriptions")
 apply.add_command(rollback_main, name="rollback")
+
+
+# ── pilot ─────────────────────────────────────────────────────────────────────
+
+
+@cli.group()
+def pilot() -> None:
+    """Real-store pilot checks and operator commands."""
+
+
+pilot.add_command(smoke_public, name="smoke-public")
 
 
 if __name__ == "__main__":

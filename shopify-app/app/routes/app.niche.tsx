@@ -48,6 +48,30 @@ interface SignalKeyword {
   relevance_score: number;
 }
 
+interface GSCOpportunity {
+  url: string;
+  page_type: string;
+  zone: string;
+  position: number;
+  impressions: number;
+  clicks: number;
+  ctr_pct: number;
+  opportunity_score: number;
+  estimated_gain_clicks: number;
+  action: string;
+}
+
+interface GSCOpportunityResponse {
+  available: boolean;
+  opportunities: GSCOpportunity[];
+  summary: {
+    total: number;
+    total_estimated_gain_clicks: number;
+    by_zone: Record<string, number>;
+  };
+  message?: string;
+}
+
 interface NicheReport {
   clusters: ProductCluster[];
   keyword_gaps: KeywordGap[];
@@ -61,6 +85,7 @@ interface LoaderData {
   locale: Locale;
   report: NicheReport | null;
   signals: SignalKeyword[];
+  gscOpportunities: GSCOpportunityResponse | null;
   error?: string;
 }
 
@@ -106,12 +131,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             }
           )
         : [];
-    return json<LoaderData>({ locale, report, signals });
+    const gscOpportunities = await safeBackendJson<GSCOpportunityResponse | null>(
+      shop,
+      `/api/shops/${shop}/gsc/opportunities?top=10&min_impressions=10`,
+      null,
+      { accessToken: session.accessToken }
+    );
+    return json<LoaderData>({ locale, report, signals, gscOpportunities });
   } catch {
     return json<LoaderData>({
       locale,
       report: null,
       signals: [],
+      gscOpportunities: null,
       error: t(locale, "backendOffline"),
     });
   }
@@ -131,8 +163,16 @@ function topEntity(summary: Record<string, Record<string, number>>): string {
   return entries[0] ? `${entries[0].term} (${entries[0].group})` : "—";
 }
 
+function urlPath(url: string): string {
+  try {
+    return new URL(url).pathname || "/";
+  } catch {
+    return url || "/";
+  }
+}
+
 export default function Niche() {
-  const { locale, report, signals, error } = useLoaderData<typeof loader>();
+  const { locale, report, signals, gscOpportunities, error } = useLoaderData<typeof loader>();
 
   const clusterRows = (report?.clusters ?? []).slice(0, 8).map((cluster, index) => (
     <IndexTable.Row id={cluster.name} key={cluster.name} position={index}>
@@ -169,6 +209,30 @@ export default function Niche() {
       <IndexTable.Cell>{intent.total_impressions}</IndexTable.Cell>
       <IndexTable.Cell>{intent.avg_position.toFixed(1)}</IndexTable.Cell>
       <IndexTable.Cell>{intent.top_keywords.slice(0, 5).join(", ")}</IndexTable.Cell>
+    </IndexTable.Row>
+  ));
+
+  const opportunityRows = (gscOpportunities?.opportunities ?? []).slice(0, 10).map((opportunity, index) => (
+    <IndexTable.Row id={opportunity.url} key={opportunity.url} position={index}>
+      <IndexTable.Cell>
+        <BlockStack gap="050">
+          <Text as="span" fontWeight="bold">
+            {urlPath(opportunity.url)}
+          </Text>
+          <Text as="span" tone="subdued" variant="bodySm">
+            {opportunity.action}
+          </Text>
+        </BlockStack>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <Badge tone={opportunity.zone === "quick_win" ? "success" : opportunity.zone === "low_ctr" ? "warning" : "info"}>
+          {opportunity.zone === "quick_win" ? "Quick win" : opportunity.zone === "low_ctr" ? "CTR faible" : "Long terme"}
+        </Badge>
+      </IndexTable.Cell>
+      <IndexTable.Cell>{opportunity.position.toFixed(1)}</IndexTable.Cell>
+      <IndexTable.Cell>{opportunity.impressions}</IndexTable.Cell>
+      <IndexTable.Cell>{opportunity.ctr_pct.toFixed(1)}%</IndexTable.Cell>
+      <IndexTable.Cell>+{opportunity.estimated_gain_clicks}</IndexTable.Cell>
     </IndexTable.Row>
   ));
 
@@ -272,6 +336,53 @@ export default function Niche() {
             </BlockStack>
           </Card>
         </InlineGrid>
+
+        <Card>
+          <BlockStack gap="300">
+            <InlineStack align="space-between">
+              <Text as="h2" variant="headingMd">
+                Opportunités GSC
+              </Text>
+              <Badge tone={gscOpportunities?.available ? "success" : "warning"}>
+                {gscOpportunities?.available ? `${gscOpportunities.summary.total} détectées` : "GSC requis"}
+              </Badge>
+            </InlineStack>
+            {gscOpportunities?.available && (
+              <InlineGrid columns={["oneThird", "oneThird", "oneThird"]} gap="300">
+                <Text as="p" tone="subdued">
+                  Quick wins: {gscOpportunities.summary.by_zone.quick_win ?? 0}
+                </Text>
+                <Text as="p" tone="subdued">
+                  CTR faible: {gscOpportunities.summary.by_zone.low_ctr ?? 0}
+                </Text>
+                <Text as="p" tone="subdued">
+                  Gain estimé: +{gscOpportunities.summary.total_estimated_gain_clicks} clics
+                </Text>
+              </InlineGrid>
+            )}
+            {opportunityRows.length === 0 ? (
+              <Text as="p" tone="subdued">
+                {gscOpportunities?.message ?? "Aucune opportunité GSC détectée avec les seuils actuels."}
+              </Text>
+            ) : (
+              <IndexTable
+                resourceName={{ singular: "opportunité", plural: "opportunités" }}
+                itemCount={opportunityRows.length}
+                headings={[
+                  { title: "Page" },
+                  { title: "Zone" },
+                  { title: t(locale, "position") },
+                  { title: t(locale, "impressions") },
+                  { title: "CTR" },
+                  { title: "+ clics" },
+                ]}
+                selectable={false}
+              >
+                {opportunityRows}
+              </IndexTable>
+            )}
+          </BlockStack>
+        </Card>
 
         <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
           <Card>

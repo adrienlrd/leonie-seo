@@ -162,14 +162,12 @@
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
 | 76 | Préparer l'environnement pilote hors App Store — app non listée / install directe sur la boutique réelle, URLs publiques de test, secrets et callbacks actifs | 🔴 | ✅ | 2026-05-12 |
-| 77 | Installer Léonie SEO sur la boutique Shopify réelle et valider OAuth, sessions persistantes, Billing désactivé ou mode test, webhooks GDPR/app uninstall | 🔴 | ⏳ | |
-| 78 | Activer un mode **pilot-safe** : analyses en lecture seule + dry-run obligatoire + confirmations explicites avant toute écriture Shopify | 🔴 | ⏳ | |
-| 79 | Tester les parcours métier réels sur `leoniedelacroix.com` — onboarding, audit, review IA, niche intelligence, jobs, privacy, billing/settings | 🔴 | ⏳ | |
-| 80 | Capturer les retours d'usage, bugs, incompréhensions UX, frictions de confiance et écarts entre promesse produit et réalité marchande | 🟡 | ⏳ | |
-| 81 | Corriger la vague pilote prioritaire — fiabilité, wording, états vides, feedbacks UX, garde-fous mutations, temps de réponse | 🔴 | ⏳ | |
-| 82 | Mesurer le pilote — qualité des recommandations, taux d'approbation, coûts LLM, stabilité des jobs, signaux SEO utiles | 🟡 | ⏳ | |
-| 83 | Décision go/no-go App Store après pilote réel + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
-| 84 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour et configuration de production figée | 🔴 | ⏳ | |
+| 77 | Installer Léonie SEO sur la boutique Shopify réelle et valider OAuth, sessions persistantes, Billing désactivé ou mode test, webhooks GDPR/app uninstall | 🔴 | ✅ | 2026-05-15 |
+| 78 | Activer un mode **pilot-safe** : analyses en lecture seule + dry-run obligatoire + confirmations explicites avant toute écriture Shopify | 🔴 | ✅ | 2026-05-15 |
+| 79 | Tester les parcours métier réels sur `leoniedelacroix.com` — onboarding, audit, review IA, niche intelligence, jobs, privacy, billing/settings | 🔴 | ✅ | 2026-05-16 |
+| 80 | Capturer les retours d'usage, bugs, incompréhensions UX, frictions de confiance et écarts entre promesse produit et réalité marchande | 🟡 | ✅ | 2026-05-16 |
+| 81 | Corriger la vague pilote prioritaire — fiabilité, wording, états vides, feedbacks UX, garde-fous mutations, temps de réponse | 🔴 | ✅ | 2026-05-16 |
+| 82 | Mesurer le pilote — qualité des recommandations, taux d'approbation, coûts LLM, stabilité des jobs, signaux SEO utiles | 🟡 | ✅ | 2026-05-16 |
 
 > Clôture tâche 76 — 2026-05-12 : stratégie pilote séparée documentée
 > (`docs/pilot-real-store-setup.md`), décision enregistrée dans `DECISIONS.md`,
@@ -177,3 +175,152 @@
 > config locale `shopify.app.pilot.toml` prévue via `shopify app config link --config pilot`.
 > La création de l'app pilote custom et la génération du lien d'installation restent
 > des actions Shopify Partner manuelles à exécuter avant la tâche 77.
+>
+> Clôture tâche 77 — 2026-05-15 : app pilote installée sur la boutique réelle,
+> OAuth embedded validé, sessions et appels internes Remix → Python validés,
+> Billing désactivable par environnement, webhooks/GDPR présents, jobs audit/IA/apply
+> visibles et scopés au shop, snapshot Shopify réel persistant fichier + DB,
+> récupération des jobs `running` obsolètes, génération IA et prévisualisation
+> dry-run vérifiées. Vérification locale : `ruff check .` ✅, `pytest`
+> **1050 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
+>
+> Clôture tâche 78 — 2026-05-15 : ajout d'un garde-fou central
+> `LEONIE_PILOT_SAFE_MODE=true` qui bloque toute écriture live Shopify pendant
+> le pilote, y compris les jobs `bulk_apply` et les mutations Billing. Hors mode
+> pilot-safe, les écritures live exigent `confirm_live_write=true`; les dry-runs
+> et lectures Shopify restent autorisés. Le Blueprint Render pilote active ce mode.
+> Vérification locale : `ruff check .` ✅, `pytest` **1060 passed** ✅,
+> `npm run typecheck` ✅, `npm run build` ✅.
+>
+> Démarrage tâche 79 — 2026-05-15 : ajout du plan de test réel
+> `docs/pilot-real-store-test-plan.md` et du journal
+> `docs/pilot-real-store-test-log.md`. Smoke checks publics réussis :
+> web `/healthz` → `ok`, API `/health` → `status=ok` sans variable manquante,
+> privacy GET → HTTP 200. Les parcours embedded Shopify Admin restent à
+> exécuter avec une session marchand connectée.
+>
+> Clôture tâche 79 — 2026-05-16 : parcours embedded Shopify Admin validé
+> sur la boutique réelle. Installation/session, navigation, Settings pilot-safe,
+> audit, crawl produits/collections, niche clusters, génération de suggestions,
+> approbation/rejet, dry-run preview, Billing bloqué et Privacy sont passés.
+> Aucun bug bloquant signalé ; seul le libellé exact du mode pilot-safe dans
+> Settings est à considérer comme retour UX pour la tâche 80. Décision : pass.
+>
+> Clôture tâche 80 — 2026-05-16 : retours pilote consolidés dans
+> `docs/pilot-real-store-feedback.md`. Aucun bug bloquant ou friction majeure
+> n'a été signalé. Une correction candidate est retenue pour la tâche 81 :
+> rendre le libellé Settings `Mode pilot-safe actif` plus explicite et stable.
+> Les IDs/counts manquants dans le journal sont classés comme amélioration de
+> preuve de test, pas comme bug produit. Les manques GSC/GA4/PageSpeed restent
+> volontairement différés en Phase 10.
+>
+> Clôture tâche 81 — 2026-05-16 : vague pilote prioritaire limitée au retour
+> UX confirmé. La carte Settings affiche désormais `Mode pilot-safe actif`,
+> un badge `Écritures live bloquées`, et une ligne indiquant que les dry-runs
+> restent autorisés mais qu'aucune écriture Shopify live ne peut partir.
+> Vérification : `npm run typecheck` ✅ et `npm run build` ✅ dans `shopify-app/`.
+>
+> Clôture tâche 82 — 2026-05-16 : mesure pilote consolidée dans
+> `docs/pilot-real-store-measurement.md`. Décision : pass avec lacunes de
+> mesure. Le pilote valide le workflow coeur, la sécurité dry-run/pilot-safe,
+> Billing bloqué, Privacy, Niche clusters, génération IA, review et preview.
+> Les valeurs exactes job IDs/durations, compteurs produits/collections,
+> taux d'approbation et coût LLM devront être capturés lors du prochain pass,
+> mais ne bloquent pas l'entrée en Phase 10.
+
+---
+
+## PHASE 10 — Parité scripts CLI → App Shopify
+*Objectif : porter dans l'app embedded les fonctionnalités SEO encore disponibles uniquement dans `scripts/`, avec une UX marchand simple, des jobs async, du dry-run par défaut, et des garde-fous adaptés à l'App Store.*
+*Principe : ne pas exposer chaque script tel quel. Transformer chaque capacité en workflow produit : diagnostic clair, prévisualisation, validation humaine, historique, rollback si écriture.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 83 | Connecter Google Search Console dans l'app — OAuth/consentement marchand, import query×page, état de fraîcheur des données et erreurs actionnables | 🔴 | ✅ | 2026-05-16 |
+| 84 | Porter les opportunités GSC — positions 11-20, pages à CTR faible, estimation clics gagnables et priorisation par impact | 🟡 | ✅ | 2026-05-16 |
+| 85 | Ajouter PageSpeed / Core Web Vitals — job par URL prioritaire, scores mobile/desktop, alertes de régression et recommandations non techniques | 🟡 | ✅ | 2026-05-16 |
+| 86 | Ajouter un import crawl technique — upload CSV Screaming Frog ou crawl externe, détection 404, redirects, canonical, duplicates et chaînes de redirection | 🔴 | ⏳ | |
+| 87 | Étendre l'audit UI — afficher toutes les issues `scripts/audit/detect_issues.py` dans l'app avec filtres, gravité, ressource touchée et cause lisible | 🟡 | ⏳ | |
+| 88 | Ajouter la matrice ICE dans l'app — prioriser les corrections par impact, confiance et effort, avec tri marchand exploitable | 🟡 | ⏳ | |
+| 89 | Porter l'analyse longue traîne — comparer catalogue, GSC et requêtes niche pour révéler les manques mots-clés par produit/collection | 🟡 | ⏳ | |
+| 90 | Porter la détection cannibalisation — identifier les pages en compétition sur une même requête et proposer consolidation, canonical ou différenciation | 🔴 | ⏳ | |
+| 91 | Ajouter le maillage interne — détecter opportunités blog/collection/produit, générer ancres suggérées et préparer une prévisualisation sans écriture | 🔴 | ⏳ | |
+| 92 | Porter l'alt text IA — générer, revoir, approuver/rejeter et appliquer en dry-run les textes alternatifs images, avec limites qualité et accessibilité | 🟡 | ⏳ | |
+| 93 | Porter la réécriture descriptions produits — générer descriptions longue traîne, comparer avec l'existant, review humaine et application batch sécurisée | 🔴 | ⏳ | |
+| 94 | Ajouter les redirects 301 supervisés — import/proposition, validation collision/handle, dry-run, application explicite et rapport de résultat | 🔴 | ⏳ | |
+| 95 | Finaliser le workflow JSON-LD — preview Organization/Product/Collection, activation Theme App Extension, validation schema et statut par ressource | 🟡 | ⏳ | |
+| 96 | Ajouter un rollback marchand — historique des écritures Shopify, diff avant/après, revert par job/ressource/date, confirmations fortes | 🔴 | ⏳ | |
+| 97 | Porter les rapports exportables — audit Markdown/PDF, delta avant-après, rapport mensuel, téléchargement depuis l'app et stockage par shop | 🟡 | ⏳ | |
+| 98 | Ajouter dashboard impact + GA4 en UI complète — funnel organique, conversions, revenus, ROI par URL modifiée et configuration GA4 guidée | 🔴 | ⏳ | |
+| 99 | Ajouter analyse sémantique et E-E-A-T — score contenu, entités manquantes, preuves de confiance, recommandations par page | 🟡 | ⏳ | |
+| 100 | Ajouter génération FAQ et briefs blog — workflows de contenu niche-aware, review, export, et option d'application future via pages/blog Shopify | 🟡 | ⏳ | |
+| 101 | Ajouter hreflang / international SEO — diagnostic marchés/langues, preview tags, garde-fous Markets Shopify et export technique | 🟡 | ⏳ | |
+| 102 | Ajouter alertes marchand — email/in-app alerts pour CWV, 404, chute CTR/position, budget LLM et jobs en échec | 🟡 | ⏳ | |
+| 103 | Nettoyer les scripts transitoires après parité — documenter ce qui reste CLI-only, supprimer doublons dangereux et figer les modules canoniques app | 🟡 | ⏳ | |
+
+### Détail des objectifs Phase 10
+
+- **83 GSC** : remplacer les imports locaux par une connexion pilotable depuis l'app, car les opportunités SEO deviennent beaucoup plus crédibles quand elles viennent des vraies requêtes marchand.
+- **84 Opportunités GSC** : transformer les données GSC en actions simples : quelles pages optimiser maintenant, pourquoi, et quel gain potentiel viser.
+- **85 PageSpeed / CWV** : intégrer la santé performance comme signal SEO visible, sans noyer le marchand dans des métriques Lighthouse brutes.
+- **86 Crawl technique** : couvrir les problèmes que Shopify GraphQL ne voit pas bien : 404 publiques, canonical, redirects, duplicates réels et URLs orphelines.
+- **87 Audit UI complet** : faire de l'app le lieu de lecture principal des problèmes SEO, au lieu de rapports CLI séparés.
+- **88 ICE** : aider à décider quoi corriger en premier, surtout quand l'audit produit trop de recommandations.
+- **89 Longue traîne** : trouver les requêtes réalistes que la boutique peut gagner à partir du catalogue réel et de la demande observée.
+- **90 Cannibalisation** : éviter que plusieurs pages se concurrencent entre elles et diluent les signaux SEO.
+- **91 Maillage interne** : transformer les contenus existants en leviers de ranking via liens contextuels contrôlés.
+- **92 Alt text** : améliorer SEO image et accessibilité avec le même modèle de confiance que Review IA.
+- **93 Descriptions produits** : étendre la valeur IA au contenu visible, avec un niveau de contrôle plus strict que les meta.
+- **94 Redirects 301** : porter une fonctionnalité puissante mais risquée uniquement avec validations, dry-run et rollback.
+- **95 JSON-LD** : rendre l'injection structurée auditable et activable proprement via extension Shopify, sans toucher `theme.liquid`.
+- **96 Rollback** : donner une vraie confiance avant toute écriture réelle Shopify.
+- **97 Rapports** : permettre au marchand de garder une trace exportable des audits, progrès et décisions.
+- **98 GA4 / ROI** : relier les changements SEO aux sessions, conversions et revenus, pas seulement aux scores techniques.
+- **99 Sémantique / E-E-A-T** : enrichir les pages avec les signaux de confiance et de pertinence qui manquent aujourd'hui dans l'UI.
+- **100 FAQ / briefs** : convertir la niche intelligence en production de contenu exploitable.
+- **101 Hreflang** : préparer l'expansion internationale sans générer de tags dangereux ou incohérents avec Shopify Markets.
+- **102 Alertes** : rendre l'app proactive sur les régressions et les coûts.
+- **103 Cleanup** : éviter deux sources de vérité entre CLI et app, en gardant les scripts utiles comme moteur ou outils opérateur seulement.
+
+> Clôture tâche 83 — 2026-05-16 : ajout de la connexion Google Search Console
+> côté app embedded. Le backend stocke les credentials Google OAuth chiffrés par
+> shop (`google_tokens`), génère une URL de consentement signée, gère le callback
+> Google, expose un statut GSC avec fraîcheur du dernier import, et lance un job
+> `gsc_import` qui écrit les exports shop-scopés `gsc_performance.csv`,
+> `gsc_query_page.csv` et `gsc_*.json` consommables par Niche Intelligence.
+> L'Onboarding Shopify affiche maintenant l'état GSC, le lien de consentement
+> et l'action `Importer 90 jours`. Configuration pilote documentée via
+> `GOOGLE_OAUTH_CLIENT_CONFIG`, `GOOGLE_OAUTH_REDIRECT_URI` et
+> `GOOGLE_OAUTH_STATE_SECRET`. Vérification : `ruff check .` ✅,
+> `pytest` **1075 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
+>
+> Clôture tâche 84 — 2026-05-16 : ajout de l'endpoint
+> `GET /api/shops/{shop}/gsc/opportunities`, réutilisant la logique CLI
+> `detect_gsc_opportunities` pour transformer les imports GSC en quick wins
+> positions 11-20, pages à CTR faible, opportunités long terme, gains de clics
+> estimés et priorisation par impact. La page Niche Shopify affiche désormais
+> une carte `Opportunités GSC` avec résumé, gain estimé et tableau des pages à
+> optimiser, ainsi qu'un état vide quand GSC n'est pas encore connecté/importé.
+> Vérification : `ruff check .` ✅, `pytest` **1077 passed** ✅,
+> `npm run typecheck` ✅, `npm run build` ✅.
+>
+> Clôture tâche 85 — 2026-05-16 : ajout du workflow PageSpeed / Core Web
+> Vitals côté app embedded. Le backend expose `GET /api/shops/{shop}/pagespeed/status`
+> et `POST /api/shops/{shop}/pagespeed/import`, lance le job async
+> `pagespeed_import`, sélectionne des URLs prioritaires par shop, écrit les
+> exports `pagespeed.csv` et `pagespeed_*.csv`, calcule les moyennes mobile /
+> desktop, les alertes CWV, les régressions de score et des recommandations
+> non techniques. L'Onboarding Shopify affiche l'état PageSpeed, le bouton
+> `Analyser les URLs prioritaires`, les scores et les alertes principales ;
+> Jobs SEO résume aussi les imports PageSpeed. Vérification : `ruff check .` ✅,
+> `pytest` **1084 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
+
+---
+
+## PHASE 11 — Soumission publique Shopify App Store
+*Objectif : publier l'app seulement après le pilote réel et après la parité fonctionnelle prioritaire entre scripts CLI et app embedded.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 104 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
+| 105 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour et configuration de production figée | 🔴 | ⏳ | |

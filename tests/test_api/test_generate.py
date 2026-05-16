@@ -79,3 +79,56 @@ def test_enqueue_meta_generation_from_snapshot_returns_404_without_snapshot(
         resp = client.post(f"/api/shops/{SHOP}/generate/meta/from-snapshot", json={})
 
     assert resp.status_code == 404
+
+
+def test_enqueue_bulk_apply_dry_run_is_allowed(client: TestClient, monkeypatch):
+    enqueued: list[dict] = []
+
+    def _enqueue(queue, payload, **kwargs):
+        enqueued.append({"queue": queue, "payload": payload, **kwargs})
+        return kwargs["job_id"]
+
+    monkeypatch.setattr("app.api.generate.enqueue", _enqueue)
+
+    with patch("app.api.deps.get_token", return_value=None):
+        resp = client.post(
+            f"/api/shops/{SHOP}/generate/meta/apply",
+            json={"dry_run": True, "max_per_run": 3},
+        )
+
+    assert resp.status_code == 200
+    assert enqueued[0]["queue"] == "bulk_apply"
+    assert enqueued[0]["payload"]["dry_run"] is True
+    assert enqueued[0]["payload"]["confirm_live_write"] is False
+
+
+def test_enqueue_bulk_apply_live_requires_explicit_confirmation(client: TestClient, monkeypatch):
+    enqueued: list[dict] = []
+    monkeypatch.setattr(
+        "app.api.generate.enqueue",
+        lambda queue, payload, **kwargs: enqueued.append({"queue": queue}) or kwargs["job_id"],
+    )
+
+    with patch("app.api.deps.get_token", return_value=None):
+        resp = client.post(
+            f"/api/shops/{SHOP}/generate/meta/apply",
+            json={"dry_run": False},
+        )
+
+    assert resp.status_code == 409
+    assert "confirm_live_write=true" in resp.json()["detail"]
+    assert enqueued == []
+
+
+def test_enqueue_bulk_apply_pilot_safe_blocks_live_even_when_confirmed(client: TestClient):
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch.dict("os.environ", {"LEONIE_PILOT_SAFE_MODE": "true"}),
+    ):
+        resp = client.post(
+            f"/api/shops/{SHOP}/generate/meta/apply",
+            json={"dry_run": False, "confirm_live_write": True},
+        )
+
+    assert resp.status_code == 403
+    assert "Pilot-safe mode blocks live Shopify writes" in resp.json()["detail"]

@@ -14,6 +14,7 @@ from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.jobs.store import enqueue
 from app.llm.meta_store import batch_update_status, list_suggestions
 from app.llm.review import diff_suggestions
+from app.safety import require_shopify_write_allowed
 
 router = APIRouter(tags=["generate"])
 
@@ -41,6 +42,7 @@ class BulkApplyRequest(BaseModel):
     dry_run: bool = True
     max_per_run: int = 50
     delay: float = 0.5
+    confirm_live_write: bool = False
 
 
 class BlogBriefRequest(BaseModel):
@@ -258,6 +260,11 @@ async def enqueue_bulk_apply(
         shop: Shopify shop domain.
         body: dry_run (default True), max_per_run (default 50), delay between mutations.
     """
+    require_shopify_write_allowed(
+        action="bulk_apply",
+        dry_run=body.dry_run,
+        confirmed=body.confirm_live_write,
+    )
     job_id = str(uuid.uuid4())
     enqueue(
         "bulk_apply",
@@ -265,6 +272,7 @@ async def enqueue_bulk_apply(
             "dry_run": body.dry_run,
             "max_per_run": body.max_per_run,
             "delay": body.delay,
+            "confirm_live_write": body.confirm_live_write,
         },
         job_id=job_id,
         shop=shop,

@@ -29,7 +29,7 @@ def test_cli_version_exits_zero(runner: CliRunner) -> None:
 def test_cli_lists_all_groups(runner: CliRunner) -> None:
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
-    for group in ("setup", "license", "audit", "report", "apply"):
+    for group in ("setup", "license", "audit", "report", "apply", "pilot"):
         assert group in result.output
 
 
@@ -257,4 +257,23 @@ def test_license_issue_help(runner: CliRunner) -> None:
 
 def test_license_check_help(runner: CliRunner) -> None:
     result = runner.invoke(cli, ["license", "check", "--help"])
+    assert result.exit_code == 0
+
+
+# ── pilot ────────────────────────────────────────────────────────────────────
+
+
+def test_pilot_group_help(runner: CliRunner) -> None:
+    result = runner.invoke(cli, ["pilot", "--help"])
+    assert result.exit_code == 0
+
+
+def test_pilot_lists_commands(runner: CliRunner) -> None:
+    result = runner.invoke(cli, ["pilot", "--help"])
+    assert result.exit_code == 0
+    assert "smoke-public" in result.output
+
+
+def test_pilot_smoke_public_help(runner: CliRunner) -> None:
+    result = runner.invoke(cli, ["pilot", "smoke-public", "--help"])
     assert result.exit_code == 0

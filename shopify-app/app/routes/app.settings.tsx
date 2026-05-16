@@ -139,9 +139,20 @@ export default function Settings() {
           <Card>
             <BlockStack gap="200">
               <Text as="h2" variant="headingMd">
-                {t(locale, "locales")}
+                {status?.pilot_safe_mode ? "Mode pilot-safe actif" : "Mode pilote inactif"}
               </Text>
-              <Text as="p">{locales.map((item) => item.code.toUpperCase()).join(", ")}</Text>
+              <Badge tone={status?.pilot_safe_mode ? "success" : "warning"}>
+                {status?.pilot_safe_mode ? "Écritures live bloquées" : "Écritures live possibles"}
+              </Badge>
+              <Text as="p" tone="subdued">
+                {status?.pilot_safe_mode
+                  ? "Les dry-runs restent autorisés; aucune écriture Shopify live ne peut partir."
+                  : "Les écritures Shopify live nécessitent une confirmation explicite."}
+              </Text>
+              <Text as="p" tone="subdued">
+                {t(locale, "locales")}:{" "}
+                {locales.map((item) => item.code.toUpperCase()).join(", ") || "-"}
+              </Text>
             </BlockStack>
           </Card>
         </InlineGrid>

@@ -107,10 +107,14 @@ INTERNAL_API_SECRET=...
 LEONIE_MASTER_KEY=...
 LEONIE_REQUIRE_SESSION_TOKEN=true
 LEONIE_BILLING_MODE=disabled
+LEONIE_PILOT_SAFE_MODE=true
 ```
 
 Add the SEO provider credentials that the pilot actually needs for real workflows:
-- Google Search Console;
+- Google Search Console:
+  - `GOOGLE_OAUTH_CLIENT_CONFIG` or `GOOGLE_OAUTH_CLIENT_PATH`;
+  - `GOOGLE_OAUTH_REDIRECT_URI=https://leonie-seo-pilot-api.onrender.com/api/google/gsc/callback`;
+  - optional `GOOGLE_OAUTH_STATE_SECRET` if it should differ from `INTERNAL_API_SECRET`;
 - PageSpeed Insights;
 - GA4, if those journeys are validated during the pilot.
 
@@ -144,6 +148,7 @@ Render automatically manages TLS for custom domains after DNS verification, and 
 - Redirect URLs in `shopify.app.pilot.toml` match that origin exactly.
 - `DATABASE_URL` is set for both services that need persistent state.
 - `INTERNAL_API_SECRET` matches between Remix and Python.
+- `LEONIE_PILOT_SAFE_MODE=true` is set on the Python backend.
 - The public app can reach the Python backend.
 - `/webhooks` is reachable from the public origin.
 - Custom distribution install link has been generated for the real merchant store.

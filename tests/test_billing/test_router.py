@@ -90,6 +90,13 @@ def test_subscribe_returns_403_when_billing_disabled(client, monkeypatch):
     assert resp.status_code == 403
 
 
+def test_subscribe_pilot_safe_blocks_billing_write(client, monkeypatch):
+    monkeypatch.setenv("LEONIE_PILOT_SAFE_MODE", "true")
+    resp = client.post(f"/api/shops/{SHOP}/billing/subscribe", json={"plan": "pro"})
+    assert resp.status_code == 403
+    assert "Pilot-safe mode blocks Shopify Billing write" in resp.json()["detail"]
+
+
 def test_subscribe_unknown_plan_returns_400(client):
     resp = client.post(f"/api/shops/{SHOP}/billing/subscribe", json={"plan": "enterprise"})
     assert resp.status_code == 400
@@ -137,6 +144,17 @@ def test_cancel_active_subscription_succeeds(client, monkeypatch):
     resp = client.post(f"/api/shops/{SHOP}/billing/cancel")
     assert resp.status_code == 200
     assert resp.json()["plan"] == "free"
+
+
+def test_cancel_pilot_safe_blocks_billing_write(client, monkeypatch):
+    monkeypatch.setenv("LEONIE_PILOT_SAFE_MODE", "true")
+    monkeypatch.setattr(
+        "app.billing.router.get_subscription",
+        lambda shop: {"status": "active", "subscription_id": SUB_GID},
+    )
+    resp = client.post(f"/api/shops/{SHOP}/billing/cancel")
+    assert resp.status_code == 403
+    assert "Pilot-safe mode blocks Shopify Billing write" in resp.json()["detail"]
 
 
 # ── GET /billing/confirm ──────────────────────────────────────────────────────

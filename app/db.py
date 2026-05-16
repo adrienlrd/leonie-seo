@@ -24,6 +24,14 @@ _SQLITE_DDL = [
         installed_at TEXT NOT NULL,
         updated_at   TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS google_tokens (
+        shop         TEXT PRIMARY KEY,
+        token_json   TEXT NOT NULL,
+        scopes       TEXT,
+        email        TEXT,
+        created_at   TEXT NOT NULL,
+        updated_at   TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS oauth_states (
         state      TEXT PRIMARY KEY,
         created_at REAL NOT NULL
@@ -184,6 +192,14 @@ _PG_DDL = [
         access_token TEXT NOT NULL,
         scope        TEXT,
         installed_at TEXT NOT NULL,
+        updated_at   TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS google_tokens (
+        shop         TEXT PRIMARY KEY,
+        token_json   TEXT NOT NULL,
+        scopes       TEXT,
+        email        TEXT,
+        created_at   TEXT NOT NULL,
         updated_at   TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS oauth_states (

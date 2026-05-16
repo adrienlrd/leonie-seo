@@ -16,7 +16,7 @@ Léonie SEO est un **copilote SEO niche-first pour boutiques Shopify** — conç
 
 **Contraintes respectées** : budget infra ≤ 12 €/mois, fallbacks LLM gratuits, validation marchande avant apply, conformité Shopify App Store (GDPR, Billing API, App Bridge).
 
-### Roadmap en 9 phases (84 tâches)
+### Roadmap en 11 phases (105 tâches)
 
 | Phase | Périmètre | Statut |
 |---|---|---|
@@ -28,7 +28,9 @@ Léonie SEO est un **copilote SEO niche-first pour boutiques Shopify** — conç
 | 6 — Conformité & Infra async | GDPR, Billing API, async queue, App Bridge, Polaris, Postgres | ✅ |
 | 7 — Moteur IA & Niche | LLM provider, Niche Intelligence concrète, observabilité | ✅ |
 | 8 — Scale & App Store final | Theme Extension, embeddings, GA4, Common Crawl, préparation App Store | ✅ |
-| 9 — Pilote marchand réel | App pilote custom, vraie boutique, retours terrain avant publication | 🔄 1/9 |
+| 9 — Pilote marchand réel | App pilote custom, vraie boutique, retours terrain avant publication | ✅ |
+| 10 — Parité scripts CLI → App Shopify | Porter les fonctions CLI restantes dans l'app embedded avant publication | 🔄 3/21 |
+| 11 — Soumission App Store publique | Go/no-go puis soumission après pilote + parité fonctionnelle | ⏳ |
 
 ---
 
@@ -45,7 +47,13 @@ Voir [`docs/plans.md`](docs/plans.md) pour le détail.
 
 ### Pilote marchand réel avant App Store
 
-Avant la soumission publique, Léonie SEO passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à l'URL stable `https://pilot.leoniedelacroix.com`. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md).
+Avant la soumission publique, Léonie SEO passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à l'URL stable `https://pilot.leoniedelacroix.com`. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md), et le plan de test réel dans [`docs/pilot-real-store-test-plan.md`](docs/pilot-real-store-test-plan.md).
+
+Smoke check public du pilote :
+
+```bash
+leonie-seo pilot smoke-public
+```
 
 ## Plans
 

@@ -75,7 +75,10 @@ def test_apply_meta_apply_calls_shopify(client: TestClient, mocker):
     mock_writer = mocker.patch("app.api.apply.ShopifyWriter", return_value=writer)
     payload = [{"product_id": PRODUCT_GID, "title": "New Title", "description": "New desc"}]
     with _auth_patches():
-        resp = client.post(f"/api/shops/{SHOP}/apply/meta?dry_run=false", json=payload)
+        resp = client.post(
+            f"/api/shops/{SHOP}/apply/meta?dry_run=false&confirm_live_write=true",
+            json=payload,
+        )
     assert resp.status_code == 200
     assert resp.json()[0]["status"] == "applied"
     mock_writer.assert_called_once_with(SHOP, "shpat_test")
@@ -92,10 +95,44 @@ def test_apply_meta_shopify_writer_error_returns_error_status(client: TestClient
     mocker.patch("app.api.apply.ShopifyWriter", return_value=writer)
     payload = [{"product_id": PRODUCT_GID, "title": "Title"}]
     with _auth_patches():
-        resp = client.post(f"/api/shops/{SHOP}/apply/meta?dry_run=false", json=payload)
+        resp = client.post(
+            f"/api/shops/{SHOP}/apply/meta?dry_run=false&confirm_live_write=true",
+            json=payload,
+        )
     assert resp.status_code == 200
     assert resp.json()[0]["status"] == "error"
     assert "Title is too long" in resp.json()[0]["detail"]
+
+
+def test_apply_meta_live_requires_explicit_confirmation(client: TestClient, mocker):
+    mock_writer = mocker.patch("app.api.apply.ShopifyWriter")
+    payload = [{"product_id": PRODUCT_GID, "title": "Title"}]
+    with _auth_patches():
+        resp = client.post(f"/api/shops/{SHOP}/apply/meta?dry_run=false", json=payload)
+    assert resp.status_code == 409
+    assert "confirm_live_write=true" in resp.json()["detail"]
+    mock_writer.assert_not_called()
+
+
+def test_apply_meta_pilot_safe_blocks_live_even_when_confirmed(client: TestClient, mocker):
+    mock_writer = mocker.patch("app.api.apply.ShopifyWriter")
+    payload = [{"product_id": PRODUCT_GID, "title": "Title"}]
+    with _auth_patches(), patch.dict("os.environ", {"LEONIE_PILOT_SAFE_MODE": "true"}):
+        resp = client.post(
+            f"/api/shops/{SHOP}/apply/meta?dry_run=false&confirm_live_write=true",
+            json=payload,
+        )
+    assert resp.status_code == 403
+    assert "Pilot-safe mode blocks live Shopify writes" in resp.json()["detail"]
+    mock_writer.assert_not_called()
+
+
+def test_apply_meta_pilot_safe_allows_dry_run(client: TestClient):
+    payload = [{"product_id": PRODUCT_GID, "title": "Title"}]
+    with _auth_patches(), patch.dict("os.environ", {"LEONIE_PILOT_SAFE_MODE": "true"}):
+        resp = client.post(f"/api/shops/{SHOP}/apply/meta?dry_run=true", json=payload)
+    assert resp.status_code == 200
+    assert resp.json()[0]["status"] == "preview"
 
 
 def test_apply_meta_empty_list_returns_422(client: TestClient):

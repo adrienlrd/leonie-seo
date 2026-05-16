@@ -19,8 +19,10 @@ from app.api.multilingual import router as multilingual_router  # noqa: E402
 from app.api.ga4 import router as ga4_router  # noqa: E402
 from app.api.web_graph import router as web_graph_router  # noqa: E402
 from app.api.generate import router as generate_router  # noqa: E402
+from app.api.gsc import router as gsc_router  # noqa: E402
 from app.api.jsonld import router as jsonld_router  # noqa: E402
 from app.api.niche import router as niche_router  # noqa: E402
+from app.api.pagespeed import router as pagespeed_router  # noqa: E402
 from app.api.observability import router as observability_router  # noqa: E402
 from app.api.privacy import router as privacy_router  # noqa: E402
 from app.api.audit import router as audit_router  # noqa: E402
@@ -105,6 +107,8 @@ app.include_router(suggestions_router)
 app.include_router(help_router)
 app.include_router(jobs_router)
 app.include_router(generate_router)
+app.include_router(gsc_router)
+app.include_router(pagespeed_router)
 app.include_router(niche_router)
 app.include_router(observability_router)
 app.include_router(jsonld_router)

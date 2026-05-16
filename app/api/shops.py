@@ -8,6 +8,7 @@ from app.api.deps import ShopContext, get_shop_context, require_internal_secret
 from app.api.plans import plan_summary
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.oauth.token_store import list_tokens
+from app.safety import is_pilot_safe_mode
 
 router = APIRouter(prefix="/api", tags=["shops"])
 
@@ -48,5 +49,6 @@ async def shop_status(ctx: Annotated[ShopContext, Depends(get_shop_context)]) ->
         "snapshot_date": snapshot_date,
         "product_count": product_count,
         "collection_count": collection_count,
+        "pilot_safe_mode": is_pilot_safe_mode(),
         **plan_summary(ctx.plan),
     }

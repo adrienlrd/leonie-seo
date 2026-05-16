@@ -26,6 +26,7 @@ from app.billing.subscription_store import (
     upsert_subscription,
 )
 from app.oauth.token_store import get_token
+from app.safety import require_billing_write_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,7 @@ async def subscribe(
     """
     if _billing_mode() == "disabled":
         raise HTTPException(status_code=403, detail="Billing is disabled for this environment.")
+    require_billing_write_allowed(action="billing_subscribe")
 
     if body.plan not in BILLING_PLANS:
         raise HTTPException(status_code=400, detail=f"Unknown plan: '{body.plan}'")
@@ -122,6 +124,7 @@ async def cancel(
     sub = get_subscription(ctx.shop)
     if not sub or sub["status"] != "active" or not sub["subscription_id"]:
         raise HTTPException(status_code=404, detail="No active subscription found.")
+    require_billing_write_allowed(action="billing_cancel")
 
     try:
         new_status = cancel_subscription(ctx.shop, ctx.access_token, sub["subscription_id"])

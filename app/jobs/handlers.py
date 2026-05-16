@@ -124,9 +124,58 @@ async def handle_bulk_apply(payload: dict, shop: str | None) -> dict:
     dry_run = bool(payload.get("dry_run", True))
     max_per_run = int(payload.get("max_per_run", 50))
     delay = float(payload.get("delay", 0.5))
+    confirm_live_write = bool(payload.get("confirm_live_write", False))
 
     if not shop:
         return {"error": "shop is required for bulk_apply"}
 
-    report = apply_approved_meta(shop, dry_run=dry_run, max_per_run=max_per_run, delay=delay)
+    report = apply_approved_meta(
+        shop,
+        dry_run=dry_run,
+        max_per_run=max_per_run,
+        delay=delay,
+        confirm_live_write=confirm_live_write,
+    )
     return asdict(report)
+
+
+@register("gsc_import")
+async def handle_gsc_import(payload: dict, shop: str | None) -> dict:
+    """Import Google Search Console query and page data for a shop."""
+    import asyncio
+
+    from app.gsc.client import fetch_and_store_gsc_performance
+
+    if not shop:
+        raise ValueError("shop is required for gsc_import")
+
+    days = int(payload.get("days", 90))
+    site_url = payload.get("site_url")
+    return await asyncio.to_thread(
+        fetch_and_store_gsc_performance,
+        shop,
+        days=days,
+        site_url=str(site_url) if site_url else None,
+    )
+
+
+@register("pagespeed_import")
+async def handle_pagespeed_import(payload: dict, shop: str | None) -> dict:
+    """Import PageSpeed scores for priority shop URLs."""
+    import asyncio
+
+    from app.pagespeed.client import fetch_and_store_pagespeed
+
+    if not shop:
+        raise ValueError("shop is required for pagespeed_import")
+
+    urls = payload.get("urls")
+    max_urls = int(payload.get("max_urls", 5))
+    site_url = payload.get("site_url")
+    return await asyncio.to_thread(
+        fetch_and_store_pagespeed,
+        shop,
+        urls=list(urls) if isinstance(urls, list) else None,
+        max_urls=max_urls,
+        site_url=str(site_url) if site_url else None,
+    )

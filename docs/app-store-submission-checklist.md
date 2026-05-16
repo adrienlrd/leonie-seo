@@ -33,4 +33,4 @@
 
 The repository is ready for the next validation stage, but public App Store submission is intentionally deferred until the real-store pilot is complete.
 
-Use `docs/pilot-real-store-setup.md` to prepare the separate pilot app, link the dedicated Shopify CLI configuration, wire a public callback-capable URL, and generate the direct install path for the merchant store. After tasks 76-83 are complete, return to this checklist for the public App Store submission flow.
+Use `docs/pilot-real-store-setup.md` to prepare the separate pilot app, link the dedicated Shopify CLI configuration, wire a public callback-capable URL, and generate the direct install path for the merchant store. Return to this checklist only after Phase 9, Phase 10, and the go/no-go task 104 are complete.

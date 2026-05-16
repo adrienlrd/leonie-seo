@@ -6,6 +6,9 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+from fastapi import HTTPException
+
 from app.apply.bulk_orchestrator import BulkApplyReport, apply_approved_meta
 from app.apply.shopify_writer import ApplyResult, ShopifyWriter
 
@@ -318,7 +321,12 @@ def test_apply_approved_meta_live_no_token(tmp_path):
     _init_db(db)
     _insert_suggestion(db, "test.myshopify.com", "gid://shopify/Product/1")
 
-    report = apply_approved_meta("test.myshopify.com", dry_run=False, db_path=db)
+    report = apply_approved_meta(
+        "test.myshopify.com",
+        dry_run=False,
+        confirm_live_write=True,
+        db_path=db,
+    )
 
     assert report.skipped == 1
     assert report.applied == 0
@@ -335,7 +343,13 @@ def test_apply_approved_meta_live_success(tmp_path):
     with patch("app.apply.bulk_orchestrator.get_token", return_value=_FAKE_TOKEN):
         with patch("app.apply.bulk_orchestrator.ShopifyWriter") as MockWriter:
             MockWriter.return_value.apply_product_seo.return_value = mock_result
-            report = apply_approved_meta("test.myshopify.com", dry_run=False, delay=0, db_path=db)
+            report = apply_approved_meta(
+                "test.myshopify.com",
+                dry_run=False,
+                delay=0,
+                confirm_live_write=True,
+                db_path=db,
+            )
 
     assert report.applied == 1
     assert report.errors == 0
@@ -359,7 +373,13 @@ def test_apply_approved_meta_live_partial_failure(tmp_path):
     with patch("app.apply.bulk_orchestrator.get_token", return_value=_FAKE_TOKEN):
         with patch("app.apply.bulk_orchestrator.ShopifyWriter") as MockWriter:
             MockWriter.return_value.apply_product_seo.side_effect = _side_effect
-            report = apply_approved_meta("test.myshopify.com", dry_run=False, delay=0, db_path=db)
+            report = apply_approved_meta(
+                "test.myshopify.com",
+                dry_run=False,
+                delay=0,
+                confirm_live_write=True,
+                db_path=db,
+            )
 
     assert report.applied == 1
     assert report.errors == 1
@@ -381,7 +401,13 @@ def test_apply_approved_meta_marks_applied_in_db(tmp_path):
     with patch("app.apply.bulk_orchestrator.get_token", return_value=_FAKE_TOKEN):
         with patch("app.apply.bulk_orchestrator.ShopifyWriter") as MockWriter:
             MockWriter.return_value.apply_product_seo.return_value = mock_result
-            apply_approved_meta("test.myshopify.com", dry_run=False, delay=0, db_path=db)
+            apply_approved_meta(
+                "test.myshopify.com",
+                dry_run=False,
+                delay=0,
+                confirm_live_write=True,
+                db_path=db,
+            )
 
     conn = sqlite3.connect(db)
     row = conn.execute("SELECT status FROM meta_suggestions WHERE id = ?", (sid,)).fetchone()
@@ -414,7 +440,13 @@ def test_apply_approved_meta_handles_missing_old_values(tmp_path):
     with patch("app.apply.bulk_orchestrator.get_token", return_value=_FAKE_TOKEN):
         with patch("app.apply.bulk_orchestrator.ShopifyWriter") as MockWriter:
             MockWriter.return_value.apply_product_seo.return_value = mock_result
-            apply_approved_meta("test.myshopify.com", dry_run=False, delay=0, db_path=db)
+            apply_approved_meta(
+                "test.myshopify.com",
+                dry_run=False,
+                delay=0,
+                confirm_live_write=True,
+                db_path=db,
+            )
 
     conn = sqlite3.connect(db)
     rows = conn.execute(
@@ -437,7 +469,42 @@ def test_apply_approved_meta_respects_max_per_run(tmp_path):
                 resource_id="x", applied=True
             )
             report = apply_approved_meta(
-                "test.myshopify.com", dry_run=False, max_per_run=2, delay=0, db_path=db
+                "test.myshopify.com",
+                dry_run=False,
+                max_per_run=2,
+                delay=0,
+                confirm_live_write=True,
+                db_path=db,
             )
 
     assert report.applied == 2
+
+
+def test_apply_approved_meta_live_requires_explicit_confirmation(tmp_path):
+    db = tmp_path / "test.db"
+    _init_db(db)
+    _insert_suggestion(db, "test.myshopify.com", "gid://shopify/Product/1")
+
+    with pytest.raises(HTTPException) as exc:
+        apply_approved_meta("test.myshopify.com", dry_run=False, db_path=db)
+
+    assert exc.value.status_code == 409
+    assert "confirm_live_write=true" in exc.value.detail
+
+
+def test_apply_approved_meta_pilot_safe_blocks_live_even_when_confirmed(tmp_path):
+    db = tmp_path / "test.db"
+    _init_db(db)
+    _insert_suggestion(db, "test.myshopify.com", "gid://shopify/Product/1")
+
+    with patch.dict("os.environ", {"LEONIE_PILOT_SAFE_MODE": "true"}):
+        with pytest.raises(HTTPException) as exc:
+            apply_approved_meta(
+                "test.myshopify.com",
+                dry_run=False,
+                confirm_live_write=True,
+                db_path=db,
+            )
+
+    assert exc.value.status_code == 403
+    assert "Pilot-safe mode blocks live Shopify writes" in exc.value.detail

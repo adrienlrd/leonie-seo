@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.api.deps import ShopContext, require_feature
 from app.apply.shopify_writer import ApplyResult, ShopifyWriter
+from app.safety import require_shopify_write_allowed
 
 router = APIRouter(prefix="/api", tags=["apply"])
 
@@ -51,6 +52,7 @@ async def apply_meta(
     ctx: Annotated[ShopContext, Depends(require_feature("apply"))],
     updates: list[MetaUpdate],
     dry_run: bool = True,
+    confirm_live_write: bool = False,
 ) -> list[dict]:
     """Update meta titles and descriptions on Shopify products.
 
@@ -58,6 +60,11 @@ async def apply_meta(
     """
     if not updates:
         raise HTTPException(status_code=422, detail="No updates provided")
+    require_shopify_write_allowed(
+        action="apply_meta",
+        dry_run=dry_run,
+        confirmed=confirm_live_write,
+    )
 
     results: list[dict] = []
 

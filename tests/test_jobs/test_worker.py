@@ -166,6 +166,46 @@ def test_seo_audit_handler_uses_stored_access_token(monkeypatch):
     assert calls == [("store.myshopify.com", "shpat_stored")]
 
 
+def test_gsc_import_handler_imports_for_shop(monkeypatch):
+    from app.jobs.handlers import handle_gsc_import
+
+    calls: list[tuple[str, int, str | None]] = []
+    monkeypatch.setattr(
+        "app.gsc.client.fetch_and_store_gsc_performance",
+        lambda shop, days, site_url: calls.append((shop, days, site_url)) or {"query_page_rows": 3},
+    )
+
+    result = asyncio.run(
+        handle_gsc_import({"days": 30, "site_url": "sc-domain:example.com"}, "store.myshopify.com")
+    )
+
+    assert result["query_page_rows"] == 3
+    assert calls == [("store.myshopify.com", 30, "sc-domain:example.com")]
+
+
+def test_pagespeed_import_handler_imports_for_shop(monkeypatch):
+    from app.jobs.handlers import handle_pagespeed_import
+
+    calls: list[tuple[str, list[str] | None, int, str | None]] = []
+    monkeypatch.setattr(
+        "app.pagespeed.client.fetch_and_store_pagespeed",
+        lambda shop, urls, max_urls, site_url: calls.append((shop, urls, max_urls, site_url))
+        or {"rows": 2},
+    )
+
+    result = asyncio.run(
+        handle_pagespeed_import(
+            {"urls": ["https://example.com"], "max_urls": 1, "site_url": "https://example.com"},
+            "store.myshopify.com",
+        )
+    )
+
+    assert result["rows"] == 2
+    assert calls == [
+        ("store.myshopify.com", ["https://example.com"], 1, "https://example.com")
+    ]
+
+
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 

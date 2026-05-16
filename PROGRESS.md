@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-12** (audit complet + Vagues 1 à 5 de corrections)
+- Dernière session : **2026-05-16** (clôture tâche 85)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -9,31 +9,33 @@
 - Phase 5 : **5/6** ✅ (tâche 49 supersédée par la tâche 75)
 - Phase 6 : **7/7** ✅ (terminée 2026-05-10)
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
-- Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; validation Partner manuelle restante)
-- Phase 9 : **1/9** 🔄 (tâche 76 clôturée côté repo, installation pilote réelle à faire ensuite)
+- Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
+- Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
+- Phase 10 : **3/21** 🔄 (tâches 83-85 clôturées ; prochaine tâche 86)
+- Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1033/1033** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1084/1084** ✅ — ruff clean ✅ — Remix typecheck/build ✅
 
 ## État courant pour Codex
 
 - Fichier de règles actif : `AGENTS.md`
 - Ancien fichier `CLAUDE.md` : archive legacy, ne pas l'utiliser comme source de vérité
 - Gestion du contexte : Codex compacte automatiquement ; ne pas utiliser `/compact` ou `/clear`
-- Prochaine tâche ordonnée : **77 — Installer Léonie SEO sur la boutique réelle et valider OAuth, sessions, webhooks et garde-fous**
+- Tâche suivante : **86 — Ajouter un import crawl technique dans l'app**
 
 ## Checkpoint de pause — 2026-05-12
 
 - La tâche **76** est terminée côté repo.
-- La reprise doit repartir de la tâche **77**.
+- La reprise a redémarré sur la tâche **77**, clôturée le 2026-05-15.
 - Le repo est prêt à être checkpointé puis poussé sur Git.
-- À faire manuellement côté Shopify Partner avant ou pendant la tâche 77 :
+- Historique des actions Shopify Partner prévues avant ou pendant la tâche 77, réalisées depuis :
   - créer l'app pilote distincte en **Custom distribution** ;
   - cibler `287c4a-bb.myshopify.com` ;
   - générer le lien d'installation marchand ;
   - relier la config CLI `pilot` avec `shopify app config link --config pilot` ;
   - déployer la config publique une fois l'URL HTTPS prête.
 
-## Reprise 2026-05-13 — Tâche 77 en cours
+## Reprise 2026-05-13 → 2026-05-15 — Tâche 77 terminée
 
 - L'app Shopify `Léonie SEO Pilot` a été créée dans l'organisation `Léonie Delacroix`.
 - `shopify-app/shopify.app.pilot.toml` est lié à cette app et versionné dans le repo.
@@ -88,6 +90,226 @@
 - Correctif prêt à déployer : Review IA affiche désormais un panneau `Audit qualité` pour les suggestions visibles, avec nombre de suggestions OK, suggestions à relire, longueurs moyennes title/description, et principaux motifs de rejet qualité.
 - Hotfix prêt à déployer : Review IA normalise les données reçues du backend avant rendu pour éviter une erreur serveur si une suggestion contient une valeur absente ou inattendue.
 - Correctif prêt à déployer : les suggestions `À relire` sont maintenant visibles directement dans la colonne Qualité, et l'audit affiche un motif générique quand le backend ne fournit pas de détail technique.
+
+### Clôture 2026-05-15 — Tâche 77
+
+- La tâche **77** est clôturée côté repo et validation locale.
+- L'app pilote est installée sur la boutique réelle et les flux critiques ont été validés :
+  - OAuth embedded Shopify ;
+  - appels internes Remix → Python avec `X-Leonie-Shop`, `X-Internal-Secret` et token Shopify relayé serveur-à-serveur ;
+  - sessions et token store chiffré ;
+  - Billing désactivable avec `LEONIE_BILLING_MODE=disabled` pour le pilote ;
+  - webhooks GDPR/app uninstall présents ;
+  - jobs `seo_audit`, `meta_generation` et `bulk_apply` visibles et scopés au shop ;
+  - snapshot Shopify réel persisté en fichier et en table `snapshots` ;
+  - récupération des jobs `running` obsolètes ;
+  - génération IA, review, approbation/rejet et dry-run apply opérationnels.
+- La roadmap a été réorganisée :
+  - les anciennes tâches App Store finales ont été déplacées après la parité fonctionnelle ;
+  - la Phase 10 porte les fonctionnalités restantes des scripts CLI vers l'app Shopify ;
+  - la Phase 11 devient le go/no-go puis la soumission publique Shopify App Store.
+- Vérifications locales du 2026-05-15 :
+  - `ruff check .` : OK ;
+  - `pytest` : **1050 passed** ;
+  - `cd shopify-app && npm run typecheck` : OK ;
+  - `cd shopify-app && npm run build` : OK.
+- Suite immédiate après tâche 77 : **78 — mode pilot-safe strict**.
+
+## Tâche 78 — Mode pilot-safe strict terminée le 2026-05-15
+
+- Ajout de `app/safety.py` comme garde-fou central des mutations Shopify.
+- Nouveau flag backend `LEONIE_PILOT_SAFE_MODE=true` :
+  - bloque les écritures live Shopify pendant le pilote ;
+  - autorise les dry-runs ;
+  - autorise les lectures Shopify nécessaires aux prévisualisations ;
+  - bloque aussi les mutations Shopify Billing pendant le pilote.
+- Hors pilot-safe, les écritures live via API/apply ou job `bulk_apply` exigent désormais une confirmation explicite `confirm_live_write=true`.
+- `bulk_apply` est protégé à deux niveaux :
+  - au moment de l'enqueue API ;
+  - au moment de l'exécution orchestrateur, pour empêcher un payload de job forgé.
+- La page Settings affiche maintenant l'état du mode pilote.
+- `render.yaml`, `.env.example` et `docs/pilot-real-store-setup.md` documentent/activent le mode pilote.
+- Tests ciblés ajoutés pour :
+  - dry-run autorisé en pilot-safe ;
+  - live apply bloqué sans confirmation ;
+  - live apply bloqué en pilot-safe même avec confirmation ;
+  - `bulk_apply` bloqué côté API et côté orchestrateur ;
+  - Billing subscribe/cancel bloqués en pilot-safe.
+- Vérification ciblée :
+  - `pytest tests/test_api/test_apply.py tests/test_apply/test_bulk_orchestrator.py tests/test_api/test_generate.py tests/test_billing/test_router.py` : **50 passed** ;
+  - `ruff check app tests` : OK ;
+  - `cd shopify-app && npm run typecheck` : OK.
+- Vérification complète :
+  - `ruff check .` : OK ;
+  - `pytest` : **1060 passed** ;
+  - `cd shopify-app && npm run typecheck` : OK ;
+  - `cd shopify-app && npm run build` : OK.
+- Prochaine tâche : **79 — tester les parcours métier réels**.
+
+## Tâche 79 — Parcours métier réels terminée le 2026-05-16
+
+- Ajout de `docs/pilot-real-store-test-plan.md` :
+  - checklist embedded Shopify Admin ;
+  - critères de pass/fail ;
+  - preuves à enregistrer ;
+  - points de confiance autour du pilot-safe, Billing, Privacy, Review IA et Jobs SEO.
+- Ajout de `docs/pilot-real-store-test-log.md` pour journaliser les passes réelles.
+- Mise à jour du README : roadmap 11 phases / 105 tâches, Phase 9 à 4/7, liens vers setup + plan de test pilote.
+- Ajout de `leonie-seo pilot smoke-public` pour relancer les smoke checks publics du pilote avec un timeout adapté aux cold starts Render Free.
+- Smoke checks publics exécutés le 2026-05-15 :
+  - `curl -fsS https://pilot.leoniedelacroix.com/healthz` → `ok` ;
+  - `curl -fsS https://leonie-seo-pilot-api.onrender.com/health` → `{"status":"ok","missing_env":[]}` ;
+  - `curl -fsS -o /dev/null -w '%{http_code}\n' https://leonie-seo-pilot-api.onrender.com/privacy` → `200`.
+  - `python -m scripts.cli pilot smoke-public --timeout 90` → 3 checks OK.
+- Note : `HEAD /privacy` retourne `405` avec `allow: GET`, comportement acceptable car la page privacy est servie en GET.
+- Vérification locale :
+  - `pytest tests/test_pilot_smoke.py tests/test_cli.py` : **45 passed** ;
+  - `ruff check scripts/pilot_smoke.py scripts/cli.py tests/test_pilot_smoke.py tests/test_cli.py` : OK ;
+  - `ruff check .` : OK ;
+  - `pytest` : **1066 passed**.
+- Parcours embedded Shopify Admin exécuté le 2026-05-16 depuis une session marchand connectée :
+  - installation/session : pass ;
+  - navigation : pass ;
+  - Settings / pilot-safe : pass, avec une note UX car le libellé exact `Mode pilot-safe actif` n'était pas visible ;
+  - audit job, crawl produits/collections, niche clusters : pass ;
+  - génération meta, suggestions, approbation/rejet : pass ;
+  - dry-run job et preview : pass ;
+  - Billing bloqué et Privacy : pass ;
+  - bugs/frictions : aucun blocage signalé.
+- Journal mis à jour dans `docs/pilot-real-store-test-log.md`.
+- Décision : **pass**.
+- Prochaine tâche : **80 — capturer les retours d'usage et frictions UX/confiance du pilote**.
+
+## Tâche 80 — Retours pilote consolidés le 2026-05-16
+
+- Ajout de `docs/pilot-real-store-feedback.md` comme backlog de feedback pilote.
+- Synthèse du passage réel :
+  - aucun bug bloquant ;
+  - parcours confiance validé : audit, crawl, niche clusters, génération IA, approbation/rejet, dry-run preview, Billing bloqué, Privacy ;
+  - aucune écriture live Shopify observée ou demandée ;
+  - un seul retour UX direct : le libellé Settings du mode pilot-safe doit être plus explicite/stable.
+- Classement des éléments non bloquants :
+  - IDs jobs et compteurs non copiés dans le log : amélioration de preuve de test, pas bug produit ;
+  - zones dépendantes GSC/GA4/PageSpeed : manques attendus et déjà suivis en Phase 10.
+- Décision : **task 80 pass**.
+- Prochaine tâche : **81 — corriger la vague pilote prioritaire**, avec un périmètre initial volontairement réduit au wording pilot-safe Settings sauf nouveau retour.
+
+## Tâche 81 — Vague pilote prioritaire terminée le 2026-05-16
+
+- Correction ciblée du seul retour UX confirmé :
+  - Settings affiche maintenant `Mode pilot-safe actif` quand le mode pilot-safe est activé ;
+  - le badge indique `Écritures live bloquées` ;
+  - le texte d'aide précise que les dry-runs restent autorisés et qu'aucune écriture Shopify live ne peut partir.
+- Fichier modifié : `shopify-app/app/routes/app.settings.tsx`.
+- `docs/pilot-real-store-feedback.md` documente la résolution de P80-001.
+- Vérification :
+  - `cd shopify-app && npm run typecheck` : OK ;
+  - `cd shopify-app && npm run build` : OK.
+- Prochaine tâche : **82 — mesurer le pilote**.
+
+## Tâche 82 — Mesure pilote terminée le 2026-05-16
+
+- Ajout de `docs/pilot-real-store-measurement.md`.
+- Décision : **pass avec lacunes de mesure**.
+- Mesures consolidées :
+  - public smoke checks : 3/3 ;
+  - parcours embedded : 13/13 zones passées ;
+  - bugs bloquants finaux : 0 ;
+  - suggestion generation : 21 suggestions dans le retest documenté ;
+  - écritures live observées : 0 ;
+  - mutations Billing autorisées : 0 ;
+  - retour UX direct : 1, corrigé en tâche 81.
+- Lacunes à corriger dans les prochains passes :
+  - IDs et durées des jobs ;
+  - compteurs exacts produits/collections ;
+  - compteurs generated/approved/rejected ;
+  - coût LLM et tokens du shop pilote ;
+  - métrique de récupération des jobs `running`.
+- Conclusion : Phase 9 terminée ; le pilote réel est assez solide pour démarrer la Phase 10.
+- Prochaine tâche : **83 — connecter Google Search Console dans l'app**.
+
+## Tâche 83 — Google Search Console connecté dans l'app le 2026-05-16
+
+- Ajout du module `app/gsc/` :
+  - state OAuth Google signé et expirant ;
+  - stockage chiffré des credentials Google par shop dans `google_tokens` ;
+  - client Search Console `searchanalytics().query(...)` ;
+  - import page et query×page en fichiers shop-scopés.
+- Ajout des endpoints :
+  - `GET /api/shops/{shop}/gsc/status` ;
+  - `POST /api/shops/{shop}/gsc/authorize` ;
+  - `POST /api/shops/{shop}/gsc/import` ;
+  - `GET /api/google/gsc/callback`.
+- Ajout du job async `gsc_import`.
+- L'Onboarding Shopify affiche maintenant :
+  - l'état de connexion GSC ;
+  - la propriété GSC cible ;
+  - le lien de consentement Google ;
+  - l'action `Importer 90 jours` ;
+  - la fraîcheur et le nombre de lignes du dernier import.
+- Les exports créés alimentent les vues Niche existantes via `data/raw/{shop}/gsc_*.json`.
+- Configuration pilote documentée :
+  - `GOOGLE_OAUTH_CLIENT_CONFIG` ou `GOOGLE_OAUTH_CLIENT_PATH` ;
+  - `GOOGLE_OAUTH_REDIRECT_URI` ;
+  - `GOOGLE_OAUTH_STATE_SECRET`.
+- Vérification :
+  - ciblée : `pytest tests/test_gsc tests/test_api/test_gsc.py tests/test_jobs/test_worker.py tests/audit/test_fetch_gsc.py` : **22 passed** ;
+  - `ruff check .` : OK ;
+  - `pytest` : **1075 passed** ;
+  - `cd shopify-app && npm run typecheck` : OK ;
+  - `cd shopify-app && npm run build` : OK.
+- Prochaine tâche : **84 — porter les opportunités GSC dans l'app**.
+
+## Tâche 84 — Opportunités GSC portées dans l'app le 2026-05-16
+
+- Ajout de `GET /api/shops/{shop}/gsc/opportunities`.
+- L'endpoint réutilise le moteur CLI `scripts.audit.detect_gsc_opportunities` pour conserver une seule logique métier :
+  - positions 11-20 comme quick wins ;
+  - pages à CTR faible ;
+  - opportunités long terme ;
+  - estimation de clics gagnables ;
+  - priorisation par score d'impact.
+- La page Niche Shopify affiche maintenant une carte `Opportunités GSC` avec :
+  - total des opportunités détectées ;
+  - répartition quick wins / CTR faible ;
+  - gain estimé total ;
+  - tableau des pages, zones, positions, impressions, CTR et clics gagnables.
+- L'état vide explique que Google Search Console doit être connecté et importé avant de calculer ces opportunités.
+- Vérification :
+  - ciblée : `pytest tests/test_api/test_gsc.py tests/audit/test_detect_gsc_opportunities.py` : **25 passed** ;
+  - `ruff check .` : OK ;
+  - `pytest` : **1077 passed** ;
+  - `cd shopify-app && npm run typecheck` : OK ;
+  - `cd shopify-app && npm run build` : OK.
+- Prochaine tâche : **85 — ajouter PageSpeed / Core Web Vitals dans l'app**.
+
+## Tâche 85 — PageSpeed / Core Web Vitals ajoutés dans l'app le 2026-05-16
+
+- Ajout du module `app/pagespeed/` :
+  - sélection d'URLs prioritaires par shop depuis la config tenant, puis fallback homepage + collections + produits du dernier snapshot ;
+  - import PageSpeed mobile/desktop via le moteur CLI existant ;
+  - exports shop-scopés `data/raw/{shop}/pagespeed.csv` et `pagespeed_*.csv` ;
+  - résumé mobile/desktop, alertes CWV, recommandations non techniques et détection de régressions entre deux imports.
+- Ajout des endpoints :
+  - `GET /api/shops/{shop}/pagespeed/status` ;
+  - `POST /api/shops/{shop}/pagespeed/import`.
+- Ajout du job async `pagespeed_import`.
+- L'Onboarding Shopify affiche maintenant :
+  - l'état PageSpeed / Core Web Vitals ;
+  - les moyennes mobile et desktop ;
+  - le nombre d'alertes ;
+  - un bouton `Analyser les URLs prioritaires` ;
+  - les principales alertes avec une recommandation lisible marchand.
+- La page Jobs SEO résume les résultats `pagespeed_import` avec nombre d'URLs, scores et régressions.
+- La configuration backend bloque l'enqueue si `PAGESPEED_API_KEY` est absente.
+- Correction opportuniste : `find_tenant_by_shop_domain` expose aussi `base_url`, `gsc_property` et `pagespeed_urls`, nécessaires aux workflows app GSC/PageSpeed.
+- Vérification :
+  - ciblée : `pytest tests/test_pagespeed tests/test_api/test_pagespeed.py tests/test_jobs/test_worker.py tests/audit/test_fetch_pagespeed.py` : **20 passed** ;
+  - `ruff check .` : OK ;
+  - `pytest` : **1084 passed** ;
+  - `cd shopify-app && npm run typecheck` : OK ;
+  - `cd shopify-app && npm run build` : OK.
+- Prochaine tâche : **86 — ajouter un import crawl technique dans l'app**.
 
 ## ⚠️ Archive — audit vision gap initial (2026-05-10)
 
@@ -253,14 +475,15 @@ La publication publique est volontairement différée derrière une nouvelle sé
 
 **Séquence ordonnée** :
 - **76** ✅ Préparer l'environnement pilote hors App Store : stratégie pilote custom séparée, URL publique de test, callbacks, secrets et workflow d'installation directe documentés.
-- **77** Installer l'app sur la boutique réelle et valider OAuth, sessions, webhooks et garde-fous d'environnement.
-- **78** Mettre le pilote en mode lecture seule / dry-run strict pour éviter tout changement marchand involontaire.
-- **79** Exécuter les parcours clés dans les vraies conditions métier.
-- **80** Collecter les retours d'usage et les bugs terrain.
-- **81** Corriger la vague prioritaire issue du pilote.
-- **82** Mesurer la qualité réelle : valeur des suggestions, coûts, jobs, confiance marchande.
-- **83** Décider le go/no-go App Store public.
-- **84** Finaliser et soumettre l'app au Shopify App Store.
+- **77** ✅ Installer l'app sur la boutique réelle et valider OAuth, sessions, webhooks et garde-fous d'environnement.
+- **78** ✅ Mettre le pilote en mode lecture seule / dry-run strict pour éviter tout changement marchand involontaire.
+- **79** ✅ Exécuter les parcours clés dans les vraies conditions métier.
+- **80** ✅ Collecter les retours d'usage et les bugs terrain.
+- **81** ✅ Corriger la vague prioritaire issue du pilote.
+- **82** ✅ Mesurer la qualité réelle : valeur des suggestions, coûts, jobs, confiance marchande.
+- **83-103** Porter les fonctionnalités scripts CLI restantes dans l'app Shopify embedded.
+- **104** Décider le go/no-go App Store public.
+- **105** Finaliser et soumettre l'app au Shopify App Store.
 
 ## ⏳ Actions manuelles en attente
 
@@ -334,9 +557,9 @@ La publication publique est volontairement différée derrière une nouvelle sé
 **Décision produit** : ne pas publier immédiatement au Shopify App Store. Priorité donnée à un pilote réel sur la boutique `leoniedelacroix.com`, afin d'ajuster l'app sur des retours marchands concrets avant la publication publique.
 
 **Roadmap ajoutée** :
-- Phase 9, tâches **76 à 84**.
+- Phase 9 initiale ajoutée, puis réorganisée depuis en Phase 9 tâches **76 à 82**, Phase 10 tâches **83 à 103**, Phase 11 tâches **104 à 105**.
 - Prochaine tâche ordonnée : **76**.
-- Publication publique App Store repoussée à la tâche **84**, après le pilote, les retours et les corrections prioritaires.
+- Publication publique App Store repoussée à la tâche **105**, après le pilote, les retours, les corrections prioritaires et la parité scripts CLI → app Shopify.
 
 ### Session 2026-05-12 (Tâche 76 — préparation pilote marchand réel)
 
