@@ -43,6 +43,15 @@ query ReadCollectionSEO($id: ID!) {
 }
 """
 
+_UPDATE_PRODUCT_DESCRIPTION = """
+mutation UpdateProductDescription($input: ProductInput!) {
+  productUpdate(input: $input) {
+    product { id descriptionHtml }
+    userErrors { field message }
+  }
+}
+"""
+
 _UPDATE_IMAGE_ALT = """
 mutation productImageUpdate($productId: ID!, $image: ImageInput!) {
   productImageUpdate(productId: $productId, image: $image) {
@@ -273,6 +282,34 @@ class ShopifyWriter:
 
         time.sleep(self._delay)
         return ApplyResult(resource_id=collection_id, applied=True)
+
+    def apply_product_description(
+        self,
+        product_id: str,
+        description_html: str,
+    ) -> ApplyResult:
+        """Update the body HTML description of a product.
+
+        Args:
+            product_id: Shopify Product GID.
+            description_html: New description as HTML (or plain text with <br><br>).
+        """
+        variables = {"input": {"id": product_id, "descriptionHtml": description_html}}
+
+        try:
+            data = self._post(_UPDATE_PRODUCT_DESCRIPTION, variables)
+        except (requests.RequestException, ShopifyWriteError) as exc:
+            return ApplyResult(resource_id=product_id, applied=False, error=str(exc))
+
+        user_errors = (
+            (data.get("data") or {}).get("productUpdate", {}).get("userErrors", [])
+        )
+        if user_errors:
+            msg = "; ".join(f"{e['field']}: {e['message']}" for e in user_errors)
+            return ApplyResult(resource_id=product_id, applied=False, error=msg)
+
+        time.sleep(self._delay)
+        return ApplyResult(resource_id=product_id, applied=True)
 
     def apply_image_alt(
         self,

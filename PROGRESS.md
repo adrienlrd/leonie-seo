@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-16** (clôture tâche 92)
+- Dernière session : **2026-05-16** (clôture tâche 93)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -11,10 +11,26 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **10/21** 🔄 (tâches 83-92 clôturées ; prochaine tâche 93)
+- Phase 10 : **11/21** 🔄 (tâches 83-93 clôturées ; prochaine tâche 94)
 - Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1138/1138** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1145/1145** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 93 — Réécriture descriptions produits le 2026-05-16
+
+- Ajout de `apply_product_description()` dans `app/apply/shopify_writer.py` (mutation `productUpdate` avec `descriptionHtml`).
+- Ajout de `app/api/descriptions.py` :
+  - `GET /api/shops/{shop}/audit/descriptions` : charge le snapshot, classifie chaque produit via `classify_product()` CLI existant, génère la description via `build_description()`, retourne `{title, category, old_description, suggested_description, word_count, quality_ok}` par produit.
+  - `POST .../apply` : valide la plage de mots (50-400), convertit `\n\n` → `<br><br>` avant push Shopify ; dry-run par défaut, `confirm_live_write=true` requis pour écriture réelle.
+- Nouveau route Remix `shopify-app/app/routes/app.descriptions.tsx` :
+  - Liste des produits avec catégorie, nombre de mots, badge hors-plage ;
+  - Vue "Éditer" par produit : description actuelle (fond gris) vs nouvelle description (textarea éditable) ;
+  - Approuver/rejeter par produit + "Tout approuver" ;
+  - Prévisualisation dry-run et confirmation forte avant écriture Shopify.
+- Ajout NavMenu "Descriptions produits" et clés i18n FR/EN.
+- 7 tests dans `tests/test_api/test_descriptions.py`.
+- Vérification : **7 passed** · ruff OK · typecheck OK.
+- Prochaine tâche : **94 — Redirects 301 supervisés**.
 
 ## Tâche 92 — Alt text IA dans l'app le 2026-05-16
 
