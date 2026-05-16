@@ -43,6 +43,15 @@ query ReadCollectionSEO($id: ID!) {
 }
 """
 
+_CREATE_URL_REDIRECT = """
+mutation urlRedirectCreate($urlRedirect: UrlRedirectInput!) {
+  urlRedirectCreate(urlRedirect: $urlRedirect) {
+    urlRedirect { id path target }
+    userErrors { field message code }
+  }
+}
+"""
+
 _UPDATE_PRODUCT_DESCRIPTION = """
 mutation UpdateProductDescription($input: ProductInput!) {
   productUpdate(input: $input) {
@@ -282,6 +291,30 @@ class ShopifyWriter:
 
         time.sleep(self._delay)
         return ApplyResult(resource_id=collection_id, applied=True)
+
+    def apply_redirect(self, from_path: str, to_path: str) -> ApplyResult:
+        """Create a 301 redirect on Shopify.
+
+        Args:
+            from_path: Source path starting with '/'.
+            to_path: Destination path or absolute URL.
+        """
+        variables = {"urlRedirect": {"path": from_path, "target": to_path}}
+
+        try:
+            data = self._post(_CREATE_URL_REDIRECT, variables)
+        except (requests.RequestException, ShopifyWriteError) as exc:
+            return ApplyResult(resource_id=from_path, applied=False, error=str(exc))
+
+        user_errors = (
+            (data.get("data") or {}).get("urlRedirectCreate", {}).get("userErrors", [])
+        )
+        if user_errors:
+            msg = "; ".join(f"{e['field']}: {e['message']}" for e in user_errors)
+            return ApplyResult(resource_id=from_path, applied=False, error=msg)
+
+        time.sleep(self._delay)
+        return ApplyResult(resource_id=from_path, applied=True)
 
     def apply_product_description(
         self,

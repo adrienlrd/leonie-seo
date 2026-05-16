@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-16** (clôture tâche 93)
+- Dernière session : **2026-05-16** (clôture tâche 94)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -11,10 +11,27 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **11/21** 🔄 (tâches 83-93 clôturées ; prochaine tâche 94)
+- Phase 10 : **12/21** 🔄 (tâches 83-94 clôturées ; prochaine tâche 95)
 - Phase 11 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1145/1145** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1152/1152** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 94 — Redirections 301 supervisées le 2026-05-16
+
+- Ajout de `apply_redirect()` dans `app/apply/shopify_writer.py` (mutation `urlRedirectCreate`).
+- Ajout de `app/api/redirects.py` :
+  - `POST /api/shops/{shop}/audit/redirects/validate` : valide format des chemins (doit commencer par `/`), self-redirects, duplicates, conflits avec handles live du snapshot ; retourne `{total_valid, warnings, valid}`.
+  - `POST /api/shops/{shop}/audit/redirects/apply` : valide d'abord, puis dry-run ou écriture Shopify ; `confirm_live_write=true` requis pour les écriture réelles.
+- Nouvelle route Remix `shopify-app/app/routes/app.redirects.tsx` :
+  - Tableau éditable from/to avec validation inline (chemin invalide → erreur par champ) ;
+  - bouton "Valider" (appel validate seulement) ;
+  - bouton "Prévisualiser" (dry-run apply) ;
+  - bouton "Appliquer" avec confirmation forte avant écriture Shopify ;
+  - badges de résultat par ligne (À créer / Créé / Erreur).
+- Ajout NavMenu "Redirections 301" et clés i18n FR/EN.
+- 7 tests dans `tests/test_api/test_redirects.py`.
+- Vérification : **7 passed** · ruff OK · typecheck OK.
+- Prochaine tâche : **95 — JSON-LD**.
 
 ## Tâche 93 — Réécriture descriptions produits le 2026-05-16
 
