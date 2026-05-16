@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { Form, useActionData, useLoaderData, useNavigation, useSubmit } from "@remix-run/react";
+import { useEffect, useRef, useState } from "react";
 import {
   Badge,
   BlockStack,
@@ -10,6 +11,7 @@ import {
   InlineStack,
   Page,
   Text,
+  TextField,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackend, callBackendForShop, callBackendMultipartForShop } from "../lib/api.server";
@@ -32,6 +34,7 @@ interface Health {
 interface GSCStatus {
   configured: boolean;
   connected: boolean;
+  email: string | null;
   site_url: string;
   latest_import: {
     available: boolean;
@@ -53,6 +56,7 @@ interface PageSpeedAlert {
 
 interface PageSpeedStatus {
   configured: boolean;
+  key_source: "env" | "db" | null;
   available: boolean;
   row_count: number;
   url_count: number;
@@ -205,6 +209,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json<ActionData>({ jobId: data.job_id });
     }
 
+    if (intent === "pagespeed_configure") {
+      const apiKey = String(form.get("pagespeed_api_key") || "").trim();
+      if (!apiKey) return json<ActionData>({ error: "Clé API manquante." });
+      const resp = await callBackendForShop(shop, `/api/shops/${shop}/pagespeed/configure`, {
+        method: "POST",
+        accessToken: session.accessToken,
+        body: JSON.stringify({ api_key: apiKey }),
+      });
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
+      return json<ActionData>({ jobId: "Clé PageSpeed enregistrée." });
+    }
+
     if (intent === "crawl_upload") {
       const overviewFile = form.get("overview");
       if (!overviewFile || !(overviewFile instanceof File) || overviewFile.size === 0) {
@@ -271,6 +287,16 @@ export default function Onboarding() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
+  const [psApiKey, setPsApiKey] = useState("");
+  const openedGscUrl = useRef<string | null>(null);
+
+  useEffect(() => {
+    const url = actionData?.authorizationUrl;
+    if (url && url !== openedGscUrl.current) {
+      openedGscUrl.current = url;
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }, [actionData?.authorizationUrl]);
 
   return (
     <Page title={t(locale, "onboarding")} backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}>
@@ -359,42 +385,65 @@ export default function Onboarding() {
         <Card>
           <BlockStack gap="300">
             <InlineStack align="space-between">
-              <Text as="h2" variant="headingMd">
-                Google Search Console
-              </Text>
+              <Text as="h2" variant="headingMd">Google Search Console</Text>
               <Badge tone={gsc?.connected ? "success" : "warning"}>
                 {gsc?.connected ? "Connectée" : "À connecter"}
               </Badge>
             </InlineStack>
-            <Text as="p" tone="subdued">
-              {gsc?.site_url ?? "Propriété Search Console non configurée"}
-            </Text>
-            <InlineStack gap="300">
+
+            {gsc?.connected ? (
+              <BlockStack gap="100">
+                <Text as="p" tone="subdued">
+                  {`Compte : ${gsc.email ?? "—"}`}
+                </Text>
+                <Text as="p" tone="subdued">
+                  {`Propriété : ${gsc.site_url ?? "—"}`}
+                </Text>
+                {gsc.latest_import.available && (
+                  <Text as="p" tone="subdued">
+                    {`Dernier import : ${gsc.latest_import.row_count} lignes`}
+                  </Text>
+                )}
+              </BlockStack>
+            ) : (
+              <BlockStack gap="100">
+                <Text as="p" tone="subdued">
+                  Connectez votre compte Google pour importer vos données de recherche (requêtes, impressions, positions).
+                </Text>
+                {!gsc?.configured && (
+                  <Text as="p" tone="critical" variant="bodySm">
+                    OAuth Google non configuré côté backend (GOOGLE_OAUTH_CLIENT_CONFIG manquant).
+                  </Text>
+                )}
+              </BlockStack>
+            )}
+
+            <InlineStack gap="300" wrap>
+              {!gsc?.connected && (
+                <Button
+                  variant="primary"
+                  disabled={!gsc?.configured}
+                  loading={navigation.state !== "idle"}
+                  onClick={() => submit({ intent: "gsc_connect" }, { method: "post" })}
+                >
+                  Connecter Google Search Console
+                </Button>
+              )}
               <Button
-                disabled={!gsc?.configured}
-                onClick={() => submit({ intent: "gsc_connect" }, { method: "post" })}
-              >
-                Connecter GSC
-              </Button>
-              <Button
-                variant="primary"
                 disabled={!gsc?.connected}
                 loading={navigation.state !== "idle"}
                 onClick={() => submit({ intent: "gsc_import" }, { method: "post" })}
               >
-                Importer 90 jours
+                {gsc?.latest_import.available ? "Réimporter 90 jours" : "Importer 90 jours"}
               </Button>
             </InlineStack>
+
             {actionData?.authorizationUrl && (
-              <Text as="p">
+              <Text as="p" tone="subdued" variant="bodySm">
+                Une fenêtre Google s&apos;est ouverte. Si elle est bloquée,{" "}
                 <a href={actionData.authorizationUrl} target="_blank" rel="noreferrer">
-                  Ouvrir le consentement Google
-                </a>
-              </Text>
-            )}
-            {gsc?.latest_import.available && (
-              <Text as="p" tone="subdued">
-                Dernier import: {gsc.latest_import.row_count} lignes
+                  cliquez ici
+                </a>.
               </Text>
             )}
           </BlockStack>
@@ -403,37 +452,74 @@ export default function Onboarding() {
         <Card>
           <BlockStack gap="300">
             <InlineStack align="space-between">
-              <Text as="h2" variant="headingMd">
-                PageSpeed / Core Web Vitals
-              </Text>
+              <Text as="h2" variant="headingMd">PageSpeed / Core Web Vitals</Text>
               <Badge tone={pagespeed?.available ? "success" : "warning"}>
                 {pagespeed?.available ? `${pagespeed.url_count} URL(s)` : "À analyser"}
               </Badge>
             </InlineStack>
-            <InlineGrid columns={["oneThird", "oneThird", "oneThird"]} gap="300">
-              <Text as="p" tone="subdued">
-                Mobile: {pagespeed?.mobile_average !== null && pagespeed?.mobile_average !== undefined ? `${Math.round(pagespeed.mobile_average * 100)}%` : "—"}
+
+            {/* Key status */}
+            {pagespeed?.configured ? (
+              <Text as="p" tone="subdued" variant="bodySm">
+                {`Clé API configurée (source : ${pagespeed.key_source ?? "env"}) — quota élevé actif.`}
               </Text>
-              <Text as="p" tone="subdued">
-                Desktop: {pagespeed?.desktop_average !== null && pagespeed?.desktop_average !== undefined ? `${Math.round(pagespeed.desktop_average * 100)}%` : "—"}
-              </Text>
-              <Text as="p" tone="subdued">
-                Alertes: {pagespeed?.alerts.length ?? 0}
-              </Text>
-            </InlineGrid>
-              <Button
-                variant="primary"
-                disabled={!pagespeed?.configured}
-                loading={navigation.state !== "idle"}
-                onClick={() => submit({ intent: "pagespeed_import" }, { method: "post" })}
-              >
-                Analyser les URLs prioritaires
-              </Button>
-            {pagespeed && !pagespeed.configured && (
-              <Text as="p" tone="critical">
-                Clé PageSpeed manquante côté backend.
-              </Text>
+            ) : (
+              <BlockStack gap="200">
+                <Text as="p" tone="subdued">
+                  L&apos;analyse fonctionne sans clé (quota réduit). Pour un usage régulier, ajoutez
+                  une clé gratuite depuis{" "}
+                  <a
+                    href="https://developers.google.com/speed/docs/insights/v5/get-started"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Google Cloud Console
+                  </a>{" "}
+                  (API PageSpeed Insights → Créer une clé).
+                </Text>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="pagespeed_configure" />
+                  <BlockStack gap="200">
+                    <TextField
+                      label="Clé API PageSpeed (optionnelle)"
+                      value={psApiKey}
+                      onChange={setPsApiKey}
+                      name="pagespeed_api_key"
+                      type="password"
+                      autoComplete="off"
+                      placeholder="AIzaSy…"
+                    />
+                    <Button submit disabled={psApiKey.trim().length === 0} loading={navigation.state !== "idle"}>
+                      Enregistrer la clé
+                    </Button>
+                  </BlockStack>
+                </Form>
+              </BlockStack>
             )}
+
+            {/* Scores */}
+            {pagespeed?.available && (
+              <InlineGrid columns={["oneThird", "oneThird", "oneThird"]} gap="300">
+                <Text as="p" tone="subdued">
+                  {`Mobile : ${pagespeed.mobile_average !== null && pagespeed.mobile_average !== undefined ? `${Math.round(pagespeed.mobile_average * 100)}%` : "—"}`}
+                </Text>
+                <Text as="p" tone="subdued">
+                  {`Desktop : ${pagespeed.desktop_average !== null && pagespeed.desktop_average !== undefined ? `${Math.round(pagespeed.desktop_average * 100)}%` : "—"}`}
+                </Text>
+                <Text as="p" tone="subdued">
+                  {`Alertes : ${pagespeed.alerts.length}`}
+                </Text>
+              </InlineGrid>
+            )}
+
+            <Button
+              variant="primary"
+              loading={navigation.state !== "idle"}
+              onClick={() => submit({ intent: "pagespeed_import" }, { method: "post" })}
+            >
+              {pagespeed?.available ? "Réanalyser les URLs prioritaires" : "Analyser les URLs prioritaires"}
+            </Button>
+
             {(pagespeed?.alerts ?? []).slice(0, 3).map((alert) => (
               <BlockStack gap="100" key={`${alert.url}-${alert.strategy}`}>
                 <InlineStack gap="200">
@@ -441,7 +527,7 @@ export default function Onboarding() {
                     {alert.strategy}
                   </Badge>
                   <Text as="span" fontWeight="bold">
-                    {Math.round((alert.performance_score ?? 0) * 100)}%
+                    {`${Math.round((alert.performance_score ?? 0) * 100)}%`}
                   </Text>
                   <Text as="span" tone="subdued">
                     {alert.url}
@@ -452,6 +538,7 @@ export default function Onboarding() {
                 </Text>
               </BlockStack>
             ))}
+
             {!pagespeed?.available && (
               <Text as="p" tone="subdued">
                 Lancez une analyse pour mesurer mobile/desktop sur les URLs les plus importantes.

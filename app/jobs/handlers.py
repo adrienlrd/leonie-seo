@@ -165,6 +165,7 @@ async def handle_pagespeed_import(payload: dict, shop: str | None) -> dict:
     import asyncio
 
     from app.pagespeed.client import fetch_and_store_pagespeed
+    from app.shop_config_store import get_shop_config
 
     if not shop:
         raise ValueError("shop is required for pagespeed_import")
@@ -172,10 +173,12 @@ async def handle_pagespeed_import(payload: dict, shop: str | None) -> dict:
     urls = payload.get("urls")
     max_urls = int(payload.get("max_urls", 5))
     site_url = payload.get("site_url")
+    api_key = get_shop_config(shop, "pagespeed_api_key") or None
     return await asyncio.to_thread(
         fetch_and_store_pagespeed,
         shop,
         urls=list(urls) if isinstance(urls, list) else None,
         max_urls=max_urls,
         site_url=str(site_url) if site_url else None,
+        api_key=api_key,
     )

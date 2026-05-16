@@ -225,11 +225,12 @@ def fetch_and_store_pagespeed(
     max_urls: int = 5,
     site_url: str | None = None,
     delay: float = 1.5,
+    api_key: str | None = None,
 ) -> dict[str, Any]:
     """Fetch PageSpeed scores and persist shop-scoped latest and timestamped CSVs."""
     targets = urls or priority_urls_for_shop(shop, max_urls=max_urls, site_url=site_url)
     previous_rows = _read_csv(_DATA_DIR / shop / "pagespeed.csv")
-    rows = fetch_scores_for_urls(targets, delay=delay)
+    rows = fetch_scores_for_urls(targets, delay=delay, api_key=api_key)
 
     shop_dir = _DATA_DIR / shop
     latest_path = shop_dir / "pagespeed.csv"

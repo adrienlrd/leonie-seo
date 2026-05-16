@@ -19,22 +19,26 @@ console = Console()
 _API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 
 
-def fetch_score(url: str, strategy: str = "mobile") -> dict[str, Any]:
+def fetch_score(url: str, strategy: str = "mobile", api_key: str | None = None) -> dict[str, Any]:
     """Fetch PageSpeed score and CWV for a single URL and strategy.
 
     Args:
         url: Full URL to audit.
         strategy: "mobile" or "desktop".
+        api_key: Optional API key. Falls back to PAGESPEED_API_KEY env var.
+                 Omitted entirely when neither is set (API still works, lower quota).
 
     Returns:
         Dict with url, strategy, performance_score (0-1), lcp_ms, cls, tbt_ms, fcp_ms.
     """
-    params = {
+    key = api_key or os.getenv("PAGESPEED_API_KEY")
+    params: dict[str, Any] = {
         "url": url,
         "strategy": strategy,
-        "key": os.environ["PAGESPEED_API_KEY"],
         "category": "performance",
     }
+    if key:
+        params["key"] = key
 
     response = requests.get(_API_URL, params=params, timeout=600)
 
@@ -60,18 +64,21 @@ def fetch_score(url: str, strategy: str = "mobile") -> dict[str, Any]:
     }
 
 
-def fetch_scores_for_urls(urls: list[str], delay: float = 1.5) -> list[dict[str, Any]]:
+def fetch_scores_for_urls(
+    urls: list[str], delay: float = 1.5, api_key: str | None = None
+) -> list[dict[str, Any]]:
     """Fetch mobile and desktop scores for a list of URLs.
 
     Args:
         urls: List of URLs to audit.
         delay: Seconds to wait between API calls to avoid rate limits.
+        api_key: Optional API key forwarded to each fetch_score call.
     """
     results: list[dict[str, Any]] = []
     for url in urls:
         for strategy in ("mobile", "desktop"):
             try:
-                result = fetch_score(url, strategy)
+                result = fetch_score(url, strategy, api_key=api_key)
                 results.append(result)
                 console.print(
                     f"  [green]✓[/green] {strategy:8} {result['performance_score']:.0%}  {url}"
@@ -88,6 +95,8 @@ def fetch_scores_for_urls(urls: list[str], delay: float = 1.5) -> list[dict[str,
                     )
                 except (requests.exceptions.Timeout, requests.exceptions.HTTPError):
                     console.print(f"  [red]✗ failed x2[/red] {strategy:8} {url} — skipped")
+                except Exception:  # noqa: BLE001 — unexpected PSI errors must not abort the batch
+                    console.print(f"  [red]✗ unexpected error[/red] {strategy:8} {url} — skipped")
             time.sleep(delay)
     return results
 

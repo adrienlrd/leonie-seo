@@ -118,6 +118,13 @@ _SQLITE_DDL = [
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         UNIQUE(shop, query)
     )""",
+    # Generic per-shop key/value config (Phase 10, task 89+)
+    """CREATE TABLE IF NOT EXISTS shop_config (
+        shop  TEXT NOT NULL,
+        key   TEXT NOT NULL,
+        value TEXT NOT NULL,
+        PRIMARY KEY (shop, key)
+    )""",
     # Async job queue (Phase 6, task 55)
     """CREATE TABLE IF NOT EXISTS jobs (
         id           TEXT PRIMARY KEY,
@@ -137,6 +144,12 @@ _SQLITE_DDL = [
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
+_PG_SHOP_CONFIG = """CREATE TABLE IF NOT EXISTS shop_config (
+    shop  TEXT NOT NULL,
+    key   TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (shop, key)
+)"""
 _PG_EMBEDDINGS = [
     "CREATE EXTENSION IF NOT EXISTS vector",
     """CREATE TABLE IF NOT EXISTS product_embeddings (
@@ -305,6 +318,7 @@ def _init_postgres(database_url: str) -> None:
             cur.execute(_PG_LLM_METRICS)
             for stmt in _PG_EMBEDDINGS:
                 cur.execute(stmt)
+            cur.execute(_PG_SHOP_CONFIG)
             _migrate_postgres_add_shop_columns(cur)
         conn.commit()
 

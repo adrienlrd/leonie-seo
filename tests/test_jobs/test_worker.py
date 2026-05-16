@@ -189,7 +189,9 @@ def test_pagespeed_import_handler_imports_for_shop(monkeypatch):
     calls: list[tuple[str, list[str] | None, int, str | None]] = []
     monkeypatch.setattr(
         "app.pagespeed.client.fetch_and_store_pagespeed",
-        lambda shop, urls, max_urls, site_url: calls.append((shop, urls, max_urls, site_url))
+        lambda shop, urls, max_urls, site_url, api_key=None: calls.append(
+            (shop, urls, max_urls, site_url)
+        )
         or {"rows": 2},
     )
 

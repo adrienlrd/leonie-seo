@@ -13,7 +13,7 @@ def test_fetch_and_store_pagespeed_writes_shop_scoped_exports(tmp_path, monkeypa
     monkeypatch.setattr("app.pagespeed.client._DATA_DIR", tmp_path)
     monkeypatch.setattr(
         "app.pagespeed.client.fetch_scores_for_urls",
-        lambda urls, delay: [
+        lambda urls, delay, api_key=None: [
             {
                 "url": urls[0],
                 "strategy": "mobile",

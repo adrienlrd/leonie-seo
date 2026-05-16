@@ -73,15 +73,20 @@ def test_pagespeed_import_enqueues_job(monkeypatch) -> None:
     assert enqueue.call_args.args[0] == "pagespeed_import"
 
 
-def test_pagespeed_import_requires_api_key(monkeypatch) -> None:
+def test_pagespeed_import_works_without_api_key(monkeypatch) -> None:
+    """Import should be accepted even without a configured API key (lower quota)."""
     monkeypatch.setenv("INTERNAL_API_SECRET", "internal")
     env = {key: value for key, value in ENV.items() if key != "PAGESPEED_API_KEY"}
-    with patch.dict("os.environ", env, clear=True):
+    with (
+        patch.dict("os.environ", env, clear=True),
+        patch("app.api.pagespeed.enqueue", return_value="job-no-key"),
+        patch("app.api.pagespeed.get_shop_config", return_value=None),
+    ):
         resp = TestClient(app).post(
             "/api/shops/store.myshopify.com/pagespeed/import",
             headers=HEADERS,
             json={"max_urls": 1},
         )
 
-    assert resp.status_code == 409
-    assert "PAGESPEED_API_KEY" in resp.json()["detail"]
+    assert resp.status_code == 202
+    assert resp.json()["job_id"] == "job-no-key"
