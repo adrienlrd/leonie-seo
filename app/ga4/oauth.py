@@ -19,6 +19,12 @@ from google_auth_oauthlib.flow import Flow
 
 from app.gsc.token_store import delete_google_token, get_google_token, save_google_token
 
+# include_granted_scopes=true causes Google to return additional scopes already
+# granted (e.g. webmasters.readonly from GSC). requests-oauthlib raises a Warning
+# when returned scopes differ from requested ones — OAUTHLIB_RELAX_TOKEN_SCOPE
+# suppresses that error.
+os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
 GA4_SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
 
 _GA4_ADMIN_BASE = "https://analyticsadmin.googleapis.com/v1beta"
