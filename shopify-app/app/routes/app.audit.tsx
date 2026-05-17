@@ -1,15 +1,17 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Badge,
   BlockStack,
   Button,
   Card,
+  IndexTable,
   InlineGrid,
   InlineStack,
   Page,
+  Pagination,
   Text,
   Tooltip,
 } from "@shopify/polaris";
@@ -204,16 +206,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 const SEVERITIES = ["critical", "high", "medium", "low", "info"] as const;
 const RESOURCE_TYPES = ["product", "collection", "image", "page", "redirect"] as const;
 
+const PAGE_SIZE = 25;
+
 export default function Audit() {
   const { locale, issues, score, ice, error } = useLoaderData<typeof loader>();
   const [activeSeverity, setActiveSeverity] = useState<string | null>(null);
   const [activeResourceType, setActiveResourceType] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
 
-  const filtered = issues.filter((i) => {
-    if (activeSeverity && i.severity !== activeSeverity) return false;
-    if (activeResourceType && i.resource_type !== activeResourceType) return false;
-    return true;
-  });
+  const filtered = useMemo(
+    () =>
+      issues.filter((i) => {
+        if (activeSeverity && i.severity !== activeSeverity) return false;
+        if (activeResourceType && i.resource_type !== activeResourceType) return false;
+        return true;
+      }),
+    [issues, activeSeverity, activeResourceType],
+  );
+
+  // Reset to first page whenever filters change.
+  useMemo(() => setPage(0), [activeSeverity, activeResourceType]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const paginated = useMemo(
+    () => filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE),
+    [filtered, safePage],
+  );
+  const rangeStart = filtered.length === 0 ? 0 : safePage * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(filtered.length, (safePage + 1) * PAGE_SIZE);
 
   const countBySeverity = issues.reduce<Record<string, number>>((acc, i) => {
     acc[i.severity] = (acc[i.severity] ?? 0) + 1;
@@ -402,48 +423,90 @@ export default function Audit() {
                 </InlineStack>
               </BlockStack>
 
-              {/* Issues */}
+              {/* Issues — paginated table */}
               {filtered.length === 0 ? (
                 <Text as="p" tone="subdued">
                   {issues.length === 0
-                    ? "Aucune issue détectée. Lancez un audit SEO depuis l'Onboarding."
-                    : "Aucune issue correspondant aux filtres actifs."}
+                    ? locale === "fr"
+                      ? "Aucun problème détecté. Lancez un audit SEO depuis l'Onboarding."
+                      : "No issues detected. Run an SEO audit from Onboarding."
+                    : locale === "fr"
+                    ? "Aucun problème ne correspond aux filtres actifs."
+                    : "No issues match the active filters."}
                 </Text>
               ) : (
                 <BlockStack gap="300">
-                  {filtered.slice(0, 200).map((issue, idx) => (
-                    <BlockStack
-                      key={`${issue.resource_id}-${issue.issue_type}-${idx}`}
-                      gap="100"
-                    >
-                      <InlineStack gap="200" align="start" wrap>
-                        <Badge tone={SEVERITY_TONE[issue.severity] ?? "new"}>
-                          {issue.severity}
-                        </Badge>
-                        <Badge>
-                          {RESOURCE_TYPE_LABELS[issue.resource_type] ?? issue.resource_type}
-                        </Badge>
-                        <Text as="span" fontWeight="semibold">
-                          {ISSUE_TYPE_LABELS[issue.issue_type] ?? issue.issue_type}
-                        </Text>
-                        <Text as="span" tone="subdued">
-                          {issue.resource_title.length > 60
-                            ? `${issue.resource_title.slice(0, 60)}…`
-                            : issue.resource_title}
-                        </Text>
-                      </InlineStack>
-                      <Text as="p" tone="subdued" variant="bodySm">
-                        {issue.detail}
+                  <IndexTable
+                    resourceName={{
+                      singular: locale === "fr" ? "problème" : "issue",
+                      plural: locale === "fr" ? "problèmes" : "issues",
+                    }}
+                    itemCount={filtered.length}
+                    headings={[
+                      { title: locale === "fr" ? "Sévérité" : "Severity" },
+                      { title: locale === "fr" ? "Type" : "Type" },
+                      { title: locale === "fr" ? "Problème" : "Issue" },
+                      { title: locale === "fr" ? "Ressource" : "Resource" },
+                      { title: locale === "fr" ? "Détail" : "Detail" },
+                    ]}
+                    selectable={false}
+                  >
+                    {paginated.map((issue, idx) => (
+                      <IndexTable.Row
+                        id={`${issue.resource_id}-${issue.issue_type}-${idx}`}
+                        key={`${issue.resource_id}-${issue.issue_type}-${idx}`}
+                        position={idx}
+                      >
+                        <IndexTable.Cell>
+                          <Badge tone={SEVERITY_TONE[issue.severity] ?? "new"}>
+                            {issue.severity}
+                          </Badge>
+                        </IndexTable.Cell>
+                        <IndexTable.Cell>
+                          <Badge>
+                            {RESOURCE_TYPE_LABELS[issue.resource_type] ?? issue.resource_type}
+                          </Badge>
+                        </IndexTable.Cell>
+                        <IndexTable.Cell>
+                          <Text as="span" fontWeight="semibold">
+                            {ISSUE_TYPE_LABELS[issue.issue_type] ?? issue.issue_type}
+                          </Text>
+                        </IndexTable.Cell>
+                        <IndexTable.Cell>
+                          <Text as="span" tone="subdued">
+                            {issue.resource_title.length > 60
+                              ? `${issue.resource_title.slice(0, 60)}…`
+                              : issue.resource_title}
+                          </Text>
+                        </IndexTable.Cell>
+                        <IndexTable.Cell>
+                          <Text as="span" tone="subdued" variant="bodySm">
+                            {issue.detail}
+                          </Text>
+                        </IndexTable.Cell>
+                      </IndexTable.Row>
+                    ))}
+                  </IndexTable>
+
+                  {totalPages > 1 && (
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text as="span" tone="subdued" variant="bodySm">
+                        {locale === "fr"
+                          ? `${rangeStart}–${rangeEnd} sur ${filtered.length}`
+                          : `${rangeStart}–${rangeEnd} of ${filtered.length}`}
                       </Text>
-                      {filtered.length > 1 && idx < filtered.slice(0, 200).length - 1 && (
-                        <div style={{ borderTop: "1px solid var(--p-color-border)", marginTop: 4 }} />
-                      )}
-                    </BlockStack>
-                  ))}
-                  {filtered.length > 200 && (
-                    <Text as="p" tone="subdued">
-                      {filtered.length - 200} issues supplémentaires — affinez les filtres pour les voir.
-                    </Text>
+                      <Pagination
+                        hasPrevious={safePage > 0}
+                        hasNext={safePage < totalPages - 1}
+                        onPrevious={() => setPage((p) => Math.max(0, p - 1))}
+                        onNext={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                        label={
+                          locale === "fr"
+                            ? `Page ${safePage + 1} / ${totalPages}`
+                            : `Page ${safePage + 1} of ${totalPages}`
+                        }
+                      />
+                    </InlineStack>
                   )}
                 </BlockStack>
               )}
