@@ -205,7 +205,11 @@ async def get_ga4_status(
         shop: Shopify shop domain.
     """
     token_record = get_google_token(ctx.shop)
-    oauth_connected = token_record is not None
+    # A token exists only if GA4 scope was explicitly granted — GSC uses the same
+    # table but saves scope "webmasters.readonly". We check for "analytics" to
+    # avoid showing "Connecté" when only GSC is connected.
+    scopes_str = (token_record or {}).get("scopes") or ""
+    oauth_connected = token_record is not None and "analytics" in scopes_str
     property_id = get_shop_config(ctx.shop, _PROPERTY_ID_KEY)
     property_name = get_shop_config(ctx.shop, _PROPERTY_NAME_KEY)
 

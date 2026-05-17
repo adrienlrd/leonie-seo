@@ -18,7 +18,6 @@ import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
 
-const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -165,46 +164,50 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
-  if (intent === "connect") {
-    const resp = await fetch(`${BACKEND}/api/shops/${shop}/ga4/authorize`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ detail: "Erreur réseau" }));
-      return json<ActionData>({ error: err.detail ?? "Connexion impossible", intent });
-    }
-    const data = (await resp.json()) as { authorization_url: string };
-    return json<ActionData>({ authorization_url: data.authorization_url, intent });
-  }
+  const be = (path: string, init: RequestInit = {}) =>
+    callBackendForShop(shop, path, { accessToken: session.accessToken, ...init });
 
-  if (intent === "list_properties") {
-    const resp = await fetch(`${BACKEND}/api/shops/${shop}/ga4/properties`);
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ detail: "Erreur réseau" }));
-      return json<ActionData>({ error: err.detail ?? "Impossible de lister les propriétés", intent });
+  try {
+    if (intent === "connect") {
+      const resp = await be(`/api/shops/${shop}/ga4/authorize`, { method: "POST" });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: "Erreur réseau" }));
+        return json<ActionData>({ error: (err as { detail?: string }).detail ?? "Connexion impossible", intent });
+      }
+      const data = (await resp.json()) as { authorization_url: string };
+      return json<ActionData>({ authorization_url: data.authorization_url, intent });
     }
-    const data = (await resp.json()) as { properties: GA4Property[] };
-    return json<ActionData>({ properties: data.properties, intent });
-  }
 
-  if (intent === "save_property") {
-    const property_id = formData.get("property_id") as string;
-    const property_name = formData.get("property_name") as string;
-    const resp = await fetch(`${BACKEND}/api/shops/${shop}/ga4/settings`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ property_id, property_name }),
-    });
-    if (!resp.ok) {
-      return json<ActionData>({ error: "Sauvegarde échouée", intent });
+    if (intent === "list_properties") {
+      const resp = await be(`/api/shops/${shop}/ga4/properties`);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: "Erreur réseau" }));
+        return json<ActionData>({ error: (err as { detail?: string }).detail ?? "Impossible de lister les propriétés", intent });
+      }
+      const data = (await resp.json()) as { properties: GA4Property[] };
+      return json<ActionData>({ properties: data.properties, intent });
     }
-    return json<ActionData>({ saved: true, intent });
-  }
 
-  if (intent === "disconnect") {
-    await fetch(`${BACKEND}/api/shops/${shop}/ga4/disconnect`, { method: "DELETE" });
-    return json<ActionData>({ disconnected: true, intent });
+    if (intent === "save_property") {
+      const property_id = formData.get("property_id") as string;
+      const property_name = formData.get("property_name") as string;
+      const resp = await be(`/api/shops/${shop}/ga4/settings`, {
+        method: "POST",
+        body: JSON.stringify({ property_id, property_name }),
+      });
+      if (!resp.ok) {
+        return json<ActionData>({ error: "Sauvegarde échouée", intent });
+      }
+      return json<ActionData>({ saved: true, intent });
+    }
+
+    if (intent === "disconnect") {
+      await be(`/api/shops/${shop}/ga4/disconnect`, { method: "DELETE" });
+      return json<ActionData>({ disconnected: true, intent });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erreur réseau inattendue";
+    return json<ActionData>({ error: message, intent });
   }
 
   return json<ActionData>({ error: "Action inconnue", intent });
