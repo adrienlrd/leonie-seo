@@ -1,36 +1,189 @@
 # Shopify App Store Submission Checklist
 
-## Repository readiness completed
+> Last updated: 2026-05-17
+> Status snapshot: **pilot live on `pilot.leoniedelacroix.com`**, public App Store submission deferred until checklist below is 100 %.
 
-- Embedded Shopify app routes are available under `shopify-app/app/routes/`.
-- The embedded auth catch-all route exists at `auth.$.tsx`.
-- Local development has a dedicated `shopify.app.local.toml` configuration.
-- Local dev starts the Remix frontend through `shopify.web.toml`.
-- Session storage falls back to Shopify memory storage when `DATABASE_URL` is absent.
-- Webhook registration is skipped automatically for localhost development, where Shopify does not support inbound app callbacks.
+This document is the single source of truth for the App Store submission. Every
+item is classified as **✅ Done**, **🔄 In progress**, **⚠️ Blocker**, or
+**📋 Manual (Partner Dashboard)**. Code-side items reference the file that
+proves the status.
 
-## Real dev-store test flow
+---
 
-1. Start the Python backend from the repository root:
-   `uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`
-2. Start the Shopify app from `shopify-app/`:
-   `npm run dev -- --config local --use-localhost`
-3. Open the Shopify CLI preview URL inside the development store admin.
-4. Verify the embedded app loads and the main navigation works:
-   Dashboard, Review, Niche, Onboarding, Jobs, Billing, Settings, Privacy.
-5. Verify actions that depend on the Python backend degrade gracefully when data is absent and work when the backend is running.
+## 1. Code & infrastructure (✅ done in repo)
 
-## Production / Partner Dashboard checks still manual
+| Item | Status | Evidence |
+|---|---|---|
+| Embedded Shopify app (App Bridge + Polaris) | ✅ | `shopify-app/app/routes/app.tsx` |
+| OAuth install flow + session cookie | ✅ | `@shopify/shopify-app-remix` config in `shopify-app/app/shopify.server.ts` |
+| Auth catch-all route | ✅ | `shopify-app/app/routes/auth.$.tsx` |
+| Persistent session storage (Postgres) | ✅ | `PostgreSQLSessionStorage` activated when `DATABASE_URL` is present |
+| `app/uninstalled` webhook | ✅ | `shopify-app/app/routes/webhooks.tsx` + `app/oauth/webhooks.py` |
+| Mandatory GDPR webhooks (`customers/data_request`, `customers/redact`, `shop/redact`) | ✅ | `app/oauth/gdpr.py` (HMAC verified, audit-logged) |
+| Webhook HMAC signature verification | ✅ | `app/oauth/hmac_validator.py` |
+| OAuth tokens encrypted at rest (Fernet) | ✅ | `app/oauth/crypto.py` — uses `LEONIE_MASTER_KEY` |
+| Multi-tenant data isolation | ✅ | All routes resolve shop via `get_shop_context` / `_assert_safe_shop` |
+| Shop domain validation (defense-in-depth path traversal) | ✅ | `app/api/deps.py` `_SHOP_DOMAIN_RE` |
+| Session token validation in production | ✅ | `LEONIE_REQUIRE_SESSION_TOKEN=true` by default |
+| Required env vars validated at startup | ✅ | `app/main.py` `_REQUIRED_ENV` (incl. `INTERNAL_API_SECRET`, `LEONIE_MASTER_KEY`) |
+| CORS — credentials false + restricted headers/methods | ✅ | `app/main.py` |
+| Privacy policy endpoint (public HTML) | ✅ | `GET /privacy` in `app/api/privacy.py` |
+| GDPR data export endpoint | ✅ | `GET /api/gdpr/export` |
+| Billing API integration (Shopify subscription) | ✅ | `app/billing/router.py` + `app.billing.tsx` |
+| Three pricing tiers (Free / Pro / Agency) defined | ✅ | `app/api/plans.py`, `docs/plans.md` |
+| Feature gates per plan | ✅ | `require_feature()` in `app/api/deps.py` |
+| Theme App Extension (JSON-LD snippet) | ✅ | `shopify-app/extensions/leonie-seo-jsonld/` |
+| Health check endpoint | ✅ | `GET /health` (FastAPI) + `/healthz` (Remix) |
+| Pilot deployment on Render | ✅ | `render.yaml` — `leonie-seo-pilot-web` + `leonie-seo-pilot-api` |
+| Production webhook subscriptions in `shopify.app.toml` | ✅ | `shopify-app/shopify.app.toml` |
+| 6-entry hub navigation (vs 23-flat previously) | ✅ | `shopify-app/app/routes/app.tsx` + 5 hub routes |
+| Dashboard with setup progress + alerts + CTAs | ✅ | `shopify-app/app/routes/app._index.tsx` |
+| Paginated issue table | ✅ | `shopify-app/app/routes/app.audit.tsx` IndexTable |
 
-- Replace localhost with a public production URL or approved tunnel before final review.
-- Keep production webhook subscriptions enabled in `shopify.app.toml`.
-- Run Shopify automated App Store review checks.
-- Complete the App Store listing, primary language, app icon, screenshots, and demo screencast.
-- Provide emergency developer contact details in the Partner Dashboard.
-- Confirm privacy policy, GDPR export behavior, Billing API flow, and review instructions/test credentials.
+## 2. Partner Dashboard configuration (📋 to verify by hand)
 
-## Final submission note
+The repo cannot manage these — they live in the Shopify Partner Dashboard.
+Verify each one before submitting.
 
-The repository is ready for the next validation stage, but public App Store submission is intentionally deferred until the real-store pilot is complete.
+| Item | Where | Notes |
+|---|---|---|
+| **App name** ("Léonie SEO") unique on the App Store | Partner Dashboard → App setup → Name | Must not collide with another app |
+| **App URL** = `https://pilot.leoniedelacroix.com` (will change for production app) | App setup → URLs | Use a non-pilot URL when going GA |
+| **Allowed redirection URLs** | App setup → URLs | Currently in `shopify.app.pilot.toml` |
+| **Access scopes** = `read_products,write_products,read_orders` | App setup → Access scopes | Minimal set — App Store reviewers scrutinize unused scopes |
+| **API version** ≥ `2025-01` | App setup → Webhooks | Already set |
+| **Embedded** = true | App setup | Already set |
+| **App Bridge ≥ 4.x** | Auto via `@shopify/app-bridge-react` | Verify console.log in browser shows "AppBridge 4.x" |
+| **GDPR webhooks subscribed** | App setup → Compliance webhooks | URLs declared in `shopify.app.toml` |
+| **Webhook delivery** (mandatory webhooks succeed in test) | Apps → Test webhooks | Send all 4 mandatory events, verify 200 OK in API logs |
+| **Billing API enabled** | App setup → Distribution | Required for App Store distribution |
+| **Distribution = Public (App Store)** | App setup → Distribution | Switch from "Custom distribution" pilot mode |
 
-Use `docs/pilot-real-store-setup.md` to prepare the separate pilot app, link the dedicated Shopify CLI configuration, wire a public callback-capable URL, and generate the direct install path for the merchant store. Return to this checklist only after Phase 9, Phase 10, and the go/no-go task 104 are complete.
+## 3. App Store listing assets (⚠️ MISSING — blockers)
+
+Required to submit. None are in the repo yet.
+
+| Asset | Spec | Where to place |
+|---|---|---|
+| **App icon** | 1200×1200 PNG, transparent background, no rounded corners (Shopify rounds them) | `shopify-app/public/icon.png` + upload in Partner Dashboard |
+| **App banner** | 1920×1080 JPG/PNG, key visual + tagline | Partner Dashboard → Listing |
+| **Feature image** (large banner shown on listing top) | 1600×900 | Partner Dashboard |
+| **Screenshots** (3 minimum, 5 recommended) | 1600×900 PNG, embedded admin view | Capture: Dashboard, Hub Audit, Audit IndexTable, Hub Contenu (FAQ), Hub Insights (GA4 funnel) |
+| **Demo video** (optional but strongly recommended) | YouTube link, 30-60 s, voice-over OK | Hosted on YouTube |
+| **App tagline** (short pitch) | 100 chars max | "SEO Shopify pilote par l'IA : audits, contenu, suivi." |
+| **App description** (long) | ~500-2000 words, markdown supported | Cover: problem, audience, key features, integrations, pricing |
+| **Categories** | Pick 1-2 from Shopify taxonomy | Suggestion: "Marketing and conversion → SEO" |
+| **Keywords** (search) | 5-10 keywords | seo, audit, meta, schema, hreflang, ga4, gsc, pagespeed |
+
+## 4. Required text content (⚠️ to write)
+
+| Text | Length | Status | Source draft |
+|---|---|---|---|
+| Tagline (FR) | ≤100 chars | ❌ | À écrire |
+| Tagline (EN) | ≤100 chars | ❌ | À écrire |
+| Description courte (FR) | ~250 chars | ❌ | À écrire |
+| Short description (EN) | ~250 chars | ❌ | À écrire |
+| Description longue (FR) | 500-2000 mots | 🔄 | Base dans `docs/guide-utilisateur.fr.md` |
+| Long description (EN) | 500-2000 words | 🔄 | Base dans `docs/user-guide.en.md` |
+| What's new / changelog | ~200 mots | ❌ | À écrire |
+| Test instructions for the App Store reviewer | ~300 mots | ❌ | À écrire (cf. § 6) |
+
+## 5. Legal & support (⚠️ partly missing)
+
+| Item | Status | Action |
+|---|---|---|
+| **Privacy policy URL** (publicly accessible) | ✅ | `https://leonie-seo-pilot-api.onrender.com/privacy` — confirm content covers GDPR + cookies + data retention |
+| **Terms of service URL** | ❌ | À rédiger + héberger (route HTML statique ou page Notion) |
+| **Support email** (replied within 24-48 h) | ❌ | À créer (suggestion `support@leoniedelacroix.com`) |
+| **Support URL** (FAQ or help center) | 🔄 | `docs/guide-utilisateur.fr.md` existe — à publier publiquement |
+| **Emergency developer contact** (Partner Dashboard) | 📋 | À renseigner |
+| **Company name / address** (for invoicing) | 📋 | À renseigner dans Partner Dashboard |
+
+## 6. App Store reviewer test plan (⚠️ to write)
+
+The Shopify reviewer needs a step-by-step script. Write `docs/app-store-test-instructions.md` covering:
+
+1. How to install the app on a test store (URL or "install" button)
+2. **Test credentials** — if the app needs Google Cloud credentials, provide a sandbox account with read-only scopes
+3. **Walk-through**:
+   - Land on dashboard → verify setup checklist appears
+   - Click "Lancer un audit SEO" → wait for job to complete (~1 min)
+   - Open Hub Audit → see issues paginated
+   - Open Hub Contenu → see FAQ suggestions
+   - Trigger a paid plan → confirm Shopify Billing screen appears and is signed by Shopify
+   - Approve plan in Shopify Billing → confirm app reflects new plan
+4. **Uninstall test**:
+   - Uninstall from Shopify Admin
+   - Confirm app no longer loads
+   - Confirm webhook fires (visible in Render logs)
+
+## 7. Pre-submission technical validation (🔄 to run)
+
+| Check | Tool | Frequency |
+|---|---|---|
+| Shopify automated app review checks | Partner Dashboard → "Run checks" | Before each submission |
+| Lighthouse perf on `/app` (in iframe) | Chrome DevTools | Once before submission, target Performance ≥ 70 |
+| Accessibility audit | axe DevTools | Once before submission, no critical issues |
+| Embedded app loads in < 3 s | Network tab | Render free tier has cold starts — consider upgrading |
+| Session token validation works | API logs | `LEONIE_REQUIRE_SESSION_TOKEN=true` |
+| All 4 mandatory webhooks return 200 | Partner Dashboard → Test webhooks | Send each and check |
+| Billing flow end-to-end | Test store with dev billing | Subscribe → cancel → reinstall → resubscribe |
+| Demo screencast records cleanly | OBS/Loom | Final asset |
+
+## 8. App Store policies (📋 verify compliance)
+
+Read each at https://shopify.dev/docs/apps/launch/app-requirements-checklist and confirm:
+
+- [ ] No misleading claims ("guaranteed #1 on Google", etc.)
+- [ ] No external payments (all monetization via Shopify Billing API)
+- [ ] No requests for sensitive PII not needed for the app's function
+- [ ] No persistent storage of customer PII outside Shopify Admin (we only store shop-level tokens — confirm)
+- [ ] App icon is original, not a generic stock image
+- [ ] App functions without leaving the embedded admin (we do open Google OAuth popups — that's allowed)
+- [ ] App degrades gracefully when scopes are revoked or backend is down (✅ banners in place)
+- [ ] App supports both light and dark Shopify Admin themes (untested — to verify)
+- [ ] Translations exist for declared languages (FR + EN ✅)
+
+## 9. Go / no-go decision (Phase 12 task 104)
+
+Before submitting:
+
+- [ ] Sections 1, 2, 3, 4, 5, 6 are all ✅
+- [ ] Pilot has been running ≥ 4 weeks without P0 incidents
+- [ ] Real merchant feedback collected (already done — see `docs/pilot-real-store-feedback.md`)
+- [ ] Pricing strategy locked
+- [ ] Support email monitored
+- [ ] Submitted to legal review (terms, privacy, billing) — optional but recommended
+
+## 10. Submission workflow (Phase 12 task 105)
+
+1. Switch app distribution to **Public** in Partner Dashboard
+2. Upload all assets (§3) + texts (§4)
+3. Provide test instructions (§6) + reviewer credentials
+4. Click **"Submit for review"**
+5. Review delay: typically 5-10 business days. Address feedback iteratively.
+6. After approval: app goes live on the App Store. Monitor first 48 h for installs + errors.
+
+---
+
+## Summary
+
+| Section | Status |
+|---|---|
+| Code & infrastructure | ✅ Ready |
+| Partner Dashboard config | 📋 Manual verification |
+| **App Store listing assets** | ⚠️ **MISSING — blocker** |
+| **Required text content** | ⚠️ **MISSING — blocker** |
+| Legal & support | ⚠️ Privacy ✅, ToS + support email ❌ |
+| Reviewer test plan | ⚠️ Missing |
+| Technical validation | 🔄 To run before submission |
+| App Store policies | 📋 Self-check |
+
+**Immediate next steps (in order):**
+1. Create app icon (1200×1200 PNG) and 5 screenshots
+2. Write taglines + short + long descriptions (FR + EN)
+3. Set up `support@leoniedelacroix.com` and ensure inbox is monitored
+4. Publish a Terms of Service page (route HTML or Notion)
+5. Write `docs/app-store-test-instructions.md` for the reviewer
+6. Run Shopify automated review checks; fix any failures
+7. Switch distribution to Public and submit
