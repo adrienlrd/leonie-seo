@@ -43,9 +43,9 @@ def fetch_score(url: str, strategy: str = "mobile", api_key: str | None = None) 
     response = requests.get(_API_URL, params=params, timeout=60)
 
     if response.status_code == 429:
-        console.print("[yellow]Rate limit — waiting 10s[/yellow]")
-        time.sleep(10)
-        return fetch_score(url, strategy)
+        # Without an API key the quota is ~1-2 req/min. Raise immediately so
+        # fetch_scores_for_urls can skip the URL rather than spinning forever.
+        raise requests.exceptions.HTTPError("429 Rate limit — add PAGESPEED_API_KEY", response=response)
 
     response.raise_for_status()
     data = response.json()
