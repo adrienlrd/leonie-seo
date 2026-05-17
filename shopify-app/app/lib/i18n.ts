@@ -89,6 +89,10 @@ const FR: Dictionary = {
   mode: "Mode",
   templateDemo: "Template demo",
   production: "Production",
+  content: "Contenu SEO",
+  contentSubtitle: "FAQ produits et briefs blog depuis vos données GSC",
+  contentFaq: "FAQ produits",
+  contentBriefs: "Briefs blog",
 };
 
 const EN: Dictionary = {
@@ -178,6 +182,10 @@ const EN: Dictionary = {
   mode: "Mode",
   templateDemo: "Demo template",
   production: "Production",
+  content: "SEO Content",
+  contentSubtitle: "Product FAQ and blog briefs from your GSC data",
+  contentFaq: "Product FAQ",
+  contentBriefs: "Blog briefs",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };
