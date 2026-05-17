@@ -107,6 +107,10 @@ const FR: Dictionary = {
   hreflangNoMarkets: "Aucun marché configuré.",
   hreflangReady: "Hreflang actif",
   hreflangNotReady: "Hreflang inactif",
+  alerts: "Alertes marchand",
+  alertsSubtitle: "Régressions CWV, 404, CTR faible, budget LLM, jobs échoués",
+  alertsNoIssue: "Aucune alerte active — tout est OK.",
+  alertsTotal: "alertes actives",
 };
 
 const EN: Dictionary = {
@@ -214,6 +218,10 @@ const EN: Dictionary = {
   hreflangNoMarkets: "No markets configured.",
   hreflangReady: "Hreflang active",
   hreflangNotReady: "Hreflang inactive",
+  alerts: "Merchant alerts",
+  alertsSubtitle: "CWV regressions, 404s, low CTR, LLM budget, failed jobs",
+  alertsNoIssue: "No active alerts — everything looks good.",
+  alertsTotal: "active alerts",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };
