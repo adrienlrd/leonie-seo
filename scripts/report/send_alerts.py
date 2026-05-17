@@ -179,7 +179,11 @@ def send_email(subject: str, body: str, sender: str, recipient: str, app_passwor
 def main(
     pagespeed: str, opportunities: str, recipient: str | None, dry_run: bool, tenant: str | None
 ) -> None:
-    """Detect SEO regressions and send alert email if needed."""
+    """Detect SEO regressions and send alert email if needed.
+
+    App equivalent: use the Shopify app → Alertes marchand (app.alerts route).
+    This CLI is kept for scheduled cron jobs and email delivery via SMTP.
+    """
     cfg = get_config(tenant)
     console.print("[bold cyan]► SEO Alert check[/bold cyan]")
 

@@ -95,7 +95,11 @@ def render_markdown(
 @click.option("--json-output", default="data/raw/faq_suggestions.json", show_default=True)
 @click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
 def main(keywords: str, output_dir: str, json_output: str, tenant: str | None) -> None:
-    """Generate structured FAQ content per product category with JSON-LD schema."""
+    """Generate structured FAQ content per product category with JSON-LD schema.
+
+    App equivalent: use the Shopify app → Contenu SEO → FAQ produits (app.content route).
+    This CLI is kept for batch/offline use and self-hosted operators.
+    """
     cfg = get_config(tenant)
     niche = load_niche(cfg.niche)
     console.print("[bold cyan]► Generating structured FAQ[/bold cyan]")

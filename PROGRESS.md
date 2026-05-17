@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-16** (clôture tâche 94)
+- Dernière session : **2026-05-17** (clôture Phase 10 — tâches 101-103)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -11,11 +11,40 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **18/21** 🔄 (tâches 83-100 clôturées ; prochaines : 101-103)
+- Phase 10 : **21/21** ✅ (tâches 83-103 clôturées le 2026-05-17)
 - Phase 11 : **0/10** ⏳ (Revenue-Aware SEO & Shopify-native intelligence, tâches 106-115)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 104-105)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1169/1169** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1229/1229** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâches 101-103 — Phase 10 clôturée le 2026-05-17
+
+### Tâche 101 — Hreflang / SEO international
+
+- `app/api/hreflang.py` — 4 endpoints : status, settings (POST/DELETE), preview. Validation BCP-47, détection 7 types d'issues, génération balises `<link rel="alternate">` + x-default.
+- `tests/test_api/test_hreflang.py` — 12 tests.
+- `shopify-app/app/routes/app.hreflang.tsx` — tabs Config / Prévisualisation / Problèmes.
+- i18n FR/EN + lien NavMenu.
+
+### Tâche 102 — Alertes marchand
+
+- `app/api/alerts.py` — endpoint `/alerts/summary` agrégeant CWV/PageSpeed, crawl 404, CTR faible GSC, budget LLM, jobs échoués.
+- `tests/test_api/test_alerts.py` — 8 tests.
+- `shopify-app/app/routes/app.alerts.tsx` — dashboard alertes avec DataTable et badges par sévérité.
+- i18n FR/EN + lien NavMenu.
+
+### Tâche 103 — Nettoyage scripts transitoires
+
+- `scripts/README.md` mis à jour : tableau CLI-only, tableau équivalents app, notes de migration.
+- Notes `App equivalent:` ajoutées dans les docstrings CLI : `generate_faq.py`, `generate_hreflang.py`, `generate_blog_briefs.py`, `send_alerts.py`.
+- Aucun script supprimé : tous restent utiles pour les usages batch/CLI/self-hosted.
+
+### Validation
+- `pytest` — **1229/1229** ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+
+---
 
 ## Tâche 100 — FAQ produits et briefs blog le 2026-05-17
 

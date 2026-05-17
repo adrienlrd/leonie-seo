@@ -243,7 +243,11 @@ def main(
     sitemap_output: str,
     tenant: str | None,
 ) -> None:
-    """Generate hreflang tags for fr-FR/fr-BE/fr-CH market expansion."""
+    """Generate hreflang tags for fr-FR/fr-BE/fr-CH market expansion.
+
+    App equivalent: use the Shopify app → Hreflang / International (app.hreflang route).
+    This CLI generates static files (JSON, Liquid snippet, sitemap XML) for self-hosted use.
+    """
     cfg = get_config(tenant)
     effective_base_url = base_url or cfg.base_url
     locales = cfg.hreflang_locales_as_tuples()

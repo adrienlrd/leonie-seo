@@ -218,7 +218,11 @@ def render_markdown(briefs: list[dict[str, Any]], date: str) -> str:
 @click.option("--output-dir", default="reports", show_default=True)
 @click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
 def main(keywords: str, gaps: str, output_dir: str, tenant: str | None) -> None:
-    """Generate blog brief outlines from keyword gaps and GSC opportunities."""
+    """Generate blog brief outlines from keyword gaps and GSC opportunities.
+
+    App equivalent: use the Shopify app → Contenu SEO → Briefs blog (app.content route).
+    This CLI is kept for offline/batch generation from local CSV exports.
+    """
     cfg = get_config(tenant)
     niche = load_niche(cfg.niche)
     console.print("[bold cyan]► Generating blog briefs[/bold cyan]")
