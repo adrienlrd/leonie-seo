@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import ShopContext, get_shop_context
+from app.api.rollback import log_seo_change
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_writer import ShopifyWriter
 from app.safety import require_shopify_write_allowed
@@ -151,6 +152,13 @@ async def apply_descriptions(
             )
         return {"dry_run": True, "total": len(results), "results": results}
 
+    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    old_descriptions: dict[str, str | None] = {}
+    if snapshot:
+        for p in snapshot.get("products", []):
+            pid = p.get("id", "")
+            old_descriptions[pid] = p.get("descriptionHtml") or p.get("description")
+
     writer = ShopifyWriter(ctx.shop, ctx.access_token)
 
     for item in body.items:
@@ -160,6 +168,15 @@ async def apply_descriptions(
                 i.product_id, h
             )
         )
+        if result.applied:
+            log_seo_change(
+                ctx.shop,
+                resource_type="product",
+                resource_id=item.product_id,
+                field="description.body_html",
+                old_value=old_descriptions.get(item.product_id),
+                new_value=description_html,
+            )
         results.append(
             {
                 "product_id": item.product_id,

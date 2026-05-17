@@ -34,6 +34,7 @@ from app.api.internal_links import router as internal_links_router  # noqa: E402
 from app.api.alt_text import router as alt_text_router  # noqa: E402
 from app.api.descriptions import router as descriptions_router  # noqa: E402
 from app.api.redirects import router as redirects_router  # noqa: E402
+from app.api.rollback import router as rollback_router  # noqa: E402
 from app.api.help import router as help_router  # noqa: E402
 from app.api.shops import router as shops_router  # noqa: E402
 from app.api.suggestions import router as suggestions_router  # noqa: E402
@@ -116,6 +117,7 @@ app.include_router(internal_links_router)
 app.include_router(alt_text_router)
 app.include_router(descriptions_router)
 app.include_router(redirects_router)
+app.include_router(rollback_router)
 app.include_router(apply_router)
 app.include_router(suggestions_router)
 app.include_router(help_router)

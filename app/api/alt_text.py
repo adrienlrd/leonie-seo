@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import ShopContext, get_shop_context
+from app.api.rollback import log_seo_change
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_writer import ShopifyWriter
 from app.safety import require_shopify_write_allowed
@@ -155,12 +156,29 @@ async def apply_alt_text(
             )
         return {"dry_run": True, "total": len(results), "results": results}
 
+    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    old_alts: dict[str, str | None] = {}
+    if snapshot:
+        for p in snapshot.get("products", []):
+            for edge in (p.get("images") or {}).get("edges", []):
+                node = edge.get("node", {})
+                old_alts[node.get("id", "")] = node.get("altText")
+
     writer = ShopifyWriter(ctx.shop, ctx.access_token)
 
     for item in body.items:
         result = await asyncio.to_thread(
             lambda i=item: writer.apply_image_alt(i.product_id, i.image_id, i.alt_text)
         )
+        if result.applied:
+            log_seo_change(
+                ctx.shop,
+                resource_type="image",
+                resource_id=item.image_id,
+                field="image.alt_text",
+                old_value=old_alts.get(item.image_id),
+                new_value=item.alt_text,
+            )
         results.append(
             {
                 "image_id": item.image_id,
