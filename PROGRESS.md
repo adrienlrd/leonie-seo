@@ -11,7 +11,7 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **16/21** 🔄 (tâches 83-98 clôturées ; prochaine tâche 99)
+- Phase 10 : **17/21** 🔄 (tâches 83-99 clôturées ; prochaine tâche 100)
 - Phase 11 : **0/10** ⏳ (Revenue-Aware SEO & Shopify-native intelligence, tâches 106-115)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 104-105)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
