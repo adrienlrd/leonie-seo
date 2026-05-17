@@ -1,6 +1,7 @@
 """FastAPI dependencies shared across API routers."""
 
 import os
+import re
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,17 @@ _API_VERSION = "2025-01"
 _PROJECT_ROOT = Path(__file__).parents[2]
 _SNAPSHOT_DEFAULT = _PROJECT_ROOT / "data" / "raw" / "shopify_snapshot.json"
 _RAW_DIR = _PROJECT_ROOT / "data" / "raw"
+
+# Defense-in-depth: even when the shop value is technically trusted (it comes
+# from the OAuth-validated session or X-Leonie-Shop header), reject anything
+# that doesn't match a strict Shopify domain pattern before joining it to a
+# filesystem path. Stops `..` traversal, NUL bytes, and absolute paths cold.
+_SHOP_DOMAIN_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$")
+
+
+def _assert_safe_shop(shop: str) -> None:
+    if not _SHOP_DOMAIN_RE.match(shop):
+        raise HTTPException(status_code=400, detail="Invalid shop domain format")
 
 
 @dataclass
@@ -98,6 +110,7 @@ def get_shop_context(
     2. External call — Shopify session token in Authorization header (prod only).
        Falls back to env credentials for the primary tenant in dev mode.
     """
+    _assert_safe_shop(shop)
     is_internal = bool(x_leonie_shop and x_internal_secret)
 
     if is_internal:
@@ -186,6 +199,7 @@ def get_authenticated_shop(
     """
     if x_leonie_shop and x_internal_secret:
         _validate_internal_secret(x_internal_secret)
+        _assert_safe_shop(x_leonie_shop)
         return x_leonie_shop
 
     # Fall back to session token (external clients)

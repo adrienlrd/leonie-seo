@@ -11,6 +11,7 @@ import {
   InlineStack,
   Page,
   Text,
+  Tooltip,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
@@ -269,7 +270,18 @@ export default function Audit() {
         {ice.length > 0 && (
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">Priorités ICE (top 10)</Text>
+              <InlineStack gap="200" blockAlign="center">
+                <Text as="h2" variant="headingMd">Priorités ICE (top 10)</Text>
+                <Tooltip
+                  content={
+                    locale === "fr"
+                      ? "ICE = Impact × Confiance ÷ Effort. Plus le score est élevé, plus la correction est rentable. I, C, E sont notés de 1 à 10."
+                      : "ICE = Impact × Confidence ÷ Effort. The higher the score, the more cost-effective the fix. I, C, E are scored 1–10."
+                  }
+                >
+                  <Badge tone="info">?</Badge>
+                </Tooltip>
+              </InlineStack>
               <BlockStack gap="200">
                 {ice.map((row, idx) => (
                   <BlockStack key={`ice-${idx}`} gap="100">

@@ -4,6 +4,7 @@ import { Form, useActionData, useLoaderData, useNavigation, useSubmit } from "@r
 import { useEffect, useRef, useState } from "react";
 import {
   Badge,
+  Banner,
   BlockStack,
   Button,
   Card,
@@ -277,7 +278,7 @@ function Step({
           </Text>
         )}
       </BlockStack>
-      <Badge tone={done ? "success" : "warning"}>{done ? "OK" : "TODO"}</Badge>
+      <Badge tone={done ? "success" : "warning"}>{done ? "✓" : "—"}</Badge>
     </InlineStack>
   );
 }
@@ -298,9 +299,25 @@ export default function Onboarding() {
     }
   }, [actionData?.authorizationUrl]);
 
+  // Compute the next pending step so we can surface a single, clear next action.
+  const nextAction = (() => {
+    if (!status?.installed) return { label: locale === "fr" ? "Réinstaller la boutique" : "Reinstall store", target: "shopify" };
+    if (health?.status !== "ok") return { label: locale === "fr" ? "Vérifier la configuration serveur" : "Check server configuration", target: "server" };
+    if (!status.snapshot_available) return { label: locale === "fr" ? "Lancer le premier audit" : "Run first audit", target: "audit" };
+    if (!gsc?.connected) return { label: locale === "fr" ? "Connecter Google Search Console" : "Connect Google Search Console", target: "gsc" };
+    if (!pagespeed?.available) return { label: locale === "fr" ? "Lancer une analyse performance" : "Run performance analysis", target: "pagespeed" };
+    if (!crawl?.available) return { label: locale === "fr" ? "Importer un crawl technique" : "Import technical crawl", target: "crawl" };
+    return null;
+  })();
+
   return (
     <Page title={t(locale, "onboarding")} backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}>
       <BlockStack gap="400">
+        {nextAction && (
+          <Banner tone="info" title={locale === "fr" ? "Prochaine étape recommandée" : "Recommended next step"}>
+            <Text as="p">{nextAction.label}</Text>
+          </Banner>
+        )}
         <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
           <Card>
             <BlockStack gap="300">

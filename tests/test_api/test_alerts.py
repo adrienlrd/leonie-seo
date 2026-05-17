@@ -151,19 +151,15 @@ def test_gsc_ctr_alerts_helper_filters_low_ctr():
         "https://x.com/p2": {"impressions": 50, "ctr": 0.002, "position": 12.0},  # below threshold
         "https://x.com/p3": {"impressions": 200, "ctr": 0.05, "position": 3.0},  # CTR fine
     }
+    from unittest.mock import MagicMock
+
+    mock_file = MagicMock()
+    mock_file.read_text.return_value = ""
     with (
-        patch("app.impact.report._find_gsc_file", return_value=Path("/fake/gsc.csv")),
+        patch("app.impact.report._find_gsc_file", return_value=mock_file),
         patch("app.impact.report._parse_gsc_csv", return_value=fake_rows),
-        patch("pathlib.Path.read_text", return_value=""),
     ):
-        # Bypass the actual file read
-        import app.api.alerts as alerts_mod
-        from unittest.mock import MagicMock
-        mock_file = MagicMock()
-        mock_file.read_text.return_value = ""
-        with patch("app.impact.report._find_gsc_file", return_value=mock_file):
-            with patch("app.impact.report._parse_gsc_csv", return_value=fake_rows):
-                result = _gsc_ctr_alerts(SHOP)
+        result = _gsc_ctr_alerts(SHOP)
     assert any(a["url"] == "https://x.com/p1" for a in result)
     assert not any(a["url"] == "https://x.com/p2" for a in result)
     assert not any(a["url"] == "https://x.com/p3" for a in result)
