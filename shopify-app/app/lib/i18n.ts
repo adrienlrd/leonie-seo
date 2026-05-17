@@ -93,6 +93,20 @@ const FR: Dictionary = {
   contentSubtitle: "FAQ produits et briefs blog depuis vos données GSC",
   contentFaq: "FAQ produits",
   contentBriefs: "Briefs blog",
+  hreflang: "Hreflang / International",
+  hreflangSubtitle: "Configuration multimarché et balises hreflang",
+  hreflangConfig: "Configuration",
+  hreflangPreview: "Prévisualisation",
+  hreflangIssues: "Problèmes détectés",
+  hreflangSave: "Enregistrer les marchés",
+  hreflangAddMarket: "Ajouter un marché",
+  hreflangRemove: "Supprimer",
+  hreflangLocale: "Locale BCP-47",
+  hreflangPrefix: "Préfixe URL",
+  hreflangPrimary: "Marché principal",
+  hreflangNoMarkets: "Aucun marché configuré.",
+  hreflangReady: "Hreflang actif",
+  hreflangNotReady: "Hreflang inactif",
 };
 
 const EN: Dictionary = {
@@ -186,6 +200,20 @@ const EN: Dictionary = {
   contentSubtitle: "Product FAQ and blog briefs from your GSC data",
   contentFaq: "Product FAQ",
   contentBriefs: "Blog briefs",
+  hreflang: "Hreflang / International",
+  hreflangSubtitle: "Multi-market configuration and hreflang tags",
+  hreflangConfig: "Configuration",
+  hreflangPreview: "Preview",
+  hreflangIssues: "Detected issues",
+  hreflangSave: "Save markets",
+  hreflangAddMarket: "Add market",
+  hreflangRemove: "Remove",
+  hreflangLocale: "BCP-47 locale",
+  hreflangPrefix: "URL prefix",
+  hreflangPrimary: "Primary market",
+  hreflangNoMarkets: "No markets configured.",
+  hreflangReady: "Hreflang active",
+  hreflangNotReady: "Hreflang inactive",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };

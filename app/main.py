@@ -37,6 +37,8 @@ from app.api.redirects import router as redirects_router  # noqa: E402
 from app.api.rollback import router as rollback_router  # noqa: E402
 from app.api.reports import router as reports_router  # noqa: E402
 from app.api.semantics import router as semantics_router  # noqa: E402
+from app.api.content import router as content_router  # noqa: E402
+from app.api.hreflang import router as hreflang_router  # noqa: E402
 from app.api.help import router as help_router  # noqa: E402
 from app.api.shops import router as shops_router  # noqa: E402
 from app.api.suggestions import router as suggestions_router  # noqa: E402
@@ -122,6 +124,7 @@ app.include_router(redirects_router)
 app.include_router(rollback_router)
 app.include_router(reports_router)
 app.include_router(semantics_router)
+app.include_router(content_router)
 app.include_router(apply_router)
 app.include_router(suggestions_router)
 app.include_router(help_router)
@@ -138,6 +141,7 @@ app.include_router(embeddings_router)
 app.include_router(impact_router)
 app.include_router(multilingual_router)
 app.include_router(ga4_router)
+app.include_router(hreflang_router)
 app.include_router(web_graph_router)
 
 
