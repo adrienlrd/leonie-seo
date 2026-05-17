@@ -143,11 +143,14 @@ def list_properties(shop: str) -> list[dict[str, str]]:
         timeout=15.0,
     )
     if resp.status_code == 403:
+        detail = resp.text[:400]
         raise GA4OAuthError(
-            "GA4 Admin API access denied — ensure the Google account has Analytics Viewer role"
+            f"GA4 Admin API 403 — either the API is not enabled in Google Cloud Console "
+            f"(APIs & Services → Library → 'Google Analytics Admin API') or the account "
+            f"lacks Viewer role on the GA4 property. Raw: {detail}"
         )
     if resp.status_code != 200:
-        raise GA4OAuthError(f"GA4 Admin API error {resp.status_code}: {resp.text[:200]}")
+        raise GA4OAuthError(f"GA4 Admin API error {resp.status_code}: {resp.text[:400]}")
     props: list[dict[str, str]] = []
     for account in resp.json().get("accountSummaries", []):
         for prop in account.get("propertySummaries", []):
