@@ -171,7 +171,7 @@ async def handle_pagespeed_import(payload: dict, shop: str | None) -> dict:
         raise ValueError("shop is required for pagespeed_import")
 
     urls = payload.get("urls")
-    max_urls = int(payload.get("max_urls", 5))
+    max_urls = min(int(payload.get("max_urls", 3)), 5)  # hard cap — each URL = 2 × 60s timeout
     site_url = payload.get("site_url")
     api_key = get_shop_config(shop, "pagespeed_api_key") or None
     return await asyncio.to_thread(
