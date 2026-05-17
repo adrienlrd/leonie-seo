@@ -11,11 +11,32 @@
 - Phase 7 : **11/11** ✅ (terminée 2026-05-11)
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
-- Phase 10 : **17/21** 🔄 (tâches 83-99 clôturées ; prochaine tâche 100)
+- Phase 10 : **18/21** 🔄 (tâches 83-100 clôturées ; prochaines : 101-103)
 - Phase 11 : **0/10** ⏳ (Revenue-Aware SEO & Shopify-native intelligence, tâches 106-115)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 104-105)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1159/1159** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : **1169/1169** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 100 — FAQ produits et briefs blog le 2026-05-17
+
+### Objectif
+Générer des FAQ par produit avec JSON-LD Schema.org (FAQPage) et des briefs blog depuis les requêtes GSC informationnelles, avec interface Remix à deux onglets.
+
+### Livraisons
+- `app/api/content.py` — `GET /content/faq` (5 templates génériques × produits) + `GET /content/briefs` (requêtes informationnelles GSC triées par impressions)
+- `tests/test_api/test_content.py` — 10 tests : structure FAQ, JSON-LD, filtrage informationnel, tri, fallback no-GSC, liens internes
+- `shopify-app/app/routes/app.content.tsx` — tabs FAQ/Briefs, cartes dépliables, bouton copie JSON-LD
+- `shopify-app/app/lib/i18n.ts` + `app.tsx` — clés i18n FR/EN + lien NavMenu
+
+### Validation
+- `pytest tests/test_api/test_content.py` — **10/10** ✅
+- `npm run typecheck` — ✅
+- `ruff check && ruff format` — ✅
+
+### Commit
+`2fe8033` feat(content): add FAQ suggestions and blog brief generation endpoints
+
+---
 
 ## Tâche 94 — Redirections 301 supervisées le 2026-05-16
 
