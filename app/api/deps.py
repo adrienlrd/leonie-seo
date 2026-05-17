@@ -30,7 +30,22 @@ class ShopContext:
 
 
 def _auth_required() -> bool:
-    return os.getenv("LEONIE_REQUIRE_SESSION_TOKEN", "false").lower() in ("1", "true", "yes")
+    """Return True when external clients must present a Shopify session token.
+
+    Secure by default: requires explicit opt-out via LEONIE_REQUIRE_SESSION_TOKEN=false
+    for local development. Production deployments inherit the safe default.
+    """
+    return os.getenv("LEONIE_REQUIRE_SESSION_TOKEN", "true").lower() in ("1", "true", "yes")
+
+
+def _dev_tenant_fallback_allowed() -> bool:
+    """Return True when the SHOPIFY_STORE_DOMAIN env-var fallback is permitted.
+
+    Allowed only in explicit dev mode (LEONIE_REQUIRE_SESSION_TOKEN=false).
+    In production this fallback would let any request impersonate the primary
+    tenant whenever its env vars are present.
+    """
+    return not _auth_required()
 
 
 def _verify_token_matches_shop(authorization: str | None, shop: str) -> None:
@@ -106,7 +121,11 @@ def get_shop_context(
         else:
             primary_shop = os.getenv("SHOPIFY_STORE_DOMAIN", "")
             primary_token = os.getenv("SHOPIFY_ACCESS_TOKEN", "")
-            if shop == primary_shop and primary_token:
+            if (
+                _dev_tenant_fallback_allowed()
+                and shop == primary_shop
+                and primary_token
+            ):
                 token = primary_token
                 snapshot = _SNAPSHOT_DEFAULT
             else:
@@ -171,7 +190,10 @@ def get_authenticated_shop(
 
     # Fall back to session token (external clients)
     if not _auth_required():
-        # Dev mode: allow X-Leonie-Shop without internal secret
+        # Dev mode only: allow X-Leonie-Shop without internal secret, or the
+        # SHOPIFY_STORE_DOMAIN env-var fallback. Both bypass tenant isolation
+        # and MUST never be reachable in production (LEONIE_REQUIRE_SESSION_TOKEN
+        # defaults to true).
         if x_leonie_shop:
             return x_leonie_shop
         primary = os.getenv("SHOPIFY_STORE_DOMAIN", "")

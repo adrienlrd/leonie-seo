@@ -58,7 +58,16 @@ from app.oauth.webhooks import router as webhooks_router  # noqa: E402
 init_db()
 
 # Resolve required env vars at startup so a misconfigured deploy crashes early.
-_REQUIRED_ENV = ("SHOPIFY_CLIENT_ID", "SHOPIFY_CLIENT_SECRET", "SHOPIFY_SCOPES", "APP_URL")
+# INTERNAL_API_SECRET: rejects all internal calls without it (Remix dashboard fails).
+# LEONIE_MASTER_KEY: required to decrypt stored Shopify/Google tokens.
+_REQUIRED_ENV = (
+    "SHOPIFY_CLIENT_ID",
+    "SHOPIFY_CLIENT_SECRET",
+    "SHOPIFY_SCOPES",
+    "APP_URL",
+    "INTERNAL_API_SECRET",
+    "LEONIE_MASTER_KEY",
+)
 
 
 def _missing_required_env() -> list[str]:
@@ -104,8 +113,16 @@ _cors_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-Leonie-Shop",
+        "X-Internal-Secret",
+        "X-Shopify-Access-Token",
+        "X-Shopify-Shop-Domain",
+    ],
 )
 
 app.include_router(oauth_router, prefix="/shopify", tags=["oauth"])

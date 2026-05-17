@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -10,6 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from app.api.deps import ShopContext, get_shop_context
 
 router = APIRouter(prefix="/api", tags=["alerts"])
+_log = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).parents[2]
 
@@ -25,7 +27,10 @@ def _pagespeed_alerts(shop: str) -> list[dict[str, Any]]:
         from app.pagespeed.client import latest_pagespeed_status
 
         status = latest_pagespeed_status(shop)
-    except Exception:  # noqa: BLE001
+    except (OSError, ValueError, KeyError):
+        return []
+    except Exception:
+        _log.exception("Unexpected error loading pagespeed alerts for shop=%s", shop)
         return []
     if not status.get("available"):
         return []
@@ -50,7 +55,10 @@ def _crawl_404_alerts(shop: str) -> list[dict[str, Any]]:
         from app.crawl.client import latest_crawl_status
 
         status = latest_crawl_status(shop)
-    except Exception:  # noqa: BLE001
+    except (OSError, ValueError, KeyError):
+        return []
+    except Exception:
+        _log.exception("Unexpected error loading crawl alerts for shop=%s", shop)
         return []
     if not status.get("available"):
         return []
@@ -76,7 +84,10 @@ def _gsc_ctr_alerts(shop: str, *, min_impressions: int = 100, max_ctr: float = 0
         if gsc_file is None:
             return []
         rows = _parse_gsc_csv(gsc_file.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
+    except (OSError, ValueError, KeyError):
+        return []
+    except Exception:
+        _log.exception("Unexpected error loading GSC CTR alerts for shop=%s", shop)
         return []
     alerts = []
     for url, data in rows.items():
@@ -99,7 +110,10 @@ def _budget_alert(shop: str, budget_usd: float) -> list[dict[str, Any]]:
         from app.observability.metrics import check_budget
 
         result = check_budget(shop, budget_usd)
-    except Exception:  # noqa: BLE001
+    except (OSError, ValueError, KeyError):
+        return []
+    except Exception:
+        _log.exception("Unexpected error checking LLM budget for shop=%s", shop)
         return []
     if not result.get("alert"):
         return []
@@ -121,7 +135,10 @@ def _failed_jobs_alerts(shop: str, *, limit: int = 5) -> list[dict[str, Any]]:
         from app.jobs.store import list_jobs
 
         jobs = list_jobs(shop=shop, status="failed", limit=limit)
-    except Exception:  # noqa: BLE001
+    except (OSError, ValueError, KeyError):
+        return []
+    except Exception:
+        _log.exception("Unexpected error listing failed jobs for shop=%s", shop)
         return []
     return [
         {
