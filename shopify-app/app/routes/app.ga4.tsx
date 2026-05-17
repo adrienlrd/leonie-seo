@@ -1,7 +1,7 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
-import { useState } from "react";
+import { useActionData, useFetcher, useLoaderData } from "@remix-run/react";
+import { useEffect, useState } from "react";
 import {
   Badge,
   Banner,
@@ -11,20 +11,35 @@ import {
   Card,
   InlineStack,
   Page,
+  Select,
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
 
+const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface GA4Status {
+  oauth_connected: boolean;
+  oauth_configured: boolean;
+  email: string | null;
+  property_id: string | null;
+  property_name: string | null;
+  ready: boolean;
+  // legacy fields
   ga4_property_id_set: boolean;
   credentials_file_set: boolean;
-  ready: boolean;
+}
+
+interface GA4Property {
+  property_id: string;
+  property_name: string;
+  account_name: string;
 }
 
 interface FunnelSummary {
@@ -80,6 +95,7 @@ interface ImpactData {
 }
 
 interface LoaderData {
+  shop: string;
   locale: Locale;
   status: GA4Status | null;
   funnel: FunnelData | null;
@@ -87,8 +103,17 @@ interface LoaderData {
   impact: ImpactData | null;
 }
 
+interface ActionData {
+  authorization_url?: string;
+  properties?: GA4Property[];
+  saved?: boolean;
+  disconnected?: boolean;
+  error?: string;
+  intent?: string;
+}
+
 // ---------------------------------------------------------------------------
-// Loader — parallel fetches
+// Loader
 // ---------------------------------------------------------------------------
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -127,7 +152,62 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? ((await impactResp.value.json()) as ImpactData)
       : null;
 
-  return json<LoaderData>({ locale, status, funnel, funnelError, impact });
+  return json<LoaderData>({ shop, locale, status, funnel, funnelError, impact });
+};
+
+// ---------------------------------------------------------------------------
+// Action — OAuth connect / property selection / disconnect
+// ---------------------------------------------------------------------------
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+  const formData = await request.formData();
+  const intent = formData.get("intent") as string;
+
+  if (intent === "connect") {
+    const resp = await fetch(`${BACKEND}/api/shops/${shop}/ga4/authorize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: "Erreur réseau" }));
+      return json<ActionData>({ error: err.detail ?? "Connexion impossible", intent });
+    }
+    const data = (await resp.json()) as { authorization_url: string };
+    return json<ActionData>({ authorization_url: data.authorization_url, intent });
+  }
+
+  if (intent === "list_properties") {
+    const resp = await fetch(`${BACKEND}/api/shops/${shop}/ga4/properties`);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: "Erreur réseau" }));
+      return json<ActionData>({ error: err.detail ?? "Impossible de lister les propriétés", intent });
+    }
+    const data = (await resp.json()) as { properties: GA4Property[] };
+    return json<ActionData>({ properties: data.properties, intent });
+  }
+
+  if (intent === "save_property") {
+    const property_id = formData.get("property_id") as string;
+    const property_name = formData.get("property_name") as string;
+    const resp = await fetch(`${BACKEND}/api/shops/${shop}/ga4/settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ property_id, property_name }),
+    });
+    if (!resp.ok) {
+      return json<ActionData>({ error: "Sauvegarde échouée", intent });
+    }
+    return json<ActionData>({ saved: true, intent });
+  }
+
+  if (intent === "disconnect") {
+    await fetch(`${BACKEND}/api/shops/${shop}/ga4/disconnect`, { method: "DELETE" });
+    return json<ActionData>({ disconnected: true, intent });
+  }
+
+  return json<ActionData>({ error: "Action inconnue", intent });
 };
 
 // ---------------------------------------------------------------------------
@@ -135,7 +215,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ---------------------------------------------------------------------------
 
 function fmt(n: number, decimals = 0): string {
-  return n.toLocaleString("fr-FR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return n.toLocaleString("fr-FR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }
 
 function pct(n: number): string {
@@ -146,67 +229,207 @@ function KpiCard({ label, value, sub }: { label: string; value: string; sub?: st
   return (
     <Card>
       <BlockStack gap="100">
-        <Text as="p" variant="headingLg">{value}</Text>
-        <Text as="p" variant="bodySm" tone="subdued">{label}</Text>
-        {sub && <Text as="p" variant="bodySm" tone="subdued">{sub}</Text>}
+        <Text as="p" variant="headingLg">
+          {value}
+        </Text>
+        <Text as="p" variant="bodySm" tone="subdued">
+          {label}
+        </Text>
+        {sub && (
+          <Text as="p" variant="bodySm" tone="subdued">
+            {sub}
+          </Text>
+        )}
       </BlockStack>
     </Card>
   );
 }
 
-function ConfigGuide({ status }: { status: GA4Status }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Card>
-      <BlockStack gap="300">
-        <InlineStack align="space-between" blockAlign="center">
-          <Text as="h2" variant="headingMd">Configuration GA4</Text>
-          <Badge tone="warning">Non connecté</Badge>
-        </InlineStack>
-        <BlockStack gap="100">
-          {!status.ga4_property_id_set && (
-            <Text as="p" variant="bodySm" tone="critical">
-              ✗ Variable <code>GA4_PROPERTY_ID</code> manquante (ex : <code>123456789</code>)
+// ---------------------------------------------------------------------------
+// OAuth connect panel
+// ---------------------------------------------------------------------------
+
+function ConnectPanel({
+  status,
+  actionData,
+}: {
+  status: GA4Status | null;
+  actionData: ActionData | null;
+}) {
+  const fetcher = useFetcher<ActionData>();
+  const [properties, setProperties] = useState<GA4Property[]>([]);
+  const [selectedPropId, setSelectedPropId] = useState("");
+  const [selectedPropName, setSelectedPropName] = useState("");
+
+  const isConnected = status?.oauth_connected;
+  const hasProperty = Boolean(status?.property_id);
+
+  // When the authorization URL arrives, redirect the parent window to Google consent
+  useEffect(() => {
+    const url =
+      (fetcher.data as ActionData | null)?.authorization_url ??
+      actionData?.authorization_url;
+    if (url) {
+      (window.top ?? window).location.href = url;
+    }
+  }, [fetcher.data, actionData]);
+
+  // When property list arrives, update state
+  useEffect(() => {
+    const props = (fetcher.data as ActionData | null)?.properties;
+    if (props) {
+      setProperties(props);
+      if (props.length > 0) {
+        setSelectedPropId(props[0].property_id);
+        setSelectedPropName(props[0].property_name);
+      }
+    }
+  }, [fetcher.data]);
+
+  // Reload page after save/disconnect
+  useEffect(() => {
+    const data = fetcher.data as ActionData | null;
+    if (data?.saved || data?.disconnected) {
+      window.location.reload();
+    }
+  }, [fetcher.data]);
+
+  if (!isConnected) {
+    return (
+      <Card>
+        <BlockStack gap="300">
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h2" variant="headingMd">
+              Google Analytics 4
+            </Text>
+            <Badge tone="warning">Non connecté</Badge>
+          </InlineStack>
+          <Text as="p" variant="bodySm" tone="subdued">
+            Connectez votre compte Google pour accéder aux données de sessions, conversions et
+            revenu organique de vos pages.
+          </Text>
+          {actionData?.error && (
+            <Banner tone="critical">
+              <Text as="p">{actionData.error}</Text>
+            </Banner>
+          )}
+          {!status?.oauth_configured && (
+            <Banner tone="warning">
+              <Text as="p">
+                Google OAuth non configuré côté serveur (variable{" "}
+                <code>GOOGLE_OAUTH_CLIENT_CONFIG</code> manquante).
+              </Text>
+            </Banner>
+          )}
+          <fetcher.Form method="post">
+            <input type="hidden" name="intent" value="connect" />
+            <Button
+              variant="primary"
+              submit
+              loading={fetcher.state !== "idle"}
+              disabled={!status?.oauth_configured}
+            >
+              Connecter Google Analytics
+            </Button>
+          </fetcher.Form>
+        </BlockStack>
+      </Card>
+    );
+  }
+
+  // Connected, but no property selected yet
+  if (!hasProperty) {
+    const propOptions = properties.map((p) => ({
+      label: `${p.property_name} (${p.account_name}) — ID ${p.property_id}`,
+      value: p.property_id,
+    }));
+
+    return (
+      <Card>
+        <BlockStack gap="300">
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h2" variant="headingMd">
+              Google Analytics 4
+            </Text>
+            <Badge tone="info">Connecté — propriété non choisie</Badge>
+          </InlineStack>
+          {status.email && (
+            <Text as="p" variant="bodySm" tone="subdued">
+              Compte : {status.email}
             </Text>
           )}
-          {status.ga4_property_id_set && (
-            <Text as="p" variant="bodySm" tone="success">✓ GA4_PROPERTY_ID configuré</Text>
+          <Text as="p" variant="bodySm">
+            Choisissez la propriété GA4 à utiliser pour ce shop.
+          </Text>
+
+          {properties.length === 0 && (
+            <fetcher.Form method="post">
+              <input type="hidden" name="intent" value="list_properties" />
+              <Button submit loading={fetcher.state !== "idle"}>
+                Charger mes propriétés GA4
+              </Button>
+            </fetcher.Form>
           )}
-          {!status.credentials_file_set && (
-            <Text as="p" variant="bodySm" tone="critical">
-              ✗ Variable <code>GOOGLE_APPLICATION_CREDENTIALS</code> manquante (chemin vers le fichier JSON du compte de service)
-            </Text>
+
+          {properties.length > 0 && (
+            <fetcher.Form method="post">
+              <input type="hidden" name="intent" value="save_property" />
+              <BlockStack gap="200">
+                <Select
+                  label="Propriété GA4"
+                  options={propOptions}
+                  value={selectedPropId}
+                  onChange={(v) => {
+                    setSelectedPropId(v);
+                    setSelectedPropName(
+                      properties.find((p) => p.property_id === v)?.property_name ?? ""
+                    );
+                  }}
+                />
+                <input type="hidden" name="property_id" value={selectedPropId} />
+                <input type="hidden" name="property_name" value={selectedPropName} />
+                <Button variant="primary" submit loading={fetcher.state !== "idle"}>
+                  Enregistrer
+                </Button>
+              </BlockStack>
+            </fetcher.Form>
           )}
-          {status.credentials_file_set && (
-            <Text as="p" variant="bodySm" tone="success">✓ Credentials fichier configuré</Text>
+
+          {(fetcher.data as ActionData | null)?.error && (
+            <Banner tone="critical">
+              <Text as="p">{(fetcher.data as ActionData).error}</Text>
+            </Banner>
           )}
         </BlockStack>
-        <Button size="slim" variant="plain" onClick={() => setOpen((v) => !v)}>
-          {open ? "Masquer les instructions" : "Voir les instructions de configuration"}
-        </Button>
-        {open && (
-          <Box background="bg-surface-secondary" padding="300" borderRadius="200">
-            <BlockStack gap="200">
-              <Text as="p" variant="bodyMd" fontWeight="semibold">Étapes de configuration</Text>
-              <Text as="p" variant="bodySm">
-                1. Dans Google Cloud Console, créez un compte de service avec le rôle{" "}
-                <strong>Viewer</strong> sur la propriété GA4.
-              </Text>
-              <Text as="p" variant="bodySm">
-                2. Téléchargez le fichier JSON de clé du compte de service.
-              </Text>
-              <Text as="p" variant="bodySm">
-                3. Définissez les variables d'environnement dans votre fichier <code>.env</code> :
-              </Text>
-              <pre style={{ background: "#f4f6f8", padding: "8px", borderRadius: 4, fontSize: 12 }}>
-                {`GA4_PROPERTY_ID=123456789\nGOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json`}
-              </pre>
-              <Text as="p" variant="bodySm">
-                4. Redémarrez le backend. Le statut passera à « Connecté » automatiquement.
-              </Text>
-            </BlockStack>
-          </Box>
-        )}
+      </Card>
+    );
+  }
+
+  // Fully connected
+  return (
+    <Card>
+      <BlockStack gap="200">
+        <InlineStack align="space-between" blockAlign="center">
+          <Text as="h2" variant="headingMd">
+            Google Analytics 4
+          </Text>
+          <Badge tone="success">Connecté</Badge>
+        </InlineStack>
+        <Text as="p" variant="bodySm" tone="subdued">
+          {status.email && `Compte : ${status.email} — `}
+          Propriété : {status.property_name || status.property_id}
+        </Text>
+        <fetcher.Form method="post">
+          <input type="hidden" name="intent" value="disconnect" />
+          <Button
+            variant="plain"
+            tone="critical"
+            submit
+            loading={fetcher.state !== "idle"}
+          >
+            Déconnecter
+          </Button>
+        </fetcher.Form>
       </BlockStack>
     </Card>
   );
@@ -217,7 +440,8 @@ function ConfigGuide({ status }: { status: GA4Status }) {
 // ---------------------------------------------------------------------------
 
 export default function GA4Dashboard() {
-  const { locale, status, funnel, funnelError, impact } = useLoaderData<typeof loader>();
+  const { locale, status, funnel, funnelError, impact } = useLoaderData<LoaderData>();
+  const actionData = useActionData<ActionData>() ?? null;
 
   const topUrls = (funnel?.by_url ?? [])
     .sort((a, b) => b.revenue - a.revenue || b.sessions - a.sessions)
@@ -233,19 +457,8 @@ export default function GA4Dashboard() {
       backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}
     >
       <BlockStack gap="400">
-
-        {/* Status / config guide */}
-        {status && !status.ready && <ConfigGuide status={status} />}
-        {status?.ready && (
-          <Banner tone="success">
-            <Text as="p" variant="bodySm">GA4 connecté — données des 30 derniers jours.</Text>
-          </Banner>
-        )}
-        {!status && (
-          <Banner tone="warning">
-            <Text as="p">Impossible de vérifier le statut GA4.</Text>
-          </Banner>
-        )}
+        {/* OAuth connection panel */}
+        <ConnectPanel status={status} actionData={actionData} />
 
         {/* Funnel error */}
         {funnelError && status?.ready && (
@@ -262,15 +475,32 @@ export default function GA4Dashboard() {
         {funnel && (
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">Funnel organique — 30 jours</Text>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 12 }}>
+              <Text as="h2" variant="headingMd">
+                Funnel organique — 30 jours
+              </Text>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                  gap: 12,
+                }}
+              >
                 <KpiCard label="Impressions" value={fmt(funnel.summary.total_impressions)} />
                 <KpiCard label="Clics" value={fmt(funnel.summary.total_clicks)} />
-                <KpiCard label="Sessions" value={fmt(funnel.summary.total_sessions)}
-                  sub={`Taux : ${pct(funnel.summary.overall_session_rate)}`} />
-                <KpiCard label="Conversions" value={fmt(funnel.summary.total_conversions)}
-                  sub={`Taux : ${pct(funnel.summary.overall_conversion_rate)}`} />
-                <KpiCard label="Revenu organique" value={`${fmt(funnel.summary.total_revenue, 2)} €`} />
+                <KpiCard
+                  label="Sessions"
+                  value={fmt(funnel.summary.total_sessions)}
+                  sub={`Taux : ${pct(funnel.summary.overall_session_rate)}`}
+                />
+                <KpiCard
+                  label="Conversions"
+                  value={fmt(funnel.summary.total_conversions)}
+                  sub={`Taux : ${pct(funnel.summary.overall_conversion_rate)}`}
+                />
+                <KpiCard
+                  label="Revenu organique"
+                  value={`${fmt(funnel.summary.total_revenue, 2)} €`}
+                />
                 <KpiCard label="Position moy." value={String(funnel.summary.avg_position)} />
               </div>
             </BlockStack>
@@ -281,7 +511,9 @@ export default function GA4Dashboard() {
         {topUrls.length > 0 && (
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">Top URLs par revenu organique</Text>
+              <Text as="h2" variant="headingMd">
+                Top URLs par revenu organique
+              </Text>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
@@ -298,21 +530,55 @@ export default function GA4Dashboard() {
                   <tbody>
                     {topUrls.map((row) => (
                       <tr key={row.url} style={{ borderBottom: "1px solid #f1f2f3" }}>
-                        <td style={{ padding: "8px 12px", maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          <Text as="span" variant="bodySm">{row.path}</Text>
+                        <td
+                          style={{
+                            padding: "8px 12px",
+                            maxWidth: 260,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <Text as="span" variant="bodySm">
+                            {row.path}
+                          </Text>
                         </td>
-                        <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(row.impressions)}</td>
-                        <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(row.clicks)}</td>
                         <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                          {row.has_ga4_data ? fmt(row.sessions) : <Text as="span" tone="subdued">—</Text>}
+                          {fmt(row.impressions)}
                         </td>
                         <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                          {row.has_ga4_data ? fmt(row.conversions) : <Text as="span" tone="subdued">—</Text>}
+                          {fmt(row.clicks)}
                         </td>
                         <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                          {row.has_ga4_data ? `${fmt(row.revenue, 2)} €` : <Text as="span" tone="subdued">—</Text>}
+                          {row.has_ga4_data ? (
+                            fmt(row.sessions)
+                          ) : (
+                            <Text as="span" tone="subdued">
+                              —
+                            </Text>
+                          )}
                         </td>
-                        <td style={{ padding: "8px 12px", textAlign: "right" }}>{row.position.toFixed(1)}</td>
+                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                          {row.has_ga4_data ? (
+                            fmt(row.conversions)
+                          ) : (
+                            <Text as="span" tone="subdued">
+                              —
+                            </Text>
+                          )}
+                        </td>
+                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                          {row.has_ga4_data ? (
+                            `${fmt(row.revenue, 2)} €`
+                          ) : (
+                            <Text as="span" tone="subdued">
+                              —
+                            </Text>
+                          )}
+                        </td>
+                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                          {row.position.toFixed(1)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -326,10 +592,13 @@ export default function GA4Dashboard() {
         {topImpact.length > 0 && (
           <Card>
             <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">ROI estimé par URL modifiée</Text>
+              <Text as="h2" variant="headingMd">
+                ROI estimé par URL modifiée
+              </Text>
               <Text as="p" variant="bodySm" tone="subdued">
-                Estimation basée sur le gain de position supposé (+2 pos.) appliqué aux impressions GSC.
-                {!impact?.meta.gsc_data_available && " GSC non disponible — estimations non affichées."}
+                Estimation basée sur le gain de position (+2 pos.) appliqué aux impressions GSC.
+                {!impact?.meta.gsc_data_available &&
+                  " GSC non disponible — estimations non affichées."}
               </Text>
               {impact?.meta.gsc_data_available && (
                 <div style={{ overflowX: "auto" }}>
@@ -348,13 +617,25 @@ export default function GA4Dashboard() {
                       {topImpact.map((row, i) => (
                         <tr key={i} style={{ borderBottom: "1px solid #f1f2f3" }}>
                           <td style={{ padding: "8px 12px" }}>
-                            <Text as="span" variant="bodySm" fontWeight="semibold">{row.title}</Text>
+                            <Text as="span" variant="bodySm" fontWeight="semibold">
+                              {row.title}
+                            </Text>
                           </td>
-                          <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(row.impressions)}</td>
-                          <td style={{ padding: "8px 12px", textAlign: "right" }}>{row.position_before.toFixed(1)}</td>
-                          <td style={{ padding: "8px 12px", textAlign: "right" }}>{row.position_after.toFixed(1)}</td>
-                          <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(row.clicks_gained, 1)}</td>
-                          <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(row.revenue_estimate, 2)} €</td>
+                          <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                            {fmt(row.impressions)}
+                          </td>
+                          <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                            {row.position_before.toFixed(1)}
+                          </td>
+                          <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                            {row.position_after.toFixed(1)}
+                          </td>
+                          <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                            {fmt(row.clicks_gained, 1)}
+                          </td>
+                          <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                            {fmt(row.revenue_estimate, 2)} €
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -363,12 +644,20 @@ export default function GA4Dashboard() {
               )}
               <InlineStack gap="600">
                 <BlockStack gap="050">
-                  <Text as="p" variant="headingMd">{fmt(impact?.total_clicks_gained ?? 0, 1)}</Text>
-                  <Text as="p" variant="bodySm" tone="subdued">Clics estimés gagnés</Text>
+                  <Text as="p" variant="headingMd">
+                    {fmt(impact?.total_clicks_gained ?? 0, 1)}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Clics estimés gagnés
+                  </Text>
                 </BlockStack>
                 <BlockStack gap="050">
-                  <Text as="p" variant="headingMd">{fmt(impact?.total_revenue_estimate ?? 0, 2)} €</Text>
-                  <Text as="p" variant="bodySm" tone="subdued">Revenu estimé total</Text>
+                  <Text as="p" variant="headingMd">
+                    {fmt(impact?.total_revenue_estimate ?? 0, 2)} €
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Revenu estimé total
+                  </Text>
                 </BlockStack>
               </InlineStack>
             </BlockStack>
