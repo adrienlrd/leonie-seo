@@ -67,6 +67,8 @@ services:
         sync: false
       - key: GOOGLE_OAUTH_REDIRECT_URI
         value: https://leonie-seo-pilot-api.onrender.com/api/google/gsc/callback
+      - key: GOOGLE_GA4_REDIRECT_URI
+        value: https://leonie-seo-pilot-api.onrender.com/api/google/ga4/callback
       - key: GOOGLE_OAUTH_STATE_SECRET
         sync: false
       - key: OPENAI_API_KEY
