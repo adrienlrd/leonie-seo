@@ -100,6 +100,9 @@ async def ga4_callback(
     state: Annotated[str, Query()],
 ) -> str:
     """Handle the Google OAuth callback, store credentials, and confirm to the user."""
+    import logging  # noqa: PLC0415
+
+    log = logging.getLogger(__name__)
     try:
         shop = verify_state(state)
         code_verifier = get_shop_config(shop, _PKCE_CONFIG_KEY)
@@ -109,6 +112,22 @@ async def ga4_callback(
             delete_shop_config(shop, _PKCE_CONFIG_KEY)
     except (GoogleOAuthStateError, GA4OAuthError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        log.exception("GA4 OAuth callback failed")
+        return HTMLResponse(
+            content=f"""
+            <!doctype html>
+            <html lang="fr">
+              <head><meta charset="utf-8"><title>Erreur GA4</title></head>
+              <body style="font-family:sans-serif;padding:2rem;max-width:600px;margin:auto">
+                <h1>Erreur lors de la connexion GA4</h1>
+                <pre style="background:#fee;padding:1rem;border-radius:4px;overflow:auto">{exc.__class__.__name__}: {exc}</pre>
+                <p>Fermez cet onglet et réessayez depuis Léonie SEO.</p>
+              </body>
+            </html>
+            """,
+            status_code=500,
+        )
     return """
     <!doctype html>
     <html lang="fr">
