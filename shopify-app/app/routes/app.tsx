@@ -36,6 +36,7 @@ export default function App() {
         <a href={localizedPath("/app/redirects", locale)}>{t(locale, "redirects")}</a>
         <a href={localizedPath("/app/jsonld", locale)}>{t(locale, "jsonld")}</a>
         <a href={localizedPath("/app/rollback", locale)}>{t(locale, "rollback")}</a>
+        <a href={localizedPath("/app/reports", locale)}>{t(locale, "reports")}</a>
         <a href={localizedPath("/app/review", locale)}>{t(locale, "review")}</a>
         <a href={localizedPath("/app/niche", locale)}>{t(locale, "niche")}</a>
         <a href={localizedPath("/app/onboarding", locale)}>
