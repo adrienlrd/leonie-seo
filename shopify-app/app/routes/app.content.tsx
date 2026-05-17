@@ -19,10 +19,9 @@ import {
   EmptyState,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import { callBackendForShop } from "../lib/api.server";
 import { getLocale, t, type Locale } from "../lib/i18n";
 import { useState, useCallback } from "react";
-
-const BACKEND = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 interface FaqEntry {
   q: string;
@@ -81,9 +80,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = session.shop;
   const locale = getLocale(request);
 
+  const be = (path: string) =>
+    callBackendForShop(shop, path, { accessToken: session.accessToken });
+
   const [faqResult, briefsResult] = await Promise.allSettled([
-    fetch(`${BACKEND}/api/shops/${shop}/content/faq`).then((r) => r.json()),
-    fetch(`${BACKEND}/api/shops/${shop}/content/briefs`).then((r) => r.json()),
+    be(`/api/shops/${shop}/content/faq`).then((r) => r.json()),
+    be(`/api/shops/${shop}/content/briefs`).then((r) => r.json()),
   ]);
 
   return json<LoaderData>({
