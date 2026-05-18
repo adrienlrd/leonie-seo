@@ -16,6 +16,70 @@ export default function ContentHub() {
 
   const items: HubItem[] = [
     {
+      titleKey: "geoWeekly",
+      href: "/app/geo-weekly",
+      description:
+        locale === "fr"
+          ? "Les 3 actions GEO les plus utiles à traiter cette semaine."
+          : "The 3 most useful GEO actions to handle this week.",
+    },
+    {
+      titleKey: "geoLedger",
+      href: "/app/geo-ledger",
+      description:
+        locale === "fr"
+          ? "Historique des optimisations GEO, snapshots avant/après et impact estimé vs observé."
+          : "GEO optimization history, before/after snapshots, and estimated vs observed impact.",
+    },
+    {
+      titleKey: "geoRiskGuard",
+      href: "/app/geo-risk-guard",
+      description:
+        locale === "fr"
+          ? "Protège les pages déjà performantes ou business-critiques avant optimisation."
+          : "Protects already performing or business-critical pages before optimization.",
+    },
+    {
+      titleKey: "geoCollections",
+      href: "/app/geo-collections",
+      description:
+        locale === "fr"
+          ? "Propose des collections Shopify adaptées aux intentions conversationnelles, en dry-run."
+          : "Suggests Shopify collections for conversational intents, in dry-run.",
+    },
+    {
+      titleKey: "geoAnswerBlocks",
+      href: "/app/geo-answer-blocks",
+      description:
+        locale === "fr"
+          ? "Génère des FAQ et réponses IA uniquement depuis les faits produits confirmés."
+          : "Generates FAQ and AI answers only from confirmed product facts.",
+    },
+    {
+      titleKey: "geoFacts",
+      href: "/app/geo-facts",
+      description:
+        locale === "fr"
+          ? "Faits produits confirmés, manques à vérifier et score de complétude GEO."
+          : "Confirmed product facts, verification gaps, and GEO completeness score.",
+    },
+    {
+      titleKey: "geoReadiness",
+      href: "/app/geo-readiness",
+      description:
+        locale === "fr"
+          ? "Score GEO par produit : faits, schema, réponses IA, confiance, SEO et signaux commerce."
+          : "Product GEO score across facts, schema, AI answers, trust, SEO, and commerce signals.",
+    },
+    {
+      titleKey: "geoPriorities",
+      href: "/app/geo-priorities",
+      description:
+        locale === "fr"
+          ? "Classe les actions GEO selon le potentiel business, le trafic, le stock et l'effort."
+          : "Ranks GEO actions by business upside, traffic, stock, and effort.",
+    },
+    {
       titleKey: "content",
       href: "/app/content",
       description:

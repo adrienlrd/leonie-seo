@@ -317,56 +317,199 @@
 
 ---
 
-## PHASE 11 — Différenciation marché : Revenue-Aware SEO & Shopify-native intelligence
-*Objectif : transformer Léonie SEO d’une app SEO généraliste en assistant SEO business-native pour Shopify : priorisation par revenu potentiel, marge, stock, risque, saisonnalité et preuve d’impact.*
+## PHASE 11 — Différenciation GEO : AI Search Readiness & Revenue-Aware Shopify Intelligence
+*Objectif : transformer Léonie SEO en assistant GEO Shopify-native capable d'identifier quelles pages, produits et collections sont les plus importants à optimiser pour Google, ChatGPT, Perplexity, Gemini et les moteurs IA, en priorisant selon la complétude factuelle, le potentiel business, le risque SEO, le stock, la marge et la preuve d'impact.*
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
-| 106 | Revenue-Aware SEO Prioritization — croiser GSC, GA4 et Shopify pour prioriser les actions par trafic potentiel, conversion, revenu, marge, stock, risque et effort ; afficher pages/actions, gain estimé, effort, risque, raison lisible et niveau de confiance | 🔴 | ⏳ | |
-| 107 | SEO Risk Guard — identifier les pages déjà performantes ou stables, les marquer “À ne pas toucher” / “Modification risquée”, bloquer les écritures automatiques sauf confirmation forte et propager la protection aux workflows meta, contenu, JSON-LD, maillage et redirects | 🟡 | ⏳ | |
-| 108 | SEO Impact Ledger — historiser chaque action avec snapshot avant/après, source, utilisateur, job ID, page, métriques GSC/GA4 avant puis après 7/30/60 jours, relier le journal au rollback et afficher impact estimé vs observé | 🔴 | ⏳ | |
-| 109 | Smart Collection Builder — détecter les opportunités de collections SEO via catalogue, tags, types produits, requêtes GSC, signaux niche et stock ; proposer nom, handle, H1, metas, description, produits, liens internes et dry-run avant création | 🔴 | ⏳ | |
-| 110 | SEO Experiment Tracking — suivre les actions comme expériences contrôlées avec cohortes pages modifiées / pages similaires non modifiées, période avant/après et résultats GSC/GA4/revenu à 7/30/60 jours avec conclusion positive, neutre, négative ou inconclusive | 🔴 | ⏳ | |
-| 111 | Weekly SEO Action Assistant — agréger GSC, score revenue-aware, risque, PageSpeed, crawl, stock, saisonnalité et ledger pour afficher seulement 3 actions SEO prioritaires par semaine avec gain potentiel, effort, risque et preview | 🟡 | ⏳ | |
-| 112 | Competitor SERP Monitor — suivre les concurrents visibles sur les requêtes GSC prioritaires, comparer type de page, contenu, prix visible, avis, FAQ, schema, longueur et angle SEO, puis recommander collection, contenu, FAQ, maillage ou enrichissement produit | 🔴 | ⏳ | |
-| 113 | AI Product Facts Layer — structurer les faits produit Shopify utiles aux metas, descriptions, FAQ, JSON-LD, snippets et AI Search ; détecter faits confirmés/manquants, proposer enrichissements vérifiables et afficher un score de complétude factuelle | 🔴 | ⏳ | |
-| 114 | Product Lifecycle SEO — gérer le SEO des produits en rupture, supprimés, non publiés, saisonniers, remplacés ou avec variantes épuisées ; recommander conserver, rediriger, ajouter alternatives, modifier contenu ou préparer relance saisonnière | 🔴 | ⏳ | |
-| 115 | Indexation & Page Pruning Advisor — détecter collections vides, tags faibles, filtres, résultats de recherche, pages orphelines, duplicats, pages sans impressions, cannibalisation et anciennes pages produit ; recommander conserver, noindex, canonical, redirect, enrichir ou supprimer | 🔴 | ⏳ | |
+| 106 | GEO Product Facts Layer — structurer les faits produits fiables utiles aux IA, JSON-LD, FAQ, descriptions, snippets et recommandations ; détecter faits confirmés/manquants, suggestions à vérifier et score de complétude factuelle | 🔴 | ✅ | 2026-05-18 |
+| 107 | AI Search Readiness Score — calculer un score GEO par produit, collection et boutique à partir des faits produits, schema, FAQ, requêtes conversationnelles, preuves de confiance, maillage, stock, performance et crawlabilité | 🔴 | ✅ | 2026-05-18 |
+| 108 | Revenue-Aware GEO Prioritization — croiser GSC, GA4, Shopify, stock, marge, conversion, panier moyen, score GEO, risque et effort pour prioriser les actions les plus utiles business et AI Search | 🔴 | ✅ | 2026-05-18 |
+| 109 | Weekly GEO Action Assistant — agréger score GEO, priorisation revenue-aware, GSC, GA4, PageSpeed, crawl, stock, saisonnalité et ledger pour afficher seulement 3 actions GEO prioritaires par semaine avec gain potentiel, effort, risque et preview | 🟡 | ✅ | 2026-05-18 |
+| 110 | GEO Impact Ledger — historiser chaque optimisation GEO avec snapshot avant/après, faits ajoutés, FAQ, JSON-LD, requêtes conversationnelles ciblées, source, utilisateur, job ID, métriques GSC/GA4 avant puis après 7/30/60 jours et impact estimé vs observé | 🔴 | ✅ | 2026-05-18 |
+| 111 | GEO Risk Guard — protéger les pages SEO ou business déjà performantes, éviter les sur-optimisations IA, bloquer les écritures automatiques sauf confirmation forte et propager la protection aux workflows contenu, FAQ, JSON-LD, maillage, collections et redirects | 🟡 | ✅ | 2026-05-18 |
+| 112 | AI Search Collection Builder — détecter les opportunités de collections Shopify adaptées aux intentions conversationnelles via catalogue, tags, types produits, requêtes GSC, signaux niche, embeddings et stock ; proposer nom, handle, H1, metas, description, FAQ, produits et dry-run avant création | 🔴 | ✅ | 2026-05-18 |
+| 113 | FAQ & Answer Block Generator — générer des FAQ et blocs de réponses orientés moteurs IA à partir des faits produits confirmés, avec review humaine, séparation fait confirmé / suggestion à vérifier et option d'application future sur pages produits, collections ou blogs Shopify | 🟡 | ✅ | 2026-05-18 |
+| 114 | llms.txt & AI Crawlability Advisor — préparer un fichier de guidage IA listant les pages, collections, politiques et contenus clés de la boutique, recommander les pages à inclure/exclure et auditer la lisibilité IA sans promettre de ranking ou citation garantie | 🟡 | ⏳ | |
+| 115 | AI Answer Competitor Monitor — comparer les concurrents visibles sur les requêtes conversationnelles prioritaires, d'abord via SERP ou import manuel, puis analyser contenus, prix, avis, FAQ, schema, preuves, angle IA et recommander collection, enrichissement produit, FAQ ou maillage sans copier | 🔴 | ⏳ | |
 
 ### Détail des objectifs Phase 11
 
-- **106 Revenue-Aware SEO Prioritization** : donne au marchand une liste d'actions classées par impact business probable au lieu d'un simple score SEO. À créer en croisant GSC, GA4, Shopify, stock, statut produit, variantes, panier moyen et marge si disponible. Output : tableau pages/actions, gain estimé, effort, risque, raison lisible et confiance faible/moyenne/forte. Garde-fous : fallback GSC + Shopify + panier moyen global si GA4 ou marge manque, et aucune estimation présentée comme une promesse.
+1. **106 GEO Product Facts Layer**
+   - Créer une base de faits produits fiable pour nourrir le GEO sans hallucination.
+   - Extraire depuis Shopify : matières, dimensions, poids, compatibilités, usages, entretien, origine, garanties, livraison, retours, certifications, bénéfices, limites, type d'animal, taille recommandée et problème résolu.
+   - Output attendu : fiche faits produit, faits confirmés, faits manquants, suggestions à vérifier, score de complétude et recommandations.
+   - Garde-fous : ne jamais inventer origine, matière, certification, garantie ou preuve ; séparer explicitement fait confirmé / suggestion marchande à valider.
 
-- **107 SEO Risk Guard** : évite que l'app abîme une page qui gagne déjà du trafic ou du revenu. À créer avec détection top 3, CTR supérieur à la moyenne, revenus organiques élevés, conversion élevée et stabilité 30/60/90 jours. Output : pages protégées, raison, niveau de risque et recommandation. Garde-fous : blocage des modifications automatiques et confirmation forte avant écriture Shopify dans les workflows sensibles.
+2. **107 AI Search Readiness Score**
+   - Créer un score boutique / collection / produit.
+   - Composants : faits produits complets, JSON-LD, FAQ conversationnelle, alignement requêtes longues, preuves de confiance, maillage interne, stock, performance et crawlabilité.
+   - Output attendu : score 0-100, sous-scores, raisons lisibles et actions d'amélioration.
+   - Garde-fous : présenter le score comme une readiness interne, pas comme une garantie de visibilité dans ChatGPT, Perplexity, Gemini ou Google AI Overviews.
 
-- **108 SEO Impact Ledger** : transforme l'app en système de preuve, pas seulement en outil d'exécution. À créer en enregistrant état avant/après, utilisateur, job ID, source de recommandation, métriques GSC/GA4 et mesures après 7/30/60 jours. Output : journal chronologique, impact estimé vs observé et rollback si possible. Garde-fous : snapshot obligatoire, distinction corrélation/causalité et état “impact non encore mesurable”.
+3. **108 Revenue-Aware GEO Prioritization**
+   - Classer les actions GEO par impact business probable.
+   - Croiser GSC, GA4, Shopify, stock, statut produit, variantes, panier moyen, marge si disponible, score GEO, risque et effort.
+   - Output attendu : tableau pages/actions, gain estimé, effort, risque, raison lisible et confiance faible/moyenne/forte.
+   - Garde-fous : fallback GSC + Shopify + panier moyen global si GA4 ou marge manque, et aucune estimation présentée comme une promesse.
 
-- **109 Smart Collection Builder** : propose des collections Shopify à partir d'une vraie demande de recherche et du catalogue disponible. À créer avec catalogue, tags, types produits, requêtes GSC, signaux niche et stock. Output : cartes de collections suggérées avec preview nom, handle, H1, metas, description, produits, liens internes et estimation d'opportunité. Garde-fous : éviter collections trop pauvres, cannibales ou déjà existantes, et ne jamais publier sans validation.
+4. **109 Weekly GEO Action Assistant**
+   - Réduire la complexité à 3 décisions GEO actionnables par semaine.
+   - Agréger score GEO, priorisation revenue-aware, opportunités GSC, Risk Guard, PageSpeed, crawl, stock, saisonnalité et ledger.
+   - Output attendu : carte dashboard avec 3 actions, gain potentiel, effort, risque, preview et raison simple.
+   - Garde-fous : ne pas répéter des recommandations faibles, masquer l'incertain et privilégier l'impact business au volume d'erreurs.
 
-- **110 SEO Experiment Tracking** : mesure les changements SEO comme des expériences observées, ce qui rend les gains plus crédibles. À créer avec cohortes pages modifiées / non modifiées, périodes avant/après et suivi impressions, clics, CTR, position, sessions organiques, conversions et revenu. Output : vue expérience, comparaison et conclusion simple. Garde-fous : signaler saisonnalité, updates Google, faible volume et ne pas présenter cela comme un A/B test parfait.
+5. **110 GEO Impact Ledger**
+   - Transformer l'app en système de preuve pour les optimisations GEO.
+   - Enregistrer état avant/après, faits produits ajoutés, FAQ, schema JSON-LD, requêtes conversationnelles ciblées, utilisateur, job ID, source de recommandation, métriques GSC/GA4 et mesures après 7/30/60 jours.
+   - Output attendu : journal chronologique, impact estimé vs observé, statut positif/neutre/négatif/inconclusif et rollback si possible.
+   - Garde-fous : snapshot obligatoire, distinction corrélation/causalité et état “impact non encore mesurable”.
 
-- **111 Weekly SEO Action Assistant** : réduit la complexité en 3 décisions actionnables par semaine. À créer en agrégeant opportunités GSC, score revenue-aware, Risk Guard, PageSpeed, crawl, stock, saisonnalité et ledger. Output : carte dashboard avec 3 actions, gain potentiel, effort, risque et preview. Garde-fous : ne pas répéter des recommandations faibles, masquer l'incertain et privilégier l'impact business au volume d'erreurs.
+6. **111 GEO Risk Guard**
+   - Éviter qu'une optimisation GEO abîme une page qui performe déjà en SEO ou en revenu.
+   - Détecter top trafic, CTR supérieur à la moyenne, revenus organiques élevés, conversion élevée, stabilité 30/60/90 jours et pages déjà suffisamment claires pour l'IA.
+   - Output attendu : pages protégées, raison, niveau de risque et recommandation.
+   - Garde-fous : blocage des modifications automatiques, confirmation forte avant écriture Shopify et protection appliquée aux workflows contenu, FAQ, JSON-LD, maillage, collections et redirects.
 
-- **112 Competitor SERP Monitor** : montre pourquoi un concurrent gagne une requête importante et quoi faire sans copier. À créer avec suivi limité des requêtes GSC prioritaires, récupération ou import des concurrents SERP, classification des pages et comparaison contenu/prix/avis/FAQ/schema/angle. Output : tableau par requête, concurrents qui montent, raison probable et action recommandée. Garde-fous : plafonner les requêtes, éviter le scraping agressif, proposer un import CSV au départ et interdire la copie de contenu.
+7. **112 AI Search Collection Builder**
+   - Proposer des collections Shopify pensées pour les intentions conversationnelles, pas seulement pour les mots-clés courts.
+   - Utiliser catalogue, tags, types produits, requêtes GSC, signaux niche, embeddings produit/requête et stock.
+   - Output attendu : cartes de collections suggérées avec preview nom, handle, H1, metas, description, FAQ, produits inclus, liens internes et estimation d'opportunité.
+   - Garde-fous : éviter collections trop pauvres, cannibales ou déjà existantes, et ne jamais publier sans validation.
 
-- **113 AI Product Facts Layer** : crée une base de faits fiables pour enrichir les pages sans hallucination. À créer en extrayant matière, dimensions, compatibilité, origine, usage, entretien, poids, garanties, livraison, retours, preuves de confiance et certifications depuis Shopify. Output : fiche faits produit, faits détectés, faits manquants, recommandations et score de complétude. Garde-fous : ne jamais inventer origine, matière, certification ou garantie, et séparer fait confirmé / suggestion à vérifier.
+8. **113 FAQ & Answer Block Generator**
+   - Transformer les faits produits en réponses exploitables par les moteurs IA et compréhensibles par les clients.
+   - Générer des questions/réponses sur usage, taille, matière, compatibilité, entretien, différence avec alternatives, livraison, retours et garanties.
+   - Output attendu : FAQ par produit/collection, blocs de réponse courts, sources factuelles utilisées, preview et review humaine.
+   - Garde-fous : ne pas inventer de faits, ne pas surcharger les pages et permettre l'export sans écriture Shopify.
 
-- **114 Product Lifecycle SEO** : protège le trafic SEO quand un produit change de statut commercial. À créer en détectant ruptures avec trafic, produits supprimés ou non publiés, variantes épuisées, produits saisonniers, remplacements et collections saisonnières. Output : dashboard cycle de vie, alertes de risque, recommandations par cas et preview des redirections ou modifications. Garde-fous : ne pas rediriger automatiquement une page qui reçoit encore du trafic qualifié, demander confirmation forte et intégrer rollback.
+9. **114 llms.txt & AI Crawlability Advisor**
+   - Préparer une couche de guidage IA sans vendre de promesse irréaliste.
+   - Lister les pages, collections, politiques, guides et contenus clés à rendre facilement découvrables par les moteurs IA.
+   - Ajouter recommandations d'inclusion/exclusion et audit de lisibilité.
+   - Output attendu : preview `llms.txt`, pages incluses/exclues, raisons et alertes de pages faibles.
+   - Garde-fous : présenter `llms.txt` comme un fichier de guidage émergent, pas comme un standard garanti ni un levier de ranking prouvé.
 
-- **115 Indexation & Page Pruning Advisor** : aide à nettoyer les pages faibles sans détruire des actifs SEO. À créer en détectant collections vides, tags faibles, filtres, recherche interne, pages orphelines, duplicats, pages sans impressions, cannibalisation et anciennes pages produit. Output : tableau pages à nettoyer, raison, action recommandée, risque et preview technique. Garde-fous : aucun noindex/redirect automatique, validation explicite, protection des pages avec trafic, backlinks ou revenu et intégration du SEO Risk Guard.
+10. **115 AI Answer Competitor Monitor**
+   - Comprendre pourquoi des concurrents sont plus recommandables ou visibles sur des requêtes prioritaires.
+   - Utiliser suivi limité des requêtes GSC/conversationnelles prioritaires, import manuel ou SERP au départ, classification des pages et comparaison contenu/prix/avis/FAQ/schema/preuves/angle IA.
+   - Output attendu : tableau par requête, concurrents visibles, raisons probables et action recommandée.
+   - Garde-fous : plafonner les requêtes, éviter le scraping agressif, proposer un import CSV au départ et interdire la copie de contenu.
 
 ### Priorité produit recommandée
 
-1. **106 Revenue-Aware SEO Prioritization** — C'est le cœur différenciant. Sans ça, l'app reste une app SEO classique.
-2. **108 SEO Impact Ledger** — Permet de prouver la valeur et prépare le rollback avancé.
-3. **107 SEO Risk Guard** — Donne confiance et évite de casser les pages performantes.
-4. **111 Weekly SEO Action Assistant** — Transforme toute la complexité en 3 actions simples.
-5. **109 Smart Collection Builder** — Très Shopify-native et potentiellement très vendeur.
-6. **114 Product Lifecycle SEO** — Très pertinent pour les marchands avec stock, ruptures et produits supprimés.
-7. **115 Indexation & Page Pruning Advisor** — Utile mais dangereux, donc à faire après les garde-fous.
-8. **110 SEO Experiment Tracking** — Important pour prouver l'impact, mais dépend du ledger et des données GA4/GSC.
-9. **113 AI Product Facts Layer** — Très utile pour enrichir les pages, mais doit rester strict pour éviter les hallucinations.
-10. **112 Competitor SERP Monitor** — Différenciant mais coûteux. À garder après validation marché ou avec import manuel au départ.
+1. **106 GEO Product Facts Layer** — Socle indispensable : sans faits fiables, le GEO risque de générer du contenu vague ou halluciné.
+2. **107 AI Search Readiness Score** — Rend le positionnement GEO visible et compréhensible dans l'UI.
+3. **108 Revenue-Aware GEO Prioritization** — Connecte le GEO au business Shopify : revenu, stock, marge, conversion et risque.
+4. **109 Weekly GEO Action Assistant** — Transforme la complexité en 3 actions simples par semaine pour marchands non techniques.
+5. **110 GEO Impact Ledger** — Prouve l'impact, prépare le rollback et évite les promesses impossibles à démontrer.
+6. **111 GEO Risk Guard** — Protège les pages performantes contre les optimisations IA excessives.
+7. **112 AI Search Collection Builder** — Très Shopify-native et différenciant pour capter les intentions conversationnelles.
+8. **113 FAQ & Answer Block Generator** — Génère des contenus très utiles aux moteurs IA, mais dépend de la qualité du Facts Layer.
+9. **114 llms.txt & AI Crawlability Advisor** — Signal GEO intéressant, à présenter prudemment comme guidage IA.
+10. **115 AI Answer Competitor Monitor** — Différenciant mais coûteux ; à garder après validation marché ou avec import manuel au départ.
+
+---
+
+## PHASE 11.5 — GEO Impact Validation & Retention Loop
+*Objectif : mesurer l'impact réel des optimisations GEO/SEO appliquées, suivre la progression dans le temps, comparer les pages modifiées à des pages témoins et afficher une courbe de progression claire pour prouver la valeur de l'app au marchand pendant la période de validation.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 116 | Optimization Snapshot — enregistrer l'état avant chaque modification : score GEO/SEO, contenu, facts, FAQ, JSON-LD, GSC, GA4, Shopify, stock, prix et statut produit | 🔴 | ⏳ | |
+| 117 | Optimization Event Tracking — créer un événement traçable pour chaque action appliquée avec page, type d'action, date, utilisateur, job ID, score avant/après, hypothèse et statut | 🟡 | ⏳ | |
+| 118 | Control Group Builder — sélectionner des pages témoins similaires non modifiées pour comparer l'évolution des pages optimisées à une baseline crédible | 🔴 | ⏳ | |
+| 119 | Validation Timeline J+7/J+30/J+60/J+90 — planifier automatiquement les fenêtres de mesure et afficher au marchand quand les premiers signaux et conclusions seront disponibles | 🟡 | ⏳ | |
+| 120 | Progress Curve Dashboard — afficher les courbes score GEO, impressions, clics, CTR, position, sessions organiques, conversions, revenu et impact estimé vs observé | 🔴 | ⏳ | |
+| 121 | Impact Confidence Score — calculer un score de confiance de l'impact selon durée, volume, groupe contrôle, stabilité stock/prix et cohérence GSC/GA4 | 🔴 | ⏳ | |
+| 122 | Before/After Impact Report — générer un rapport lisible par page/action avec score avant/après, métriques GSC/GA4, verdict et recommandations suivantes | 🟡 | ⏳ | |
+| 123 | Retention Milestones — afficher des jalons d'abonnement J+7, J+30, J+60, J+90 pour montrer pourquoi l'app doit rester active pendant la validation | 🟡 | ⏳ | |
+| 124 | Win/Neutral/Risk Detection — classer automatiquement chaque optimisation en impact positif probable, neutre, négatif possible ou inconclusif | 🟡 | ⏳ | |
+| 125 | Next Best Action Loop — transformer les résultats validés en nouvelles recommandations : répliquer, ajuster, attendre ou rollback | 🔴 | ⏳ | |
+
+### Détail des objectifs Phase 11.5
+
+1. **116 Optimization Snapshot**
+   - Enregistrer l’état exact avant chaque modification.
+   - Capturer score GEO avant, score SEO avant, contenu avant, facts produits avant, FAQ avant, JSON-LD avant, métriques GSC, métriques GA4, stock, prix, statut produit et contexte saisonnier.
+   - Output attendu : snapshot horodaté par page/action, exploitable pour comparaison, rollback et preuve d’impact.
+   - Garde-fous : aucun impact ne doit être calculé sans snapshot initial.
+
+2. **117 Optimization Event Tracking**
+   - Créer un événement traçable pour chaque optimisation appliquée.
+   - Stocker page, action, type d’action, date, utilisateur, job ID, score avant/après, hypothèse d’impact, statut, source de recommandation et éventuel rollback.
+   - Output attendu : journal d’événements d’optimisation relié aux jobs et aux pages.
+   - Garde-fous : distinguer recommandation, preview, dry-run, application réelle et rollback.
+
+3. **118 Control Group Builder**
+   - Sélectionner des pages témoins similaires non modifiées.
+   - Matcher par type de page, catégorie, trafic initial, impressions GSC, prix, stock, score GEO initial, saisonnalité et position moyenne.
+   - Output attendu : groupe test vs groupe contrôle pour chaque vague d’optimisation.
+   - Garde-fous : ne pas présenter une comparaison comme causale si les pages ne sont pas suffisamment comparables.
+
+4. **119 Validation Timeline J+7/J+30/J+60/J+90**
+   - Planifier automatiquement les fenêtres de mesure.
+   - J+0 : modification appliquée.
+   - J+7 : premiers signaux faibles.
+   - J+30 : première analyse sérieuse.
+   - J+60 : signal plus fiable.
+   - J+90 : conclusion complète.
+   - Output attendu : timeline visible dans l’UI avec statut pending / measuring / ready / inconclusive.
+   - Garde-fous : expliquer que le SEO/GEO nécessite du temps et que les premiers jours ne suffisent pas pour conclure.
+
+5. **120 Progress Curve Dashboard**
+   - Afficher une courbe de progression claire pour le marchand.
+   - Courbes : score GEO, score SEO si disponible, impressions, clics, CTR, position moyenne, sessions organiques, conversions, revenu, pages améliorées, impact estimé vs observé.
+   - Output attendu : dashboard Impact avec courbe globale, courbes par page et résumé des optimisations en validation.
+   - Garde-fous : signaler les périodes à faible volume, stock indisponible, changement de prix ou tracking incomplet.
+
+6. **121 Impact Confidence Score**
+   - Calculer un score de confiance de l’impact.
+   - Facteurs : délai depuis modification, volume d’impressions, évolution vs groupe contrôle, stabilité stock/prix, cohérence GSC/GA4, conversions observées, nouvelles requêtes longues, absence de rollback.
+   - Output attendu : score 0-100 avec labels `données insuffisantes`, `signal faible`, `impact probable`, `impact fort`.
+   - Garde-fous : ne jamais présenter le score comme une preuve causale absolue.
+
+7. **122 Before/After Impact Report**
+   - Générer un rapport clair par page/action.
+   - Inclure score GEO avant/après, actions appliquées, requêtes ciblées, métriques GSC avant/après, métriques GA4 avant/après, évolution vs groupe contrôle, verdict et prochaine recommandation.
+   - Output attendu : rapport exportable Markdown/PDF ou affichable dans l’app.
+   - Garde-fous : distinguer impact estimé, impact observé et impact non encore mesurable.
+
+8. **123 Retention Milestones**
+   - Créer des jalons qui expliquent pourquoi l’app doit rester active pendant la validation.
+   - Afficher J+7, J+30, J+60, J+90 avec les prochaines étapes.
+   - Exemple de message : “Vos optimisations GEO sont appliquées. Les moteurs de recherche et IA ont besoin de temps pour recrawler et réévaluer vos pages. Gardez l’app active pour mesurer les résultats, éviter les pertes et recevoir les prochaines actions prioritaires.”
+   - Output attendu : jalons visibles dans le dashboard et dans les rapports.
+   - Garde-fous : ne pas utiliser de dark pattern ; la rétention doit être justifiée par la mesure réelle et la valeur du suivi.
+
+9. **124 Win/Neutral/Risk Detection**
+   - Classer automatiquement chaque optimisation.
+   - Verdicts : `Win`, `Neutral`, `Risk`, `Inconclusive`.
+   - Critères : évolution pages test vs pages contrôle, GSC, GA4, revenu, stabilité contexte, volume disponible.
+   - Output attendu : verdict par optimisation avec explication simple.
+   - Garde-fous : `Inconclusive` doit être utilisé si volume trop faible, tracking incomplet, changement de prix, rupture stock ou période trop courte.
+
+10. **125 Next Best Action Loop**
+   - Transformer les résultats validés en nouvelles recommandations.
+   - Si Win : répliquer sur pages similaires.
+   - Si Neutral : ajuster FAQ, facts, schema ou maillage.
+   - Si Risk : proposer rollback ou pause.
+   - Si Inconclusive : attendre plus de données ou choisir des pages à plus fort volume.
+   - Output attendu : boucle d’amélioration continue reliant validation, recommandations et nouvelles actions.
+   - Garde-fous : toute recommandation d’application doit rester en dry-run par défaut et passer par validation humaine.
+
+### Priorité produit recommandée Phase 11.5
+
+1. **116 Optimization Snapshot** — Socle obligatoire pour toute mesure avant/après.
+2. **117 Optimization Event Tracking** — Rend chaque optimisation traçable.
+3. **119 Validation Timeline J+7/J+30/J+60/J+90** — Donne au marchand une attente claire et justifie le suivi dans le temps.
+4. **120 Progress Curve Dashboard** — Rend la progression visible et compréhensible.
+5. **121 Impact Confidence Score** — Évite les fausses certitudes et structure la preuve.
+6. **122 Before/After Impact Report** — Transforme les résultats en preuve partageable.
+7. **124 Win/Neutral/Risk Detection** — Simplifie la lecture des résultats.
+8. **125 Next Best Action Loop** — Crée la boucle de rétention et d’amélioration continue.
+9. **118 Control Group Builder** — Renforce la crédibilité statistique, mais peut être simplifié en V1.
+10. **123 Retention Milestones** — Utile commercialement, mais doit rester basé sur une vraie valeur produit.
 
 ---
 

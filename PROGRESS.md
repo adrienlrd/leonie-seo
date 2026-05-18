@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-17** (clôture Phase 10 — tâches 101-103)
+- Dernière session : **2026-05-18** (Phase 11 — tâches 106-113)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -12,10 +12,269 @@
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
 - Phase 10 : **21/21** ✅ (tâches 83-103 clôturées le 2026-05-17)
-- Phase 11 : **0/10** ⏳ (Revenue-Aware SEO & Shopify-native intelligence, tâches 106-115)
+- Phase 11 : **8/10** ⏳ (GEO / Revenue-Aware Shopify intelligence, tâches 106-115)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 104-105)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : **1229/1229** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : ciblés tâches 106-113 + DB adapter **51/51** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+
+## Tâche 113 — FAQ & Answer Block Generator le 2026-05-18
+
+### Objectif
+
+Générer des FAQ et blocs de réponse orientés moteurs IA à partir des faits produits confirmés, avec sources factuelles, prompts de revue humaine et aucune écriture Shopify.
+
+### Réalisations
+
+- `app/geo/answers.py` — génération de blocs de réponse confirmés, prompts marchands pour faits manquants ou signaux imprécis, et JSON-LD `FAQPage` en preview.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/answer-blocks?top=&max_blocks=`.
+- `shopify-app/app/routes/app.geo-answer-blocks.tsx` — page Remix `FAQ & réponses GEO` avec blocs confirmés, sources, prompts de revue et JSON-LD.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- Tests unitaires et API dans `tests/test_geo/test_answers.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- Seules les valeurs factuelles confirmées (`description`, type produit, matières, origine, certifications, cibles, propriétés, prix, statut) alimentent les réponses publiables.
+- Les signaux vagues comme garantie, livraison, entretien, dimensions ou compatibilité restent des prompts de revue si le contenu ne donne pas une réponse exacte.
+- V1 dry-run : pas d'application Shopify et pas de génération LLM, afin de minimiser le risque d'hallucination.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — **51/51** ✅
+- `ruff check app/geo app/api/geo.py tests/test_geo tests/test_api/test_geo.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **114 — llms.txt & AI Crawlability Advisor** : proposer un fichier de guidage IA et auditer les pages à inclure/exclure sans promettre de ranking.
+
+## Tâche 112 — AI Search Collection Builder le 2026-05-18
+
+### Objectif
+
+Détecter des opportunités de collections Shopify pensées pour les intentions conversationnelles et les moteurs IA, avec preview complète et aucune création Shopify automatique.
+
+### Réalisations
+
+- `app/geo/collections.py` — builder de collections GEO en dry-run : clustering catalogue, matching requêtes GSC query-page, détection d'intention, score d'opportunité, produits inclus, warnings et preview.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/collections?top=&min_products=`.
+- `shopify-app/app/routes/app.geo-collections.tsx` — page Remix `Collections GEO` avec scores, requêtes sources, produits inclus, preview SEO/FAQ et avertissements.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- Tests unitaires et API dans `tests/test_geo/test_collections.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- V1 lecture seule : aucune collection Shopify n'est créée, même si une opportunité est forte.
+- La détection utilise les clusters catalogue existants et `gsc_query_page.csv` si disponible ; un fallback catalogue permet de rester utile sans GSC.
+- Les embeddings restent différés en V2 : la V1 privilégie un matching lexical explicable et sans nouvelle dépendance.
+- Les handles existants et collections trop fines sont signalés comme warnings à revue marchande.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — **46/46** ✅
+- `ruff check app/geo app/api/geo.py app/db.py tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **113 — FAQ & Answer Block Generator** : générer des FAQ et blocs de réponses depuis les faits produits confirmés, avec sources factuelles, preview et revue humaine.
+
+## Tâche 111 — GEO Risk Guard le 2026-05-18
+
+### Objectif
+
+Identifier les pages produit à protéger avant optimisation GEO, notamment les pages déjà performantes en SEO, prêtes pour l'AI Search, business-critiques, en rupture ou nécessitant une confirmation forte.
+
+### Réalisations
+
+- `app/geo/risk_guard.py` — diagnostic `protected` / `review_required` / `safe`, score de risque, raisons, signaux et politique recommandée.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/risk-guard`.
+- `shopify-app/app/routes/app.geo-risk-guard.tsx` — page Remix `GEO Risk Guard`.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- Tests unitaires et API dans `tests/test_geo/test_risk_guard.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- V1 diagnostic uniquement : le garde-fou n'est pas encore injecté dans tous les workflows d'écriture Shopify.
+- Une page est protégée si elle cumule visibilité GSC, position élevée, readiness forte, potentiel business ou risque commerce/stock.
+- Les pages `protected` et `review_required` exigent une revue manuelle et une confirmation forte avant de futures écritures GEO.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — **41/41** ✅
+- `ruff check app/geo app/api/geo.py app/db.py tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **112 — AI Search Collection Builder** : détecter des opportunités de collections Shopify adaptées aux intentions conversationnelles, avec preview et dry-run.
+
+## Tâche 110 — GEO Impact Ledger le 2026-05-18
+
+### Objectif
+
+Créer une mémoire d'impact GEO pour historiser les optimisations, leurs snapshots avant/après, métriques, hypothèses et impact estimé vs observé.
+
+### Réalisations
+
+- `app/db.py` — nouvelle table `geo_impact_events` SQLite/Postgres.
+- `app/geo/ledger.py` — création, liste et résumé des événements GEO.
+- `app/api/geo.py` — endpoints :
+  - `GET /api/shops/{shop}/geo/ledger`
+  - `POST /api/shops/{shop}/geo/ledger/events`
+- `shopify-app/app/routes/app.geo-ledger.tsx` — page Remix `GEO Impact Ledger`.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- Tests de stockage/API dans `tests/test_geo/test_ledger.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- Le ledger GEO est séparé de `seo_changes` : `seo_changes` reste dédié au rollback des écritures Shopify, tandis que `geo_impact_events` peut stocker plans, previews, applications, mesures et observations futures.
+- V1 lecture seule côté Shopify : créer un événement ledger ne mute aucune donnée marchand.
+- Les impacts observés restent optionnels et préparent les fenêtres J+7/J+30/J+60 prévues plus tard.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — **36/36** ✅
+- `ruff check app/geo app/api/geo.py app/db.py tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **111 — GEO Risk Guard** : protéger les pages déjà performantes ou business-critiques contre les optimisations excessives, avec blocage des écritures automatiques et confirmation forte.
+
+## Tâche 109 — Weekly GEO Action Assistant le 2026-05-18
+
+### Objectif
+
+Transformer la priorisation revenue-aware en une liste courte de 3 actions GEO hebdomadaires, lisibles par un marchand, avec gain estimé, effort, risque, confiance et prochaines étapes.
+
+### Réalisations
+
+- `app/geo/weekly.py` — sélection des meilleures actions depuis les priorités 108, avec message hebdomadaire et étapes proposées.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/weekly-actions?limit=N`.
+- `shopify-app/app/routes/app.geo-weekly.tsx` — page Remix `Actions GEO semaine`.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée placée en haut du hub Contenu & visibilité.
+- `tests/test_geo/test_weekly.py` et extension de `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- V1 lecture seule : pas de planification automatique, pas de job récurrent, pas d'écriture Shopify.
+- L'assistant hebdo réutilise les priorités revenue-aware et ajoute une couche de sélection/explication plutôt qu'un nouveau scoring concurrent.
+- Les messages rappellent que les gains sont estimés et que les actions doivent être revues avant application.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py` — **20/20** ✅
+- `ruff check app/geo app/api/geo.py tests/test_geo tests/test_api/test_geo.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **110 — GEO Impact Ledger** : historiser les optimisations GEO avec snapshot avant/après, facts ajoutés, FAQ, JSON-LD, requêtes ciblées, utilisateur/job ID, métriques GSC/GA4 et impact estimé vs observé.
+
+## Tâche 108 — Revenue-Aware GEO Prioritization le 2026-05-18
+
+### Objectif
+
+Prioriser les actions GEO selon leur utilité business probable, en combinant score AI Search Readiness, impressions GSC, estimation de clics gagnables, prix/AOV fallback, stock/statut, effort, risque et confiance.
+
+### Réalisations
+
+- `app/geo/prioritization.py` — moteur de priorisation produit par produit : action recommandée, score priorité 0-100, effort, risque, confiance, stock, clics gagnables et revenu estimé.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/priorities?top=N&conversion_rate=&average_order_value=&position_improvement=`.
+- `shopify-app/app/routes/app.geo-priorities.tsx` — page Remix `Priorités GEO business` avec synthèse et cartes d'actions.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- `tests/test_geo/test_prioritization.py` et extension de `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- V1 sans appel GA4 live dans l'endpoint : si GA4/marge ne sont pas disponibles, le score utilise GSC + prix Shopify + `average_order_value` fallback.
+- Le potentiel revenu reste une estimation : courbe CTR, amélioration de position paramétrable, conversion rate et AOV configurables.
+- Les produits sans GSC restent scorés avec une confiance basse afin de ne pas disparaître de la priorisation.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py` — **16/16** ✅
+- `ruff check app/geo app/api/geo.py tests/test_geo tests/test_api/test_geo.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **109 — Weekly GEO Action Assistant** : condenser la priorisation en 3 actions hebdomadaires marchandes avec gain potentiel, effort, risque et preview.
+
+## Tâche 107 — AI Search Readiness Score le 2026-05-18
+
+### Objectif
+
+Créer un score interne de préparation aux moteurs IA par produit, sans promettre de ranking ni de citation, en combinant faits produits, schema, capacité à répondre aux questions, confiance, SEO et signaux commerce.
+
+### Réalisations
+
+- `app/geo/readiness.py` — score 0-100 par produit avec sous-scores `facts`, `schema`, `answerability`, `trust`, `seo`, `commerce`, niveau `ready` / `partial` / `weak` et recommandations.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/readiness?top=N`.
+- `shopify-app/app/routes/app.geo-readiness.tsx` — page Remix `AI Search Readiness` avec synthèse, score par produit, barres de composants et recommandations.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- `tests/test_geo/test_readiness.py` et extension de `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- Le score est présenté comme diagnostic interne, jamais comme garantie de visibilité dans ChatGPT, Perplexity, Gemini ou Google AI Overviews.
+- La pondération V1 est volontairement simple : facts 25 %, schema 20 %, answerability 20 %, trust 15 %, SEO 10 %, commerce 10 %.
+- La tâche reste lecture seule : aucune génération LLM et aucune écriture Shopify.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py` — **11/11** ✅
+- `ruff check app/geo app/api/geo.py tests/test_geo tests/test_api/test_geo.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **108 — Revenue-Aware GEO Prioritization** : croiser score GEO, GSC, GA4, Shopify, stock, marge ou fallback panier moyen, risque et effort pour prioriser les actions business.
+
+## Tâche 106 — GEO Product Facts Layer le 2026-05-18
+
+### Objectif
+
+Créer un socle de faits produits fiables pour les futurs scores GEO, FAQ, JSON-LD, snippets et recommandations AI Search, sans halluciner de matière, origine, certification, garantie ou preuve.
+
+### Réalisations
+
+- `app/geo/facts.py` — extraction lecture seule depuis le snapshot Shopify : faits confirmés, faits manquants sensibles, suggestions à vérifier par le marchand, score de complétude factuelle.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/facts?top=N`.
+- `shopify-app/app/routes/app.geo-facts.tsx` — page Remix `Faits produits GEO` avec synthèse, score de complétude, faits confirmés et manques à vérifier.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dans le hub Contenu & visibilité et libellés FR/EN.
+- Tests unitaires et API dédiés dans `tests/test_geo/test_facts.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- La V1 est volontairement conservative : elle utilise uniquement les faits déjà présents dans Shopify et marque les informations sensibles absentes comme suggestions à vérifier.
+- Aucune écriture Shopify, aucun LLM, aucune génération automatique dans cette tâche.
+- Les faits confirmés réutilisent le NER existant (`app.niche.ner`) pour matières, origines, certifications, cibles et propriétés.
+
+### Validation
+
+- `pytest tests/test_geo/test_facts.py tests/test_api/test_geo.py` — **6/6** ✅
+- `ruff check app/geo app/api/geo.py tests/test_geo tests/test_api/test_geo.py` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **107 — AI Search Readiness Score** : calculer un score GEO produit/boutique à partir des faits produits, JSON-LD, FAQ, requêtes conversationnelles, preuves de confiance, maillage, stock, performance et crawlabilité.
 
 ## Tâches 101-103 — Phase 10 clôturée le 2026-05-17
 

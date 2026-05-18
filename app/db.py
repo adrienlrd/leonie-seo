@@ -141,6 +141,27 @@ _SQLITE_DDL = [
         result       TEXT,
         created_at   TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS geo_impact_events (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop               TEXT NOT NULL,
+        created_at         TEXT NOT NULL,
+        event_type         TEXT NOT NULL,
+        resource_type      TEXT NOT NULL,
+        resource_id        TEXT NOT NULL,
+        resource_title     TEXT NOT NULL DEFAULT '',
+        action_type        TEXT NOT NULL,
+        status             TEXT NOT NULL DEFAULT 'planned',
+        source             TEXT NOT NULL DEFAULT 'geo',
+        job_id             TEXT,
+        hypothesis         TEXT,
+        before_snapshot    TEXT NOT NULL,
+        after_snapshot     TEXT,
+        metrics_before     TEXT NOT NULL,
+        metrics_after      TEXT,
+        estimated_impact   TEXT NOT NULL,
+        observed_impact    TEXT,
+        notes              TEXT
+    )""",
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
@@ -268,6 +289,27 @@ _PG_DDL = [
         completed_at TEXT,
         result       TEXT,
         created_at   TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS geo_impact_events (
+        id                 SERIAL PRIMARY KEY,
+        shop               TEXT NOT NULL,
+        created_at         TEXT NOT NULL,
+        event_type         TEXT NOT NULL,
+        resource_type      TEXT NOT NULL,
+        resource_id        TEXT NOT NULL,
+        resource_title     TEXT NOT NULL DEFAULT '',
+        action_type        TEXT NOT NULL,
+        status             TEXT NOT NULL DEFAULT 'planned',
+        source             TEXT NOT NULL DEFAULT 'geo',
+        job_id             TEXT,
+        hypothesis         TEXT,
+        before_snapshot    TEXT NOT NULL,
+        after_snapshot     TEXT,
+        metrics_before     TEXT NOT NULL,
+        metrics_after      TEXT,
+        estimated_impact   TEXT NOT NULL,
+        observed_impact    TEXT,
+        notes              TEXT
     )""",
 ]
 

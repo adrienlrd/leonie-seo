@@ -19,6 +19,7 @@ from app.api.embeddings import router as embeddings_router  # noqa: E402
 from app.api.impact import router as impact_router  # noqa: E402
 from app.api.multilingual import router as multilingual_router  # noqa: E402
 from app.api.ga4 import router as ga4_router  # noqa: E402
+from app.api.geo import router as geo_router  # noqa: E402
 from app.api.web_graph import router as web_graph_router  # noqa: E402
 from app.api.generate import router as generate_router  # noqa: E402
 from app.api.gsc import router as gsc_router  # noqa: E402
@@ -159,6 +160,7 @@ app.include_router(embeddings_router)
 app.include_router(impact_router)
 app.include_router(multilingual_router)
 app.include_router(ga4_router)
+app.include_router(geo_router)
 app.include_router(alerts_router)
 app.include_router(hreflang_router)
 app.include_router(web_graph_router)
