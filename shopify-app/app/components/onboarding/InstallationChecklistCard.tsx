@@ -6,11 +6,17 @@ function Step({
   label,
   done,
   detail,
+  locale,
 }: {
   label: string;
   done: boolean;
   detail?: string;
+  locale: Locale;
 }) {
+  // Status text drives both visual badge AND screen-reader announcement.
+  const statusLabel = done
+    ? locale === "fr" ? "Terminé" : "Done"
+    : locale === "fr" ? "À faire" : "To do";
   return (
     <InlineStack align="space-between" gap="300">
       <BlockStack gap="050">
@@ -23,7 +29,7 @@ function Step({
           </Text>
         )}
       </BlockStack>
-      <Badge tone={done ? "success" : "warning"}>{done ? "✓" : "—"}</Badge>
+      <Badge tone={done ? "success" : "warning"}>{statusLabel}</Badge>
     </InlineStack>
   );
 }
@@ -54,8 +60,9 @@ export function InstallationChecklistCard({
         <Text as="h2" variant="headingMd">
           {t(locale, "installation")}
         </Text>
-        <Step label={t(locale, "shopify")} done={Boolean(status?.installed)} detail={shop} />
+        <Step locale={locale} label={t(locale, "shopify")} done={Boolean(status?.installed)} detail={shop} />
         <Step
+          locale={locale}
           label={t(locale, "backend")}
           done={health?.status === "ok"}
           detail={
@@ -65,16 +72,19 @@ export function InstallationChecklistCard({
           }
         />
         <Step
+          locale={locale}
           label={t(locale, "crawl")}
           done={Boolean(status?.snapshot_available)}
           detail={`${status?.product_count ?? 0} ${t(locale, "products")}`}
         />
         <Step
+          locale={locale}
           label={t(locale, "billing")}
           done={Boolean(status?.plan)}
           detail={status?.plan ?? "free"}
         />
         <Step
+          locale={locale}
           label={t(locale, "gsc")}
           done={Boolean(gsc?.connected && gsc.latest_import.available)}
           detail={
@@ -87,6 +97,7 @@ export function InstallationChecklistCard({
           }
         />
         <Step
+          locale={locale}
           label="PageSpeed / Core Web Vitals"
           done={Boolean(pagespeed?.available)}
           detail={
@@ -100,6 +111,7 @@ export function InstallationChecklistCard({
           }
         />
         <Step
+          locale={locale}
           label={locale === "fr" ? "Crawl technique" : "Technical crawl"}
           done={Boolean(crawl?.available)}
           detail={

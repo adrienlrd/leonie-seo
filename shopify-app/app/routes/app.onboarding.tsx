@@ -1,8 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useActionData, useLoaderData } from "@remix-run/react";
-import { useEffect, useRef } from "react";
-import { Banner, BlockStack, InlineGrid, Page, Text } from "@shopify/polaris";
+import { Banner, BlockStack, InlineGrid, Link, Page, Text } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import {
   callBackend,
@@ -200,15 +199,6 @@ export default function Onboarding() {
   const { locale, shop, health, status, gsc, pagespeed, crawl, recentJobs } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const openedGscUrl = useRef<string | null>(null);
-
-  useEffect(() => {
-    const url = actionData?.authorizationUrl;
-    if (url && url !== openedGscUrl.current) {
-      openedGscUrl.current = url;
-      window.open(url, "_blank", "noopener,noreferrer");
-    }
-  }, [actionData?.authorizationUrl]);
 
   const nextAction = computeNextAction(locale, status, health, gsc, pagespeed, crawl);
 
@@ -227,6 +217,36 @@ export default function Onboarding() {
             title={locale === "fr" ? "Prochaine étape recommandée" : "Recommended next step"}
           >
             <Text as="p">{nextAction.label}</Text>
+          </Banner>
+        )}
+
+        {actionData?.authorizationUrl && (
+          <Banner
+            tone="info"
+            title={
+              locale === "fr"
+                ? "Autorisation Google requise"
+                : "Google authorization required"
+            }
+          >
+            <Text as="p">
+              {locale === "fr"
+                ? "Ouvrez la page d'autorisation Google dans un nouvel onglet pour terminer la connexion."
+                : "Open the Google authorization page in a new tab to complete the connection."}
+            </Text>
+            <Link
+              url={actionData.authorizationUrl}
+              target="_blank"
+              accessibilityLabel={
+                locale === "fr"
+                  ? "Ouvrir l'autorisation Google dans un nouvel onglet"
+                  : "Open Google authorization in a new tab"
+              }
+            >
+              {locale === "fr"
+                ? "Ouvrir l'autorisation Google →"
+                : "Open Google authorization →"}
+            </Link>
           </Banner>
         )}
 

@@ -72,18 +72,22 @@ export function CrawlCard({ locale, crawl, actionData }: Props) {
         <Form method="post" encType="multipart/form-data">
           <input type="hidden" name="intent" value="crawl_upload" />
           <BlockStack gap="200">
-            <Text as="p" variant="bodySm">
-              {fr
-                ? "Overview CSV (obligatoire — export « Internal » Screaming Frog)"
-                : "Overview CSV (required — Screaming Frog \"Internal\" export)"}
-            </Text>
-            <input type="file" name="overview" accept=".csv" />
-            <Text as="p" variant="bodySm">
-              {fr
-                ? "CSV codes réponse (optionnel — export « Response Codes » Screaming Frog)"
-                : "Response codes CSV (optional — Screaming Frog \"Response Codes\" export)"}
-            </Text>
-            <input type="file" name="redirects" accept=".csv" />
+            <label htmlFor="crawl-overview">
+              <Text as="p" variant="bodySm">
+                {fr
+                  ? "Overview CSV (obligatoire — export « Internal » Screaming Frog)"
+                  : "Overview CSV (required — Screaming Frog \"Internal\" export)"}
+              </Text>
+            </label>
+            <input id="crawl-overview" type="file" name="overview" accept=".csv" required />
+            <label htmlFor="crawl-redirects">
+              <Text as="p" variant="bodySm">
+                {fr
+                  ? "CSV codes réponse (optionnel — export « Response Codes » Screaming Frog)"
+                  : "Response codes CSV (optional — Screaming Frog \"Response Codes\" export)"}
+              </Text>
+            </label>
+            <input id="crawl-redirects" type="file" name="redirects" accept=".csv" />
             <Button submit variant="primary" loading={navigation.state !== "idle"}>
               {fr ? "Analyser le crawl" : "Analyze crawl"}
             </Button>

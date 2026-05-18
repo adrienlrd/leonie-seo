@@ -283,8 +283,8 @@ export default function Semantics() {
                   key={key}
                   onClick={() => setSortKey(key)}
                   style={{
-                    background: sortKey === key ? "#f1f2f3" : "none",
-                    border: "1px solid #c9cccf",
+                    background: sortKey === key ? "var(--p-color-bg-surface-secondary)" : "none",
+                    border: "1px solid var(--p-color-border)",
                     borderRadius: 4,
                     cursor: "pointer",
                     padding: "4px 10px",

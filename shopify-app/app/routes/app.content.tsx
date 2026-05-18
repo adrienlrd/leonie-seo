@@ -164,7 +164,10 @@ function FaqProductCard({ item }: { item: FaqItem }) {
               background="bg-surface-secondary"
               borderRadius="200"
             >
-              <pre style={{ fontSize: "11px", overflowX: "auto", margin: 0, whiteSpace: "pre-wrap" }}>
+              <pre
+                aria-label={`JSON-LD FAQPage Schema.org pour ${item.title}`}
+                style={{ fontSize: "11px", overflowX: "auto", margin: 0, whiteSpace: "pre-wrap" }}
+              >
                 {jsonldText}
               </pre>
             </Box>

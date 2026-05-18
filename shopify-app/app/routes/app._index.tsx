@@ -217,7 +217,9 @@ function SetupCard({
             <InlineStack key={step.label} align="space-between" blockAlign="center">
               <InlineStack gap="200" blockAlign="center">
                 <Badge tone={step.done ? "success" : "attention"}>
-                  {step.done ? "✓" : "—"}
+                  {step.done
+                    ? locale === "fr" ? "Fait" : "Done"
+                    : locale === "fr" ? "À faire" : "To do"}
                 </Badge>
                 <Text as="span">{step.label}</Text>
               </InlineStack>

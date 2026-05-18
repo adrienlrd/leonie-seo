@@ -319,8 +319,18 @@ function PreviewTab({ preview, locale }: { preview: HreflangPreview; locale: Loc
               <Badge>{page.type}</Badge>
               <Text variant="bodyMd" as="span" fontWeight="medium">{page.path}</Text>
             </InlineStack>
+            <Text as="h3" variant="headingXs">
+              {locale === "fr" ? "Balises HTML générées" : "Generated HTML tags"}
+            </Text>
             <Box background="bg-surface-secondary" padding="300" borderRadius="200">
-              <pre style={{ margin: 0, fontSize: "12px", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              <pre
+                aria-label={
+                  locale === "fr"
+                    ? `Balises hreflang HTML pour ${page.path}`
+                    : `Hreflang HTML tags for ${page.path}`
+                }
+                style={{ margin: 0, fontSize: "12px", whiteSpace: "pre-wrap", wordBreak: "break-all" }}
+              >
                 {page.html}
               </pre>
             </Box>

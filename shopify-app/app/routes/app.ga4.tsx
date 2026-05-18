@@ -255,9 +255,11 @@ function KpiCard({ label, value, sub }: { label: string; value: string; sub?: st
 function ConnectPanel({
   status,
   actionData,
+  locale,
 }: {
   status: GA4Status | null;
   actionData: ActionData | null;
+  locale: Locale;
 }) {
   const fetcher = useFetcher<ActionData>();
   const [properties, setProperties] = useState<GA4Property[]>([]);
@@ -312,7 +314,7 @@ function ConnectPanel({
             revenu organique de vos pages.
           </Text>
           {actionData?.error && (
-            <Banner tone="critical">
+            <Banner tone="critical" title={locale === "en" ? "Connection error" : "Erreur de connexion"}>
               <Text as="p">{actionData.error}</Text>
             </Banner>
           )}
@@ -461,7 +463,7 @@ export default function GA4Dashboard() {
     >
       <BlockStack gap="400">
         {/* OAuth connection panel */}
-        <ConnectPanel status={status} actionData={actionData} />
+        <ConnectPanel status={status} actionData={actionData} locale={locale} />
 
         {/* Funnel error */}
         {funnelError && status?.ready && (
@@ -520,7 +522,7 @@ export default function GA4Dashboard() {
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid #e1e3e5", textAlign: "left" }}>
+                    <tr style={{ borderBottom: "1px solid var(--p-color-border)", textAlign: "left" }}>
                       <th style={{ padding: "8px 12px" }}>URL</th>
                       <th style={{ padding: "8px 12px", textAlign: "right" }}>Impr.</th>
                       <th style={{ padding: "8px 12px", textAlign: "right" }}>Clics</th>
@@ -532,7 +534,7 @@ export default function GA4Dashboard() {
                   </thead>
                   <tbody>
                     {topUrls.map((row) => (
-                      <tr key={row.url} style={{ borderBottom: "1px solid #f1f2f3" }}>
+                      <tr key={row.url} style={{ borderBottom: "1px solid var(--p-color-border-subdued)" }}>
                         <td
                           style={{
                             padding: "8px 12px",
@@ -607,7 +609,7 @@ export default function GA4Dashboard() {
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                     <thead>
-                      <tr style={{ borderBottom: "1px solid #e1e3e5", textAlign: "left" }}>
+                      <tr style={{ borderBottom: "1px solid var(--p-color-border)", textAlign: "left" }}>
                         <th style={{ padding: "8px 12px" }}>Ressource</th>
                         <th style={{ padding: "8px 12px", textAlign: "right" }}>Impr. GSC</th>
                         <th style={{ padding: "8px 12px", textAlign: "right" }}>Pos. avant</th>
@@ -618,7 +620,7 @@ export default function GA4Dashboard() {
                     </thead>
                     <tbody>
                       {topImpact.map((row, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid #f1f2f3" }}>
+                        <tr key={i} style={{ borderBottom: "1px solid var(--p-color-border-subdued)" }}>
                           <td style={{ padding: "8px 12px" }}>
                             <Text as="span" variant="bodySm" fontWeight="semibold">
                               {row.title}
