@@ -9,6 +9,7 @@ import {
   Box,
   Button,
   Card,
+  DataTable,
   InlineStack,
   Page,
   Select,
@@ -519,76 +520,27 @@ export default function GA4Dashboard() {
               <Text as="h2" variant="headingMd">
                 Top URLs par revenu organique
               </Text>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--p-color-border)", textAlign: "left" }}>
-                      <th style={{ padding: "8px 12px" }}>URL</th>
-                      <th style={{ padding: "8px 12px", textAlign: "right" }}>Impr.</th>
-                      <th style={{ padding: "8px 12px", textAlign: "right" }}>Clics</th>
-                      <th style={{ padding: "8px 12px", textAlign: "right" }}>Sessions</th>
-                      <th style={{ padding: "8px 12px", textAlign: "right" }}>Conv.</th>
-                      <th style={{ padding: "8px 12px", textAlign: "right" }}>Revenu</th>
-                      <th style={{ padding: "8px 12px", textAlign: "right" }}>Pos.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {topUrls.map((row) => (
-                      <tr key={row.url} style={{ borderBottom: "1px solid var(--p-color-border-subdued)" }}>
-                        <td
-                          style={{
-                            padding: "8px 12px",
-                            maxWidth: 260,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          <Text as="span" variant="bodySm">
-                            {row.path}
-                          </Text>
-                        </td>
-                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                          {fmt(row.impressions)}
-                        </td>
-                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                          {fmt(row.clicks)}
-                        </td>
-                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                          {row.has_ga4_data ? (
-                            fmt(row.sessions)
-                          ) : (
-                            <Text as="span" tone="subdued">
-                              —
-                            </Text>
-                          )}
-                        </td>
-                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                          {row.has_ga4_data ? (
-                            fmt(row.conversions)
-                          ) : (
-                            <Text as="span" tone="subdued">
-                              —
-                            </Text>
-                          )}
-                        </td>
-                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                          {row.has_ga4_data ? (
-                            `${fmt(row.revenue, 2)} €`
-                          ) : (
-                            <Text as="span" tone="subdued">
-                              —
-                            </Text>
-                          )}
-                        </td>
-                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                          {row.position.toFixed(1)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                columnContentTypes={[
+                  "text",
+                  "numeric",
+                  "numeric",
+                  "numeric",
+                  "numeric",
+                  "numeric",
+                  "numeric",
+                ]}
+                headings={["URL", "Impr.", "Clics", "Sessions", "Conv.", "Revenu", "Pos."]}
+                rows={topUrls.map((row) => [
+                  row.path,
+                  fmt(row.impressions),
+                  fmt(row.clicks),
+                  row.has_ga4_data ? fmt(row.sessions) : "—",
+                  row.has_ga4_data ? fmt(row.conversions) : "—",
+                  row.has_ga4_data ? `${fmt(row.revenue, 2)} €` : "—",
+                  row.position.toFixed(1),
+                ])}
+              />
             </BlockStack>
           </Card>
         )}
@@ -606,46 +558,32 @@ export default function GA4Dashboard() {
                   " GSC non disponible — estimations non affichées."}
               </Text>
               {impact?.meta.gsc_data_available && (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid var(--p-color-border)", textAlign: "left" }}>
-                        <th style={{ padding: "8px 12px" }}>Ressource</th>
-                        <th style={{ padding: "8px 12px", textAlign: "right" }}>Impr. GSC</th>
-                        <th style={{ padding: "8px 12px", textAlign: "right" }}>Pos. avant</th>
-                        <th style={{ padding: "8px 12px", textAlign: "right" }}>Pos. après</th>
-                        <th style={{ padding: "8px 12px", textAlign: "right" }}>Clics gagnés</th>
-                        <th style={{ padding: "8px 12px", textAlign: "right" }}>Revenu estimé</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {topImpact.map((row, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid var(--p-color-border-subdued)" }}>
-                          <td style={{ padding: "8px 12px" }}>
-                            <Text as="span" variant="bodySm" fontWeight="semibold">
-                              {row.title}
-                            </Text>
-                          </td>
-                          <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                            {fmt(row.impressions)}
-                          </td>
-                          <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                            {row.position_before.toFixed(1)}
-                          </td>
-                          <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                            {row.position_after.toFixed(1)}
-                          </td>
-                          <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                            {fmt(row.clicks_gained, 1)}
-                          </td>
-                          <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                            {fmt(row.revenue_estimate, 2)} €
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable
+                  columnContentTypes={[
+                    "text",
+                    "numeric",
+                    "numeric",
+                    "numeric",
+                    "numeric",
+                    "numeric",
+                  ]}
+                  headings={[
+                    "Ressource",
+                    "Impr. GSC",
+                    "Pos. avant",
+                    "Pos. après",
+                    "Clics gagnés",
+                    "Revenu estimé",
+                  ]}
+                  rows={topImpact.map((row) => [
+                    row.title,
+                    fmt(row.impressions),
+                    row.position_before.toFixed(1),
+                    row.position_after.toFixed(1),
+                    fmt(row.clicks_gained, 1),
+                    `${fmt(row.revenue_estimate, 2)} €`,
+                  ])}
+                />
               )}
               <InlineStack gap="600">
                 <BlockStack gap="050">

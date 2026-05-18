@@ -87,8 +87,9 @@ function JsonldPreview({ data }: { data: Record<string, unknown> }) {
       {open && (
         <Box paddingBlockStart="200">
           <pre
+            aria-label="JSON-LD preview"
             style={{
-              background: "#f4f6f8",
+              background: "var(--p-color-bg-surface-secondary)",
               padding: "12px",
               borderRadius: 4,
               fontSize: 12,

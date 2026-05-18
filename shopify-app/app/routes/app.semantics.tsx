@@ -9,6 +9,7 @@ import {
   Card,
   InlineStack,
   Page,
+  ProgressBar,
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
@@ -96,14 +97,13 @@ function pct(n: number): string {
   return `${Math.round(n * 100)} %`;
 }
 
-function scoreColor(n: number): string {
-  if (n >= 0.6) return "#2a7e2e";
-  if (n >= 0.35) return "#c67a00";
-  return "#c0392b";
+function scoreTone(n: number): "success" | "primary" | "critical" {
+  if (n >= 0.6) return "success";
+  if (n >= 0.35) return "primary";
+  return "critical";
 }
 
 function ScoreBar({ value, label }: { value: number; label: string }) {
-  const color = scoreColor(value);
   return (
     <BlockStack gap="050">
       <InlineStack align="space-between">
@@ -112,9 +112,11 @@ function ScoreBar({ value, label }: { value: number; label: string }) {
           {pct(value)}
         </Text>
       </InlineStack>
-      <div style={{ background: "#e1e3e5", borderRadius: 4, height: 6, overflow: "hidden" }}>
-        <div style={{ width: `${Math.min(value * 100, 100)}%`, background: color, height: "100%", borderRadius: 4 }} />
-      </div>
+      <ProgressBar
+        progress={Math.min(value * 100, 100)}
+        size="small"
+        tone={scoreTone(value)}
+      />
     </BlockStack>
   );
 }
