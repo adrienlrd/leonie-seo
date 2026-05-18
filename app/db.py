@@ -153,13 +153,35 @@ _SQLITE_DDL = [
         status             TEXT NOT NULL DEFAULT 'planned',
         source             TEXT NOT NULL DEFAULT 'geo',
         job_id             TEXT,
+        snapshot_id        INTEGER,
         hypothesis         TEXT,
+        score_before       INTEGER,
+        score_after        INTEGER,
+        measurement_status TEXT NOT NULL DEFAULT 'not_started',
+        status_history     TEXT,
         before_snapshot    TEXT NOT NULL,
         after_snapshot     TEXT,
         metrics_before     TEXT NOT NULL,
         metrics_after      TEXT,
         estimated_impact   TEXT NOT NULL,
         observed_impact    TEXT,
+        notes              TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS geo_optimization_snapshots (
+        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop               TEXT NOT NULL,
+        created_at         TEXT NOT NULL,
+        resource_type      TEXT NOT NULL,
+        resource_id        TEXT NOT NULL,
+        resource_title     TEXT NOT NULL DEFAULT '',
+        action_type        TEXT NOT NULL,
+        source             TEXT NOT NULL DEFAULT 'geo',
+        hypothesis         TEXT,
+        snapshot_json      TEXT NOT NULL,
+        metrics_json       TEXT NOT NULL,
+        readiness_score    INTEGER NOT NULL DEFAULT 0,
+        seo_score          INTEGER NOT NULL DEFAULT 0,
+        content_hash       TEXT NOT NULL DEFAULT '',
         notes              TEXT
     )""",
 ]
@@ -302,13 +324,35 @@ _PG_DDL = [
         status             TEXT NOT NULL DEFAULT 'planned',
         source             TEXT NOT NULL DEFAULT 'geo',
         job_id             TEXT,
+        snapshot_id        INTEGER,
         hypothesis         TEXT,
+        score_before       INTEGER,
+        score_after        INTEGER,
+        measurement_status TEXT NOT NULL DEFAULT 'not_started',
+        status_history     TEXT,
         before_snapshot    TEXT NOT NULL,
         after_snapshot     TEXT,
         metrics_before     TEXT NOT NULL,
         metrics_after      TEXT,
         estimated_impact   TEXT NOT NULL,
         observed_impact    TEXT,
+        notes              TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS geo_optimization_snapshots (
+        id                 SERIAL PRIMARY KEY,
+        shop               TEXT NOT NULL,
+        created_at         TEXT NOT NULL,
+        resource_type      TEXT NOT NULL,
+        resource_id        TEXT NOT NULL,
+        resource_title     TEXT NOT NULL DEFAULT '',
+        action_type        TEXT NOT NULL,
+        source             TEXT NOT NULL DEFAULT 'geo',
+        hypothesis         TEXT,
+        snapshot_json      TEXT NOT NULL,
+        metrics_json       TEXT NOT NULL,
+        readiness_score    INTEGER NOT NULL DEFAULT 0,
+        seo_score          INTEGER NOT NULL DEFAULT 0,
+        content_hash       TEXT NOT NULL DEFAULT '',
         notes              TEXT
     )""",
 ]
@@ -319,6 +363,13 @@ _PG_DDL = [
 # Run after CREATE TABLE IF NOT EXISTS so brand-new tables already have the column.
 
 _TABLES_NEEDING_SHOP_COLUMN = ("seo_changes", "snapshots")
+_GEO_IMPACT_EVENT_COLUMNS = {
+    "snapshot_id": "INTEGER",
+    "score_before": "INTEGER",
+    "score_after": "INTEGER",
+    "measurement_status": "TEXT NOT NULL DEFAULT 'not_started'",
+    "status_history": "TEXT",
+}
 
 
 def _sqlite_has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -332,6 +383,13 @@ def _migrate_sqlite_add_shop_columns(conn: sqlite3.Connection) -> None:
     for table in _TABLES_NEEDING_SHOP_COLUMN:
         if not _sqlite_has_column(conn, table, "shop"):
             conn.execute(f"ALTER TABLE {table} ADD COLUMN shop TEXT")
+
+
+def _migrate_sqlite_geo_impact_events(conn: sqlite3.Connection) -> None:
+    """Add optimization tracking columns to legacy GEO impact ledgers."""
+    for column, definition in _GEO_IMPACT_EVENT_COLUMNS.items():
+        if not _sqlite_has_column(conn, "geo_impact_events", column):
+            conn.execute(f"ALTER TABLE geo_impact_events ADD COLUMN {column} {definition}")
 
 
 def _pg_has_column(cur, table: str, column: str) -> bool:
@@ -350,6 +408,13 @@ def _migrate_postgres_add_shop_columns(cur) -> None:
             cur.execute(f"ALTER TABLE {table} ADD COLUMN shop TEXT")
 
 
+def _migrate_postgres_geo_impact_events(cur) -> None:
+    """Add optimization tracking columns to legacy GEO impact ledgers."""
+    for column, definition in _GEO_IMPACT_EVENT_COLUMNS.items():
+        if not _pg_has_column(cur, "geo_impact_events", column):
+            cur.execute(f"ALTER TABLE geo_impact_events ADD COLUMN {column} {definition}")
+
+
 def _init_postgres(database_url: str) -> None:
     import psycopg2  # noqa: PLC0415
 
@@ -362,6 +427,7 @@ def _init_postgres(database_url: str) -> None:
                 cur.execute(stmt)
             cur.execute(_PG_SHOP_CONFIG)
             _migrate_postgres_add_shop_columns(cur)
+            _migrate_postgres_geo_impact_events(cur)
         conn.commit()
 
 
@@ -384,3 +450,4 @@ def init_db(db_path: Path | None = None) -> None:
         for stmt in _SQLITE_DDL:
             conn.execute(stmt)
         _migrate_sqlite_add_shop_columns(conn)
+        _migrate_sqlite_geo_impact_events(conn)

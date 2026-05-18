@@ -25,7 +25,12 @@ interface GeoLedgerEvent {
   status: string;
   source: string;
   job_id: string | null;
+  snapshot_id: number | null;
   hypothesis: string | null;
+  score_before: number | null;
+  score_after: number | null;
+  measurement_status: string;
+  status_history: Array<{ status: string; changed_at: string; note?: string }>;
   before_snapshot: Record<string, unknown>;
   after_snapshot: Record<string, unknown> | null;
   metrics_before: Record<string, unknown>;
@@ -91,8 +96,8 @@ function statusTone(status: string): "success" | "warning" | "info" | "critical"
 function EventCard({ event }: { event: GeoLedgerEvent }) {
   const estimatedRevenue = Number(event.estimated_impact.revenue_estimate ?? 0);
   const observedRevenue = event.observed_impact ? Number(event.observed_impact.revenue ?? 0) : null;
-  const beforeReadiness = event.before_snapshot.readiness_score;
-  const afterReadiness = event.after_snapshot?.readiness_score;
+  const beforeReadiness = event.score_before ?? event.before_snapshot.readiness_score;
+  const afterReadiness = event.score_after ?? event.after_snapshot?.readiness_score;
 
   return (
     <Card>
@@ -105,6 +110,7 @@ function EventCard({ event }: { event: GeoLedgerEvent }) {
           <InlineStack gap="100" blockAlign="center">
             <Badge tone={statusTone(event.status)}>{event.status}</Badge>
             <Badge tone="info">{event.event_type}</Badge>
+            <Badge tone="attention">{event.measurement_status}</Badge>
           </InlineStack>
         </InlineStack>
 
@@ -118,6 +124,8 @@ function EventCard({ event }: { event: GeoLedgerEvent }) {
             { label: "Revenu observé", value: observedRevenue === null ? "En attente" : money(observedRevenue) },
             { label: "Readiness avant", value: beforeReadiness === undefined ? "n/a" : String(beforeReadiness) },
             { label: "Readiness après", value: afterReadiness === undefined ? "En attente" : String(afterReadiness) },
+            { label: "Snapshot", value: event.snapshot_id === null ? "n/a" : `#${event.snapshot_id}` },
+            { label: "Job", value: event.job_id ?? "n/a" },
           ].map((item) => (
             <BlockStack key={item.label} gap="050">
               <Text as="p" variant="bodySm" tone="subdued">{item.label}</Text>
@@ -125,6 +133,17 @@ function EventCard({ event }: { event: GeoLedgerEvent }) {
             </BlockStack>
           ))}
         </div>
+
+        {event.status_history.length > 0 && (
+          <BlockStack gap="100">
+            <Text as="p" variant="bodySm" tone="subdued">Historique de statut</Text>
+            <InlineStack gap="100" wrap>
+              {event.status_history.map((entry) => (
+                <Badge key={`${entry.status}-${entry.changed_at}`}>{`${entry.status} · ${entry.changed_at}`}</Badge>
+              ))}
+            </InlineStack>
+          </BlockStack>
+        )}
       </BlockStack>
     </Card>
   );

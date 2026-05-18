@@ -266,6 +266,107 @@ def test_geo_ledger_status_filter(client, tmp_path) -> None:
     assert resp.json()["events"][0]["status"] == "measured"
 
 
+def test_get_geo_control_groups_returns_control_candidates(client, snapshot_file, tmp_path) -> None:
+    db = tmp_path / "control-groups.db"
+    init_db(db)
+    snapshot = {
+        "shop": {"domain": "example.com"},
+        "products": [
+            {
+                **_SNAPSHOT["products"][0],
+                "productType": "Harnais",
+                "tags": ["chien", "nylon"],
+                "variants": {"edges": [{"node": {"price": "49.90", "inventoryQuantity": 12}}]},
+            },
+            {
+                "id": "gid://shopify/Product/3",
+                "title": "Harnais chien rouge",
+                "handle": "harnais-chien-rouge",
+                "productType": "Harnais",
+                "tags": ["chien", "nylon"],
+                "description": "Harnais nylon réglable confortable pour chien avec boucle solide.",
+                "variants": {"edges": [{"node": {"price": "52.00", "inventoryQuantity": 10}}]},
+                "status": "ACTIVE",
+            },
+        ],
+        "collections": [],
+    }
+    gsc_dir = tmp_path / SHOP
+    gsc_dir.mkdir()
+    gsc_path = gsc_dir / "gsc_performance.csv"
+    gsc_path.write_text(
+        "url,clicks,impressions,ctr,position\n"
+        "https://example.com/products/harnais-chien,12,300,0.04,8\n"
+        "https://example.com/products/harnais-chien-rouge,11,285,0.038,8.5\n",
+        encoding="utf-8",
+    )
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
+        patch("app.api.geo.DB_PATH", db),
+        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=snapshot),
+        patch("app.api.geo._find_gsc_file", return_value=gsc_path),
+    ):
+        client.post(
+            f"/api/shops/{SHOP}/geo/ledger/events",
+            json={
+                "resource_type": "product",
+                "resource_id": "gid://shopify/Product/1",
+                "resource_title": "Harnais chien nylon",
+                "action_type": "enrich_product_facts",
+                "status": "applied",
+                "score_before": 60,
+                "before_snapshot": {
+                    "path": "/products/harnais-chien",
+                    "content": {"handle": "harnais-chien"},
+                    "commerce": {"price": "49.90", "inventory_quantity": 12},
+                    "scores": {"readiness_score": 60},
+                },
+                "metrics_before": {"gsc": {"impressions": 300, "position": 8}},
+            },
+        )
+        resp = client.get(f"/api/shops/{SHOP}/geo/control-groups")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] is True
+    assert data["summary"]["groups_with_controls"] == 1
+    assert data["groups"][0]["controls"][0]["resource_id"] == "gid://shopify/Product/3"
+    assert data["groups"][0]["controls"][0]["quality"] == "strong"
+
+
+def test_get_geo_validation_timeline_returns_event_windows(client, tmp_path) -> None:
+    db = tmp_path / "timeline.db"
+    init_db(db)
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.geo.DB_PATH", db),
+    ):
+        client.post(
+            f"/api/shops/{SHOP}/geo/ledger/events",
+            json={
+                "resource_type": "product",
+                "resource_id": "gid://shopify/Product/1",
+                "resource_title": "Harnais chien nylon",
+                "action_type": "enrich_product_facts",
+                "status": "applied",
+                "score_before": 60,
+                "measurement_status": "baseline_captured",
+                "before_snapshot": {"path": "/products/harnais-chien", "scores": {"readiness_score": 60}},
+                "metrics_before": {"gsc": {"impressions": 300, "position": 8}},
+            },
+        )
+        resp = client.get(f"/api/shops/{SHOP}/geo/validation-timeline")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] is True
+    assert data["summary"]["timelines_built"] == 1
+    assert data["timelines"][0]["windows"][0]["label"] == "J+0"
+    assert data["timelines"][0]["windows"][-1]["label"] == "J+90"
+
+
 def test_get_geo_risk_guard_returns_protection_rows(client, snapshot_file, tmp_path) -> None:
     gsc_dir = tmp_path / SHOP
     gsc_dir.mkdir()
@@ -382,5 +483,188 @@ def test_get_geo_answer_blocks_returns_404_without_snapshot(client, tmp_path) ->
         patch("app.api.geo.load_snapshot_from_file_or_db", return_value=None),
     ):
         resp = client.get(f"/api/shops/{SHOP}/geo/answer-blocks")
+
+    assert resp.status_code == 404
+
+
+def test_get_geo_crawlability_returns_llms_preview(client, snapshot_file) -> None:
+    snapshot = {
+        **_SNAPSHOT,
+        "shop": {"domain": "example.com"},
+        "collections": [{"id": "gid://shopify/Collection/1", "title": "Harnais", "handle": "harnais"}],
+    }
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
+        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=snapshot),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/crawlability?top_products=5&top_collections=5")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] is True
+    assert data["domain"] == "example.com"
+    assert data["summary"]["dry_run"] is True
+    assert "llms.txt preview" in data["llms_txt"]
+    assert data["included_pages"]
+
+
+def test_get_geo_crawlability_returns_404_without_snapshot(client, tmp_path) -> None:
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", tmp_path / "missing.json"),
+        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=None),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/crawlability")
+
+    assert resp.status_code == 404
+
+
+def test_get_geo_competitors_returns_query_monitor(client, snapshot_file, tmp_path) -> None:
+    query_dir = tmp_path / SHOP
+    query_dir.mkdir()
+    query_path = query_dir / "gsc_query_page.csv"
+    query_path.write_text(
+        "query,page,clicks,impressions,ctr,position\n"
+        "meilleur harnais chien,/products/harnais-chien,10,700,0.01,9\n",
+        encoding="utf-8",
+    )
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
+        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=_SNAPSHOT),
+        patch("app.api.geo._find_gsc_query_page_file", return_value=query_path),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/competitors?competitors=miacara.com,zara.com&top=5")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] is True
+    assert data["gsc_query_page_connected"] is True
+    assert data["summary"]["dry_run"] is True
+    assert data["summary"]["competitor_domains"] == 2
+    assert data["queries"][0]["competitors"]
+
+
+def test_get_geo_competitors_returns_404_without_snapshot(client, tmp_path) -> None:
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", tmp_path / "missing.json"),
+        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=None),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/competitors")
+
+    assert resp.status_code == 404
+
+
+def test_create_and_list_geo_optimization_snapshot(client, snapshot_file, tmp_path) -> None:
+    db = tmp_path / "geo-snapshots.db"
+    init_db(db)
+    gsc_dir = tmp_path / SHOP
+    gsc_dir.mkdir()
+    gsc_path = gsc_dir / "gsc_performance.csv"
+    gsc_path.write_text(
+        "url,clicks,impressions,ctr,position\n"
+        "https://example.com/products/harnais-chien,12,300,0.04,9\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "resource_type": "product",
+        "resource_id": "gid://shopify/Product/1",
+        "action_type": "add_answer_blocks",
+        "hypothesis": "Answer blocks should improve clarity.",
+        "notes": "Before snapshot.",
+    }
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
+        patch("app.api.geo.DB_PATH", db),
+        patch("app.api.geo.load_snapshot_from_file_or_db", return_value={**_SNAPSHOT, "shop": {"domain": "example.com"}}),
+        patch("app.api.geo._find_gsc_file", return_value=gsc_path),
+    ):
+        created = client.post(f"/api/shops/{SHOP}/geo/optimization-snapshots", json=payload)
+        listed = client.get(f"/api/shops/{SHOP}/geo/optimization-snapshots")
+
+    assert created.status_code == 200
+    assert created.json()["created"] is True
+    assert created.json()["snapshot"]["metrics"]["gsc"]["impressions"] == 300
+    assert listed.status_code == 200
+    assert listed.json()["total"] == 1
+    assert listed.json()["snapshots"][0]["action_type"] == "add_answer_blocks"
+
+
+def test_create_geo_ledger_event_from_snapshot_and_update_status(client, snapshot_file, tmp_path) -> None:
+    db = tmp_path / "geo-events.db"
+    init_db(db)
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
+        patch("app.api.geo.DB_PATH", db),
+        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=_SNAPSHOT),
+        patch("app.api.geo._find_gsc_file", return_value=None),
+    ):
+        snapshot_resp = client.post(
+            f"/api/shops/{SHOP}/geo/optimization-snapshots",
+            json={
+                "resource_type": "product",
+                "resource_id": "gid://shopify/Product/1",
+                "action_type": "enrich_product_facts",
+                "hypothesis": "Richer facts should improve answer eligibility.",
+            },
+        )
+        snapshot_id = snapshot_resp.json()["snapshot_id"]
+        created = client.post(
+            f"/api/shops/{SHOP}/geo/ledger/events/from-snapshot",
+            json={
+                "snapshot_id": snapshot_id,
+                "status": "applied",
+                "job_id": "job-123",
+                "estimated_impact": {"revenue_estimate": 22},
+            },
+        )
+        event_id = created.json()["event_id"]
+        updated = client.patch(
+            f"/api/shops/{SHOP}/geo/ledger/events/{event_id}/status",
+            json={
+                "status": "measured",
+                "score_after": 88,
+                "measurement_status": "j30_measured",
+                "observed_impact": {"revenue": 11},
+            },
+        )
+        listed = client.get(f"/api/shops/{SHOP}/geo/ledger")
+
+    assert snapshot_resp.status_code == 200
+    assert created.status_code == 200
+    assert updated.status_code == 200
+    event = listed.json()["events"][0]
+    assert event["snapshot_id"] == snapshot_id
+    assert event["status"] == "measured"
+    assert event["score_after"] == 88
+    assert event["measurement_status"] == "j30_measured"
+    assert event["observed_impact"]["revenue"] == 11
+    assert [entry["status"] for entry in event["status_history"]] == ["applied", "measured"]
+
+
+def test_create_geo_optimization_snapshot_returns_404_for_missing_resource(client, snapshot_file, tmp_path) -> None:
+    db = tmp_path / "geo-snapshots.db"
+    init_db(db)
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
+        patch("app.api.geo.DB_PATH", db),
+        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=_SNAPSHOT),
+        patch("app.api.geo._find_gsc_file", return_value=None),
+    ):
+        resp = client.post(
+            f"/api/shops/{SHOP}/geo/optimization-snapshots",
+            json={
+                "resource_type": "product",
+                "resource_id": "missing",
+                "action_type": "add_answer_blocks",
+            },
+        )
 
     assert resp.status_code == 404

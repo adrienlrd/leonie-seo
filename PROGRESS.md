@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-18** (Phase 11 — tâches 106-113)
+- Dernière session : **2026-05-18** (Phase 11.5 — tâche 119)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -12,10 +12,218 @@
 - Phase 8 : **7/7** ✅ (tâches 69-75 terminées côté repo ; soumission publique différée après Phase 10)
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
 - Phase 10 : **21/21** ✅ (tâches 83-103 clôturées le 2026-05-17)
-- Phase 11 : **8/10** ⏳ (GEO / Revenue-Aware Shopify intelligence, tâches 106-115)
+- Phase 11 : **10/10** ✅ (GEO / Revenue-Aware Shopify intelligence, tâches 106-115)
+- Phase 11.5 : **4/10** ⏳ (GEO Impact Validation & Retention Loop, tâches 116-125)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 104-105)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : ciblés tâches 106-113 + DB adapter **51/51** ✅ — ruff clean ✅ — Remix typecheck/build ✅
+- Tests : ciblés tâches 106-119 + DB adapter **75/75** ✅ — ruff complet ✅ — typecheck/build Shopify ✅
+
+## Tâche 119 — Validation Timeline J+7/J+30/J+60/J+90 le 2026-05-18
+
+### Objectif
+
+Planifier les fenêtres de mesure après application d'une optimisation et afficher clairement quand les signaux sont trop précoces, mesurables, prêts à relire ou inconclusifs.
+
+### Réalisations
+
+- `app/geo/validation_timeline.py` — génération des fenêtres J+0/J+7/J+30/J+60/J+90 pour les événements `applied`, `measured` et `rolled_back`.
+- Statuts par fenêtre : `pending`, `measuring`, `ready`, `inconclusive`.
+- Prise en compte de `status_history`, `measurement_status`, `metrics_before`, `metrics_after`, `observed_impact` et volume GSC baseline minimal.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/validation-timeline?event_id=&min_impressions=`.
+- `shopify-app/app/routes/app.geo-validation-timeline.tsx` — page Remix avec jalons, dates dues, messages d'interprétation et résumé des fenêtres.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- Tests unitaires et API dans `tests/test_geo/test_validation_timeline.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- V1 calcule la timeline à la demande depuis le ledger au lieu de persister des jobs de mesure ; la persistance peut arriver avec les tâches de dashboard/confiance.
+- J+7 reste explicitement un signal faible, J+30 la première vraie lecture, J+60 un signal plus fiable et J+90 la conclusion complète.
+- Les fenêtres écoulées sans volume baseline suffisant deviennent `inconclusive` pour éviter les conclusions forcées.
+- Une mesure déjà enregistrée via `measurement_status`, `metrics_after` ou `observed_impact` rend la fenêtre correspondante `ready`.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — **75/75** ✅
+- `pytest tests/test_geo/test_validation_timeline.py tests/test_api/test_geo.py` — **30/30** ✅
+- `ruff check app/geo app/api/geo.py tests/test_geo tests/test_api/test_geo.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **120 — Progress Curve Dashboard** : afficher les courbes score GEO, impressions, clics, CTR, position, conversions, revenu et impact estimé vs observé.
+
+## Tâche 118 — Control Group Builder le 2026-05-18
+
+### Objectif
+
+Sélectionner des pages témoins similaires non modifiées pour comparer l'évolution des pages optimisées à une baseline crédible sans présenter la comparaison comme une preuve causale.
+
+### Réalisations
+
+- `app/geo/control_groups.py` — builder de groupes contrôle par événement appliqué/mesuré avec exclusion des pages déjà optimisées.
+- Matching par type de page, catégorie, tags, impressions GSC, position moyenne, prix et score GEO initial.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/control-groups?event_id=&top_events=&controls_per_event=`.
+- `shopify-app/app/routes/app.geo-control-groups.tsx` — page Remix listant les pages optimisées, les témoins candidats, score de similarité, métriques baseline et avertissements.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- Tests unitaires et API dans `tests/test_geo/test_control_groups.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- V1 read-only et calculée à la demande : aucun groupe contrôle n'est persisté tant que les fenêtres de mesure automatiques ne sont pas implémentées.
+- Les pages avec événements `applied`, `measured` ou `rolled_back` sont exclues comme témoins pour éviter de comparer deux pages modifiées.
+- Chaque groupe expose un `causality_note` : les témoins structurent la comparaison, mais ne prouvent pas seuls l'impact.
+- Les matches faibles restent visibles avec warning plutôt que masqués, pour éviter une fausse impression de certitude.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — **70/70** ✅
+- `pytest tests/test_geo/test_control_groups.py tests/test_api/test_geo.py` — **27/27** ✅
+- `ruff check app/geo app/api/geo.py tests/test_geo tests/test_api/test_geo.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **119 — Validation Timeline J+7/J+30/J+60/J+90** : planifier les fenêtres de mesure et afficher quand les signaux seront interprétables.
+
+## Tâche 117 — Optimization Event Tracking le 2026-05-18
+
+### Objectif
+
+Relier chaque optimisation à un événement traçable avec snapshot source, page, type d'action, job ID, scores avant/après, hypothèse, statut et état de mesure.
+
+### Réalisations
+
+- `app/db.py` — extension idempotente de `geo_impact_events` avec `snapshot_id`, `score_before`, `score_after`, `measurement_status` et `status_history` pour SQLite/Postgres.
+- `app/geo/ledger.py` — création d'événements enrichis, historique de statut et mise à jour de statut mesurable.
+- `app/geo/event_tracking.py` — création d'un événement depuis un snapshot d'optimisation et helper de mise à jour.
+- `app/geo/optimization_snapshots.py` — lecture ciblée d'un snapshot par ID.
+- `app/api/geo.py` — endpoints :
+  - `POST /api/shops/{shop}/geo/ledger/events/from-snapshot`
+  - `PATCH /api/shops/{shop}/geo/ledger/events/{event_id}/status`
+- `shopify-app/app/routes/app.geo-ledger.tsx` — affichage des snapshots liés, job IDs, scores avant/après, statut de mesure et historique.
+- Tests unitaires et API dans `tests/test_geo/test_event_tracking.py`, `tests/test_geo/test_ledger.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- Le ledger reste la source des événements, tandis que `geo_optimization_snapshots` reste la source de vérité du baseline avant optimisation.
+- La création depuis snapshot démarre avec `measurement_status="baseline_captured"` pour distinguer un événement traçable d'un simple événement manuel.
+- Les changements de statut ajoutent une entrée horodatée dans `status_history` au lieu d'écraser l'audit trail.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — **67/67** ✅
+- `pytest tests/test_geo/test_ledger.py tests/test_geo/test_event_tracking.py tests/test_geo/test_optimization_snapshots.py tests/test_api/test_geo.py` — **31/31** ✅
+- `ruff check app/geo app/api/geo.py app/db.py tests/test_geo tests/test_api/test_geo.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **118 — Control Group Builder** : sélectionner des pages témoins similaires non modifiées pour comparer l'évolution des pages optimisées à une baseline crédible.
+
+## Tâche 116 — Optimization Snapshot le 2026-05-18
+
+### Objectif
+
+Capturer l'état exact d'une page avant optimisation afin de préparer la preuve d'impact avant/après, les fenêtres J+7/J+30/J+60 et le futur rollback.
+
+### Réalisations
+
+- `app/db.py` — table `geo_optimization_snapshots` SQLite/Postgres.
+- `app/geo/optimization_snapshots.py` — builder et stockage des snapshots avant optimisation : scores GEO/SEO, contenu, faits, commerce, GSC baseline, hash de contenu et hypothèse.
+- `app/api/geo.py` — endpoints :
+  - `GET /api/shops/{shop}/geo/optimization-snapshots`
+  - `POST /api/shops/{shop}/geo/optimization-snapshots`
+- `shopify-app/app/routes/app.geo-snapshots.tsx` — page Remix pour créer un snapshot par ressource et lister les captures existantes.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- Tests unitaires et API dans `tests/test_geo/test_optimization_snapshots.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- Les snapshots sont stockés dans une table dédiée plutôt que dans le ledger : le snapshot est l'état source, le ledger reste l'historique des événements.
+- V1 couvre produits et collections ; les métriques GA4 et JSON-LD détaillées restent à enrichir dans les tâches suivantes.
+- Chaque snapshot capture un `content_hash` pour détecter les changements ultérieurs sans comparer tout le contenu à la main.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — **63/63** ✅
+- `ruff check app/geo app/api/geo.py app/db.py tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **117 — Optimization Event Tracking** : relier les snapshots aux événements appliqués, jobs, statuts et hypothèses de mesure.
+
+## Tâche 115 — AI Answer Competitor Monitor le 2026-05-18
+
+### Objectif
+
+Comparer les concurrents visibles ou à auditer sur les requêtes conversationnelles prioritaires, avec une approche légère par GSC/import manuel et sans scraping agressif ni copie de contenu.
+
+### Réalisations
+
+- `app/geo/competitors.py` — monitor dry-run : requêtes conversationnelles prioritaires, domaines concurrents fournis, pages Léonie candidates, checklist d'audit et action recommandée.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/competitors?competitors=&top=`.
+- `shopify-app/app/routes/app.geo-competitors.tsx` — page Remix `Concurrents AI Search` avec saisie des domaines, cartes par requête, concurrents à auditer et politique anti-copie.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- Tests unitaires et API dans `tests/test_geo/test_competitors.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- V1 sans scraping live : l'outil utilise `gsc_query_page.csv` si disponible, fallback catalogue sinon, et des domaines concurrents fournis par l'utilisateur.
+- Les URLs concurrentes sont des candidates de revue manuelle, pas des pages scrapées ni des assertions de visibilité AI Search.
+- Chaque requête inclut une politique anti-copie et une action Léonie recommandée : collection/guide, enrichissement facts, FAQ/blocs de réponse ou maillage.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — **59/59** ✅
+- `ruff check app/geo app/api/geo.py tests/test_geo tests/test_api/test_geo.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **Phase 11.5 — Optimization Snapshot** : officialiser la boucle de validation d'impact avant de reprendre les tâches 116+.
+
+## Tâche 114 — llms.txt & AI Crawlability Advisor le 2026-05-18
+
+### Objectif
+
+Prévisualiser un `llms.txt` et recommander les pages produits, collections et politiques à rendre lisibles pour les moteurs IA, sans promettre de ranking, citation ou trafic.
+
+### Réalisations
+
+- `app/geo/crawlability.py` — advisor dry-run : pages incluses, pages à revoir/exclure, raisons, priorités et contenu `llms.txt` preview.
+- `app/api/geo.py` — endpoint `GET /api/shops/{shop}/geo/crawlability?top_products=&top_collections=`.
+- `shopify-app/app/routes/app.geo-crawlability.tsx` — page Remix `llms.txt & crawl IA` avec preview, warnings et listes de pages.
+- `shopify-app/app/routes/app.content-hub.tsx` + `i18n.ts` — entrée dédiée dans le hub Contenu & visibilité.
+- Tests unitaires et API dans `tests/test_geo/test_crawlability.py` et `tests/test_api/test_geo.py`.
+
+### Décisions
+
+- V1 preview uniquement : aucun fichier `llms.txt` n'est écrit ou publié automatiquement.
+- Les produits trop pauvres en texte ou sans handle sont exclus/revus plutôt qu'inclus.
+- Le texte généré rappelle explicitement que `llms.txt` est un guidage émergent, pas une garantie de visibilité IA.
+
+### Validation
+
+- `pytest tests/test_geo tests/test_api/test_geo.py tests/test_db_adapter.py` — **55/55** ✅
+- `ruff check app/geo app/api/geo.py tests/test_geo tests/test_api/test_geo.py` — ✅
+- `ruff check .` — ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **115 — AI Answer Competitor Monitor** : comparer les concurrents visibles sur les requêtes conversationnelles prioritaires via import/manuel ou SERP léger, sans copie de contenu.
 
 ## Tâche 113 — FAQ & Answer Block Generator le 2026-05-18
 

@@ -24,6 +24,9 @@ def test_create_geo_event_persists_json_payloads(tmp_path: Path) -> None:
         before_snapshot={"readiness_score": 42},
         metrics_before={"impressions": 100},
         estimated_impact={"revenue_estimate": 12.5},
+        snapshot_id=3,
+        score_before=42,
+        measurement_status="baseline_captured",
         db_path=db,
     )
 
@@ -33,6 +36,10 @@ def test_create_geo_event_persists_json_payloads(tmp_path: Path) -> None:
     assert data["total"] == 1
     assert data["events"][0]["before_snapshot"]["readiness_score"] == 42
     assert data["events"][0]["estimated_impact"]["revenue_estimate"] == 12.5
+    assert data["events"][0]["snapshot_id"] == 3
+    assert data["events"][0]["score_before"] == 42
+    assert data["events"][0]["measurement_status"] == "baseline_captured"
+    assert data["events"][0]["status_history"][0]["status"] == "planned"
 
 
 def test_list_geo_events_filters_by_shop_and_status(tmp_path: Path) -> None:

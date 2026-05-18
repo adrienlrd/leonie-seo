@@ -175,3 +175,43 @@ def test_migration_is_idempotent(tmp_path):
     init_db(db)
     init_db(db)  # second call must be a no-op for the migration
     assert "shop" in _sqlite_columns(db, "seo_changes")
+
+
+def test_legacy_geo_impact_events_get_tracking_columns(tmp_path):
+    """A legacy GEO ledger receives optimization tracking columns."""
+    import sqlite3 as _sqlite3
+
+    db = tmp_path / "legacy_geo.db"
+    with _sqlite3.connect(db) as conn:
+        conn.execute(
+            """CREATE TABLE geo_impact_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                shop TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                resource_type TEXT NOT NULL,
+                resource_id TEXT NOT NULL,
+                resource_title TEXT NOT NULL DEFAULT '',
+                action_type TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'planned',
+                source TEXT NOT NULL DEFAULT 'geo',
+                job_id TEXT,
+                hypothesis TEXT,
+                before_snapshot TEXT NOT NULL,
+                after_snapshot TEXT,
+                metrics_before TEXT NOT NULL,
+                metrics_after TEXT,
+                estimated_impact TEXT NOT NULL,
+                observed_impact TEXT,
+                notes TEXT
+            )"""
+        )
+
+    init_db(db)
+
+    columns = _sqlite_columns(db, "geo_impact_events")
+    assert "snapshot_id" in columns
+    assert "score_before" in columns
+    assert "score_after" in columns
+    assert "measurement_status" in columns
+    assert "status_history" in columns

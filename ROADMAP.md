@@ -330,8 +330,8 @@
 | 111 | GEO Risk Guard — protéger les pages SEO ou business déjà performantes, éviter les sur-optimisations IA, bloquer les écritures automatiques sauf confirmation forte et propager la protection aux workflows contenu, FAQ, JSON-LD, maillage, collections et redirects | 🟡 | ✅ | 2026-05-18 |
 | 112 | AI Search Collection Builder — détecter les opportunités de collections Shopify adaptées aux intentions conversationnelles via catalogue, tags, types produits, requêtes GSC, signaux niche, embeddings et stock ; proposer nom, handle, H1, metas, description, FAQ, produits et dry-run avant création | 🔴 | ✅ | 2026-05-18 |
 | 113 | FAQ & Answer Block Generator — générer des FAQ et blocs de réponses orientés moteurs IA à partir des faits produits confirmés, avec review humaine, séparation fait confirmé / suggestion à vérifier et option d'application future sur pages produits, collections ou blogs Shopify | 🟡 | ✅ | 2026-05-18 |
-| 114 | llms.txt & AI Crawlability Advisor — préparer un fichier de guidage IA listant les pages, collections, politiques et contenus clés de la boutique, recommander les pages à inclure/exclure et auditer la lisibilité IA sans promettre de ranking ou citation garantie | 🟡 | ⏳ | |
-| 115 | AI Answer Competitor Monitor — comparer les concurrents visibles sur les requêtes conversationnelles prioritaires, d'abord via SERP ou import manuel, puis analyser contenus, prix, avis, FAQ, schema, preuves, angle IA et recommander collection, enrichissement produit, FAQ ou maillage sans copier | 🔴 | ⏳ | |
+| 114 | llms.txt & AI Crawlability Advisor — préparer un fichier de guidage IA listant les pages, collections, politiques et contenus clés de la boutique, recommander les pages à inclure/exclure et auditer la lisibilité IA sans promettre de ranking ou citation garantie | 🟡 | ✅ | 2026-05-18 |
+| 115 | AI Answer Competitor Monitor — comparer les concurrents visibles sur les requêtes conversationnelles prioritaires, d'abord via SERP ou import manuel, puis analyser contenus, prix, avis, FAQ, schema, preuves, angle IA et recommander collection, enrichissement produit, FAQ ou maillage sans copier | 🔴 | ✅ | 2026-05-18 |
 
 ### Détail des objectifs Phase 11
 
@@ -416,10 +416,10 @@
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
-| 116 | Optimization Snapshot — enregistrer l'état avant chaque modification : score GEO/SEO, contenu, facts, FAQ, JSON-LD, GSC, GA4, Shopify, stock, prix et statut produit | 🔴 | ⏳ | |
-| 117 | Optimization Event Tracking — créer un événement traçable pour chaque action appliquée avec page, type d'action, date, utilisateur, job ID, score avant/après, hypothèse et statut | 🟡 | ⏳ | |
-| 118 | Control Group Builder — sélectionner des pages témoins similaires non modifiées pour comparer l'évolution des pages optimisées à une baseline crédible | 🔴 | ⏳ | |
-| 119 | Validation Timeline J+7/J+30/J+60/J+90 — planifier automatiquement les fenêtres de mesure et afficher au marchand quand les premiers signaux et conclusions seront disponibles | 🟡 | ⏳ | |
+| 116 | Optimization Snapshot — enregistrer l'état avant chaque modification : score GEO/SEO, contenu, facts, FAQ, JSON-LD, GSC, GA4, Shopify, stock, prix et statut produit | 🔴 | ✅ | 2026-05-18 |
+| 117 | Optimization Event Tracking — créer un événement traçable pour chaque action appliquée avec page, type d'action, date, utilisateur, job ID, score avant/après, hypothèse et statut | 🟡 | ✅ | 2026-05-18 |
+| 118 | Control Group Builder — sélectionner des pages témoins similaires non modifiées pour comparer l'évolution des pages optimisées à une baseline crédible | 🔴 | ✅ | 2026-05-18 |
+| 119 | Validation Timeline J+7/J+30/J+60/J+90 — planifier automatiquement les fenêtres de mesure et afficher au marchand quand les premiers signaux et conclusions seront disponibles | 🟡 | ✅ | 2026-05-18 |
 | 120 | Progress Curve Dashboard — afficher les courbes score GEO, impressions, clics, CTR, position, sessions organiques, conversions, revenu et impact estimé vs observé | 🔴 | ⏳ | |
 | 121 | Impact Confidence Score — calculer un score de confiance de l'impact selon durée, volume, groupe contrôle, stabilité stock/prix et cohérence GSC/GA4 | 🔴 | ⏳ | |
 | 122 | Before/After Impact Report — générer un rapport lisible par page/action avec score avant/après, métriques GSC/GA4, verdict et recommandations suivantes | 🟡 | ⏳ | |
@@ -518,5 +518,5 @@
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
-| 104 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
-| 105 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour et configuration de production figée | 🔴 | ⏳ | |
+| 127 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
+| 128 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour et configuration de production figée | 🔴 | ⏳ | |

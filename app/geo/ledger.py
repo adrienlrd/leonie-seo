@@ -26,6 +26,25 @@ def _json_loads(value: str | None) -> dict[str, Any] | None:
     return loaded if isinstance(loaded, dict) else None
 
 
+def _json_loads_list(value: str | None) -> list[dict[str, Any]]:
+    if not value:
+        return []
+    try:
+        loaded = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(loaded, list):
+        return []
+    return [item for item in loaded if isinstance(item, dict)]
+
+
+def _status_history_entry(status: str, created_at: str, note: str | None = None) -> dict[str, Any]:
+    entry: dict[str, Any] = {"status": status, "changed_at": created_at}
+    if note:
+        entry["note"] = note
+    return entry
+
+
 def create_geo_event(
     *,
     shop: str,
@@ -40,7 +59,12 @@ def create_geo_event(
     status: str = "planned",
     source: str = "geo",
     job_id: str | None = None,
+    snapshot_id: int | None = None,
     hypothesis: str | None = None,
+    score_before: int | None = None,
+    score_after: int | None = None,
+    measurement_status: str = "not_started",
+    status_history: list[dict[str, Any]] | None = None,
     after_snapshot: dict[str, Any] | None = None,
     metrics_after: dict[str, Any] | None = None,
     observed_impact: dict[str, Any] | None = None,
@@ -50,16 +74,18 @@ def create_geo_event(
     """Create one GEO impact ledger event and return its ID."""
     path = db_path if db_path is not None else DB_PATH
     now = datetime.now(UTC).isoformat()
+    history = status_history or [_status_history_entry(status, now)]
     with get_conn(path) as conn:
         conn.execute(
             """
             INSERT INTO geo_impact_events (
                 shop, created_at, event_type, resource_type, resource_id, resource_title,
-                action_type, status, source, job_id, hypothesis, before_snapshot,
-                after_snapshot, metrics_before, metrics_after, estimated_impact,
+                action_type, status, source, job_id, snapshot_id, hypothesis,
+                score_before, score_after, measurement_status, status_history,
+                before_snapshot, after_snapshot, metrics_before, metrics_after, estimated_impact,
                 observed_impact, notes
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 shop,
@@ -72,7 +98,12 @@ def create_geo_event(
                 status,
                 source,
                 job_id,
+                snapshot_id,
                 hypothesis,
+                score_before,
+                score_after,
+                measurement_status,
+                json.dumps(history, ensure_ascii=False, sort_keys=True),
                 _json_dumps(before_snapshot) or "{}",
                 _json_dumps(after_snapshot),
                 _json_dumps(metrics_before) or "{}",
@@ -142,7 +173,12 @@ def list_geo_events(
                 "status": row["status"],
                 "source": row["source"],
                 "job_id": row["job_id"],
+                "snapshot_id": row["snapshot_id"],
                 "hypothesis": row["hypothesis"],
+                "score_before": row["score_before"],
+                "score_after": row["score_after"],
+                "measurement_status": row["measurement_status"],
+                "status_history": _json_loads_list(row["status_history"]),
                 "before_snapshot": _json_loads(row["before_snapshot"]) or {},
                 "after_snapshot": _json_loads(row["after_snapshot"]),
                 "metrics_before": _json_loads(row["metrics_before"]) or {},
@@ -182,3 +218,64 @@ def summarize_geo_events(shop: str, *, db_path: Path | None = None) -> dict[str,
         "observed_revenue": round(observed_revenue, 2),
         "measurement_note": "Observed impact is recorded only after measurement windows such as J+7/J+30/J+60.",
     }
+
+
+def update_geo_event_status(
+    *,
+    shop: str,
+    event_id: int,
+    status: str,
+    score_after: int | None = None,
+    measurement_status: str | None = None,
+    after_snapshot: dict[str, Any] | None = None,
+    metrics_after: dict[str, Any] | None = None,
+    observed_impact: dict[str, Any] | None = None,
+    notes: str | None = None,
+    db_path: Path | None = None,
+) -> bool:
+    """Update one GEO event status while appending a status history entry."""
+    path = db_path if db_path is not None else DB_PATH
+    changed_at = datetime.now(UTC).isoformat()
+    with get_conn(path) as conn:
+        row = conn.execute(
+            "SELECT status_history, notes FROM geo_impact_events WHERE shop = ? AND id = ?",
+            (shop, event_id),
+        ).fetchone()
+        if row is None:
+            return False
+
+        history_raw = row["status_history"]
+        try:
+            history_loaded = json.loads(history_raw) if history_raw else []
+        except json.JSONDecodeError:
+            history_loaded = []
+        history = history_loaded if isinstance(history_loaded, list) else []
+        history.append(_status_history_entry(status, changed_at, notes))
+
+        conn.execute(
+            """
+            UPDATE geo_impact_events
+            SET status = ?,
+                score_after = COALESCE(?, score_after),
+                measurement_status = COALESCE(?, measurement_status),
+                after_snapshot = COALESCE(?, after_snapshot),
+                metrics_after = COALESCE(?, metrics_after),
+                observed_impact = COALESCE(?, observed_impact),
+                notes = COALESCE(?, notes),
+                status_history = ?
+            WHERE shop = ? AND id = ?
+            """,
+            (
+                status,
+                score_after,
+                measurement_status,
+                _json_dumps(after_snapshot),
+                _json_dumps(metrics_after),
+                _json_dumps(observed_impact),
+                notes,
+                json.dumps(history, ensure_ascii=False, sort_keys=True),
+                shop,
+                event_id,
+            ),
+        )
+    return True

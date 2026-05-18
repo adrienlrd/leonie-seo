@@ -56,6 +56,46 @@ export default function ContentHub() {
           : "Generates FAQ and AI answers only from confirmed product facts.",
     },
     {
+      titleKey: "geoCrawlability",
+      href: "/app/geo-crawlability",
+      description:
+        locale === "fr"
+          ? "Prévisualise un llms.txt et les pages à rendre lisibles pour les moteurs IA."
+          : "Previews llms.txt and pages to make readable for AI crawlers.",
+    },
+    {
+      titleKey: "geoCompetitors",
+      href: "/app/geo-competitors",
+      description:
+        locale === "fr"
+          ? "Compare les concurrents visibles sur les requêtes conversationnelles prioritaires."
+          : "Compares competitors visible on priority conversational queries.",
+    },
+    {
+      titleKey: "geoSnapshots",
+      href: "/app/geo-snapshots",
+      description:
+        locale === "fr"
+          ? "Capture l'état avant optimisation pour mesurer l'impact plus tard."
+          : "Captures the before state so optimization impact can be measured later.",
+    },
+    {
+      titleKey: "geoControlGroups",
+      href: "/app/geo-control-groups",
+      description:
+        locale === "fr"
+          ? "Compare les pages optimisées à des pages témoins similaires non modifiées."
+          : "Compares optimized pages with similar unchanged control pages.",
+    },
+    {
+      titleKey: "geoValidationTimeline",
+      href: "/app/geo-validation-timeline",
+      description:
+        locale === "fr"
+          ? "Planifie les fenêtres J+7, J+30, J+60 et J+90 avant de conclure."
+          : "Schedules J+7, J+30, J+60, and J+90 windows before conclusions.",
+    },
+    {
       titleKey: "geoFacts",
       href: "/app/geo-facts",
       description:

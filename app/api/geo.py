@@ -13,11 +13,24 @@ from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.db_adapter import DB_PATH
 from app.geo.answers import build_catalog_answer_blocks
 from app.geo.collections import build_collection_suggestions, parse_gsc_query_page_csv
+from app.geo.competitors import build_competitor_monitor
+from app.geo.control_groups import build_control_groups
+from app.geo.crawlability import build_ai_crawlability_advisor
+from app.geo.event_tracking import (
+    create_event_from_optimization_snapshot,
+    mark_optimization_event_status,
+)
 from app.geo.facts import analyze_catalog_facts
 from app.geo.ledger import create_geo_event, list_geo_events, summarize_geo_events
+from app.geo.optimization_snapshots import (
+    build_optimization_snapshot,
+    create_optimization_snapshot,
+    list_optimization_snapshots,
+)
 from app.geo.prioritization import prioritize_catalog
 from app.geo.readiness import score_catalog_readiness
 from app.geo.risk_guard import assess_catalog_risk
+from app.geo.validation_timeline import build_validation_timeline
 from app.geo.weekly import build_weekly_actions
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 
@@ -39,13 +52,44 @@ class GeoLedgerEventRequest(BaseModel):
     status: str = Field(default="planned")
     source: str = Field(default="geo")
     job_id: str | None = None
+    snapshot_id: int | None = None
     hypothesis: str | None = None
+    score_before: int | None = None
+    score_after: int | None = None
+    measurement_status: str = Field(default="not_started")
     before_snapshot: dict = Field(default_factory=dict)
     after_snapshot: dict | None = None
     metrics_before: dict = Field(default_factory=dict)
     metrics_after: dict | None = None
     estimated_impact: dict = Field(default_factory=dict)
     observed_impact: dict | None = None
+    notes: str | None = None
+
+
+class GeoEventFromSnapshotRequest(BaseModel):
+    snapshot_id: int
+    status: str = Field(default="planned")
+    job_id: str | None = None
+    estimated_impact: dict = Field(default_factory=dict)
+    notes: str | None = None
+
+
+class GeoEventStatusRequest(BaseModel):
+    status: str
+    score_after: int | None = None
+    measurement_status: str | None = None
+    after_snapshot: dict | None = None
+    metrics_after: dict | None = None
+    observed_impact: dict | None = None
+    notes: str | None = None
+
+
+class GeoOptimizationSnapshotRequest(BaseModel):
+    resource_type: str = Field(pattern="^(product|collection)$")
+    resource_id: str
+    action_type: str
+    source: str = Field(default="geo")
+    hypothesis: str | None = None
     notes: str | None = None
 
 
@@ -193,6 +237,77 @@ async def get_geo_ledger(
     }
 
 
+@router.get("/shops/{shop}/geo/optimization-snapshots")
+async def get_geo_optimization_snapshots(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    """Return stored before-optimization snapshots for a shop."""
+    data = list_optimization_snapshots(ctx.shop, limit=limit, offset=offset, db_path=DB_PATH)
+    return {
+        "shop": ctx.shop,
+        "available": True,
+        **data,
+    }
+
+
+@router.get("/shops/{shop}/geo/control-groups")
+async def get_geo_control_groups(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    event_id: int | None = None,
+    top_events: int = Query(default=10, ge=1, le=50),
+    controls_per_event: int = Query(default=3, ge=1, le=10),
+) -> dict:
+    """Return comparable unmodified control pages for GEO optimization events."""
+    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Snapshot introuvable. Lancez un audit SEO d'abord.",
+        )
+
+    gsc_file = _find_gsc_file(ctx.shop)
+    gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+    events = list_geo_events(ctx.shop, limit=200, db_path=DB_PATH)["events"]
+    analysis = build_control_groups(
+        snapshot=snapshot,
+        events=events,
+        gsc_rows=gsc_rows,
+        event_id=event_id,
+        top_events=top_events,
+        controls_per_event=controls_per_event,
+    )
+    return {
+        "shop": ctx.shop,
+        "available": True,
+        **analysis,
+    }
+
+
+@router.get("/shops/{shop}/geo/validation-timeline")
+async def get_geo_validation_timeline(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    event_id: int | None = None,
+    min_impressions: int = Query(default=50, ge=0, le=10000),
+) -> dict:
+    """Return J+7/J+30/J+60/J+90 validation windows for GEO events."""
+    events = list_geo_events(ctx.shop, limit=200, db_path=DB_PATH)["events"]
+    analysis = build_validation_timeline(
+        events=events,
+        event_id=event_id,
+        min_impressions=min_impressions,
+    )
+    return {
+        "shop": ctx.shop,
+        "available": True,
+        **analysis,
+    }
+
+
 @router.get("/shops/{shop}/geo/risk-guard")
 async def get_geo_risk_guard(
     shop: str,
@@ -287,6 +402,65 @@ async def get_geo_answer_blocks(
     }
 
 
+@router.get("/shops/{shop}/geo/crawlability")
+async def get_geo_crawlability(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    top_products: int = Query(default=30, ge=1, le=100),
+    top_collections: int = Query(default=20, ge=1, le=100),
+) -> dict:
+    """Return llms.txt preview and AI crawlability recommendations."""
+    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Snapshot introuvable. Lancez un audit SEO d'abord.",
+        )
+
+    analysis = build_ai_crawlability_advisor(
+        ctx.shop,
+        snapshot,
+        top_products=top_products,
+        top_collections=top_collections,
+    )
+    return {
+        "shop": ctx.shop,
+        "available": True,
+        **analysis,
+    }
+
+
+@router.get("/shops/{shop}/geo/competitors")
+async def get_geo_competitors(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    competitors: str = Query(default="", description="Comma-separated competitor domains"),
+    top: int = Query(default=10, ge=1, le=50),
+) -> dict:
+    """Return a light AI-answer competitor monitor for conversational queries."""
+    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Snapshot introuvable. Lancez un audit SEO d'abord.",
+        )
+
+    query_page_file = _find_gsc_query_page_file(ctx.shop)
+    query_rows = parse_gsc_query_page_csv(query_page_file.read_text()) if query_page_file else []
+    analysis = build_competitor_monitor(
+        snapshot.get("products", []),
+        query_rows,
+        competitors=competitors,
+        top=top,
+    )
+    return {
+        "shop": ctx.shop,
+        "available": True,
+        "gsc_query_page_connected": bool(query_rows),
+        **analysis,
+    }
+
+
 @router.post("/shops/{shop}/geo/ledger/events")
 async def create_geo_ledger_event(
     shop: str,
@@ -308,7 +482,11 @@ async def create_geo_ledger_event(
         status=body.status,
         source=body.source,
         job_id=body.job_id,
+        snapshot_id=body.snapshot_id,
         hypothesis=body.hypothesis,
+        score_before=body.score_before,
+        score_after=body.score_after,
+        measurement_status=body.measurement_status,
         before_snapshot=body.before_snapshot,
         after_snapshot=body.after_snapshot,
         metrics_before=body.metrics_before,
@@ -322,4 +500,104 @@ async def create_geo_ledger_event(
         "shop": ctx.shop,
         "event_id": event_id,
         "created": True,
+    }
+
+
+@router.post("/shops/{shop}/geo/ledger/events/from-snapshot")
+async def create_geo_ledger_event_from_snapshot(
+    shop: str,
+    body: GeoEventFromSnapshotRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Create a traceable GEO event from a stored optimization snapshot."""
+    try:
+        event_id = create_event_from_optimization_snapshot(
+            shop=ctx.shop,
+            snapshot_id=body.snapshot_id,
+            status=body.status,
+            job_id=body.job_id,
+            estimated_impact=body.estimated_impact,
+            notes=body.notes,
+            db_path=DB_PATH,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "shop": ctx.shop,
+        "event_id": event_id,
+        "snapshot_id": body.snapshot_id,
+        "created": True,
+    }
+
+
+@router.patch("/shops/{shop}/geo/ledger/events/{event_id}/status")
+async def update_geo_ledger_event_status(
+    shop: str,
+    event_id: int,
+    body: GeoEventStatusRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Update a GEO event status and append an audit history entry."""
+    updated = mark_optimization_event_status(
+        shop=ctx.shop,
+        event_id=event_id,
+        status=body.status,
+        score_after=body.score_after,
+        measurement_status=body.measurement_status,
+        after_snapshot=body.after_snapshot,
+        metrics_after=body.metrics_after,
+        observed_impact=body.observed_impact,
+        notes=body.notes,
+        db_path=DB_PATH,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"GEO event {event_id} not found")
+    return {
+        "shop": ctx.shop,
+        "event_id": event_id,
+        "updated": True,
+    }
+
+
+@router.post("/shops/{shop}/geo/optimization-snapshots")
+async def create_geo_optimization_snapshot(
+    shop: str,
+    body: GeoOptimizationSnapshotRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Create a before-optimization snapshot for later impact validation."""
+    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Snapshot introuvable. Lancez un audit SEO d'abord.",
+        )
+
+    gsc_file = _find_gsc_file(ctx.shop)
+    gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+    try:
+        built = build_optimization_snapshot(
+            shop=ctx.shop,
+            snapshot=snapshot,
+            resource_type=body.resource_type,
+            resource_id=body.resource_id,
+            action_type=body.action_type,
+            gsc_rows=gsc_rows,
+            source=body.source,
+            hypothesis=body.hypothesis,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    snapshot_id = create_optimization_snapshot(
+        shop=ctx.shop,
+        snapshot_data=built,
+        notes=body.notes,
+        db_path=DB_PATH,
+    )
+    return {
+        "shop": ctx.shop,
+        "created": True,
+        "snapshot_id": snapshot_id,
+        "snapshot": built,
     }
