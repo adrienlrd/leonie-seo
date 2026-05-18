@@ -79,14 +79,17 @@ Required to submit. None are in the repo yet.
 
 | Text | Length | Status | Source draft |
 |---|---|---|---|
-| Tagline (FR) | ≤100 chars | ❌ | À écrire |
-| Tagline (EN) | ≤100 chars | ❌ | À écrire |
-| Description courte (FR) | ~250 chars | ❌ | À écrire |
-| Short description (EN) | ~250 chars | ❌ | À écrire |
-| Description longue (FR) | 500-2000 mots | 🔄 | Base dans `docs/guide-utilisateur.fr.md` |
-| Long description (EN) | 500-2000 words | 🔄 | Base dans `docs/user-guide.en.md` |
-| What's new / changelog | ~200 mots | ❌ | À écrire |
-| Test instructions for the App Store reviewer | ~300 mots | ❌ | À écrire (cf. § 6) |
+| Tagline (FR) | ≤70 chars | 🔄 Drafts ready | `docs/app-store-listing-copy.md` §1 |
+| Tagline (EN) | ≤70 chars | 🔄 Drafts ready | `docs/app-store-listing-copy.md` §1 |
+| Description courte (FR) | ≤120 chars | 🔄 Drafts ready | `docs/app-store-listing-copy.md` §2 |
+| Short description (EN) | ≤120 chars | 🔄 Drafts ready | `docs/app-store-listing-copy.md` §2 |
+| Description longue (FR) | ≤2000 chars | 🔄 Draft ready | `docs/app-store-listing-copy.md` §3 |
+| Long description (EN) | ≤2000 chars | 🔄 Draft ready | `docs/app-store-listing-copy.md` §3 |
+| Key benefits (3-5 bullets) | — | 🔄 Drafts ready | `docs/app-store-listing-copy.md` §4 |
+| Categories + keywords | — | 🔄 Drafts ready | `docs/app-store-listing-copy.md` §5 |
+| Demo screencast storyboard | 60 s | 🔄 Storyboard ready | `docs/app-store-listing-copy.md` §6 |
+| What's new / changelog | ~200 mots | ❌ | À écrire (après la 1ʳᵉ release) |
+| Test instructions for the App Store reviewer | ~1500 mots | ✅ Done | `docs/app-store-test-instructions.md` |
 
 ## 5. Legal & support (⚠️ partly missing)
 
@@ -99,23 +102,12 @@ Required to submit. None are in the repo yet.
 | **Emergency developer contact** (Partner Dashboard) | 📋 | À renseigner |
 | **Company name / address** (for invoicing) | 📋 | À renseigner dans Partner Dashboard |
 
-## 6. App Store reviewer test plan (⚠️ to write)
+## 6. App Store reviewer test plan ✅ Done
 
-The Shopify reviewer needs a step-by-step script. Write `docs/app-store-test-instructions.md` covering:
-
-1. How to install the app on a test store (URL or "install" button)
-2. **Test credentials** — if the app needs Google Cloud credentials, provide a sandbox account with read-only scopes
-3. **Walk-through**:
-   - Land on dashboard → verify setup checklist appears
-   - Click "Lancer un audit SEO" → wait for job to complete (~1 min)
-   - Open Hub Audit → see issues paginated
-   - Open Hub Contenu → see FAQ suggestions
-   - Trigger a paid plan → confirm Shopify Billing screen appears and is signed by Shopify
-   - Approve plan in Shopify Billing → confirm app reflects new plan
-4. **Uninstall test**:
-   - Uninstall from Shopify Admin
-   - Confirm app no longer loads
-   - Confirm webhook fires (visible in Render logs)
+Full 11-section reviewer walk-through in `docs/app-store-test-instructions.md`
+(install, run audit, browse results, content, billing, GDPR webhooks, uninstall,
+privacy/support, known limitations, feedback channel). Copy this verbatim into
+the "Test instructions" field of the Partner Dashboard submission form.
 
 ## 7. Pre-submission technical validation (🔄 to run)
 
@@ -172,18 +164,20 @@ Before submitting:
 |---|---|
 | Code & infrastructure | ✅ Ready |
 | Partner Dashboard config | 📋 Manual verification |
-| **App Store listing assets** | ⚠️ **MISSING — blocker** |
-| **Required text content** | ⚠️ **MISSING — blocker** |
+| **App Store listing assets** | ⚠️ **MISSING — blocker** (icon + 5 screenshots) |
+| Required text content | 🔄 Drafts in `docs/app-store-listing-copy.md` |
 | Legal & support | ⚠️ Privacy ✅, ToS + support email ❌ |
-| Reviewer test plan | ⚠️ Missing |
+| Reviewer test plan | ✅ `docs/app-store-test-instructions.md` |
 | Technical validation | 🔄 To run before submission |
 | App Store policies | 📋 Self-check |
 
 **Immediate next steps (in order):**
-1. Create app icon (1200×1200 PNG) and 5 screenshots
-2. Write taglines + short + long descriptions (FR + EN)
+1. Create app icon (1200×1200 PNG) and 5 screenshots — referenced in
+   `docs/app-store-listing-copy.md` §6 storyboard
+2. Pick one tagline / short / long description from
+   `docs/app-store-listing-copy.md` and personalize
 3. Set up `support@leoniedelacroix.com` and ensure inbox is monitored
 4. Publish a Terms of Service page (route HTML or Notion)
-5. Write `docs/app-store-test-instructions.md` for the reviewer
+5. Record the 60-second demo screencast following the storyboard
 6. Run Shopify automated review checks; fix any failures
 7. Switch distribution to Public and submit
