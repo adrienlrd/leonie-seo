@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -11,9 +13,11 @@ from pydantic import BaseModel, Field
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.db_adapter import DB_PATH
+from app.ga4.client import GA4Error
 from app.geo.answers import build_catalog_answer_blocks
 from app.geo.collections import build_collection_suggestions, parse_gsc_query_page_csv
 from app.geo.competitors import build_competitor_monitor
+from app.geo.confidence import compute_catalog_confidence
 from app.geo.control_groups import build_control_groups
 from app.geo.crawlability import build_ai_crawlability_advisor
 from app.geo.event_tracking import (
@@ -21,6 +25,7 @@ from app.geo.event_tracking import (
     mark_optimization_event_status,
 )
 from app.geo.facts import analyze_catalog_facts
+from app.geo.impact_report import build_catalog_report, render_markdown
 from app.geo.ledger import create_geo_event, list_geo_events, summarize_geo_events
 from app.geo.optimization_snapshots import (
     build_optimization_snapshot,
@@ -28,6 +33,7 @@ from app.geo.optimization_snapshots import (
     list_optimization_snapshots,
 )
 from app.geo.prioritization import prioritize_catalog
+from app.geo.progress_curve import build_progress_curve
 from app.geo.readiness import score_catalog_readiness
 from app.geo.risk_guard import assess_catalog_risk
 from app.geo.validation_timeline import build_validation_timeline
@@ -250,6 +256,81 @@ async def get_geo_optimization_snapshots(
         "shop": ctx.shop,
         "available": True,
         **data,
+    }
+
+
+async def _load_ga4_daily(shop: str, days: int) -> tuple[dict, bool]:
+    """Best-effort fetch of daily organic GA4 metrics; degrade to empty when unavailable."""
+    try:
+        from app.api.ga4 import _build_ga4_client
+        from app.ga4.queries import get_organic_daily
+
+        client = _build_ga4_client(shop)
+    except (HTTPException, GA4Error):
+        return {}, False
+    try:
+        rows = await asyncio.to_thread(get_organic_daily, client, days=days)
+    except GA4Error:
+        return {}, False
+    return rows, True
+
+
+@router.get("/shops/{shop}/geo/progress-curve")
+async def get_geo_progress_curve(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    days: int = Query(default=90, ge=7, le=180),
+) -> dict:
+    """Aggregate snapshots, events, GSC and GA4 daily rows into dashboard time-series."""
+    snapshots = list_optimization_snapshots(ctx.shop, limit=500, db_path=DB_PATH)["snapshots"]
+    events = list_geo_events(ctx.shop, limit=500, db_path=DB_PATH)["events"]
+    gsc_file = _find_gsc_file(ctx.shop)
+    ga4_daily, ga4_connected = await _load_ga4_daily(ctx.shop, days=days)
+
+    return build_progress_curve(
+        shop=ctx.shop,
+        snapshots=snapshots,
+        events=events,
+        ga4_daily=ga4_daily,
+        gsc_available=gsc_file is not None,
+        ga4_connected=ga4_connected,
+        window_days=days,
+    )
+
+
+@router.get("/shops/{shop}/geo/confidence-scores")
+async def get_geo_confidence_scores(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    limit: int = Query(default=500, ge=1, le=500),
+) -> dict:
+    """Return 0-100 impact confidence scores for all GEO optimization events."""
+    events = list_geo_events(ctx.shop, limit=limit, db_path=DB_PATH)["events"]
+    result = compute_catalog_confidence(events)
+    return {
+        "shop": ctx.shop,
+        "generated_at": datetime.now(UTC).isoformat(),
+        **result,
+    }
+
+
+@router.get("/shops/{shop}/geo/impact-report")
+async def get_geo_impact_report(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    limit: int = Query(default=500, ge=1, le=500),
+) -> dict:
+    """Return a before/after impact report with verdict and Markdown export."""
+    events = list_geo_events(ctx.shop, limit=limit, db_path=DB_PATH)["events"]
+    confidence_data = compute_catalog_confidence(events)
+    catalog = build_catalog_report(events, confidence_data["scores"])
+
+    return {
+        "shop": ctx.shop,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "reports": catalog["reports"],
+        "markdown": render_markdown(catalog["reports"]),
+        "summary": catalog["summary"],
     }
 
 

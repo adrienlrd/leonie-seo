@@ -16,6 +16,14 @@ export default function InsightsHub() {
 
   const items: HubItem[] = [
     {
+      titleKey: "impact",
+      href: "/app/impact",
+      description:
+        locale === "fr"
+          ? "Courbes 90 jours : score GEO, GSC, GA4 et impact estimé vs observé."
+          : "90-day curves: GEO score, GSC, GA4 and estimated vs observed impact.",
+    },
+    {
       titleKey: "ga4",
       href: "/app/ga4",
       description:

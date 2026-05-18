@@ -5,10 +5,77 @@
 - **Summary:** Léonie SEO est une app Shopify embedded + moteur Python/FastAPI/CLI pour audit SEO, recommandations supervisées, contenus, données structurées, jobs async, intégrations Shopify/Google/LLM et garde-fous dry-run.
 - **Main stack:** Python 3.11+, FastAPI, Click, pytest, ruff, Remix, React, TypeScript, Shopify App Bridge, Shopify Polaris, npm.
 - **Main working areas:** `app/`, `scripts/`, `shopify-app/`, `config/`, `docs/`, `tests/`.
-- **Current roadmap:** Phase 10 est clôturée. Phase 11 est terminée. Phase 11.5 est officielle et en cours avec les tâches 116-119 terminées.
-- **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Les événements, groupes contrôle et timelines sont traçables, mais le dashboard de courbes et le score de confiance restent à faire.
+- **Current roadmap:** Phase 10 est clôturée. Phase 11 est terminée. Phase 11.5 est officielle et en cours avec les tâches 116-122 terminées.
+- **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Le dashboard Impact V1 est livré avec courbes sparklines SVG + score de confiance par optimisation. Le rapport before/after (122) et la détection Win/Neutral/Risk (124) restent à faire.
 
 ## Last completed task
+
+- **Date:** 2026-05-19
+- **Agent:** Claude Code (Opus 4.7)
+- **Goal:** Task 122 — Before/After Impact Report.
+- **Summary:** Ajout du module `app/geo/impact_report.py` qui produit un rapport par événement GEO avec scores avant/après (GEO, SEO, GSC, GA4), verdict (`positif_probable` / `neutre` / `inconclusif` / `négatif_possible`) et recommandation suivante (`répliquer` / `ajuster` / `rollback` / `attendre`). Export Markdown intégré via `render_markdown`. Endpoint `GET /api/shops/{shop}/geo/impact-report`. Page Remix `app.impact-report.tsx` avec DataTable, badges verdict colorés et bouton téléchargement Markdown (`data:` URI, sans dépendance). Lien "Voir le rapport complet" ajouté dans `app.impact.tsx`. 1325 tests passent.
+- **Files created (task 122):**
+  - `app/geo/impact_report.py`
+  - `tests/test_geo/test_impact_report.py`
+  - `shopify-app/app/routes/app.impact-report.tsx`
+- **Files modified (task 122):**
+  - `app/api/geo.py` (route impact-report + import)
+  - `tests/test_api/test_geo.py` (1 test intégration)
+  - `shopify-app/app/routes/app.impact.tsx` (import Button + lien rapport)
+  - `shopify-app/app/lib/i18n.ts` (clés `impactReport*` FR/EN)
+  - `ROADMAP.md` (statut 122 → ✅ 2026-05-19)
+- **Validations run (task 122):** `ruff check --fix` (1 fixé, 0 restants), `pytest` (1325 passed), `npm run typecheck` (OK).
+- **Open issues:** Drill-down par page non implémenté (exclu V1). Score de confiance n'incorpore pas encore le groupe contrôle.
+- **Next recommended action:** Task 123 — Retention Milestones.
+
+---
+
+## Previous task
+
+- **Date:** 2026-05-19
+- **Agent:** Claude Code (Sonnet 4.6)
+- **Goal:** Task 121 — Impact Confidence Score.
+- **Summary:** Ajout du module `app/geo/confidence.py` qui calcule un score 0-100 par événement GEO à partir de 6 facteurs pondérés (délai écoulé, volume impressions, delta score GEO, évolution GSC impressions, revenu observé, stabilité stock/prix) avec 4 labels (`données_insuffisantes`, `signal_faible`, `impact_probable`, `impact_fort`). Garde-fous : score 0 si rolled_back ou applied_at introuvable. Endpoint `GET /api/shops/{shop}/geo/confidence-scores`. Page Impact mise à jour avec appel parallèle + colonne Confiance en DataTable (badge Polaris coloré). 1315 tests passent.
+- **Files created (task 121):**
+  - `app/geo/confidence.py`
+  - `tests/test_geo/test_confidence.py`
+- **Files modified (task 121):**
+  - `app/api/geo.py` (route confidence-scores + import)
+  - `tests/test_api/test_geo.py` (1 test intégration)
+  - `shopify-app/app/routes/app.impact.tsx` (appel parallèle + colonne Confiance)
+  - `shopify-app/app/lib/i18n.ts` (clé `impactColConfidence` FR/EN)
+  - `ROADMAP.md` (statut 121 → ✅ 2026-05-19)
+- **Validations run (task 121):** `ruff check --fix` (2 fixés, 0 restants), `pytest` (1315 passed), `npm run typecheck`, `npm run build` (OK).
+- **Open issues:** Drill-down par page reporté (tâche 122). Score de confiance n'incorpore pas encore le groupe contrôle (tâche 118 données) — à enrichir dans une V2 si demandé.
+- **Next recommended action:** Task 122 — Before/After Impact Report.
+
+---
+
+## Previous task
+
+- **Date:** 2026-05-19
+- **Agent:** Claude Code (Opus 4.7)
+- **Goal:** Task 120 — Progress Curve Dashboard (V1).
+- **Summary:** Ajout d'un agrégateur `build_progress_curve` qui produit les séries temporelles (score GEO/SEO, GSC impressions/clics/CTR/position depuis snapshots, GA4 sessions/conversions/revenu via nouvelle requête `get_organic_daily`, impact estimé vs observé par event) + flags qualité (low_volume, incomplete_tracking, out_of_stock_pages, price_changed_pages). Exposé via `GET /api/shops/{shop}/geo/progress-curve?days=90` avec dégradation gracieuse si GA4/GSC absents. Page Remix `app.impact.tsx` avec sparklines SVG inline (pas de polaris-viz pour éviter une dépendance lourde), entrée sur le hub Insights, i18n FR/EN. 1304 tests passent, ruff clean, typecheck + build TS OK.
+- **Files created (task 120):**
+  - `app/geo/progress_curve.py`
+  - `tests/test_geo/test_progress_curve.py`
+  - `shopify-app/app/components/Sparkline.tsx`
+  - `shopify-app/app/routes/app.impact.tsx`
+- **Files modified (task 120):**
+  - `app/ga4/queries.py` (ajout `get_organic_daily`)
+  - `app/api/geo.py` (route progress-curve + helper `_load_ga4_daily`)
+  - `tests/test_api/test_geo.py` (2 tests d'intégration)
+  - `shopify-app/app/routes/app.insights.tsx` (entrée Impact GEO sur le hub)
+  - `shopify-app/app/lib/i18n.ts` (clés `impact*` FR/EN)
+  - `ROADMAP.md` (statut 120 → ✅ 2026-05-19)
+- **Validations run (task 120):** `ruff check` (clean), `pytest` (1304 passed), `cd shopify-app && npm run typecheck`, `cd shopify-app && npm run build` (OK).
+- **Open issues:** Pas de drill-down par page (volontairement exclu V1) ; à traiter via tâche 122. Sparklines SVG = pas de tooltip interactif ; upgrade vers polaris-viz possible si demande marchand.
+- **Next recommended action:** Task 121 — Impact Confidence Score (0-100 selon durée, volume, groupe contrôle, stabilité stock/prix, cohérence GSC/GA4).
+
+---
+
+## Previous task
 
 - **Date:** 2026-05-18
 - **Agent:** Codex

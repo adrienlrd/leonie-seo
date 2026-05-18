@@ -668,3 +668,154 @@ def test_create_geo_optimization_snapshot_returns_404_for_missing_resource(clien
         )
 
     assert resp.status_code == 404
+
+
+def test_get_geo_progress_curve_returns_payload_with_degraded_tracking(client, tmp_path) -> None:
+    db = tmp_path / "geo-progress.db"
+    init_db(db)
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.geo.DB_PATH", db),
+        patch("app.api.geo._find_gsc_file", return_value=None),
+        patch("app.api.geo._load_ga4_daily", return_value=({}, False)),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/progress-curve?days=90")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shop"] == SHOP
+    assert data["window_days"] == 90
+    assert data["flags"]["incomplete_tracking"] is True
+    assert data["series"]["geo_score"] == []
+    assert data["totals"]["snapshots_in_window"] == 0
+
+
+def test_get_geo_progress_curve_includes_snapshot_and_event_data(client, tmp_path) -> None:
+    db = tmp_path / "geo-progress-2.db"
+    init_db(db)
+    # Seed one snapshot + one event directly in the DB to exercise full flow.
+    from app.geo.ledger import create_geo_event
+    from app.geo.optimization_snapshots import create_optimization_snapshot
+
+    snapshot_payload = {
+        "resource_type": "product",
+        "resource_id": "p1",
+        "resource_title": "Harnais",
+        "action_type": "enrich_facts",
+        "source": "geo",
+        "hypothesis": None,
+        "snapshot": {"commerce": {"inventory_quantity": 5, "price": "49.90"}},
+        "metrics": {"gsc": {"impressions": 1500, "clicks": 120, "ctr": 0.08, "position": 8.5}},
+        "readiness_score": 72,
+        "seo_score": 60,
+        "content_hash": "abc",
+    }
+    create_optimization_snapshot(shop=SHOP, snapshot_data=snapshot_payload, db_path=db)
+    create_geo_event(
+        shop=SHOP,
+        event_type="planned_optimization",
+        resource_type="product",
+        resource_id="p1",
+        resource_title="Harnais",
+        action_type="enrich_facts",
+        before_snapshot={"scores": {"readiness_score": 60}},
+        metrics_before={"gsc": {"impressions": 1500}},
+        estimated_impact={"revenue_estimate": 120.0},
+        db_path=db,
+    )
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.geo.DB_PATH", db),
+        patch("app.api.geo._find_gsc_file", return_value=None),
+        patch("app.api.geo._load_ga4_daily", return_value=({}, True)),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/progress-curve?days=90")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["totals"]["snapshots_in_window"] == 1
+    assert data["totals"]["events_in_window"] == 1
+    assert data["series"]["geo_score"][0]["value"] == 72
+    assert data["series"]["impressions"][0]["value"] == 1500
+    assert len(data["optimizations_in_validation"]) == 1
+    assert data["flags"]["incomplete_tracking"] is True  # gsc missing → still flagged
+
+
+def test_get_geo_confidence_scores_returns_summary_and_scores(client, tmp_path) -> None:
+    db = tmp_path / "geo-confidence.db"
+    init_db(db)
+    from app.geo.ledger import create_geo_event
+
+    create_geo_event(
+        shop=SHOP,
+        event_type="planned_optimization",
+        resource_type="product",
+        resource_id="p1",
+        resource_title="Harnais",
+        action_type="enrich_facts",
+        before_snapshot={},
+        metrics_before={"gsc": {"impressions": 800, "clicks": 40}},
+        estimated_impact={"revenue_estimate": 50.0},
+        status="applied",
+        db_path=db,
+    )
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.geo.DB_PATH", db),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/confidence-scores")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shop"] == SHOP
+    assert data["summary"]["total_events"] == 1
+    assert "by_label" in data["summary"]
+    assert len(data["scores"]) == 1
+    assert "score" in data["scores"][0]
+    assert "label" in data["scores"][0]
+    assert "factors" in data["scores"][0]
+
+
+def test_get_geo_impact_report_returns_reports_and_markdown(client, tmp_path) -> None:
+    db = tmp_path / "geo-impact-report.db"
+    init_db(db)
+    from app.geo.ledger import create_geo_event
+
+    create_geo_event(
+        shop=SHOP,
+        event_type="planned_optimization",
+        resource_type="product",
+        resource_id="p1",
+        resource_title="Harnais nylon",
+        action_type="enrich_facts",
+        before_snapshot={},
+        metrics_before={"gsc": {"impressions": 600, "clicks": 30, "ctr": 0.05, "position": 12.0}},
+        metrics_after={"gsc": {"impressions": 900, "clicks": 50, "ctr": 0.055, "position": 10.0}},
+        score_before=60,
+        score_after=75,
+        estimated_impact={"revenue_estimate": 80.0},
+        status="applied",
+        db_path=db,
+    )
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.geo.DB_PATH", db),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/impact-report")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shop"] == SHOP
+    assert "generated_at" in data
+    assert data["summary"]["total"] == 1
+    assert "by_verdict" in data["summary"]
+    assert len(data["reports"]) == 1
+    report = data["reports"][0]
+    assert report["scores"]["geo_delta"] == 15
+    assert report["verdict"] in ("positif_probable", "neutre", "inconclusif", "négatif_possible")
+    assert "next_recommendation" in report
+    assert "Harnais nylon" in data["markdown"]
+    assert "# Rapport d'impact GEO" in data["markdown"]

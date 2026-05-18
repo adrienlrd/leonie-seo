@@ -420,9 +420,9 @@
 | 117 | Optimization Event Tracking — créer un événement traçable pour chaque action appliquée avec page, type d'action, date, utilisateur, job ID, score avant/après, hypothèse et statut | 🟡 | ✅ | 2026-05-18 |
 | 118 | Control Group Builder — sélectionner des pages témoins similaires non modifiées pour comparer l'évolution des pages optimisées à une baseline crédible | 🔴 | ✅ | 2026-05-18 |
 | 119 | Validation Timeline J+7/J+30/J+60/J+90 — planifier automatiquement les fenêtres de mesure et afficher au marchand quand les premiers signaux et conclusions seront disponibles | 🟡 | ✅ | 2026-05-18 |
-| 120 | Progress Curve Dashboard — afficher les courbes score GEO, impressions, clics, CTR, position, sessions organiques, conversions, revenu et impact estimé vs observé | 🔴 | ⏳ | |
-| 121 | Impact Confidence Score — calculer un score de confiance de l'impact selon durée, volume, groupe contrôle, stabilité stock/prix et cohérence GSC/GA4 | 🔴 | ⏳ | |
-| 122 | Before/After Impact Report — générer un rapport lisible par page/action avec score avant/après, métriques GSC/GA4, verdict et recommandations suivantes | 🟡 | ⏳ | |
+| 120 | Progress Curve Dashboard — afficher les courbes score GEO, impressions, clics, CTR, position, sessions organiques, conversions, revenu et impact estimé vs observé | 🔴 | ✅ | 2026-05-19 |
+| 121 | Impact Confidence Score — calculer un score de confiance de l'impact selon durée, volume, groupe contrôle, stabilité stock/prix et cohérence GSC/GA4 | 🔴 | ✅ | 2026-05-19 |
+| 122 | Before/After Impact Report — générer un rapport lisible par page/action avec score avant/après, métriques GSC/GA4, verdict et recommandations suivantes | 🟡 | ✅ | 2026-05-19 |
 | 123 | Retention Milestones — afficher des jalons d'abonnement J+7, J+30, J+60, J+90 pour montrer pourquoi l'app doit rester active pendant la validation | 🟡 | ⏳ | |
 | 124 | Win/Neutral/Risk Detection — classer automatiquement chaque optimisation en impact positif probable, neutre, négatif possible ou inconclusif | 🟡 | ⏳ | |
 | 125 | Next Best Action Loop — transformer les résultats validés en nouvelles recommandations : répliquer, ajuster, attendre ou rollback | 🔴 | ⏳ | |
@@ -510,6 +510,76 @@
 8. **125 Next Best Action Loop** — Crée la boucle de rétention et d’amélioration continue.
 9. **118 Control Group Builder** — Renforce la crédibilité statistique, mais peut être simplifié en V1.
 10. **123 Retention Milestones** — Utile commercialement, mais doit rester basé sur une vraie valeur produit.
+
+---
+
+## PHASE 11.6 — GEO Content Automation
+*Objectif : industrialiser la génération IA de contenus GEO utiles (FAQ produits/collections, Answer Blocks, guides d'achat courts, JSON-LD FAQPage) à partir des faits produits confirmés et des intentions conversationnelles réelles, avec revue humaine obligatoire avant publication.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 126 | GEO FAQ & Buying Guide Automation — générer automatiquement des FAQ, Answer Blocks et guides d'achat GEO à partir des faits produits confirmés, requêtes GSC, intentions conversationnelles et catalogue Shopify ; proposer review humaine, scoring qualité, preview, export et application future sur produits, collections ou blogs | 🔴 | ⏳ | |
+
+### Détail objectif tâche 126
+
+## 126 GEO FAQ & Buying Guide Automation
+
+- **But :** transformer les faits produits confirmés et les requêtes réelles des clients en contenus GEO utiles, prêts à être validés par le marchand.
+- **Automatisation attendue :**
+  - générer des FAQ produit ;
+  - générer des FAQ collection ;
+  - générer des blocs courts de réponses IA / Answer Blocks ;
+  - générer des guides d'achat courts ;
+  - proposer des comparatifs simples ;
+  - suggérer des blocs "choisir ce produit si…" ;
+  - suggérer des blocs "à savoir avant achat" ;
+  - proposer des liens internes vers produits, collections ou guides ;
+  - générer le JSON-LD `FAQPage` quand pertinent.
+- **Sources à utiliser :**
+  - Product Facts Layer ;
+  - catalogue Shopify ;
+  - descriptions produits existantes ;
+  - collections ;
+  - Google Search Console ;
+  - clusters de niche ;
+  - requêtes longues ;
+  - intentions conversationnelles ;
+  - données de stock ;
+  - avis ou preuves de confiance si disponibles.
+- **Revue humaine obligatoire :**
+  - afficher chaque suggestion en mode preview ;
+  - montrer les faits utilisés ;
+  - séparer faits confirmés, faits manquants et suggestions à vérifier ;
+  - permettre d'accepter, modifier, rejeter ou exporter ;
+  - aucune publication automatique par défaut ;
+  - toute écriture Shopify doit passer par confirmation explicite.
+- **Output attendu :**
+  - FAQ par produit ;
+  - FAQ par collection ;
+  - Answer Blocks courts ;
+  - guides d'achat courts ;
+  - suggestions de liens internes ;
+  - JSON-LD FAQPage ;
+  - score qualité / confiance ;
+  - statut : `draft`, `needs_review`, `approved`, `rejected`, `exported`, `applied`.
+- **Garde-fous :**
+  - ne jamais inventer matière, origine, garantie, certification, compatibilité ou bénéfice médical ;
+  - ne pas générer de contenu générique sans lien avec le catalogue ;
+  - ne pas créer d'articles de blog en masse ;
+  - ne pas publier sans validation humaine ;
+  - éviter les FAQ artificielles, répétitives ou trop longues ;
+  - privilégier les contenus qui répondent à une vraie intention client ou GEO.
+- **Valeur GEO attendue :**
+  - rendre les produits plus compréhensibles par les moteurs IA ;
+  - couvrir les requêtes conversationnelles ;
+  - améliorer la clarté des pages produits et collections ;
+  - enrichir le JSON-LD ;
+  - renforcer le maillage interne ;
+  - aider les moteurs IA à associer les produits aux bons cas d'usage.
+
+### Principe contenu GEO
+
+> La génération de contenu GEO ne doit pas être pensée comme un générateur automatique d'articles de blog en masse. L'objectif est de produire des réponses utiles, factuelles et validées à partir du catalogue réel : FAQ produits, FAQ collections, Answer Blocks, guides d'achat courts et comparatifs simples. L'IA automatise la préparation, mais le marchand garde toujours la validation finale avant publication.
 
 ---
 
