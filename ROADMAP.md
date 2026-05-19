@@ -583,10 +583,237 @@
 
 ---
 
-## PHASE 12 — Soumission publique Shopify App Store
-*Objectif : publier l'app seulement après le pilote réel et après la parité fonctionnelle prioritaire entre scripts CLI et app embedded.*
+## PHASE 11.7 — GEO Autopilot Simplification before Public Launch
+*Objectif : avant de publier sur l'App Store, fusionner et simplifier la trentaine d'outils existants en une expérience marchand unique, lisible, IA-native et orientée preuve d'impact. Cette phase est une phase de documentation stratégique : elle prépare la roadmap d'implémentation suivante. Claude Code ne doit pas encore coder les modules fusionnés ; il doit d'abord cadrer le périmètre V1 public.*
+
+### Contexte
+
+Phases 1 à 11.6 ont produit une boîte à outils puissante : audit, GSC, GA4, PageSpeed, Product Facts Layer, AI Search Readiness, Revenue-Aware Prioritization, Weekly GEO Actions, GEO Impact Ledger, Risk Guard, Collection Builder, FAQ Generator, validation J+7/J+30/J+60/J+90, Progress Curve, Confidence Score, Before/After Report, Win/Neutral/Risk, Next Best Action Loop, FAQ & Buying Guide Automation. Un marchand Shopify non technique ne peut pas absorber autant de surfaces.
+
+Cette phase reformule l'app autour d'un workflow unique :
+
+> **Connecter → Comprendre → Proposer → Valider → Appliquer → Mesurer**
+
+### Promesse produit V1 publique
+
+Trouver les pages produits actives à améliorer, comprendre la niche marketing de la boutique, générer les modifications SEO/GEO avec l'IA, les faire valider par le marchand, les appliquer proprement sur Shopify, puis mesurer l'impact réel dans le temps sur Google, GA4 et la visibilité IA.
+
+### Principes produit V1
+
+- Le scope principal est limité aux produits **ACTIVE et visibles sur Online Store**. `DRAFT` est traité séparément en *Pre-launch check*. `ARCHIVED` est exclu par défaut. `UNLISTED` est traité à part, sans polluer le score principal.
+- Le crawl externe complet type Screaming Frog n'est plus un prérequis. On garde un crawl niveau 3 : Shopify API snapshot + sitemap scan automatique + mini-crawl interne des URLs prioritaires. Import CSV Screaming Frog devient une option avancée.
+- Toute écriture Shopify reste en **dry-run par défaut**. La validation humaine est obligatoire par défaut. L'auto-apply n'est mentionné que comme option future opt-in pour les actions à faible risque.
+- L'IA (GPT / Claude / Gemini) est une brique centrale de valeur, pas un simple générateur de texte. Elle sert à comprendre la boutique, la niche, les segments clients, les motivations d'achat, et à transformer les signaux Shopify / GSC / GA4 en recommandations.
+- Le coût LLM est maîtrisé dès la conception : provider configurable, routing par tâche, cache, batching, outputs JSON, quotas par plan, budget par shop, fallback, mode `low-cost only`.
+- La mesure d'impact (Google / GA4 / Shopify / visibilité IA) est la fonctionnalité différenciante centrale. L'app ne se contente pas de générer des contenus : elle prouve si les changements ont aidé.
+- Aucune promesse n'est faite sur l'apparition garantie dans ChatGPT, Perplexity, Gemini ou Google AI Overviews. La visibilité IA est présentée comme un signal mesurable mais imparfait.
+- Search Performance (GSC/GA4) et AI Visibility (prompts, mentions, citations) sont affichés sur deux axes séparés. Ils ne sont jamais agrégés en un score unique.
+- Le terme "autopilot" est utilisé pour décrire la simplification du workflow, pas pour justifier une publication automatique sans contrôle humain.
+
+### Modules fusionnés
+
+L'app expose six modules métier au lieu de la liste actuelle d'outils :
+
+1. **AI Search Readiness Audit** — fusionne Product Facts Layer, SEO Issues, AI Search Readiness Score, GEO Crawlability, JSON-LD, PageSpeed, crawl niveau 3 et statut produit Shopify.
+2. **Opportunity Finder** — fusionne GSC Opportunities, longue traîne, Keyword Gaps, Intent Clusters, Niche Clusters, cannibalisation, maillage interne et AI Answer Competitor Monitor (version simplifiée).
+3. **Priority Engine** — fusionne ICE, Revenue-Aware GEO Prioritization, Weekly GEO Actions, GEO Risk Guard, signaux stock / marge / trafic / risque / effort / confiance.
+4. **AI Content Actions** — fusionne meta titles, meta descriptions, descriptions produits, alt text, FAQ, Answer Blocks, guides d'achat courts, JSON-LD FAQPage et suggestions de collections.
+5. **Human Review & Safe Apply** — fusionne diff avant/après, faits utilisés vs suggestions à vérifier, accept/edit/reject, dry-run, apply Shopify, rollback et journal d'écriture.
+6. **Impact Tracker** — fusionne Optimization Snapshot, GEO Impact Ledger, Event Tracking, Validation Timeline J+7/J+30/J+60/J+90, Progress Curve, Impact Confidence Score, Before/After Impact Report, Win/Neutral/Risk Detection, Next Best Action Loop, Retention Milestones (intégrées comme logique de dashboard, plus comme outil séparé).
+
+### Briques repoussées hors MVP public
+
+- `llms.txt` Advisor — gardé comme expérimentation / option avancée.
+- Web Graph / Common Crawl / backlinks / Brand Signals — trop complexe pour V1.
+- Hreflang international et génération multilingue — phase ultérieure, seulement pour boutiques multilingues avancées.
+- Control Groups avancés — V1 garde une version simplifiée ou optionnelle.
+- Génération massive de briefs blog — non prioritaire, l'app ne fait pas de production blog de masse.
+- Redirections 301 en bulk — option avancée hors cœur GEO autopilot.
+- Crawl externe complet type Screaming Frog — plus un prérequis ; import CSV reste optionnel.
+
+### Workflow GEO Autopilot cible
+
+1. Onboarding Shopify.
+2. Analyse automatique de la boutique par LLM.
+3. Compréhension de la niche marketing.
+4. Compréhension précise des produits actifs.
+5. Identification des segments clients.
+6. Identification des motivations d'achat.
+7. Présentation des hypothèses au marchand.
+8. Ajustement manuel possible par le marchand.
+9. Sélection des produits actifs prioritaires.
+10. Génération IA des optimisations SEO/GEO.
+11. Review humaine obligatoire par défaut.
+12. Application Shopify sécurisée (dry-run par défaut).
+13. Snapshot avant/après.
+14. Mesure d'impact Google / GSC / GA4.
+15. Mesure de visibilité IA (ChatGPT / Perplexity / Gemini) quand disponible.
+16. Verdict simple : Win / Neutral / Risk / Inconclusive.
+17. Next Best Action.
+
+### Tâches Phase 11.7
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
-| 127 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
-| 128 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour et configuration de production figée | 🔴 | ⏳ | |
+| 127 | Product Scope Simplification — recentrer le score et les recommandations MVP sur les produits ACTIVE visibles Online Store, isoler Pre-launch Drafts, Hidden/Unlisted et Cleanup/Archived dans des vues séparées | 🟡 | ✅ | 2026-05-19 |
+| 128 | Crawl Level 3 Replacement Strategy — remplacer le crawl Screaming Frog obligatoire par Shopify API snapshot + sitemap scan + mini-crawl interne des URLs prioritaires, garder l'import CSV Screaming Frog en option avancée | 🟡 | ✅ | 2026-05-19 |
+| 129 | Low-Cost LLM Strategy & Provider Routing *(cadrage produit/architecture, pas implémentation complète)* — décider et documenter les règles de routing par tâche, modèles low-cost par défaut, critères d'usage des modèles avancés, cache, quotas par plan, budget par shop, logs de coût, mode low-cost only et fallback ; réutiliser l'abstraction LLM posée en tâche 58 sans la réécrire | 🔴 | ✅ | 2026-05-19 |
+| 130 | Merchant Niche Understanding Layer — cadrer l'usage LLM pour comprendre boutique, produits importants, segments clients, motivations d'achat, angles marketing, promesses à éviter, avec validation marchand obligatoire avant génération | 🔴 | ✅ | 2026-05-19 |
+| 131 | Unified AI Search Readiness Audit — fusionner facts, SEO issues, schema, FAQ, crawlability, PageSpeed, trust signals et product status dans un seul score lisible | 🔴 | ✅ | 2026-05-19 |
+| 132 | Unified Opportunity Finder — fusionner GSC, longue traîne, clusters, cannibalisation, maillage et competitor monitor en une seule question lisible : quelles pages produits actives méritent une action maintenant ? | 🔴 | ⏳ | |
+| 133 | Unified Priority Engine — fusionner ICE, Revenue-Aware, Weekly Actions et Risk Guard pour ne sortir que 3 actions prioritaires, chacune avec impact estimé, confiance, effort, risque, pourquoi maintenant et métrique de succès | 🔴 | ⏳ | |
+| 134 | AI Content Actions Simplification — fusionner meta, descriptions, alt text, FAQ, Answer Blocks, guides courts et JSON-LD en un seul workflow de génération basé uniquement sur faits confirmés + Shopify + GSC/GA4 + hypothèses validées par le marchand | 🔴 | ⏳ | |
+| 135 | Human Review & Safe Apply Workflow — documenter preview, diff, faits utilisés, accept/edit/reject, dry-run, apply, rollback et event tracking ; validation humaine obligatoire par défaut | 🟡 | ⏳ | |
+| 136 | Impact Tracker as Core Product Value — positionner la mesure d'impact (GSC, GA4, Shopify, AI visibility, J+7/J+30/J+60/J+90, verdict, next best action) comme la fonctionnalité différenciante centrale | 🔴 | ⏳ | |
+| 137 | Merchant-Friendly Dashboard Simplification — définir une interface compréhensible par un non-expert : score global, niche détectée, 3 actions prioritaires, impact en cours, graphiques simples, métriques séparées Google / IA, sans jargon technique en premier niveau | 🟡 | ⏳ | |
+| 138 | Public Launch Readiness Criteria — cadrer les critères d'entrée en Phase 12 : compréhension en < 5 min, 3 actions max, LLM-assisté, review humaine, événement mesurable, scope produits actifs, pas de Screaming Frog obligatoire, pas de promesse ranking ChatGPT, séparation Google / IA, coût LLM maîtrisé, rollback documenté, dry-run par défaut, dashboard impact lisible | 🔴 | ⏳ | |
+
+### Détail des objectifs Phase 11.7
+
+1. **127 Product Scope Simplification**
+   - Objectif : éviter qu'un score boutique ou une liste d'actions soit pollué par des produits non publiés ou archivés.
+   - Le score GEO global ne prend en compte que `status = ACTIVE` et visibles Online Store.
+   - Pre-launch Drafts : vue dédiée, recommandations préparées sans appliquer.
+   - Hidden / Unlisted : vue séparée, hors score principal.
+   - Cleanup / Archived : exclus par défaut, accessibles via filtre avancé.
+   - Output attendu : 4 vues distinctes, un seul score principal `Active Products`.
+   - Garde-fous : ne pas masquer les drafts au marchand, mais les sortir du score.
+
+2. **128 Crawl Level 3 Replacement Strategy**
+   - Objectif : supprimer la dépendance Screaming Frog du parcours marchand standard.
+   - Sources retenues : Shopify Admin API GraphQL, sitemap.xml public, mini-crawl HTTP des URLs prioritaires détectées par GSC + Shopify.
+   - Limite mini-crawl : volumétrie raisonnable, respect du `robots.txt`, pas de rendu JS lourd.
+   - Import CSV Screaming Frog reste accessible en mode avancé pour parité fonctionnelle.
+   - Garde-fous : aucun crawl agressif, aucune dépendance manuelle dans le parcours V1.
+
+3. **129 Low-Cost LLM Strategy & Provider Routing**
+   - **Nature de la tâche : cadrage produit/architecture, pas chantier technique complet.** L'objectif est de figer les règles, garde-fous et seuils avant que les tâches 130-134 commencent à appeler les LLM à grande échelle. L'implémentation détaillée (code des couches cache/quotas/budget) sera réalisée incrémentalement par les tâches consommatrices, sur la base des règles décidées ici.
+   - Objectif produit : faire de l'IA une brique centrale sans détruire la marge SaaS et sans créer de dette commerciale liée à des appels LLM non plafonnés.
+   - Réutilisation : s'appuie sur l'abstraction `LLM provider` déjà posée en tâche 58 (GPT-4o mini + Cloudflare Workers AI + Groq). Ne pas la réécrire ; l'étendre uniquement quand un module consommateur en a besoin.
+   - Décisions à documenter dans cette tâche :
+     - **Routing par tâche** :
+       - low-cost par défaut (meta titles, alt text, classification simple, extraction structurée) ;
+       - moyen (FAQ, descriptions produits, Answer Blocks, guides d'achat courts) ;
+       - avancé réservé à : compréhension niche (tâche 130), arbitrage stratégique, synthèse multi-signaux, recommandations prioritaires (tâche 133).
+     - **Critères d'escalade** vers un modèle plus avancé : volume de contexte, ambiguïté du prompt, valeur business de la sortie. Toute escalade doit être justifiée par tâche, pas par produit.
+     - **Cache LLM** par clé `(shop, resource_id, content_hash, prompt_version)` — règle obligatoire, pas option.
+     - **Quotas par plan** Free / Pro / Agency : volumes d'appels, niveau de modèle autorisé, fréquence.
+     - **Budget par shop** : plafond mensuel, alertes de dépassement, comportement de coupure (dégradation low-cost only ou blocage doux).
+     - **Mode `low-cost only`** activable par l'opérateur pour tous les shops, par plan, ou par shop ciblé.
+     - **Logs de coût** par job avec coût estimé `(prompt_tokens, completion_tokens, modèle, provider)` — observabilité minimale obligatoire.
+     - **Fallback provider** : règle d'ordre et de timeout en cas d'échec.
+     - **Prompts** : courts, déterministes, externalisés dans `config/prompts/` avec versioning explicite pour invalider le cache.
+     - **Outputs JSON structurés** par défaut quand le modèle le supporte.
+   - Output attendu (livrables de cette tâche, sans code applicatif large) :
+     - une note d'architecture courte dans `docs/` décrivant les règles ci-dessus ;
+     - un tableau de routing par type de tâche listant les futurs consommateurs (130, 131, 132, 133, 134) et le tier LLM cible ;
+     - des seuils chiffrés de quotas et budget par plan ;
+     - une checklist d'intégration que chaque tâche consommatrice devra cocher avant d'appeler le LLM en production.
+   - Garde-fous :
+     - aucune analyse LLM massive sans action explicite ou job planifié ;
+     - aucun module consommateur ne doit bypasser le routing, le cache, le log de coût ou le budget ;
+     - ne pas transformer cette tâche en refonte complète de la couche LLM existante.
+
+4. **130 Merchant Niche Understanding Layer**
+   - Objectif : faire en sorte que l'IA comprenne réellement la boutique avant de générer quoi que ce soit.
+   - Inputs LLM : produits actifs, titres, descriptions, collections, prix, tags, types, métadonnées SEO, requêtes GSC, pages déjà performantes, concurrents déclarés ou détectés, avis si disponibles.
+   - Output attendu :
+     - résumé simple de la boutique ;
+     - niche principale, sous-niches ;
+     - segments clients, personas simples ;
+     - motivations d'achat, objections probables ;
+     - produits prioritaires ;
+     - angles marketing crédibles ;
+     - mots-clés / intentions conversationnelles associés ;
+     - concurrents probables ;
+     - niveau de confiance par hypothèse.
+   - Le marchand peut corriger : niche, cible client, ton de marque, concurrents, produits prioritaires, promesses interdites, avantages produits, marchés ciblés.
+   - Les hypothèses validées alimentent les modules suivants (Audit, Opportunity Finder, Priority Engine, AI Content Actions, FAQ, mesure d'impact).
+   - Garde-fous : l'IA ne pose que des hypothèses, jamais des faits inventés sur matière, origine, certification, garantie.
+
+5. **131 Unified AI Search Readiness Audit**
+   - Objectif : un seul score lisible qui résume la santé GEO/SEO d'un produit actif.
+   - Composants fusionnés : Product Facts Layer, SEO Issues, AI Search Readiness Score, GEO Crawlability, JSON-LD, PageSpeed, crawl niveau 3, statut produit Shopify, trust signals.
+   - Output attendu : score 0-100 par produit + sous-scores lisibles + raisons + actions recommandées.
+   - Garde-fous : ne pas multiplier les scores parallèles ; un score principal, des sous-scores explicatifs.
+
+6. **132 Unified Opportunity Finder**
+   - Objectif : répondre à une seule question : quelles pages produits actives méritent une action maintenant ?
+   - Sources fusionnées : GSC, longue traîne, Keyword Gaps, Intent Clusters, Niche Clusters, cannibalisation, maillage interne, AI Answer Competitor Monitor simplifié.
+   - Output attendu : une liste rangée d'opportunités, chacune reliée à un produit actif et à une métrique de succès attendue.
+   - Garde-fous : ne pas présenter une opportunité sans page Shopify cible identifiable.
+
+7. **133 Unified Priority Engine**
+   - Objectif : ne sortir que 3 actions prioritaires à la fois.
+   - Sources fusionnées : ICE, Revenue-Aware GEO Prioritization, Weekly Actions, GEO Risk Guard, stock, marge si dispo, trafic, risque, effort, confiance.
+   - Chaque action expose : impact estimé, confiance, effort, risque, pourquoi maintenant, métrique de succès qui sera mesurée.
+   - Garde-fous : ne jamais afficher plus de 3 actions premium ; les autres restent accessibles dans une vue secondaire.
+
+8. **134 AI Content Actions Simplification**
+   - Objectif : un seul workflow de génération couvrant meta, descriptions, alt text, FAQ, Answer Blocks, guides courts, JSON-LD.
+   - Inputs autorisés : faits confirmés, données Shopify, données GSC/GA4, hypothèses marketing validées par le marchand.
+   - Output attendu : un paquet d'optimisations cohérent par produit, avec faits utilisés tracés.
+   - Garde-fous : aucune publication automatique par défaut, aucun fait inventé, séparation explicite fait confirmé / suggestion à vérifier.
+
+9. **135 Human Review & Safe Apply Workflow**
+   - Objectif : verrouiller le workflow d'application.
+   - Étapes : preview → diff avant/après → faits utilisés → accept/edit/reject → dry-run → apply → rollback → event tracking.
+   - Garde-fous : validation humaine obligatoire par défaut, écriture Shopify uniquement après confirmation explicite, journal d'écriture systématique.
+
+10. **136 Impact Tracker as Core Product Value**
+    - Objectif : positionner la mesure d'impact comme la valeur centrale différenciante.
+    - Inclut Snapshot, Ledger, Event Tracking, Validation Timeline J+7/J+30/J+60/J+90, Progress Curve, Confidence Score, Before/After Report, Win/Neutral/Risk, Next Best Action.
+    - Métriques séparées : Search Performance (GSC + GA4 + Shopify) vs AI Visibility (prompts, mentions, citations).
+    - Garde-fous : ne pas mélanger trafic Google et présence ChatGPT ; afficher deux axes distincts ; ne jamais promettre une apparition garantie en IA.
+
+11. **137 Merchant-Friendly Dashboard Simplification**
+    - Objectif : un dashboard lisible par un marchand non technique.
+    - Affiche : score GEO des produits actifs, nombre de produits actifs analysés, niche détectée, segments clients, 3 actions prioritaires, trafic Google actuel, impact des optimisations en cours, statut des mesures J+7/J+30/J+60/J+90, coût LLM ou budget utilisé si pertinent.
+    - Garde-fous : pas de jargon technique en premier niveau ; chaque indicateur est expliqué en une phrase ; les vues avancées restent accessibles mais ne polluent pas le dashboard.
+
+12. **138 Public Launch Readiness Criteria**
+    - Objectif : définir précisément les critères d'entrée en Phase 12.
+    - Critères :
+      - un marchand non expert comprend l'app en moins de 5 minutes ;
+      - l'app affiche 3 actions prioritaires maximum ;
+      - chaque action est générée ou assistée par LLM ;
+      - chaque action est applicable avec review humaine ;
+      - chaque action crée un événement mesurable ;
+      - les produits actifs sont le scope principal ;
+      - aucune dépendance obligatoire à Screaming Frog ;
+      - aucune promesse non prouvée de ranking ChatGPT / Perplexity / Gemini ;
+      - métriques Google et IA séparées ;
+      - coût LLM maîtrisé et observé ;
+      - rollback documenté ;
+      - dry-run par défaut ;
+      - dashboard impact compréhensible.
+    - Output attendu : une checklist explicite que la Phase 12 reprend en go/no-go.
+
+### Priorité produit recommandée Phase 11.7
+
+1. **129 Low-Cost LLM Strategy** — sans cette base, toute extension IA est risquée commercialement.
+2. **127 Product Scope Simplification** — clarifie immédiatement le périmètre que les autres modules doivent traiter.
+3. **130 Merchant Niche Understanding Layer** — débloque la valeur IA différenciante.
+4. **131 Unified AI Search Readiness Audit** — unifie la lecture du diagnostic.
+5. **132 Unified Opportunity Finder** — unifie la lecture des opportunités.
+6. **133 Unified Priority Engine** — simplifie la décision à 3 actions.
+7. **134 AI Content Actions Simplification** — unifie la génération.
+8. **135 Human Review & Safe Apply Workflow** — verrouille la sécurité d'écriture.
+9. **136 Impact Tracker as Core Product Value** — installe la preuve d'impact comme valeur centrale.
+10. **137 Merchant-Friendly Dashboard Simplification** — rend le tout lisible.
+11. **128 Crawl Level 3 Replacement Strategy** — supprime un obstacle d'onboarding.
+12. **138 Public Launch Readiness Criteria** — sert de checklist d'entrée en Phase 12.
+
+### Principe stratégique Phase 11.7
+
+> La Phase 11.7 ne supprime aucune des briques existantes. Elle les regroupe en six modules clairs, recentre l'expérience sur un workflow unique *Connecter → Comprendre → Proposer → Valider → Appliquer → Mesurer*, et fait de l'IA et de la mesure d'impact les deux briques de valeur centrales. La génération de contenu n'est pas l'objectif final ; prouver que les changements ont aidé le marchand est l'objectif final.
+
+---
+
+## PHASE 12 — Soumission publique Shopify App Store
+*Objectif : publier l'app seulement après le pilote réel, la parité fonctionnelle prioritaire entre scripts CLI et app embedded, et la simplification GEO Autopilot de la Phase 11.7.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 139 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + simplification GEO Autopilot (Phase 11.7) + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
+| 140 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour, checklist Public Launch Readiness (tâche 138) et configuration de production figée | 🔴 | ⏳ | |
