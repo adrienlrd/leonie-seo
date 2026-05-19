@@ -423,6 +423,9 @@ export default function ImpactPage() {
               <Button url={localizedPath("/app/retention-milestones", locale)} variant="secondary">
                 {t(locale, "retentionLink")}
               </Button>
+              <Button url={localizedPath("/app/next-best-actions", locale)} variant="primary">
+                {t(locale, "nbaLink")}
+              </Button>
             </InlineStack>
           </BlockStack>
         </Card>

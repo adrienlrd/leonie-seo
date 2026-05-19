@@ -853,3 +853,45 @@ def test_get_geo_retention_milestones_returns_milestones(client, tmp_path) -> No
     assert len(data["milestones"]) == 4
     assert data["milestones"][0]["label"] == "J+7"
     assert "retention_message_fr" in data
+
+
+def test_get_geo_next_best_actions_returns_actions_and_summary(client, tmp_path) -> None:
+    db = tmp_path / "geo-nba.db"
+    init_db(db)
+    from app.geo.ledger import create_geo_event
+
+    create_geo_event(
+        shop=SHOP,
+        event_type="planned_optimization",
+        resource_type="product",
+        resource_id="p1",
+        resource_title="Harnais nylon",
+        action_type="enrich_facts",
+        before_snapshot={},
+        metrics_before={"gsc": {"impressions": 600, "clicks": 30, "ctr": 0.05, "position": 12.0}},
+        metrics_after={"gsc": {"impressions": 900, "clicks": 50, "ctr": 0.055, "position": 10.0}},
+        score_before=60,
+        score_after=75,
+        estimated_impact={"revenue_estimate": 80.0},
+        status="applied",
+        db_path=db,
+    )
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.geo.DB_PATH", db),
+        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=None),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/next-best-actions")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shop"] == SHOP
+    assert data["dry_run"] is True
+    assert data["summary"]["total_actions"] == 1
+    assert "by_action" in data["summary"]
+    assert len(data["actions"]) == 1
+    action = data["actions"][0]
+    assert action["action_type"] in ("répliquer", "ajuster", "rollback", "attendre")
+    assert action["priority"] in ("high", "medium", "low")
+    assert action["dry_run"] is True

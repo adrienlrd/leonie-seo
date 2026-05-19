@@ -5,10 +5,31 @@
 - **Summary:** Léonie SEO est une app Shopify embedded + moteur Python/FastAPI/CLI pour audit SEO, recommandations supervisées, contenus, données structurées, jobs async, intégrations Shopify/Google/LLM et garde-fous dry-run.
 - **Main stack:** Python 3.11+, FastAPI, Click, pytest, ruff, Remix, React, TypeScript, Shopify App Bridge, Shopify Polaris, npm.
 - **Main working areas:** `app/`, `scripts/`, `shopify-app/`, `config/`, `docs/`, `tests/`.
-- **Current roadmap:** Phase 10 est clôturée. Phase 11 est terminée. Phase 11.5 est en cours avec les tâches 116-124 terminées. Reste : tâche 125.
+- **Current roadmap:** Phase 10 est clôturée. Phase 11 est terminée. **Phase 11.5 est complète** (tâches 116-125 toutes ✅). Prochaine : Phase 11.6 tâche 126 GEO FAQ & Buying Guide.
 - **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Le dashboard Impact V1 est livré avec courbes sparklines SVG + score de confiance par optimisation. Le rapport before/after (122) et la détection Win/Neutral/Risk (124) restent à faire.
 
 ## Last completed task
+
+- **Date:** 2026-05-19
+- **Agent:** Claude Code (Sonnet 4.6)
+- **Goal:** Task 125 — Next Best Action Loop. **Phase 11.5 complète.**
+- **Summary:** Ajout de `app/geo/next_best_actions.py` qui transforme les verdicts du rapport avant/après en actions concrètes prioritisées (`répliquer` / `ajuster` / `rollback` / `attendre`) avec suggestions de produits similaires depuis le snapshot catalog. Garde-fous : `dry_run=True` toujours, jamais de write Shopify sans confirmation. Endpoint `GET /api/shops/{shop}/geo/next-best-actions`. Page Remix `app.next-best-actions.tsx` avec DataTable + badges priorité et action. Bouton "Prochaines actions →" (primary) ajouté dans la page Impact. 1342 tests.
+- **Files created (task 125):**
+  - `app/geo/next_best_actions.py`
+  - `tests/test_geo/test_next_best_actions.py`
+  - `shopify-app/app/routes/app.next-best-actions.tsx`
+- **Files modified (task 125):**
+  - `app/api/geo.py` (route next-best-actions + import)
+  - `tests/test_api/test_geo.py` (1 test intégration)
+  - `shopify-app/app/routes/app.impact.tsx` (bouton NBA primary)
+  - `shopify-app/app/lib/i18n.ts` (clés `nba*` FR/EN)
+  - `ROADMAP.md` (statut 125 → ✅ 2026-05-19)
+- **Validations run (task 125):** `ruff check --fix` (1 fixé), `pytest` (1342 passed), `npm run typecheck` (OK), `npm run build` (OK).
+- **Next recommended action:** Task 126 — GEO FAQ & Buying Guide Automation (Phase 11.6).
+
+---
+
+## Previous task
 
 - **Date:** 2026-05-19
 - **Agent:** Claude Code (Sonnet 4.6)

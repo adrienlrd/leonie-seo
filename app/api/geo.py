@@ -27,6 +27,7 @@ from app.geo.event_tracking import (
 from app.geo.facts import analyze_catalog_facts
 from app.geo.impact_report import build_catalog_report, render_markdown
 from app.geo.ledger import create_geo_event, list_geo_events, summarize_geo_events
+from app.geo.next_best_actions import build_next_best_actions
 from app.geo.optimization_snapshots import (
     build_optimization_snapshot,
     create_optimization_snapshot,
@@ -344,6 +345,25 @@ async def get_geo_retention_milestones(
     """Return J+7/J+30/J+60/J+90 retention milestones for applied GEO events."""
     events = list_geo_events(ctx.shop, limit=limit, db_path=DB_PATH)["events"]
     result = build_retention_milestones(events)
+    return {
+        "shop": ctx.shop,
+        "generated_at": datetime.now(UTC).isoformat(),
+        **result,
+    }
+
+
+@router.get("/shops/{shop}/geo/next-best-actions")
+async def get_geo_next_best_actions(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    limit: int = Query(default=500, ge=1, le=500),
+) -> dict:
+    """Return prioritised next-best-action recommendations from validated impact reports."""
+    events = list_geo_events(ctx.shop, limit=limit, db_path=DB_PATH)["events"]
+    confidence_data = compute_catalog_confidence(events)
+    catalog = build_catalog_report(events, confidence_data["scores"])
+    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    result = build_next_best_actions(catalog["reports"], snapshot=snapshot)
     return {
         "shop": ctx.shop,
         "generated_at": datetime.now(UTC).isoformat(),
