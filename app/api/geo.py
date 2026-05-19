@@ -35,6 +35,7 @@ from app.geo.optimization_snapshots import (
 from app.geo.prioritization import prioritize_catalog
 from app.geo.progress_curve import build_progress_curve
 from app.geo.readiness import score_catalog_readiness
+from app.geo.retention_milestones import build_retention_milestones
 from app.geo.risk_guard import assess_catalog_risk
 from app.geo.validation_timeline import build_validation_timeline
 from app.geo.weekly import build_weekly_actions
@@ -331,6 +332,22 @@ async def get_geo_impact_report(
         "reports": catalog["reports"],
         "markdown": render_markdown(catalog["reports"]),
         "summary": catalog["summary"],
+    }
+
+
+@router.get("/shops/{shop}/geo/retention-milestones")
+async def get_geo_retention_milestones(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    limit: int = Query(default=500, ge=1, le=500),
+) -> dict:
+    """Return J+7/J+30/J+60/J+90 retention milestones for applied GEO events."""
+    events = list_geo_events(ctx.shop, limit=limit, db_path=DB_PATH)["events"]
+    result = build_retention_milestones(events)
+    return {
+        "shop": ctx.shop,
+        "generated_at": datetime.now(UTC).isoformat(),
+        **result,
     }
 
 

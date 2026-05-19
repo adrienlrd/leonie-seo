@@ -5,10 +5,32 @@
 - **Summary:** Léonie SEO est une app Shopify embedded + moteur Python/FastAPI/CLI pour audit SEO, recommandations supervisées, contenus, données structurées, jobs async, intégrations Shopify/Google/LLM et garde-fous dry-run.
 - **Main stack:** Python 3.11+, FastAPI, Click, pytest, ruff, Remix, React, TypeScript, Shopify App Bridge, Shopify Polaris, npm.
 - **Main working areas:** `app/`, `scripts/`, `shopify-app/`, `config/`, `docs/`, `tests/`.
-- **Current roadmap:** Phase 10 est clôturée. Phase 11 est terminée. Phase 11.5 est officielle et en cours avec les tâches 116-122 terminées.
+- **Current roadmap:** Phase 10 est clôturée. Phase 11 est terminée. Phase 11.5 est officielle et en cours avec les tâches 116-123 terminées.
 - **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Le dashboard Impact V1 est livré avec courbes sparklines SVG + score de confiance par optimisation. Le rapport before/after (122) et la détection Win/Neutral/Risk (124) restent à faire.
 
 ## Last completed task
+
+- **Date:** 2026-05-19
+- **Agent:** Claude Code (Sonnet 4.6)
+- **Goal:** Task 123 — Retention Milestones.
+- **Summary:** Ajout du module `app/geo/retention_milestones.py` qui calcule l'état J+7/J+30/J+60/J+90 à partir des dates d'application de tous les événements GEO. Chaque jalon indique `completed/active/upcoming`, le nombre d'optimisations ayant atteint la fenêtre, et un message pédagogique FR/EN. Endpoint `GET /api/shops/{shop}/geo/retention-milestones`. Page Remix `app.retention-milestones.tsx` avec ProgressBar Polaris par jalon et bannière de rétention. Lien ajouté dans `app.impact.tsx`. 1333 tests passent.
+- **Files created (task 123):**
+  - `app/geo/retention_milestones.py`
+  - `tests/test_geo/test_retention_milestones.py`
+  - `shopify-app/app/routes/app.retention-milestones.tsx`
+- **Files modified (task 123):**
+  - `app/api/geo.py` (route retention-milestones + import)
+  - `tests/test_api/test_geo.py` (1 test intégration)
+  - `shopify-app/app/routes/app.impact.tsx` (import InlineStack + boutons rapport et jalons)
+  - `shopify-app/app/lib/i18n.ts` (clés `retention*` FR/EN)
+  - `ROADMAP.md` (statut 123 → ✅ 2026-05-19)
+- **Validations run (task 123):** `ruff check --fix` (3 fixés, 0 restants), `pytest` (1333 passed), `npm run typecheck` (OK), `npm run build` (OK).
+- **Open issues:** Aucun.
+- **Next recommended action:** Task 124 — Win/Neutral/Risk Detection (note : verdict déjà implémenté dans task 122, à valider si tâche fermable sans code).
+
+---
+
+## Previous task
 
 - **Date:** 2026-05-19
 - **Agent:** Claude Code (Opus 4.7)

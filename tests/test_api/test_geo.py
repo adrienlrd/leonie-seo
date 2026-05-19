@@ -819,3 +819,37 @@ def test_get_geo_impact_report_returns_reports_and_markdown(client, tmp_path) ->
     assert "next_recommendation" in report
     assert "Harnais nylon" in data["markdown"]
     assert "# Rapport d'impact GEO" in data["markdown"]
+
+
+def test_get_geo_retention_milestones_returns_milestones(client, tmp_path) -> None:
+    db = tmp_path / "geo-retention.db"
+    init_db(db)
+    from app.geo.ledger import create_geo_event
+
+    create_geo_event(
+        shop=SHOP,
+        event_type="planned_optimization",
+        resource_type="product",
+        resource_id="p1",
+        resource_title="Harnais",
+        action_type="enrich_facts",
+        before_snapshot={},
+        metrics_before={"gsc": {"impressions": 400}},
+        estimated_impact={},
+        status="applied",
+        db_path=db,
+    )
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.geo.DB_PATH", db),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/retention-milestones")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shop"] == SHOP
+    assert data["has_active_events"] is True
+    assert len(data["milestones"]) == 4
+    assert data["milestones"][0]["label"] == "J+7"
+    assert "retention_message_fr" in data

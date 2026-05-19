@@ -10,6 +10,7 @@ import {
   Card,
   DataTable,
   InlineGrid,
+  InlineStack,
   Page,
   Text,
 } from "@shopify/polaris";
@@ -357,9 +358,14 @@ export default function ImpactPage() {
 
         <Card>
           <BlockStack gap="200">
-            <Button url={localizedPath("/app/impact-report", locale)} variant="secondary">
-              {t(locale, "impactReportLink")}
-            </Button>
+            <InlineStack gap="300">
+              <Button url={localizedPath("/app/impact-report", locale)} variant="secondary">
+                {t(locale, "impactReportLink")}
+              </Button>
+              <Button url={localizedPath("/app/retention-milestones", locale)} variant="secondary">
+                {t(locale, "retentionLink")}
+              </Button>
+            </InlineStack>
           </BlockStack>
         </Card>
 
