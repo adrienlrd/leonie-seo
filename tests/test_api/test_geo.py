@@ -895,3 +895,40 @@ def test_get_geo_next_best_actions_returns_actions_and_summary(client, tmp_path)
     assert action["action_type"] in ("répliquer", "ajuster", "rollback", "attendre")
     assert action["priority"] in ("high", "medium", "low")
     assert action["dry_run"] is True
+
+
+def test_get_geo_faq_content_returns_content_items(client, tmp_path) -> None:
+    snapshot = {
+        "products": [
+            {
+                "id": "gid://shopify/Product/1",
+                "title": "Harnais nylon chien",
+                "handle": "harnais-nylon",
+                "product_type": "Harnais",
+                "descriptionHtml": "Harnais en nylon. Compatible chiens 10-40 kg. Garantie 2 ans.",
+                "status": "ACTIVE",
+                "variants": {"edges": [{"node": {"price": "39.90"}}]},
+                "tags": [],
+            }
+        ],
+        "collections": [],
+    }
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=snapshot),
+        patch("app.api.geo._find_gsc_file", return_value=None),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/faq-content?top=1")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shop"] == SHOP
+    assert data["summary"]["total"] == 1
+    assert len(data["content_items"]) == 1
+    item = data["content_items"][0]
+    assert item["content_type"] == "product_faq"
+    assert "faq_items" in item
+    assert "faq_jsonld" in item
+    assert "quality_score" in item
+    assert item["status"] in ("draft", "needs_review")

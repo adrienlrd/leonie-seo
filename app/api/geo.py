@@ -25,6 +25,7 @@ from app.geo.event_tracking import (
     mark_optimization_event_status,
 )
 from app.geo.facts import analyze_catalog_facts
+from app.geo.faq_generator import generate_catalog_content
 from app.geo.impact_report import build_catalog_report, render_markdown
 from app.geo.ledger import create_geo_event, list_geo_events, summarize_geo_events
 from app.geo.next_best_actions import build_next_best_actions
@@ -364,6 +365,40 @@ async def get_geo_next_best_actions(
     catalog = build_catalog_report(events, confidence_data["scores"])
     snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
     result = build_next_best_actions(catalog["reports"], snapshot=snapshot)
+    return {
+        "shop": ctx.shop,
+        "generated_at": datetime.now(UTC).isoformat(),
+        **result,
+    }
+
+
+@router.get("/shops/{shop}/geo/faq-content")
+async def get_geo_faq_content(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    top: int = Query(default=20, ge=1, le=50),
+) -> dict:
+    """Generate GEO FAQ, buying guides and JSON-LD from confirmed product facts and GSC queries."""
+    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Snapshot introuvable. Lancez un audit SEO d'abord.",
+        )
+
+    products = snapshot.get("products") or []
+    collections = snapshot.get("collections") or []
+
+    gsc_file = _find_gsc_file(ctx.shop)
+    gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+    gsc_queries = list(gsc_rows.keys())
+
+    result = generate_catalog_content(
+        products,
+        gsc_queries=gsc_queries,
+        collections=collections,
+        top=top,
+    )
     return {
         "shop": ctx.shop,
         "generated_at": datetime.now(UTC).isoformat(),

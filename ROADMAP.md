@@ -518,7 +518,7 @@
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
-| 126 | GEO FAQ & Buying Guide Automation — générer automatiquement des FAQ, Answer Blocks et guides d'achat GEO à partir des faits produits confirmés, requêtes GSC, intentions conversationnelles et catalogue Shopify ; proposer review humaine, scoring qualité, preview, export et application future sur produits, collections ou blogs | 🔴 | ⏳ | |
+| 126 | GEO FAQ & Buying Guide Automation — générer automatiquement des FAQ, Answer Blocks et guides d'achat GEO à partir des faits produits confirmés, requêtes GSC, intentions conversationnelles et catalogue Shopify ; proposer review humaine, scoring qualité, preview, export et application future sur produits, collections ou blogs | 🔴 | ✅ | 2026-05-19 |
 
 ### Détail objectif tâche 126
 

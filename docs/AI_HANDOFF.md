@@ -5,10 +5,32 @@
 - **Summary:** Léonie SEO est une app Shopify embedded + moteur Python/FastAPI/CLI pour audit SEO, recommandations supervisées, contenus, données structurées, jobs async, intégrations Shopify/Google/LLM et garde-fous dry-run.
 - **Main stack:** Python 3.11+, FastAPI, Click, pytest, ruff, Remix, React, TypeScript, Shopify App Bridge, Shopify Polaris, npm.
 - **Main working areas:** `app/`, `scripts/`, `shopify-app/`, `config/`, `docs/`, `tests/`.
-- **Current roadmap:** Phase 10 est clôturée. Phase 11 est terminée. **Phase 11.5 est complète** (tâches 116-125 toutes ✅). Prochaine : Phase 11.6 tâche 126 GEO FAQ & Buying Guide.
+- **Current roadmap:** Phase 10 est clôturée. Phase 11 est terminée. Phase 11.5 est complète. **Phase 11.6 est complète** (tâche 126 ✅). Prochaine phase à définir.
 - **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Le dashboard Impact V1 est livré avec courbes sparklines SVG + score de confiance par optimisation. Le rapport before/after (122) et la détection Win/Neutral/Risk (124) restent à faire.
 
 ## Last completed task
+
+- **Date:** 2026-05-19
+- **Agent:** Claude Code (Sonnet 4.6)
+- **Goal:** Task 126 — GEO FAQ & Buying Guide Automation. **Phase 11.6 complète.**
+- **Summary:** Ajout de `app/geo/faq_generator.py` : génération template-based (sans LLM) de FAQ produits, FAQ collections, answer blocks, guides d'achat et JSON-LD FAQPage depuis les faits confirmés (analyze_product_facts) et les requêtes GSC réelles. Score qualité 0-100 avec 4 labels. Statut `draft/needs_review` automatique. Garde-fous : aucun fait inventé, faits manquants sensibles affichés en review, dry-run total. Endpoint `GET /api/shops/{shop}/geo/faq-content`. Page Remix interactive avec expand/collapse par produit, preview JSON-LD, banner faits manquants. Entrée ajoutée dans le hub Insights. 1357 tests.
+- **Files created (task 126):**
+  - `app/geo/faq_generator.py`
+  - `tests/test_geo/test_faq_generator.py`
+  - `shopify-app/app/routes/app.geo-faq-content.tsx`
+- **Files modified (task 126):**
+  - `app/api/geo.py` (route faq-content + import)
+  - `tests/test_api/test_geo.py` (1 test intégration)
+  - `shopify-app/app/routes/app.insights.tsx` (entrée FAQ & guides)
+  - `shopify-app/app/lib/i18n.ts` (clés `faq*` FR/EN)
+  - `ROADMAP.md` (statut 126 → ✅ 2026-05-19)
+- **Validations run (task 126):** `ruff check` (clean), `pytest` (1357 passed), `npm run typecheck` (OK), `npm run build` (OK).
+- **Known limitations (V1):** Génération template-based sans LLM. Pas d'export Markdown/CSV depuis l'UI (à ajouter V2). Pas d'application Shopify directe (dry-run only). Collections associées aux produits par overlap de titre — matching simple.
+- **Next recommended action:** Définir Phase 12 ou prioriser une App Store review (OAuth, billing, scopes).
+
+---
+
+## Previous task
 
 - **Date:** 2026-05-19
 - **Agent:** Claude Code (Sonnet 4.6)

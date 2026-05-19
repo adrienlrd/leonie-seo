@@ -16,6 +16,14 @@ export default function InsightsHub() {
 
   const items: HubItem[] = [
     {
+      titleKey: "faqContentTitle",
+      href: "/app/geo-faq-content",
+      description:
+        locale === "fr"
+          ? "FAQ produits, guides d'achat et JSON-LD GEO depuis vos faits confirmés."
+          : "Product FAQ, buying guides and GEO JSON-LD from your confirmed facts.",
+    },
+    {
       titleKey: "impact",
       href: "/app/impact",
       description:
