@@ -424,7 +424,7 @@
 | 121 | Impact Confidence Score — calculer un score de confiance de l'impact selon durée, volume, groupe contrôle, stabilité stock/prix et cohérence GSC/GA4 | 🔴 | ✅ | 2026-05-19 |
 | 122 | Before/After Impact Report — générer un rapport lisible par page/action avec score avant/après, métriques GSC/GA4, verdict et recommandations suivantes | 🟡 | ✅ | 2026-05-19 |
 | 123 | Retention Milestones — afficher des jalons d'abonnement J+7, J+30, J+60, J+90 pour montrer pourquoi l'app doit rester active pendant la validation | 🟡 | ✅ | 2026-05-19 |
-| 124 | Win/Neutral/Risk Detection — classer automatiquement chaque optimisation en impact positif probable, neutre, négatif possible ou inconclusif | 🟡 | ⏳ | |
+| 124 | Win/Neutral/Risk Detection — classer automatiquement chaque optimisation en impact positif probable, neutre, négatif possible ou inconclusif | 🟡 | ✅ | 2026-05-19 |
 | 125 | Next Best Action Loop — transformer les résultats validés en nouvelles recommandations : répliquer, ajuster, attendre ou rollback | 🔴 | ⏳ | |
 
 ### Détail des objectifs Phase 11.5

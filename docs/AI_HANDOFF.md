@@ -5,10 +5,25 @@
 - **Summary:** Léonie SEO est une app Shopify embedded + moteur Python/FastAPI/CLI pour audit SEO, recommandations supervisées, contenus, données structurées, jobs async, intégrations Shopify/Google/LLM et garde-fous dry-run.
 - **Main stack:** Python 3.11+, FastAPI, Click, pytest, ruff, Remix, React, TypeScript, Shopify App Bridge, Shopify Polaris, npm.
 - **Main working areas:** `app/`, `scripts/`, `shopify-app/`, `config/`, `docs/`, `tests/`.
-- **Current roadmap:** Phase 10 est clôturée. Phase 11 est terminée. Phase 11.5 est officielle et en cours avec les tâches 116-123 terminées.
+- **Current roadmap:** Phase 10 est clôturée. Phase 11 est terminée. Phase 11.5 est en cours avec les tâches 116-124 terminées. Reste : tâche 125.
 - **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Le dashboard Impact V1 est livré avec courbes sparklines SVG + score de confiance par optimisation. Le rapport before/after (122) et la détection Win/Neutral/Risk (124) restent à faire.
 
 ## Last completed task
+
+- **Date:** 2026-05-19
+- **Agent:** Claude Code (Sonnet 4.6)
+- **Goal:** Task 124 — Win/Neutral/Risk Detection widget.
+- **Summary:** Ajout d'un widget "Bilan Win / Neutre / Risque" dans la page Impact, sans nouveau code backend. Le loader appelle maintenant `/geo/impact-report` en parallèle (3 appels `Promise.allSettled`) et extrait `summary.by_verdict`. Le widget affiche 4 cases colorées (Gain probable vert, Neutre jaune, Inconclusif gris, Risque rouge) avec compteur par catégorie, visible uniquement quand des optimisations existent. 1333 tests, typecheck + build OK.
+- **Files modified (task 124):**
+  - `shopify-app/app/routes/app.impact.tsx` (3e appel parallèle + interface VerdictSummary + widget)
+  - `shopify-app/app/lib/i18n.ts` (clés `verdictWidget*` + `verdictLabel_*` FR/EN)
+  - `ROADMAP.md` (statut 124 → ✅ 2026-05-19)
+- **Validations run (task 124):** `pytest` (1333 passed), `npm run typecheck` (OK), `npm run build` (OK).
+- **Next recommended action:** Task 125 — Next Best Action Loop (dernière tâche Phase 11.5).
+
+---
+
+## Previous task
 
 - **Date:** 2026-05-19
 - **Agent:** Claude Code (Sonnet 4.6)

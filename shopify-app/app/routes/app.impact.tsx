@@ -83,11 +83,17 @@ interface ConfidenceData {
   };
 }
 
+interface VerdictSummary {
+  total: number;
+  by_verdict: Record<string, number>;
+}
+
 interface LoaderData {
   shop: string;
   locale: Locale;
   curve: ProgressCurve | null;
   confidence: ConfidenceData | null;
+  verdictSummary: VerdictSummary | null;
   error: string | null;
 }
 
@@ -109,15 +115,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     callBackendForShop(shop, path, { accessToken: session.accessToken });
 
   try {
-    const [curveResp, confResp] = await Promise.allSettled([
+    const [curveResp, confResp, reportResp] = await Promise.allSettled([
       be(`/api/shops/${shop}/geo/progress-curve?days=90`),
       be(`/api/shops/${shop}/geo/confidence-scores`),
+      be(`/api/shops/${shop}/geo/impact-report`),
     ]);
 
-    if (
-      curveResp.status === "rejected" ||
-      !curveResp.value.ok
-    ) {
+    if (curveResp.status === "rejected" || !curveResp.value.ok) {
       const status =
         curveResp.status === "fulfilled"
           ? `HTTP ${curveResp.value.status}`
@@ -127,6 +131,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         locale,
         curve: null,
         confidence: null,
+        verdictSummary: null,
         error: status,
       });
     }
@@ -136,8 +141,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       confResp.status === "fulfilled" && confResp.value.ok
         ? ((await confResp.value.json()) as ConfidenceData)
         : null;
+    const verdictSummary =
+      reportResp.status === "fulfilled" && reportResp.value.ok
+        ? ((await reportResp.value.json()) as { summary: VerdictSummary }).summary
+        : null;
 
-    return json<LoaderData>({ shop, locale, curve, confidence, error: null });
+    return json<LoaderData>({ shop, locale, curve, confidence, verdictSummary, error: null });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Network error";
     return json<LoaderData>({
@@ -145,6 +154,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       locale,
       curve: null,
       confidence: null,
+      verdictSummary: null,
       error: message,
     });
   }
@@ -155,8 +165,15 @@ const fmtPct = (v: number) => `${(v * 100).toFixed(2)}%`;
 const fmtPos = (v: number) => v.toFixed(1);
 const fmtEur = (v: number) => `${v.toFixed(2)} €`;
 
+const VERDICT_TONES: Record<string, "success" | "warning" | "critical" | undefined> = {
+  positif_probable: "success",
+  neutre: "warning",
+  négatif_possible: "critical",
+  inconclusif: undefined,
+};
+
 export default function ImpactPage() {
-  const { locale, curve, confidence, error } =
+  const { locale, curve, confidence, verdictSummary, error } =
     useLoaderData<typeof loader>() as LoaderData;
 
   if (error || !curve) {
@@ -236,6 +253,47 @@ export default function ImpactPage() {
               )}
             </BlockStack>
           </Banner>
+        )}
+
+        {verdictSummary && verdictSummary.total > 0 && (
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">
+                {t(locale, "verdictWidgetTitle")}
+              </Text>
+              <InlineGrid columns={{ xs: 2, md: 4 }} gap="300">
+                {(
+                  [
+                    "positif_probable",
+                    "neutre",
+                    "inconclusif",
+                    "négatif_possible",
+                  ] as const
+                ).map((v) => {
+                  const count = verdictSummary.by_verdict[v] ?? 0;
+                  const tone = VERDICT_TONES[v];
+                  return (
+                    <Box key={v} padding="300" background="bg-surface-secondary" borderRadius="200">
+                      <BlockStack gap="100">
+                        <Badge tone={tone}>
+                          {t(locale, `verdictLabel_${v}`)}
+                        </Badge>
+                        <Text as="p" variant="headingLg" fontWeight="bold">
+                          {count}
+                        </Text>
+                        <Text as="p" tone="subdued" variant="bodySm">
+                          {t(locale, "verdictWidgetOptimizations")}
+                        </Text>
+                      </BlockStack>
+                    </Box>
+                  );
+                })}
+              </InlineGrid>
+              <Text as="p" tone="subdued">
+                {t(locale, "verdictWidgetTotal")}: {verdictSummary.total}
+              </Text>
+            </BlockStack>
+          </Card>
         )}
 
         <Card>
