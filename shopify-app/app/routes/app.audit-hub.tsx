@@ -16,6 +16,14 @@ export default function AuditHub() {
 
   const items: HubItem[] = [
     {
+      titleKey: "auditReadiness",
+      href: "/app/audit-readiness",
+      description:
+        locale === "fr"
+          ? "Score AI Search Readiness unifié : faits produits, crawl L3, hypothèse niche."
+          : "Unified AI Search Readiness score: product facts, crawl L3, niche hypothesis.",
+    },
+    {
       titleKey: "audit",
       href: "/app/audit",
       description:

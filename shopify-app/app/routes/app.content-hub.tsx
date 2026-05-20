@@ -152,6 +152,14 @@ export default function ContentHub() {
           : "Semantic analysis and E-E-A-T signals to strengthen authority.",
     },
     {
+      titleKey: "nicheUnderstanding",
+      href: "/app/niche-understanding",
+      description:
+        locale === "fr"
+          ? "Hypothèses marchand validées avant les recommandations et contenus IA."
+          : "Merchant-validated hypotheses before AI recommendations and content.",
+    },
+    {
       titleKey: "niche",
       href: "/app/niche",
       description:

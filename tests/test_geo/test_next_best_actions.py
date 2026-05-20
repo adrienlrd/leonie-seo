@@ -83,6 +83,35 @@ def test_similar_products_suggested_for_win_with_snapshot() -> None:
     assert suggestions[0]["resource_id"] == "p2"
 
 
+def test_similar_products_excludes_unlisted_products_when_scope_is_active() -> None:
+    reports = [_report(resource_id="p1", verdict="positif_probable", next_recommendation="répliquer")]
+    snapshot = {
+        "products": [
+            {
+                "id": "p1",
+                "title": "Harnais nylon",
+                "product_type": "Harnais",
+                "vendor": "BrandA",
+                "status": "ACTIVE",
+                "onlineStoreUrl": "https://example.com/products/p1",
+            },
+            {
+                "id": "p2",
+                "title": "Harnais cuir",
+                "product_type": "Harnais",
+                "vendor": "BrandA",
+                "status": "ACTIVE",
+                "onlineStoreUrl": None,
+            },
+        ]
+    }
+
+    result = build_next_best_actions(reports, snapshot=snapshot)
+
+    assert result["actions"][0]["suggested_resources"] == []
+    assert result["scope"]["counts"]["unlisted"] == 1
+
+
 def test_already_optimized_pages_excluded_from_suggestions() -> None:
     reports = [
         _report(eid=1, resource_id="p1", verdict="positif_probable", next_recommendation="répliquer"),

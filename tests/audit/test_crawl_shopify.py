@@ -3,8 +3,16 @@
 import tempfile
 
 from scripts.audit.crawl_shopify import (
+    _BLOGS_QUERY,
+    _PAGES_QUERY,
+    _PRODUCTS_QUERY,
+    _URL_REDIRECTS_QUERY,
+    fetch_articles,
     fetch_collections,
+    fetch_pages,
     fetch_products,
+    fetch_shop_metadata,
+    fetch_url_redirects,
     init_db,
     save_snapshot,
 )
@@ -51,6 +59,58 @@ def _collections_page() -> dict:
     }
 
 
+def _pages_page() -> dict:
+    return {
+        "data": {
+            "pages": {
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                "edges": [{"node": {"id": "gid://shopify/Page/1", "title": "About", "handle": "about"}}],
+            }
+        }
+    }
+
+
+def _blogs_page() -> dict:
+    return {
+        "data": {
+            "blogs": {
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                "edges": [
+                    {
+                        "node": {
+                            "id": "gid://shopify/Blog/1",
+                            "title": "News",
+                            "handle": "news",
+                            "articles": {
+                                "edges": [
+                                    {
+                                        "node": {
+                                            "id": "gid://shopify/Article/1",
+                                            "title": "Guide",
+                                            "handle": "guide",
+                                        }
+                                    }
+                                ]
+                            },
+                        }
+                    }
+                ],
+            }
+        }
+    }
+
+
+def _redirects_page() -> dict:
+    return {
+        "data": {
+            "urlRedirects": {
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                "edges": [{"node": {"id": "gid://shopify/UrlRedirect/1", "path": "/old", "target": "/new"}}],
+            }
+        }
+    }
+
+
 def test_fetch_products_returns_nodes(mocker):
     mock = mocker.patch("requests.post")
     mock.return_value.status_code = 200
@@ -60,6 +120,16 @@ def test_fetch_products_returns_nodes(mocker):
 
     assert len(products) == 1
     assert products[0]["id"] == "gid://shopify/Product/1"
+
+
+def test_products_query_requests_publication_fields_when_fetching_products() -> None:
+    assert "status publishedAt onlineStoreUrl" in _PRODUCTS_QUERY
+
+
+def test_crawl_l3_queries_include_extended_snapshot_resources() -> None:
+    assert "pages(first: 50" in _PAGES_QUERY
+    assert "articles(first: 50" in _BLOGS_QUERY
+    assert "urlRedirects(first: 50" in _URL_REDIRECTS_QUERY
 
 
 def test_fetch_products_paginates(mocker):
@@ -85,6 +155,47 @@ def test_fetch_collections_returns_nodes(mocker):
 
     assert len(collections) == 1
     assert collections[0]["handle"] == "chien"
+
+
+def test_fetch_pages_returns_nodes(mocker):
+    mock = mocker.patch("requests.post")
+    mock.return_value.status_code = 200
+    mock.return_value.json.return_value = _pages_page()
+
+    pages = fetch_pages(endpoint="http://test", headers={})
+
+    assert pages == [{"id": "gid://shopify/Page/1", "title": "About", "handle": "about"}]
+
+
+def test_fetch_articles_flattens_blog_articles(mocker):
+    mock = mocker.patch("requests.post")
+    mock.return_value.status_code = 200
+    mock.return_value.json.return_value = _blogs_page()
+
+    articles = fetch_articles(endpoint="http://test", headers={})
+
+    assert articles[0]["id"] == "gid://shopify/Article/1"
+    assert articles[0]["blog_handle"] == "news"
+
+
+def test_fetch_url_redirects_returns_nodes(mocker):
+    mock = mocker.patch("requests.post")
+    mock.return_value.status_code = 200
+    mock.return_value.json.return_value = _redirects_page()
+
+    redirects = fetch_url_redirects(endpoint="http://test", headers={})
+
+    assert redirects == [{"id": "gid://shopify/UrlRedirect/1", "path": "/old", "target": "/new"}]
+
+
+def test_fetch_shop_metadata_returns_shop_payload(mocker):
+    mock = mocker.patch("requests.post")
+    mock.return_value.status_code = 200
+    mock.return_value.json.return_value = {"data": {"shop": {"myshopifyDomain": "store.myshopify.com"}}}
+
+    metadata = fetch_shop_metadata(endpoint="http://test", headers={})
+
+    assert metadata == {"myshopifyDomain": "store.myshopify.com"}
 
 
 def test_init_db_creates_tables():

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.api.deps import ShopContext, get_shop_context
@@ -36,12 +37,12 @@ from app.geo.optimization_snapshots import (
 )
 from app.geo.prioritization import prioritize_catalog
 from app.geo.progress_curve import build_progress_curve
-from app.geo.readiness import score_catalog_readiness
 from app.geo.retention_milestones import build_retention_milestones
 from app.geo.risk_guard import assess_catalog_risk
 from app.geo.validation_timeline import build_validation_timeline
 from app.geo.weekly import build_weekly_actions
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
+from app.snapshot.scope import normalize_product_scope
 
 router = APIRouter(prefix="/api", tags=["geo"])
 
@@ -50,6 +51,13 @@ def _find_gsc_query_page_file(shop: str) -> Path | None:
     project_root = Path(__file__).parents[2]
     path = project_root / "data" / "raw" / shop / "gsc_query_page.csv"
     return path if path.exists() else None
+
+
+def _validated_scope(scope: str) -> str:
+    try:
+        return normalize_product_scope(scope)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 class GeoLedgerEventRequest(BaseModel):
@@ -127,23 +135,14 @@ async def get_geo_facts(
 @router.get("/shops/{shop}/geo/readiness")
 async def get_geo_readiness(
     shop: str,
-    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    scope: str = Query(default="active", pattern="^(active|draft|unlisted|archived|all)$"),
     top: int = 50,
-) -> dict:
-    """Return AI Search readiness scores for products in the latest snapshot."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
-    if snapshot is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Snapshot introuvable. Lancez un audit SEO d'abord.",
-        )
-
-    analysis = score_catalog_readiness(snapshot.get("products", []), top=top)
-    return {
-        "shop": ctx.shop,
-        "available": True,
-        **analysis,
-    }
+) -> RedirectResponse:
+    """Permanently redirected to /api/shops/{shop}/audit/readiness."""
+    return RedirectResponse(
+        url=f"/api/shops/{shop}/audit/readiness?scope={scope}&top={top}",
+        status_code=301,
+    )
 
 
 @router.get("/shops/{shop}/geo/priorities")
@@ -154,6 +153,7 @@ async def get_geo_priorities(
     conversion_rate: float = Query(default=0.02, gt=0, le=1),
     average_order_value: float = Query(default=50.0, gt=0),
     position_improvement: float = Query(default=2.0, ge=0.5, le=10.0),
+    scope: str = Query(default="active", pattern="^(active|draft|unlisted|archived|all)$"),
 ) -> dict:
     """Return revenue-aware GEO action priorities for products."""
     snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
@@ -174,6 +174,7 @@ async def get_geo_priorities(
         conversion_rate=conversion_rate,
         average_order_value=average_order_value,
         position_improvement=position_improvement,
+        scope=_validated_scope(scope),
     )
     return {
         "shop": ctx.shop,
@@ -195,6 +196,7 @@ async def get_geo_weekly_actions(
     conversion_rate: float = Query(default=0.02, gt=0, le=1),
     average_order_value: float = Query(default=50.0, gt=0),
     position_improvement: float = Query(default=2.0, ge=0.5, le=10.0),
+    scope: str = Query(default="active", pattern="^(active|draft|unlisted|archived|all)$"),
 ) -> dict:
     """Return a short weekly GEO action list for merchants."""
     snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
@@ -215,6 +217,7 @@ async def get_geo_weekly_actions(
         conversion_rate=conversion_rate,
         average_order_value=average_order_value,
         position_improvement=position_improvement,
+        scope=_validated_scope(scope),
     )
     return {
         "shop": ctx.shop,
@@ -358,13 +361,14 @@ async def get_geo_next_best_actions(
     shop: str,
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     limit: int = Query(default=500, ge=1, le=500),
+    scope: str = Query(default="active", pattern="^(active|draft|unlisted|archived|all)$"),
 ) -> dict:
     """Return prioritised next-best-action recommendations from validated impact reports."""
     events = list_geo_events(ctx.shop, limit=limit, db_path=DB_PATH)["events"]
     confidence_data = compute_catalog_confidence(events)
     catalog = build_catalog_report(events, confidence_data["scores"])
     snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
-    result = build_next_best_actions(catalog["reports"], snapshot=snapshot)
+    result = build_next_best_actions(catalog["reports"], snapshot=snapshot, scope=_validated_scope(scope))
     return {
         "shop": ctx.shop,
         "generated_at": datetime.now(UTC).isoformat(),
@@ -377,6 +381,7 @@ async def get_geo_faq_content(
     shop: str,
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     top: int = Query(default=20, ge=1, le=50),
+    scope: str = Query(default="active", pattern="^(active|draft|unlisted|archived|all)$"),
 ) -> dict:
     """Generate GEO FAQ, buying guides and JSON-LD from confirmed product facts and GSC queries."""
     snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
@@ -398,6 +403,7 @@ async def get_geo_faq_content(
         gsc_queries=gsc_queries,
         collections=collections,
         top=top,
+        scope=_validated_scope(scope),
     )
     return {
         "shop": ctx.shop,

@@ -27,7 +27,7 @@ query GetProducts($cursor: String) {
     pageInfo { hasNextPage endCursor }
     edges {
       node {
-        id title handle status
+        id title handle status publishedAt onlineStoreUrl
         description
         seo { title description }
         images(first: 10) {
@@ -55,6 +55,65 @@ query GetCollections($cursor: String) {
         seo { title description }
       }
     }
+  }
+}
+"""
+
+_PAGES_QUERY = """
+query GetPages($cursor: String) {
+  pages(first: 50, after: $cursor) {
+    pageInfo { hasNextPage endCursor }
+    edges {
+      node {
+        id title handle body
+        seo { title description }
+        onlineStoreUrl
+      }
+    }
+  }
+}
+"""
+
+_BLOGS_QUERY = """
+query GetBlogs($cursor: String) {
+  blogs(first: 50, after: $cursor) {
+    pageInfo { hasNextPage endCursor }
+    edges {
+      node {
+        id title handle
+        articles(first: 50) {
+          edges {
+            node {
+              id title handle body
+              seo { title description }
+              onlineStoreUrl
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+_URL_REDIRECTS_QUERY = """
+query GetUrlRedirects($cursor: String) {
+  urlRedirects(first: 50, after: $cursor) {
+    pageInfo { hasNextPage endCursor }
+    edges {
+      node { id path target }
+    }
+  }
+}
+"""
+
+_SHOP_METADATA_QUERY = """
+query GetShopMetadata {
+  shop {
+    name
+    myshopifyDomain
+    primaryDomain { host url }
+    domains { host url }
   }
 }
 """
@@ -160,6 +219,100 @@ def fetch_collections(
     return results
 
 
+def fetch_pages(
+    endpoint: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch CMS pages with SEO and Online Store URL fields."""
+    if endpoint is None or headers is None:
+        endpoint, headers = _get_client()
+
+    results: list[dict[str, Any]] = []
+    cursor: str | None = None
+
+    while True:
+        data = graphql_request(_PAGES_QUERY, {"cursor": cursor}, endpoint, headers)
+        _check_throttle(data)
+
+        pages = data["data"]["pages"]
+        for edge in pages["edges"]:
+            results.append(edge["node"])
+
+        if not pages["pageInfo"]["hasNextPage"]:
+            break
+        cursor = pages["pageInfo"]["endCursor"]
+
+    return results
+
+
+def fetch_articles(
+    endpoint: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch blog articles with their parent blog handle."""
+    if endpoint is None or headers is None:
+        endpoint, headers = _get_client()
+
+    results: list[dict[str, Any]] = []
+    cursor: str | None = None
+
+    while True:
+        data = graphql_request(_BLOGS_QUERY, {"cursor": cursor}, endpoint, headers)
+        _check_throttle(data)
+
+        blogs = data["data"]["blogs"]
+        for edge in blogs["edges"]:
+            blog = edge["node"]
+            for article_edge in blog.get("articles", {}).get("edges", []):
+                article = dict(article_edge["node"])
+                article["blog_id"] = blog.get("id")
+                article["blog_handle"] = blog.get("handle")
+                article["blog_title"] = blog.get("title")
+                results.append(article)
+
+        if not blogs["pageInfo"]["hasNextPage"]:
+            break
+        cursor = blogs["pageInfo"]["endCursor"]
+
+    return results
+
+
+def fetch_url_redirects(
+    endpoint: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch Shopify URL redirects."""
+    if endpoint is None or headers is None:
+        endpoint, headers = _get_client()
+
+    results: list[dict[str, Any]] = []
+    cursor: str | None = None
+
+    while True:
+        data = graphql_request(_URL_REDIRECTS_QUERY, {"cursor": cursor}, endpoint, headers)
+        _check_throttle(data)
+
+        redirects = data["data"]["urlRedirects"]
+        for edge in redirects["edges"]:
+            results.append(edge["node"])
+
+        if not redirects["pageInfo"]["hasNextPage"]:
+            break
+        cursor = redirects["pageInfo"]["endCursor"]
+
+    return results
+
+
+def fetch_shop_metadata(
+    endpoint: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Fetch shop domain metadata used by Crawl L3."""
+    data = graphql_request(_SHOP_METADATA_QUERY, {}, endpoint, headers)
+    _check_throttle(data)
+    return data.get("data", {}).get("shop", {})
+
+
 def init_db(db_path: str | None = None) -> sqlite3.Connection:
     """Initialize SQLite database. Schema lives in app.db (single source of truth)."""
     from app.db import DB_PATH as _DEFAULT_DB
@@ -203,16 +356,39 @@ def main(db_path: str, output: str) -> None:
     collections = fetch_collections()
     console.print(f"  [green]✓[/green] {len(collections)} collections")
 
+    pages = fetch_pages()
+    console.print(f"  [green]✓[/green] {len(pages)} pages")
+
+    articles = fetch_articles()
+    console.print(f"  [green]✓[/green] {len(articles)} articles")
+
+    redirects = fetch_url_redirects()
+    console.print(f"  [green]✓[/green] {len(redirects)} redirects")
+
+    shop = fetch_shop_metadata()
+
     conn = init_db(db_path)
     save_snapshot(conn, "product", products)
     save_snapshot(conn, "collection", collections)
+    save_snapshot(conn, "page", pages)
+    save_snapshot(conn, "article", articles)
+    save_snapshot(conn, "url_redirect", redirects)
     conn.close()
     console.print(f"  [green]✓[/green] Snapshot → {db_path}")
 
     Path(output).parent.mkdir(parents=True, exist_ok=True)
     Path(output).write_text(
         json.dumps(
-            {"products": products, "collections": collections}, ensure_ascii=False, indent=2
+            {
+                "shop": shop,
+                "products": products,
+                "collections": collections,
+                "pages": pages,
+                "articles": articles,
+                "redirects": redirects,
+            },
+            ensure_ascii=False,
+            indent=2,
         ),
         encoding="utf-8",
     )

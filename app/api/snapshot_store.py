@@ -38,6 +38,9 @@ def load_latest_snapshot_from_db(shop: str, db_path: Path | None = None) -> dict
 
     products: list[dict[str, Any]] = []
     collections: list[dict[str, Any]] = []
+    pages: list[dict[str, Any]] = []
+    articles: list[dict[str, Any]] = []
+    redirects: list[dict[str, Any]] = []
     for row in rows:
         try:
             resource = json.loads(row["data_json"])
@@ -47,11 +50,20 @@ def load_latest_snapshot_from_db(shop: str, db_path: Path | None = None) -> dict
             products.append(resource)
         elif row["resource_type"] == "collection":
             collections.append(resource)
+        elif row["resource_type"] == "page":
+            pages.append(resource)
+        elif row["resource_type"] == "article":
+            articles.append(resource)
+        elif row["resource_type"] == "url_redirect":
+            redirects.append(resource)
 
     return {
         "snapshot_date": latest["snapshot_date"],
         "products": products,
         "collections": collections,
+        "pages": pages,
+        "articles": articles,
+        "redirects": redirects,
     }
 
 

@@ -12,7 +12,15 @@ from pydantic import BaseModel
 
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_latest_snapshot_from_db
+from app.llm.provider import LLMError
 from app.niche.engine import run_niche_analysis
+from app.niche.understanding import (
+    NicheUnderstandingError,
+    generate_niche_hypothesis,
+    get_niche_hypothesis,
+    get_niche_hypothesis_history,
+    save_niche_hypothesis,
+)
 
 router = APIRouter(tags=["niche"])
 
@@ -190,6 +198,16 @@ class SignalRequest(BaseModel):
     geo: str = "FR"
 
 
+class NicheUnderstandRequest(BaseModel):
+    force_refresh: bool = False
+    use_llm: bool = True
+
+
+class NicheHypothesisPatch(BaseModel):
+    hypothesis: dict
+    status: str | None = None
+
+
 @router.post("/api/shops/{shop}/niche/signals")
 async def fetch_niche_signals(
     shop: str,
@@ -218,3 +236,73 @@ async def fetch_niche_signals(
         geo=body.geo,
     )
     return [asdict(s) for s in signals]
+
+
+@router.post("/api/shops/{shop}/niche/understand")
+async def post_niche_understand(
+    shop: str,
+    body: NicheUnderstandRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Generate a merchant-reviewable niche hypothesis."""
+    products = _load_snapshot(shop)
+    gsc_queries = _load_gsc(shop)
+    if not products and not gsc_queries:
+        raise HTTPException(
+            status_code=404,
+            detail="No snapshot or GSC data found. Run the audit pipeline first.",
+        )
+
+    try:
+        hypothesis = generate_niche_hypothesis(
+            shop,
+            products,
+            gsc_queries,
+            force_refresh=body.force_refresh,
+            use_llm=body.use_llm,
+        )
+    except NicheUnderstandingError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except LLMError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return {
+        "available": True,
+        "shop": ctx.shop,
+        "hypothesis": hypothesis,
+        "history": get_niche_hypothesis_history(shop),
+    }
+
+
+@router.get("/api/shops/{shop}/niche/hypothesis")
+async def get_niche_hypothesis_endpoint(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Return the stored merchant niche hypothesis."""
+    hypothesis = get_niche_hypothesis(shop)
+    return {
+        "available": hypothesis is not None,
+        "shop": ctx.shop,
+        "hypothesis": hypothesis,
+        "history": get_niche_hypothesis_history(shop),
+    }
+
+
+@router.patch("/api/shops/{shop}/niche/hypothesis")
+async def patch_niche_hypothesis(
+    shop: str,
+    body: NicheHypothesisPatch,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Persist merchant edits to the niche hypothesis."""
+    hypothesis = dict(body.hypothesis)
+    if body.status:
+        hypothesis["status"] = body.status
+    saved = save_niche_hypothesis(shop, hypothesis)
+    return {
+        "available": True,
+        "shop": ctx.shop,
+        "hypothesis": saved,
+        "history": get_niche_hypothesis_history(shop),
+    }

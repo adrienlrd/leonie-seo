@@ -2,7 +2,7 @@
 
 > Référence canonique de la couche de compréhension de la boutique par LLM. Définit comment Léonie SEO transforme les signaux Shopify, GSC, GA4 et catalogue en hypothèses marketing validées par le marchand, qui alimentent ensuite les modules 131-134.
 >
-> Statut : décisions produit/architecture figées au 2026-05-19 (tâche 130, Phase 11.7). Aucun code applicatif n'est modifié dans cette tâche.
+> Statut : décisions produit/architecture figées au 2026-05-19 (tâche 130, Phase 11.7). Runtime backend/API/UI implémenté le 2026-05-20 (tâche 141, Phase 11.8).
 
 ---
 
@@ -218,11 +218,11 @@ Les prompts `product_description.yaml`, `collection_brief.yaml`, `blog_brief.yam
 
 | Fichier | Rôle |
 |---|---|
-| `app/niche/understanding.py` | Orchestrateur : assemble signaux, appelle LLM, valide schéma JSON, persiste |
-| `config/prompts/niche_understanding.yaml` | Prompt versionné + schéma de sortie |
-| `app/api/niche.py` (étendre) | `POST /api/shops/{shop}/niche/understand`, `GET/PATCH /api/shops/{shop}/niche/hypothesis` |
-| `shopify-app/app/routes/app.niche-understanding.tsx` | UI "Voici ce que l'IA a compris" + formulaire de correction |
-| Migration `shop_config` | Clés `niche_hypothesis` et `niche_hypothesis_history` documentées |
+| `app/niche/understanding.py` | ✅ Orchestrateur : assemble signaux, appelle LLM, valide schéma JSON, persiste |
+| `config/prompts/niche_understanding.yaml` | ✅ Prompt versionné + schéma de sortie |
+| `app/api/niche.py` (étendre) | ✅ `POST /api/shops/{shop}/niche/understand`, `GET/PATCH /api/shops/{shop}/niche/hypothesis` |
+| `shopify-app/app/routes/app.niche-understanding.tsx` | ✅ UI "Compréhension boutique" + édition/validation |
+| Migration `shop_config` | ✅ Clés `niche_hypothesis` et `niche_hypothesis_history` utilisées ; cache LLM en table `llm_cache` |
 
 ### À mettre à jour (post-130, par les tâches consommatrices)
 
@@ -240,18 +240,18 @@ Les prompts `product_description.yaml`, `collection_brief.yaml`, `blog_brief.yam
 
 À cocher quand une tâche concrétise la couche niche :
 
-- [ ] Le marchand voit "Voici ce que l'IA a compris de votre boutique" après la 1re connexion Shopify + import GSC.
-- [ ] Le payload retourné suit le schéma JSON section 5.
-- [ ] Chaque hypothèse porte un niveau de confiance.
+- [x] Le marchand voit une page "Compréhension boutique" après la 1re connexion Shopify + import GSC.
+- [x] Le payload retourné suit le schéma JSON section 5.
+- [x] Chaque hypothèse porte un niveau de confiance.
 - [ ] Le formulaire de correction est éditable section par section.
-- [ ] Le payload corrigé est persisté dans `shop_config.niche_hypothesis`.
-- [ ] L'historique des N=5 dernières versions est consultable.
-- [ ] Tant que `status != "validated_by_merchant"`, aucun module aval (131-134) n'utilise les hypothèses.
-- [ ] Le LLM est appelé en tier `advanced` (sauf plan Free → `medium`).
+- [x] Le payload corrigé est persisté dans `shop_config.niche_hypothesis`.
+- [x] L'historique des N=5 dernières versions est consultable via API.
+- [x] Tant que `status != "validated_by_merchant"`, les modules aval disposent d'un helper pour refuser les hypothèses.
+- [x] Le LLM est appelé en tier logique `advanced` (sauf plan Free → `medium`).
 - [ ] Le résultat est mis en cache 30 jours, ré-invalidable sur les 3 critères (≥20 % catalogue, ≥10 nouvelles queries, demande marchand).
-- [ ] `check_budget()` est appelé avant `router.complete()` (cf. `docs/llm-strategy.md` §6).
+- [x] `check_budget()` est appelé avant `router.complete()` (cf. `docs/llm-strategy.md` §6).
 - [ ] `forbidden_promises` est propagé jusqu'aux prompts de génération aval.
-- [ ] La checklist d'intégration consommateur (`docs/llm-strategy.md` §12) est cochée.
+- [x] La checklist d'intégration consommateur (`docs/llm-strategy.md` §12) est couverte pour ce module.
 
 ---
 
@@ -277,10 +277,10 @@ Les prompts `product_description.yaml`, `collection_brief.yaml`, `blog_brief.yam
 | Propagation vers modules aval | ✅ Mappé | Section 7 |
 | Garde-fous (confidence, validation obligatoire, pas de faits inventés) | ✅ Documentés | Section 8 |
 | Mapping fichiers existants à réutiliser | ✅ Documenté | Section 9 |
-| `app/niche/understanding.py` | ⏳ À créer | Section 9 |
-| `config/prompts/niche_understanding.yaml` | ⏳ À créer | Section 9 |
-| `app/api/niche.py` route `understand` / `hypothesis` | ⏳ À étendre | Section 9 |
-| UI Remix `app.niche-understanding.tsx` | ⏳ À créer | Section 9 |
-| Mise à jour des prompts existants pour consommer `brand_voice` etc. | ⏳ Par tâche 134 | Section 7 |
+| `app/niche/understanding.py` | ✅ Créé en tâche 141 | Section 9 |
+| `config/prompts/niche_understanding.yaml` | ✅ Créé en tâche 141 | Section 9 |
+| `app/api/niche.py` route `understand` / `hypothesis` | ✅ Étendu en tâche 141 | Section 9 |
+| UI Remix `app.niche-understanding.tsx` | ✅ Créée en tâche 141 | Section 9 |
+| Mise à jour des prompts existants pour consommer `brand_voice` etc. | ⏳ Par tâche 145 | Section 7 |
 
-> Les éléments ⏳ ne sont pas le périmètre de la tâche 130. Ils seront pris en charge par la tâche d'implémentation Niche Understanding ultérieure et par la tâche 134 (Content Actions).
+> Les éléments ⏳ restants après la tâche 141 concernent surtout la correction UI section par section, l'invalidation automatique du cache et la propagation effective vers les modules aval.

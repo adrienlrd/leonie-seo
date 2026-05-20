@@ -181,6 +181,21 @@ def test_generate_catalog_content_returns_summary() -> None:
     assert 0 <= result["summary"]["avg_quality_score"] <= 100
 
 
+def test_generate_catalog_content_filters_archived_products_when_scope_is_active() -> None:
+    products = [
+        _product(pid="active", title="Harnais actif"),
+        _product(pid="archived", title="Harnais archive", status="ARCHIVED"),
+    ]
+    products[0]["onlineStoreUrl"] = "https://example.com/products/harnais-actif"
+    products[1]["onlineStoreUrl"] = None
+
+    result = generate_catalog_content(products, top=10)
+
+    assert result["summary"]["total"] == 1
+    assert result["scope"]["counts"]["archived"] == 1
+    assert result["content_items"][0]["resource_id"] == "active"
+
+
 def test_generate_catalog_content_with_collections() -> None:
     products = [_product()]
     collections = [_collection(title="Harnais")]

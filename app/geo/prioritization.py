@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 from app.geo.readiness import score_product_readiness
 from app.impact.calculator import estimate_ctr
+from app.snapshot.scope import filter_products_by_scope, summarize_product_scopes
 
 
 def _edge_nodes(container: Any) -> list[dict[str, Any]]:
@@ -84,8 +85,12 @@ def _click_gain_estimate(impressions: int, position: float, improvement: float) 
 
 def _primary_action(readiness: dict[str, Any]) -> tuple[str, str, str, int]:
     components = readiness["components"]
-    ordered = sorted(components.items(), key=lambda item: item[1])
+    ordered = sorted(
+        components.items(),
+        key=lambda item: item[1]["score"] if isinstance(item[1], dict) else item[1],
+    )
     weakest, value = ordered[0]
+    score_val = value["score"] if isinstance(value, dict) else int(value)
     action_map = {
         "facts": ("enrich_product_facts", "Enrichir les faits produit", "high"),
         "schema": ("improve_schema", "Améliorer les données structurées", "medium"),
@@ -96,7 +101,7 @@ def _primary_action(readiness: dict[str, Any]) -> tuple[str, str, str, int]:
     }
     action_type, label, effort = action_map.get(weakest, ("review_product", "Revoir la page produit", "medium"))
     effort_cost = {"low": 1, "medium": 2, "high": 3}[effort]
-    return action_type, label, effort, max(0, 100 - int(value)) // effort_cost
+    return action_type, label, effort, max(0, 100 - score_val) // effort_cost
 
 
 def prioritize_product(
@@ -173,8 +178,10 @@ def prioritize_catalog(
     conversion_rate: float = 0.02,
     average_order_value: float = 50.0,
     position_improvement: float = 2.0,
+    scope: str = "active",
 ) -> dict[str, Any]:
     """Prioritize products by GEO gap and estimated business upside."""
+    scoped_products = filter_products_by_scope(products, scope)
     rows = [
         prioritize_product(
             product,
@@ -184,13 +191,14 @@ def prioritize_catalog(
             average_order_value=average_order_value,
             position_improvement=position_improvement,
         )
-        for product in products
+        for product in scoped_products
         if product.get("title")
     ]
     rows.sort(key=lambda item: (-item["priority_score"], -item["revenue_estimate"], item["title"]))
     limited = rows[:top]
     return {
         "total": len(rows),
+        "scope": summarize_product_scopes(products, scope),
         "summary": {
             "avg_priority_score": round(sum(row["priority_score"] for row in rows) / len(rows)) if rows else 0,
             "total_revenue_estimate": round(sum(row["revenue_estimate"] for row in rows), 2),

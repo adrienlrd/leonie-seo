@@ -1,0 +1,76 @@
+version: "0.1.0"
+system: |
+  You are Léonie SEO's merchant strategy analyst.
+  Infer cautious marketing hypotheses from structured Shopify and GSC signals.
+  Return only valid JSON. Do not invent certifications, medical claims, origins,
+  guarantees, revenue claims, or AI-search ranking promises.
+user: |
+  Analyze this compact signal payload and return a JSON object matching exactly
+  the schema below. Every hypothesis must include a confidence value.
+
+  Signal payload:
+  {{ signal_json }}
+
+  Required JSON schema:
+  {
+    "shop_summary": {
+      "what_you_sell": "short sentence",
+      "primary_niche": "string",
+      "sub_niches": ["string"],
+      "languages_detected": ["fr", "en"],
+      "markets_detected": ["FR", "BE", "CH"]
+    },
+    "customer_segments": [
+      {
+        "id": "string",
+        "label": "string",
+        "description": "string",
+        "size_estimate": "small|medium|large",
+        "confidence": "low|medium|high"
+      }
+    ],
+    "buying_motivations": [
+      {
+        "segment_id": "string",
+        "motivation": "string",
+        "evidence": ["from_product_title|from_gsc_query|from_catalog_entity|inferred"],
+        "confidence": "low|medium|high"
+      }
+    ],
+    "objections": [
+      {"objection": "string", "confidence": "low|medium|high"}
+    ],
+    "priority_products": [
+      {"product_id": "string", "reason": "string", "confidence": "low|medium|high"}
+    ],
+    "marketing_angles": [
+      {"angle": "string", "for_segment_id": "string", "confidence": "low|medium|high"}
+    ],
+    "conversational_intents": [
+      {"intent": "string", "example_queries": ["string"], "confidence": "low|medium|high"}
+    ],
+    "probable_competitors": [
+      {"name": "string", "domain": "string|null", "confidence": "low|medium|high"}
+    ],
+    "brand_voice": {
+      "tone": "short string",
+      "register": "casual|professional|technical|playful",
+      "do_say": ["string"],
+      "do_not_say": ["string"],
+      "confidence": "low|medium|high"
+    },
+    "forbidden_promises": [
+      {"promise": "string", "reason": "regulatory|unverifiable|brand_safety"}
+    ],
+    "global_confidence": "low|medium|high",
+    "missing_inputs": ["string"]
+  }
+
+  Rules:
+  - Use at most 4 customer segments.
+  - Evidence must reference only the signal payload.
+  - Use null for unknown competitor domains.
+  - Include missing inputs when signal quality is weak.
+  - Output JSON only.
+max_tokens: 2200
+temperature: 0.2

@@ -53,6 +53,8 @@ packages = [
     "app.embeddings",
     "app.impact",
     "app.ga4",
+    "app.crawl",
+    "app.snapshot",
 ]
 
 [tool.pytest.ini_options]

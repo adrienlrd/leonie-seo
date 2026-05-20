@@ -96,31 +96,22 @@ def test_get_geo_facts_returns_404_when_snapshot_is_missing(client, tmp_path) ->
 
 
 def test_get_geo_readiness_returns_scores_when_snapshot_exists(client, snapshot_file) -> None:
-    with (
-        patch("app.api.deps.get_token", return_value=None),
-        patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
-        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=_SNAPSHOT),
-    ):
-        resp = client.get(f"/api/shops/{SHOP}/geo/readiness")
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["available"] is True
-    assert data["total"] == 2
-    assert "avg_readiness_score" in data["summary"]
-    assert "components" in data["products"][0]
+    # /geo/readiness is now permanently redirected (301) to /audit/readiness
+    resp = client.get(f"/api/shops/{SHOP}/geo/readiness", follow_redirects=False)
+    assert resp.status_code == 301
+    assert f"/api/shops/{SHOP}/audit/readiness" in resp.headers["location"]
 
 
 def test_get_geo_readiness_respects_top_parameter(client, snapshot_file) -> None:
-    with (
-        patch("app.api.deps.get_token", return_value=None),
-        patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
-        patch("app.api.geo.load_snapshot_from_file_or_db", return_value=_SNAPSHOT),
-    ):
-        resp = client.get(f"/api/shops/{SHOP}/geo/readiness?top=1")
+    resp = client.get(f"/api/shops/{SHOP}/geo/readiness?top=1", follow_redirects=False)
+    assert resp.status_code == 301
+    assert "top=1" in resp.headers["location"]
 
-    assert resp.status_code == 200
-    assert len(resp.json()["products"]) == 1
+
+def test_get_geo_readiness_filters_by_scope_when_requested(client, snapshot_file) -> None:
+    resp = client.get(f"/api/shops/{SHOP}/geo/readiness?scope=draft", follow_redirects=False)
+    assert resp.status_code == 301
+    assert "scope=draft" in resp.headers["location"]
 
 
 def test_get_geo_priorities_returns_revenue_aware_rows(client, snapshot_file, tmp_path) -> None:

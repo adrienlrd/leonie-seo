@@ -74,6 +74,7 @@ def build_weekly_actions(
     conversion_rate: float = 0.02,
     average_order_value: float = 50.0,
     position_improvement: float = 2.0,
+    scope: str = "active",
 ) -> dict[str, Any]:
     """Select the top weekly GEO actions from revenue-aware priorities."""
     priorities = prioritize_catalog(
@@ -84,6 +85,7 @@ def build_weekly_actions(
         conversion_rate=conversion_rate,
         average_order_value=average_order_value,
         position_improvement=position_improvement,
+        scope=scope,
     )
 
     selected: list[dict[str, Any]] = []
@@ -107,6 +109,7 @@ def build_weekly_actions(
 
     return {
         "total_candidates": priorities["total"],
+        "scope": priorities["scope"],
         "summary": {
             "weekly_actions": len(selected),
             "estimated_revenue": round(sum(row["revenue_estimate"] for row in selected), 2),

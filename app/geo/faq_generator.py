@@ -14,6 +14,7 @@ import json
 from typing import Any
 
 from app.geo.facts import analyze_product_facts
+from app.snapshot.scope import filter_products_by_scope, summarize_product_scopes
 
 # ---------------------------------------------------------------------------
 # Quality scoring
@@ -443,6 +444,7 @@ def generate_catalog_content(
     gsc_queries: list[str] | None = None,
     collections: list[dict[str, Any]] | None = None,
     top: int = 20,
+    scope: str = "active",
 ) -> dict[str, Any]:
     """Generate GEO content for the top products and all collections.
 
@@ -456,15 +458,16 @@ def generate_catalog_content(
         Dict with content items list and summary statistics.
     """
     queries = gsc_queries or []
+    scoped_products = filter_products_by_scope(products, scope)
     content_items: list[dict[str, Any]] = []
 
-    for product in products[:top]:
+    for product in scoped_products[:top]:
         item = generate_product_content(product, gsc_queries=queries)
         content_items.append(item)
 
     for collection in (collections or [])[:10]:
         # Associate products that match the collection handle or title
-        coll_products = _products_for_collection(collection, products)
+        coll_products = _products_for_collection(collection, scoped_products)
         item = generate_collection_faq(collection, coll_products, gsc_queries=queries)
         content_items.append(item)
 
@@ -484,6 +487,7 @@ def generate_catalog_content(
 
     return {
         "content_items": content_items,
+        "scope": summarize_product_scopes(products, scope),
         "summary": {
             "total": len(content_items),
             "by_status": by_status,

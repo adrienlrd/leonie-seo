@@ -79,3 +79,30 @@ def test_prioritize_catalog_sorts_highest_priority_first() -> None:
     assert result["total"] == 2
     assert result["rows"][0]["handle"] == "high-traffic"
     assert result["summary"]["gsc_connected"] is True
+
+
+def test_prioritize_catalog_filters_unlisted_products_when_scope_is_active() -> None:
+    products = [
+        {
+            "id": "gid://shopify/Product/1",
+            "title": "Active product",
+            "handle": "active-product",
+            "status": "ACTIVE",
+            "onlineStoreUrl": "https://example.com/products/active-product",
+            "description": "",
+        },
+        {
+            "id": "gid://shopify/Product/2",
+            "title": "Hidden product",
+            "handle": "hidden-product",
+            "status": "ACTIVE",
+            "onlineStoreUrl": None,
+            "description": "",
+        },
+    ]
+
+    result = prioritize_catalog(products, "example.com", {})
+
+    assert result["total"] == 1
+    assert result["scope"]["counts"]["unlisted"] == 1
+    assert result["rows"][0]["handle"] == "active-product"

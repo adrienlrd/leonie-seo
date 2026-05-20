@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.snapshot.scope import filter_products_by_scope, summarize_product_scopes
+
 _ACTION_PRIORITY: dict[str, str] = {
     "répliquer": "high",
     "rollback": "high",
@@ -41,13 +43,14 @@ def _similar_products(
     source_resource_type: str,
     snapshot: dict[str, Any] | None,
     already_optimized_ids: set[str],
+    scope: str,
     max_suggestions: int = 3,
 ) -> list[dict[str, Any]]:
     """Return similar unoptimized products from the snapshot catalog."""
     if not snapshot or source_resource_type != "product":
         return []
 
-    products = snapshot.get("products") or []
+    products = filter_products_by_scope(snapshot.get("products") or [], scope)
     # Find source product to extract category signal
     source = next(
         (p for p in products if str(p.get("id") or "") == source_resource_id),
@@ -85,6 +88,8 @@ def _similar_products(
 def build_next_best_actions(
     reports: list[dict[str, Any]],
     snapshot: dict[str, Any] | None = None,
+    *,
+    scope: str = "active",
 ) -> dict[str, Any]:
     """Build a prioritised next-best-action list from validated event reports.
 
@@ -99,6 +104,10 @@ def build_next_best_actions(
         str(r.get("resource_id") or "") for r in reports
     }
 
+    all_products = (snapshot or {}).get("products") or []
+    scoped_products = filter_products_by_scope(all_products, scope) if snapshot else []
+    scoped_product_ids = {str(product.get("id") or "") for product in scoped_products}
+
     actions: list[dict[str, Any]] = []
     by_action: dict[str, int] = {
         "répliquer": 0,
@@ -108,6 +117,11 @@ def build_next_best_actions(
     }
 
     for report in reports:
+        if snapshot and str(report.get("resource_type") or "product") == "product":
+            resource_id = str(report.get("resource_id") or "")
+            if resource_id and resource_id not in scoped_product_ids:
+                continue
+
         action_type = report.get("next_recommendation") or "attendre"
         verdict = report.get("verdict") or "inconclusif"
         priority = _ACTION_PRIORITY.get(action_type, "low")
@@ -120,6 +134,7 @@ def build_next_best_actions(
                 source_resource_type=str(report.get("resource_type") or "product"),
                 snapshot=snapshot,
                 already_optimized_ids=already_optimized_ids,
+                scope=scope,
             )
 
         actions.append(
@@ -151,5 +166,6 @@ def build_next_best_actions(
             "high_priority": high_count,
             "by_action": by_action,
         },
+        "scope": summarize_product_scopes(all_products, scope) if snapshot else None,
         "dry_run": True,
     }

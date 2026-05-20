@@ -660,13 +660,13 @@ L'app expose six modules métier au lieu de la liste actuelle d'outils :
 | 129 | Low-Cost LLM Strategy & Provider Routing *(cadrage produit/architecture, pas implémentation complète)* — décider et documenter les règles de routing par tâche, modèles low-cost par défaut, critères d'usage des modèles avancés, cache, quotas par plan, budget par shop, logs de coût, mode low-cost only et fallback ; réutiliser l'abstraction LLM posée en tâche 58 sans la réécrire | 🔴 | ✅ | 2026-05-19 |
 | 130 | Merchant Niche Understanding Layer — cadrer l'usage LLM pour comprendre boutique, produits importants, segments clients, motivations d'achat, angles marketing, promesses à éviter, avec validation marchand obligatoire avant génération | 🔴 | ✅ | 2026-05-19 |
 | 131 | Unified AI Search Readiness Audit — fusionner facts, SEO issues, schema, FAQ, crawlability, PageSpeed, trust signals et product status dans un seul score lisible | 🔴 | ✅ | 2026-05-19 |
-| 132 | Unified Opportunity Finder — fusionner GSC, longue traîne, clusters, cannibalisation, maillage et competitor monitor en une seule question lisible : quelles pages produits actives méritent une action maintenant ? | 🔴 | ⏳ | |
-| 133 | Unified Priority Engine — fusionner ICE, Revenue-Aware, Weekly Actions et Risk Guard pour ne sortir que 3 actions prioritaires, chacune avec impact estimé, confiance, effort, risque, pourquoi maintenant et métrique de succès | 🔴 | ⏳ | |
-| 134 | AI Content Actions Simplification — fusionner meta, descriptions, alt text, FAQ, Answer Blocks, guides courts et JSON-LD en un seul workflow de génération basé uniquement sur faits confirmés + Shopify + GSC/GA4 + hypothèses validées par le marchand | 🔴 | ⏳ | |
-| 135 | Human Review & Safe Apply Workflow — documenter preview, diff, faits utilisés, accept/edit/reject, dry-run, apply, rollback et event tracking ; validation humaine obligatoire par défaut | 🟡 | ⏳ | |
-| 136 | Impact Tracker as Core Product Value — positionner la mesure d'impact (GSC, GA4, Shopify, AI visibility, J+7/J+30/J+60/J+90, verdict, next best action) comme la fonctionnalité différenciante centrale | 🔴 | ⏳ | |
-| 137 | Merchant-Friendly Dashboard Simplification — définir une interface compréhensible par un non-expert : score global, niche détectée, 3 actions prioritaires, impact en cours, graphiques simples, métriques séparées Google / IA, sans jargon technique en premier niveau | 🟡 | ⏳ | |
-| 138 | Public Launch Readiness Criteria — cadrer les critères d'entrée en Phase 12 : compréhension en < 5 min, 3 actions max, LLM-assisté, review humaine, événement mesurable, scope produits actifs, pas de Screaming Frog obligatoire, pas de promesse ranking ChatGPT, séparation Google / IA, coût LLM maîtrisé, rollback documenté, dry-run par défaut, dashboard impact lisible | 🔴 | ⏳ | |
+| 132 | Unified Opportunity Finder — fusionner GSC, longue traîne, clusters, cannibalisation, maillage et competitor monitor en une seule question lisible : quelles pages produits actives méritent une action maintenant ? | 🔴 | ✅ | 2026-05-20 |
+| 133 | Unified Priority Engine — fusionner ICE, Revenue-Aware, Weekly Actions et Risk Guard pour ne sortir que 3 actions prioritaires, chacune avec impact estimé, confiance, effort, risque, pourquoi maintenant et métrique de succès | 🔴 | ✅ | 2026-05-20 |
+| 134 | AI Content Actions Simplification — fusionner meta, descriptions, alt text, FAQ, Answer Blocks, guides courts et JSON-LD en un seul workflow de génération basé uniquement sur faits confirmés + Shopify + GSC/GA4 + hypothèses validées par le marchand | 🔴 | ✅ | 2026-05-20 |
+| 135 | Human Review & Safe Apply Workflow — documenter preview, diff, faits utilisés, accept/edit/reject, dry-run, apply, rollback et event tracking ; validation humaine obligatoire par défaut | 🟡 | ✅ | 2026-05-20 |
+| 136 | Impact Tracker as Core Product Value — positionner la mesure d'impact (GSC, GA4, Shopify, AI visibility, J+7/J+30/J+60/J+90, verdict, next best action) comme la fonctionnalité différenciante centrale | 🔴 | ✅ | 2026-05-20 |
+| 137 | Merchant-Friendly Dashboard Simplification — définir une interface compréhensible par un non-expert : score global, niche détectée, 3 actions prioritaires, impact en cours, graphiques simples, métriques séparées Google / IA, sans jargon technique en premier niveau | 🟡 | ✅ | 2026-05-20 |
+| 138 | Public Launch Readiness Criteria — cadrer les critères d'entrée en Phase 12 : compréhension en < 5 min, 3 actions max, LLM-assisté, review humaine, événement mesurable, scope produits actifs, pas de Screaming Frog obligatoire, pas de promesse ranking ChatGPT, séparation Google / IA, coût LLM maîtrisé, rollback documenté, dry-run par défaut, dashboard impact lisible | 🔴 | ✅ | 2026-05-20 |
 
 ### Détail des objectifs Phase 11.7
 
@@ -810,10 +810,54 @@ L'app expose six modules métier au lieu de la liste actuelle d'outils :
 
 ---
 
-## PHASE 12 — Soumission publique Shopify App Store
-*Objectif : publier l'app seulement après le pilote réel, la parité fonctionnelle prioritaire entre scripts CLI et app embedded, et la simplification GEO Autopilot de la Phase 11.7.*
+## PHASE 11.8 — Implémentation GEO Autopilot Simplification
+*Objectif : transformer le cadrage Phase 11.7 en fonctionnalités produit testées avant le go/no-go App Store. La Phase 12 ne démarre pas tant que les critères bloquants de `docs/launch-readiness.md` §3 restent seulement documentés.*
+
+### Principes Phase 11.8
+
+- Conserver les décisions de la Phase 11.7 comme source de vérité produit.
+- Implémenter par verticales utilisables : domaine/backend, API, UI Remix, tests, puis preuve launch-readiness.
+- Préserver les pages existantes en drill-down ou alias dépréciés pendant une release.
+- Garder `dry_run=True` par défaut pour toute écriture Shopify.
+- Ne pas introduire de promesse de ranking ChatGPT, Perplexity ou Gemini.
+- Faire passer chaque tâche par les validations pertinentes de `docs/COMMANDS.md`.
+
+### Tâches Phase 11.8
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
-| 139 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + simplification GEO Autopilot (Phase 11.7) + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
-| 140 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour, checklist Public Launch Readiness (tâche 138) et configuration de production figée | 🔴 | ⏳ | |
+| 139 | Product Scope Runtime — implémenter le helper canonique de filtrage produits `ACTIVE` visibles Online Store, brancher readiness/prioritization/weekly/next-best-actions/FAQ et ajouter les tests de scope | 🟡 | ✅ | 2026-05-20 |
+| 140 | Crawl L3 Native Runtime — créer sitemap/robots/mini-crawl/findings, étendre le snapshot Shopify aux pages/articles/redirects et garder l'import Screaming Frog en mode avancé | 🔴 | ✅ | 2026-05-20 |
+| 141 | Niche Understanding Runtime — créer le prompt versionné, l'orchestrateur LLM, les endpoints understand/hypothesis, la persistance validée marchand et l'UI de correction | 🔴 | ✅ | 2026-05-20 |
+| 142 | Unified Readiness Audit Runtime — exposer le score unifié actif, sous-scores, recommandations, route canonique `/audit/readiness`, UI `app.audit-readiness` et compatibilité drill-down | 🔴 | ✅ | 2026-05-20 |
+| 143 | Opportunity Finder Runtime — agréger les signaux existants en opportunités par produit actif, route `/opportunities`, UI dédiée et tests de scoring déterministe | 🔴 | ⏳ | |
+| 144 | Priority Engine Runtime — produire exactement 3 actions prioritaires avec fallback déterministe, arbitrage LLM plafonné/cache, route `/priorities`, UI cartes et tests budget/fallback | 🔴 | ⏳ | |
+| 145 | AI Content Actions Runtime — créer l'orchestrateur unique, schémas Pydantic, prompts v2.0, table `content_actions`, route `/content-actions/run` et UI unifiée | 🔴 | ⏳ | |
+| 146 | Safe Apply Runtime — créer diff/decisions/writer adapters/rollback adapters, routes `/safe-apply/*`, extension des content types, UI review/apply/rollback et tests de garde-fous | 🔴 | ⏳ | |
+| 147 | Impact Tracker Productization — recentrer l'UI Impact autour de Search Performance, optimisations actives, rétention, next actions, ajouter `ai-visibility/status` désactivé V1 | 🟡 | ⏳ | |
+| 148 | Merchant Dashboard Runtime — créer `GET /api/shops/{shop}/dashboard`, refondre `app._index.tsx` en 6 zones, renommer la navigation et valider responsive/Playwright | 🔴 | ⏳ | |
+| 149 | Launch Readiness Evidence Pass — exécuter `docs/launch-readiness.md` §3, cocher chaque critère avec preuve, ouvrir les manques restants et documenter la décision dans `DECISIONS.md` | 🔴 | ⏳ | |
+
+### Ordre recommandé Phase 11.8
+
+1. **139 Product Scope Runtime** — dépendance transversale pour éviter de scorer les mauvais produits.
+2. **141 Niche Understanding Runtime** — débloque les modules IA aval.
+3. **142 Unified Readiness Audit Runtime** — crée le diagnostic lisible.
+4. **143 Opportunity Finder Runtime** — transforme les diagnostics et signaux en opportunités.
+5. **144 Priority Engine Runtime** — réduit les opportunités à 3 actions.
+6. **145 AI Content Actions Runtime** — génère les brouillons exploitables.
+7. **146 Safe Apply Runtime** — sécurise review, dry-run, apply, rollback et event tracking.
+8. **147 Impact Tracker Productization** — rend la preuve d'impact centrale.
+9. **148 Merchant Dashboard Runtime** — assemble l'expérience marchand principale.
+10. **140 Crawl L3 Native Runtime** — peut avancer en parallèle après 139, mais ne bloque pas les verticales purement Shopify/GSC.
+11. **149 Launch Readiness Evidence Pass** — dernier verrou avant Phase 12.
+
+---
+
+## PHASE 12 — Soumission publique Shopify App Store
+*Objectif : publier l'app seulement après le pilote réel, la parité fonctionnelle prioritaire entre scripts CLI et app embedded, la simplification GEO Autopilot documentée en Phase 11.7 et implémentée en Phase 11.8.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 150 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + simplification GEO Autopilot implémentée (Phase 11.8) + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
+| 151 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour, checklist Public Launch Readiness (tâche 149) et configuration de production figée | 🔴 | ⏳ | |

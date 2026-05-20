@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-18** (Phase 11.5 — tâche 119)
+- Dernière session : **2026-05-20** (Phase 11.8 — tâche 141)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -13,10 +13,159 @@
 - Phase 9 : **7/7** ✅ (pilote réel terminé ; pass avec lacunes de mesure)
 - Phase 10 : **21/21** ✅ (tâches 83-103 clôturées le 2026-05-17)
 - Phase 11 : **10/10** ✅ (GEO / Revenue-Aware Shopify intelligence, tâches 106-115)
-- Phase 11.5 : **4/10** ⏳ (GEO Impact Validation & Retention Loop, tâches 116-125)
-- Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 104-105)
+- Phase 11.5 : **10/10** ✅ (GEO Impact Validation & Retention Loop, tâches 116-125)
+- Phase 11.6 : **1/1** ✅ (GEO FAQ & Buying Guide Automation, tâche 126)
+- Phase 11.7 : **12/12** ✅ (cadrage GEO Autopilot Simplification, tâches 127-138)
+- Phase 11.8 : **4/11** ⏳ (implémentation GEO Autopilot Simplification, tâches 139-149)
+- Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 150-151)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : ciblés tâches 106-119 + DB adapter **75/75** ✅ — ruff complet ✅ — typecheck/build Shopify ✅
+- Tests : dernière validation complète connue tâche 142 — `ruff check .` ✅, `pytest` **1407 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
+
+## Phase 11.8 — Implémentation GEO Autopilot Simplification le 2026-05-20
+
+### Objectif
+
+Transformer le cadrage Phase 11.7 en fonctionnalités produit testées avant le go/no-go Shopify App Store.
+
+### Décisions
+
+- Phase 11.7 reste la phase de cadrage/documentation.
+- Phase 11.8 devient la phase d'implémentation applicative bloquante avant Phase 12.
+- Les tâches 139-149 couvrent les verticales runtime : Product Scope, Crawl L3, Niche Understanding, Readiness Audit, Opportunity Finder, Priority Engine, AI Content Actions, Safe Apply, Impact Tracker, Dashboard et Launch Readiness Evidence.
+- Phase 12 est renumérotée en tâches 150-151.
+
+### Prochaine tâche recommandée
+
+- **143 — Opportunity Finder Runtime** : agréger les signaux existants en opportunités par produit actif, route `/opportunities`, UI dédiée et tests de scoring déterministe.
+
+## Tâche 142 — Unified Readiness Audit Runtime le 2026-05-20
+
+### Objectif
+
+Exposer le score AI Search Readiness unifié consommant les signaux produit, les findings Crawl L3 et l'hypothèse niche validée. Route canonique `/audit/readiness`, UI Remix `app.audit-readiness`, redirection 301 de `/geo/readiness`.
+
+### Réalisations
+
+- `app/geo/readiness.py` — score 4 niveaux (`excellent/bon/partiel/faible`), nouveaux champs `reasons[]`, `recommended_actions[]`, `niche_alerts[]`, intégration hypothèse niche (forbidden_promises → malus Trust, brand_voice.do_not_say → alerte, conversational_intents → delta Answerability), intégration Crawl L3 (page_404/server_error → malus SEO, redirect_chain → -10, missing_canonical → -5). Catalog expose `global_score`, `global_level`, `crawl_health`, `niche_alerts` agrégées.
+- `app/api/audit.py` — endpoint `GET /api/shops/{shop}/audit/readiness` (scope, top, freshness warning, snapshot_age_days, generated_at).
+- `app/api/geo.py` — `GET /api/shops/{shop}/geo/readiness` → 301 redirect vers `/audit/readiness`.
+- `app/geo/prioritization.py` — compatible nouveau format `components[key]["score"]`.
+- `shopify-app/app/routes/app.audit-readiness.tsx` — page Remix : score global badge, crawl health, niche alerts, top 3 actions (impact/effort badges), tableau produits.
+- `shopify-app/app/routes/app.audit-hub.tsx` — entrée "AI Search Readiness" ajoutée en tête de hub.
+- `shopify-app/app/lib/i18n.ts` — 18 nouvelles clés FR/EN (auditReadiness, levels, crawlHealth, nicheAlerts, etc.).
+
+### Validation
+
+- `ruff check .` — ✅
+- `pytest tests/test_geo/test_readiness.py tests/test_api/test_audit_readiness.py` — **18 passed** ✅
+- `pytest` — **1407 passed** ✅ (+14 nouveaux)
+- `npm run typecheck` — ✅
+- `npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **143 — Opportunity Finder Runtime** : agréger les signaux existants en opportunités par produit actif, route `/opportunities`, UI dédiée et tests de scoring déterministe.
+
+## Tâche 141 — Niche Understanding Runtime le 2026-05-20
+
+### Objectif
+
+Transformer les signaux Shopify/GSC/niche existants en hypothèses marketing validables par le marchand avant utilisation par les modules aval.
+
+### Réalisations
+
+- `app/niche/understanding.py` — orchestrateur qui prépare un signal bundle compact, charge `config/prompts/niche_understanding.yaml`, vérifie le budget LLM, appelle `LLMRouter`, parse/normalise le JSON, cache 30 jours et persiste l'hypothèse.
+- `app/db.py` — table `llm_cache` SQLite/Postgres pour la clé `(shop, task_name, prompt_version, content_hash)`.
+- `app/api/niche.py` — endpoints `POST /niche/understand`, `GET /niche/hypothesis`, `PATCH /niche/hypothesis`.
+- Persistance `shop_config.niche_hypothesis` et historique `niche_hypothesis_history` limité aux 5 versions précédentes.
+- Helper `get_validated_niche_hypothesis()` : les modules aval peuvent refuser les hypothèses tant que `status != "validated_by_merchant"`.
+- `shopify-app/app/routes/app.niche-understanding.tsx` — page Remix pour générer, éditer le JSON et valider les hypothèses marchand.
+- Entrée `Compréhension boutique` ajoutée au hub Contenu.
+
+### Décisions
+
+- Le LLM reçoit un payload compact, jamais le snapshot brut complet.
+- Le plan Free dégrade la tâche vers le tier logique `medium`; Pro/Agency restent en `advanced`.
+- Un fallback déterministe existe pour tests et mode sans LLM explicite, mais le flux UI standard appelle le LLM.
+- Les prompts de génération existants ne consomment pas encore ces hypothèses ; ce branchement reste porté par la tâche 145.
+
+### Validation
+
+- `ruff check app/niche/understanding.py app/api/niche.py app/db.py tests/test_niche/test_understanding.py tests/test_api/test_niche_understanding.py` — ✅
+- `pytest tests/test_niche/test_understanding.py tests/test_api/test_niche_understanding.py tests/test_api/test_niche_loaders.py tests/test_niche/test_engine.py tests/test_llm/test_prompts.py tests/test_shop_config_store.py tests/test_db_adapter.py` — **56 passed** ✅
+- `ruff check .` — ✅
+- `pytest` — **1393 passed** ✅
+- `cd shopify-app && npm run typecheck` — ✅
+- `cd shopify-app && npm run build` — ✅
+
+### Prochaine tâche recommandée
+
+- **142 — Unified Readiness Audit Runtime** : créer la route et l'UI du score AI Search Readiness unifié en consommant scope produit, Crawl L3 et hypothèses niche validées.
+
+## Tâche 140 — Crawl L3 Native Runtime le 2026-05-20
+
+### Objectif
+
+Implémenter le Crawl L3 natif pour ne plus rendre Screaming Frog obligatoire : robots.txt, sitemap, mini-crawl HTTP plafonné, findings persistés et snapshot Shopify étendu.
+
+### Réalisations
+
+- `app/crawl/robots.py` — lecture/parsing robots.txt, extraction `Sitemap:` et vérification `can_fetch()`.
+- `app/crawl/sitemap.py` — parsing sitemap XML / sitemap index, découverte récursive et diff sitemap ↔ snapshot.
+- `app/crawl/mini.py` — mini-crawl HTTP avec user-agent Léonie, throttling, statut HTTP, chaîne de redirection, canonical, hreflang, title, meta description et validation JSON-LD.
+- `app/crawl/findings.py` — agrégation des findings Crawl L3 et persistance dans `crawl_findings`.
+- `app/db.py` — table `crawl_findings` SQLite/Postgres.
+- `scripts/audit/crawl_shopify.py` et `app/jobs/audit_snapshot.py` — snapshot étendu aux pages CMS, articles de blog, redirects et métadonnées shop.
+- `app/api/crawl.py` — endpoint `POST /api/shops/{shop}/crawl/l3` qui combine snapshot, robots, sitemap, mini-crawl, persistance findings et rapport crawl.
+
+### Décisions
+
+- Screaming Frog reste disponible via l'endpoint CSV existant, mais le nouveau chemin backend n'en dépend plus.
+- Le mini-crawl reste volontairement HTTP-only : pas de Chromium headless ni stockage HTML brut.
+- Les URLs candidates sont limitées au domaine primaire détecté depuis `primaryDomain.url`, puis dédupliquées depuis snapshot + sitemap.
+
+### Validation
+
+- `ruff check app/crawl app/api/crawl.py app/api/snapshot_store.py app/jobs/audit_snapshot.py scripts/audit/crawl_shopify.py app/db.py tests/test_crawl tests/test_api/test_crawl.py tests/audit/test_crawl_shopify.py tests/test_jobs/test_audit_snapshot.py` — ✅
+- `pytest tests/test_crawl tests/test_api/test_crawl.py tests/audit/test_crawl_shopify.py tests/test_jobs/test_audit_snapshot.py tests/test_db_adapter.py` — **53 passed** ✅
+- `ruff check .` — ✅
+- `pytest` — **1385 passed** ✅
+
+### Prochaine tâche recommandée
+
+- **141 — Niche Understanding Runtime** : porter le cadrage niche en runtime LLM + validation marchand.
+
+## Tâche 139 — Product Scope Runtime le 2026-05-20
+
+### Objectif
+
+Implémenter le helper canonique de filtrage produits `ACTIVE` visibles Online Store, puis l'utiliser dans les modules GEO qui calculent scores, priorités, actions et contenus produits.
+
+### Réalisations
+
+- `app/snapshot/scope.py` — helper canonique `filter_products_by_scope()` avec scopes `active`, `draft`, `unlisted`, `archived`, `all`.
+- Compatibilité anciens snapshots : un produit sans signal explicite `onlineStoreUrl` / `publishedAt` reste inclus dans `active` pour éviter de vider les catalogues historiques.
+- `scripts/audit/crawl_shopify.py` — le crawl Shopify récupère maintenant `publishedAt` et `onlineStoreUrl` en plus de `status`.
+- `score_catalog_readiness()`, `prioritize_catalog()`, `build_weekly_actions()`, `build_next_best_actions()` et `generate_catalog_content()` acceptent `scope="active"` par défaut.
+- Endpoints GEO `readiness`, `priorities`, `weekly-actions`, `next-best-actions` et `faq-content` acceptent un query param `scope`.
+- Les réponses retournent un résumé `scope` avec le scope demandé, les produits inclus et les compteurs par vue.
+
+### Décisions
+
+- Le snapshot continue à capturer tous les produits ; le filtrage est appliqué en aval.
+- `onlineStoreUrl = null` est traité comme non publié Online Store, conformément à la documentation Shopify Admin GraphQL.
+- Les produits `DRAFT`, `ARCHIVED` et `ACTIVE` non Online Store restent accessibles via scopes dédiés, mais ne polluent plus le scope principal.
+
+### Validation
+
+- `ruff check app/snapshot app/geo/readiness.py app/geo/prioritization.py app/geo/weekly.py app/geo/next_best_actions.py app/geo/faq_generator.py app/api/geo.py scripts/audit/crawl_shopify.py tests/test_snapshot/test_scope.py tests/test_geo/test_readiness.py tests/test_geo/test_prioritization.py tests/test_geo/test_weekly.py tests/test_geo/test_next_best_actions.py tests/test_geo/test_faq_generator.py tests/test_api/test_geo.py tests/audit/test_crawl_shopify.py` — ✅
+- `pytest tests/test_snapshot/test_scope.py tests/test_geo/test_readiness.py tests/test_geo/test_prioritization.py tests/test_geo/test_weekly.py tests/test_geo/test_next_best_actions.py tests/test_geo/test_faq_generator.py tests/test_api/test_geo.py tests/audit/test_crawl_shopify.py` — **80 passed** ✅
+- `ruff check .` — ✅
+- `pytest` — **1369 passed** ✅
+
+### Prochaine tâche recommandée
+
+- **140 — Crawl L3 Native Runtime** : créer les modules natifs sitemap/robots/mini-crawl/findings et brancher le crawl sans rendre Screaming Frog obligatoire.
 
 ## Tâche 119 — Validation Timeline J+7/J+30/J+60/J+90 le 2026-05-18
 

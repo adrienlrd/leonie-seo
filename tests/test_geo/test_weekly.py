@@ -45,3 +45,30 @@ def test_build_weekly_actions_respects_limit() -> None:
 
     assert result["summary"]["weekly_actions"] == 1
     assert len(result["actions"]) == 1
+
+
+def test_build_weekly_actions_filters_drafts_when_scope_is_active() -> None:
+    products = [
+        {
+            "id": "1",
+            "title": "Active",
+            "handle": "active",
+            "status": "ACTIVE",
+            "onlineStoreUrl": "https://example.com/products/active",
+            "description": "",
+        },
+        {
+            "id": "2",
+            "title": "Draft",
+            "handle": "draft",
+            "status": "DRAFT",
+            "onlineStoreUrl": None,
+            "description": "",
+        },
+    ]
+
+    result = build_weekly_actions(products, "example.com", {}, limit=3)
+
+    assert result["total_candidates"] == 1
+    assert result["scope"]["counts"]["draft"] == 1
+    assert result["actions"][0]["handle"] == "active"

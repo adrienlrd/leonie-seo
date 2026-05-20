@@ -98,6 +98,18 @@ _SQLITE_DDL = [
         error       TEXT,
         called_at   TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS llm_cache (
+        shop           TEXT NOT NULL,
+        task_name      TEXT NOT NULL,
+        prompt_version TEXT NOT NULL,
+        content_hash   TEXT NOT NULL,
+        response_json  TEXT NOT NULL,
+        tokens_in      INTEGER NOT NULL DEFAULT 0,
+        tokens_out     INTEGER NOT NULL DEFAULT 0,
+        created_at     TEXT NOT NULL,
+        expires_at     TEXT NOT NULL,
+        PRIMARY KEY (shop, task_name, prompt_version, content_hash)
+    )""",
     # Semantic embeddings (Phase 8, task 70) — stored as JSON text for SQLite
     """CREATE TABLE IF NOT EXISTS product_embeddings (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -184,6 +196,17 @@ _SQLITE_DDL = [
         content_hash       TEXT NOT NULL DEFAULT '',
         notes              TEXT
     )""",
+    """CREATE TABLE IF NOT EXISTS crawl_findings (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop          TEXT NOT NULL,
+        created_at    TEXT NOT NULL,
+        source        TEXT NOT NULL DEFAULT 'crawl_l3',
+        url           TEXT NOT NULL,
+        issue_type    TEXT NOT NULL,
+        severity      TEXT NOT NULL,
+        detail        TEXT NOT NULL,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+    )""",
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
@@ -227,6 +250,19 @@ _PG_LLM_METRICS = """CREATE TABLE IF NOT EXISTS llm_metrics (
     latency_ms  DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     error       TEXT,
     called_at   TEXT NOT NULL
+)"""
+
+_PG_LLM_CACHE = """CREATE TABLE IF NOT EXISTS llm_cache (
+    shop           TEXT NOT NULL,
+    task_name      TEXT NOT NULL,
+    prompt_version TEXT NOT NULL,
+    content_hash   TEXT NOT NULL,
+    response_json  TEXT NOT NULL,
+    tokens_in      INTEGER NOT NULL DEFAULT 0,
+    tokens_out     INTEGER NOT NULL DEFAULT 0,
+    created_at     TEXT NOT NULL,
+    expires_at     TEXT NOT NULL,
+    PRIMARY KEY (shop, task_name, prompt_version, content_hash)
 )"""
 
 _PG_DDL = [
@@ -355,6 +391,17 @@ _PG_DDL = [
         content_hash       TEXT NOT NULL DEFAULT '',
         notes              TEXT
     )""",
+    """CREATE TABLE IF NOT EXISTS crawl_findings (
+        id            SERIAL PRIMARY KEY,
+        shop          TEXT NOT NULL,
+        created_at    TEXT NOT NULL,
+        source        TEXT NOT NULL DEFAULT 'crawl_l3',
+        url           TEXT NOT NULL,
+        issue_type    TEXT NOT NULL,
+        severity      TEXT NOT NULL,
+        detail        TEXT NOT NULL,
+        metadata_json TEXT NOT NULL DEFAULT '{}'
+    )""",
 ]
 
 
@@ -423,6 +470,7 @@ def _init_postgres(database_url: str) -> None:
             for stmt in _PG_DDL:
                 cur.execute(stmt)
             cur.execute(_PG_LLM_METRICS)
+            cur.execute(_PG_LLM_CACHE)
             for stmt in _PG_EMBEDDINGS:
                 cur.execute(stmt)
             cur.execute(_PG_SHOP_CONFIG)

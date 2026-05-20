@@ -2,7 +2,7 @@
 
 > Référence canonique de la stratégie de découverte / vérification des URLs Shopify. Définit le **Crawl Level 3** comme socle V1 public et déclasse Screaming Frog en option avancée.
 >
-> Statut : décisions produit/architecture figées au 2026-05-19 (tâche 128, Phase 11.7). Aucun code applicatif n'est modifié dans cette tâche.
+> Statut : décisions produit/architecture figées au 2026-05-19 (tâche 128, Phase 11.7). Runtime backend/API partiellement implémenté le 2026-05-20 (tâche 140, Phase 11.8).
 
 ---
 
@@ -161,25 +161,25 @@ Positionnement V1 :
 
 ## 9. Mapping module par module
 
-### Fichiers existants à étendre (tâches d'implémentation à venir)
+### Fichiers existants étendus ou restant à étendre
 
 | Module | Fichier | Évolution attendue |
 |---|---|---|
-| Shopify crawl GraphQL | `scripts/audit/crawl_shopify.py:24` | Ajouter pages, articles, redirects, metafields |
-| Job audit | `app/jobs/audit_snapshot.py` | Devenir `crawl_l3` ou orchestrer les 3 niveaux |
+| Shopify crawl GraphQL | `scripts/audit/crawl_shopify.py:24` | ✅ Pages, articles, redirects et métadonnées shop ajoutés ; metafields/locales restent à compléter si nécessaires |
+| Job audit | `app/jobs/audit_snapshot.py` | ✅ Snapshot enrichi pages/articles/redirects ; l'orchestration Crawl L3 complète passe par `app/api/crawl.py` |
 | Détecteurs issues | `scripts/audit/detect_issues.py` | Consommer la nouvelle source `crawl_findings` |
 | API audit | `app/api/audit.py:53` | Inchangé en signature, source enrichie en interne |
-| API crawl | `app/api/crawl.py:21` | Marquer route comme "advanced upload", déprioriser dans l'UI |
+| API crawl | `app/api/crawl.py:21` | ✅ Route native `POST /crawl/l3` ajoutée ; upload CSV conservé, UI avancée à porter |
 | UI audit | `shopify-app/app/routes/app.audit.tsx:158` | Mettre en avant le bouton "Lancer l'audit" (Crawl L3 auto), reléguer "Importer CSV" en lien secondaire |
 
-### Modules à créer (V1, par tâche dédiée — pas dans 128)
+### Modules créés en tâche 140
 
 | Module | Rôle |
 |---|---|
-| `app/crawl/sitemap.py` | Parser sitemap.xml + index sitemaps + diff avec snapshot |
-| `app/crawl/robots.py` | Parsing robots.txt, cache, vérification d'autorisation par URL |
-| `app/crawl/mini.py` | Mini-crawler HTTP plafonné, throttling, vérifications par URL |
-| `app/crawl/findings.py` | Aggregation des findings 3 niveaux, persistence `crawl_findings` |
+| `app/crawl/sitemap.py` | ✅ Parser sitemap.xml + index sitemaps + diff avec snapshot |
+| `app/crawl/robots.py` | ✅ Parsing robots.txt, sitemaps déclarés, vérification d'autorisation par URL |
+| `app/crawl/mini.py` | ✅ Mini-crawler HTTP plafonné, throttling, vérifications par URL |
+| `app/crawl/findings.py` | ✅ Aggregation des findings sitemap/mini-crawl, persistence `crawl_findings` |
 
 ---
 
@@ -187,15 +187,15 @@ Positionnement V1 :
 
 À cocher quand une tâche concrétise le Crawl L3 :
 
-- [ ] Un marchand peut lancer un audit complet **sans installer Screaming Frog**.
+- [x] Un audit backend peut être lancé **sans installer Screaming Frog** via `POST /api/shops/{shop}/crawl/l3`.
 - [ ] L'extension du snapshot Shopify couvre pages CMS + articles de blog + redirects + metafields.
-- [ ] `robots.txt` est lu et respecté avant tout mini-crawl.
-- [ ] Le sitemap est parsé automatiquement et son diff avec le snapshot est exposé.
-- [ ] Le mini-crawl HTTP plafonné détecte 404, redirect chains, canonical, hreflang, JSON-LD.
-- [ ] Aucune URL `Disallow:` n'est requêtée.
-- [ ] Throttling 1 req/s + user-agent identifiable.
+- [x] `robots.txt` est lu et respecté avant tout mini-crawl.
+- [x] Le sitemap est parsé automatiquement et son diff avec le snapshot est exposé.
+- [x] Le mini-crawl HTTP plafonné détecte 404, redirect chains, canonical, hreflang, JSON-LD.
+- [x] Aucune URL `Disallow:` n'est requêtée.
+- [x] Throttling 1 req/s + user-agent identifiable.
 - [ ] Plafonds Free/Pro/Agency appliqués.
-- [ ] Findings persistés avec colonne `source` (`crawl_l3` ou `screaming_frog`).
+- [x] Findings persistés avec colonne `source` (`crawl_l3`).
 - [ ] CSV Screaming Frog accessible en "Mode avancé", aucun message indiquant qu'il est requis.
 - [ ] TTL 90 jours sur `crawl_findings`.
 
@@ -221,9 +221,9 @@ Positionnement V1 :
 | Respect robots.txt | ✅ Spécifié ici | Section 6 |
 | Screaming Frog en option avancée | ✅ Documenté ici | Section 7 |
 | Plafonds Free/Pro/Agency | ✅ Documenté ici | Section 8 |
-| Extension du snapshot Shopify (pages, articles, redirects) | ⏳ À porter par la tâche d'implémentation Crawl L3 | Section 9 |
-| `app/crawl/sitemap.py`, `robots.py`, `mini.py`, `findings.py` | ⏳ À créer par la tâche d'implémentation Crawl L3 | Section 9 |
-| Mini-crawl HTTP avec throttling + JSON-LD parsing | ⏳ À implémenter | Section 3 |
+| Extension du snapshot Shopify (pages, articles, redirects) | ✅ Implémenté en tâche 140 | Section 9 |
+| `app/crawl/sitemap.py`, `robots.py`, `mini.py`, `findings.py` | ✅ Créés en tâche 140 | Section 9 |
+| Mini-crawl HTTP avec throttling + JSON-LD parsing | ✅ Implémenté en tâche 140 | Section 3 |
 | UI : bouton "Audit Crawl L3" mis en avant, CSV en avancé | ⏳ À porter par la tâche UI dédiée | Section 9 |
 
-> Les éléments ⏳ ne sont pas le périmètre de la tâche 128. Ils seront pris en charge par une tâche d'implémentation Crawl L3 ultérieure (probablement scope V1 public, post Phase 11.7).
+> Les éléments ⏳ restants après la tâche 140 concernent surtout l'UI Audit, les plafonds par plan, les champs Shopify avancés non indispensables au runtime V1 et la purge TTL des findings.
