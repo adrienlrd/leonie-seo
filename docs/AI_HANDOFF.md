@@ -5,10 +5,23 @@
 - **Summary:** Léonie SEO est une app Shopify embedded + moteur Python/FastAPI/CLI pour audit SEO, recommandations supervisées, contenus, données structurées, jobs async, intégrations Shopify/Google/LLM et garde-fous dry-run.
 - **Main stack:** Python 3.11+, FastAPI, Click, pytest, ruff, Remix, React, TypeScript, Shopify App Bridge, Shopify Polaris, npm.
 - **Main working areas:** `app/`, `scripts/`, `shopify-app/`, `config/`, `docs/`, `tests/`.
-- **Current roadmap:** Phase 10 clôturée. Phase 11 terminée. Phase 11.5 complète. Phase 11.6 complète. **Phase 11.7 documentée intégralement (12/12 tâches 127-138 ✅, GEO Autopilot Simplification before Public Launch).** **Phase 11.8 en implémentation applicative (5/11 tâches terminées, 139-143 ✅, 144-149 ⏳)** pour porter le cadrage 11.7 en backend/API/UI/tests/preuves. Phase 12 renumérotée en tâches 150-151 (go/no-go + soumission publique Shopify App Store), à démarrer seulement après la tâche 149.
+- **Current roadmap:** Phase 10 clôturée. Phase 11 terminée. Phase 11.5 complète. Phase 11.6 complète. **Phase 11.7 documentée intégralement (12/12 tâches 127-138 ✅, GEO Autopilot Simplification before Public Launch).** **Phase 11.8 en implémentation applicative (6/11 tâches terminées, 139-144 ✅, 145-149 ⏳)** pour porter le cadrage 11.7 en backend/API/UI/tests/preuves. Phase 12 renumérotée en tâches 150-151 (go/no-go + soumission publique Shopify App Store), à démarrer seulement après la tâche 149.
 - **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Le dashboard Impact V1 est livré avec courbes sparklines SVG + score de confiance par optimisation. Crawl L3 existe côté backend/API, mais l'UI Audit n'a pas encore été recentrée autour du bouton natif et les plafonds Free/Pro/Agency ne sont pas encore appliqués par plan. Niche Understanding est disponible, mais les modules aval ne consomment pas encore automatiquement l'hypothèse validée.
 
 ## Last completed task
+
+- **Date:** 2026-05-20
+- **Agent:** Claude Code (Sonnet 4.6)
+- **Goal:** Task 144 — Priority Engine Runtime.
+- **Summary:** Pipeline 4 étapes sélectionnant exactement 3 dossiers d'actions prioritaires par catalogue. Étape 1 : agrégation Opportunity Finder (top 50). Étape 2 : Risk Guard — exclusion des produits `protected`. Étape 3 : pré-score déterministe `0.40×opp + 0.25×bv + 0.15×confidence + 0.10×niche_boost - 0.05×effort - 0.05×risk`, top 10 retenus. Étape 4 : arbitrage LLM (plans pro/agency avec contrôle budget + cache TTL 24h) ou fallback déterministe (plan free / over_budget / llm_error). Dossier par action : rank, action_id, why_now, evidence (max 5), estimates (impact/confidence/effort/risk/revenue), success_metric (name/current/target/window), preview.depends_on, risk_guard.override_required, niche_alerts. Prompt YAML `priority_arbitrage` v0.1.0. Nouveau endpoint `GET /api/shops/{shop}/priorities?scope=active&plan=free`. UI Remix `app.priorities.tsx` grille 3 cartes `InlineGrid columns=["oneThird","oneThird","oneThird"]` avec badges rank, progress bar score, why_now box, estimates badges, risk override banner, success metric. Entrée "Top 3 Actions" ajoutée en tête du hub. 14 clés i18n FR/EN.
+- **Files created:** `app/priorities/__init__.py`, `app/priorities/engine.py`, `app/api/priorities.py`, `config/prompts/priority_arbitrage.yaml`, `shopify-app/app/routes/app.priorities.tsx`, `tests/test_priorities/__init__.py`, `tests/test_priorities/test_engine.py`, `tests/test_api/test_priorities.py`.
+- **Files modified:** `app/main.py`, `shopify-app/app/lib/i18n.ts`, `shopify-app/app/routes/app.audit-hub.tsx`, `ROADMAP.md`, `PROGRESS.md`, `docs/AI_HANDOFF.md`.
+- **Validations run:** `ruff check .` ✅ ; `pytest` **1435 passed** ✅ ; `npm run typecheck` ✅ ; `npm run build` ✅.
+- **Decisions made:** `_load_gsc_query_rows` importé depuis `app.api.opportunities` (réutilisé, pas dupliqué). `check_budget` et `assess_product_risk` mocké dans les tests engine pour isoler la logique de scoring. Fallback_reason `"plan_free"` assigné en dernier (après le bloc LLM) pour ne pas écraser les raisons précédentes (budget_exceeded, llm_unavailable). Pas de route de déclenchement LLM explicite dans l'UI V1 — le plan est passé en query param.
+- **Open issues:** Le prompt_template.version dans `_try_llm_arbitrage` suppose que `load_prompt` retourne un objet avec attribut `.version`. À valider lors de l'intégration LLM réelle (tâche 145+).
+- **Next recommended action:** **Tâche 145 — AI Content Actions Runtime** : orchestrateur unique, schémas Pydantic, prompts v2.0, table `content_actions`, route `/content-actions/run` et UI unifiée.
+
+## Previous completed task
 
 - **Date:** 2026-05-20
 - **Agent:** Claude Code (Sonnet 4.6)

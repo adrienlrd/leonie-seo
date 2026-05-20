@@ -16,10 +16,10 @@
 - Phase 11.5 : **10/10** ✅ (GEO Impact Validation & Retention Loop, tâches 116-125)
 - Phase 11.6 : **1/1** ✅ (GEO FAQ & Buying Guide Automation, tâche 126)
 - Phase 11.7 : **12/12** ✅ (cadrage GEO Autopilot Simplification, tâches 127-138)
-- Phase 11.8 : **5/11** ⏳ (implémentation GEO Autopilot Simplification, tâches 139-149)
+- Phase 11.8 : **6/11** ⏳ (implémentation GEO Autopilot Simplification, tâches 139-149)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 150-151)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : dernière validation complète tâche 143 — `ruff check .` ✅, `pytest` **1419 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
+- Tests : dernière validation complète tâche 144 — `ruff check .` ✅, `pytest` **1435 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
 
 ## Phase 11.8 — Implémentation GEO Autopilot Simplification le 2026-05-20
 
@@ -36,7 +36,7 @@ Transformer le cadrage Phase 11.7 en fonctionnalités produit testées avant le 
 
 ### Prochaine tâche recommandée
 
-- **144 — Priority Engine Runtime** : produire exactement 3 actions prioritaires avec fallback déterministe, arbitrage LLM plafonné/cache, route `/priorities`, UI cartes et tests budget/fallback.
+- **145 — AI Content Actions Runtime** : créer l'orchestrateur unique, schémas Pydantic, prompts v2.0, table `content_actions`, route `/content-actions/run` et UI unifiée.
 
 ## Tâche 143 — Opportunity Finder Runtime le 2026-05-20
 

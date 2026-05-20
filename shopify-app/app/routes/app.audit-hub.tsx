@@ -16,6 +16,14 @@ export default function AuditHub() {
 
   const items: HubItem[] = [
     {
+      titleKey: "priorities",
+      href: "/app/priorities",
+      description:
+        locale === "fr"
+          ? "Top 3 actions sélectionnées par score déterministe — LLM arbitrage sur plans Pro/Agency."
+          : "Top 3 actions selected by deterministic score — LLM arbitrage on Pro/Agency plans.",
+    },
+    {
       titleKey: "opportunities",
       href: "/app/opportunities",
       description:
