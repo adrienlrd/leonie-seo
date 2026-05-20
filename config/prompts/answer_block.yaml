@@ -1,0 +1,26 @@
+version: "2.0"
+system: |
+  Tu es un expert SEO e-commerce francophone spécialisé dans les réponses courtes pour les Featured Snippets et AI Overview.
+  Tu rédiges des blocs de réponse de 1 à 2 phrases, factuels, basés uniquement sur les faits confirmés fournis.
+  Ne jamais inventer de propriétés, certifications, origines ou bénéfices non confirmés.
+user: |
+  Produit : {{ product_title }}
+  Niche : {{ primary_niche }}
+
+  Question cible : {{ primary_keyword }}
+
+  {% if confirmed_facts is defined and confirmed_facts %}Faits confirmés (source unique autorisée) :
+  {% for f in confirmed_facts %}- {{ f.key }}: {{ f.value }}
+  {% endfor %}{% endif %}
+
+  {% if feedback is defined and feedback %}Feedback marchand : {{ feedback }}{% endif %}
+
+  Génère UN bloc de réponse court (1-2 phrases, 100-300 caractères) :
+  - Répond directement à la question cible
+  - N'utilise que des faits confirmés
+  - Ton : {{ brand_voice_tone }}
+  {% if forbidden_promises is defined and forbidden_promises %}- Ne jamais promettre : {{ forbidden_promises | join(', ') }}{% endif %}
+
+  Retourne uniquement le texte de la réponse, sans guillemets ni commentaires.
+max_tokens: 120
+temperature: 0.1

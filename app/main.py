@@ -31,6 +31,7 @@ from app.api.privacy import router as privacy_router  # noqa: E402
 from app.api.audit import router as audit_router  # noqa: E402
 from app.api.opportunities import router as opportunities_router  # noqa: E402
 from app.api.priorities import router as priorities_router  # noqa: E402
+from app.api.content_actions import router as content_actions_router  # noqa: E402
 from app.api.longtail import router as longtail_router  # noqa: E402
 from app.api.cannibalization import router as cannibalization_router  # noqa: E402
 from app.api.internal_links import router as internal_links_router  # noqa: E402
@@ -138,6 +139,7 @@ app.include_router(shops_router)
 app.include_router(audit_router)
 app.include_router(opportunities_router)
 app.include_router(priorities_router)
+app.include_router(content_actions_router)
 app.include_router(longtail_router)
 app.include_router(cannibalization_router)
 app.include_router(internal_links_router)

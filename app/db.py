@@ -207,6 +207,19 @@ _SQLITE_DDL = [
         detail        TEXT NOT NULL,
         metadata_json TEXT NOT NULL DEFAULT '{}'
     )""",
+    # Unified content actions drafts (Phase 11.8, task 145)
+    """CREATE TABLE IF NOT EXISTS content_actions (
+        action_id      TEXT PRIMARY KEY,
+        shop           TEXT NOT NULL,
+        content_type   TEXT NOT NULL,
+        resource_id    TEXT NOT NULL,
+        resource_handle TEXT NOT NULL DEFAULT '',
+        result_json    TEXT NOT NULL,
+        status         TEXT NOT NULL DEFAULT 'draft',
+        retry_count    INTEGER NOT NULL DEFAULT 0,
+        created_at     TEXT NOT NULL,
+        updated_at     TEXT NOT NULL
+    )""",
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────

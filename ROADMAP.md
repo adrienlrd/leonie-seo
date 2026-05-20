@@ -832,7 +832,7 @@ L'app expose six modules métier au lieu de la liste actuelle d'outils :
 | 142 | Unified Readiness Audit Runtime — exposer le score unifié actif, sous-scores, recommandations, route canonique `/audit/readiness`, UI `app.audit-readiness` et compatibilité drill-down | 🔴 | ✅ | 2026-05-20 |
 | 143 | Opportunity Finder Runtime — agréger les signaux existants en opportunités par produit actif, route `/opportunities`, UI dédiée et tests de scoring déterministe | 🔴 | ✅ | 2026-05-20 |
 | 144 | Priority Engine Runtime — produire exactement 3 actions prioritaires avec fallback déterministe, arbitrage LLM plafonné/cache, route `/priorities`, UI cartes et tests budget/fallback | 🔴 | ✅ | 2026-05-20 |
-| 145 | AI Content Actions Runtime — créer l'orchestrateur unique, schémas Pydantic, prompts v2.0, table `content_actions`, route `/content-actions/run` et UI unifiée | 🔴 | ⏳ | |
+| 145 | AI Content Actions Runtime — créer l'orchestrateur unique, schémas Pydantic, prompts v2.0, table `content_actions`, route `/content-actions/run` et UI unifiée | 🔴 | ✅ | 2026-05-20 |
 | 146 | Safe Apply Runtime — créer diff/decisions/writer adapters/rollback adapters, routes `/safe-apply/*`, extension des content types, UI review/apply/rollback et tests de garde-fous | 🔴 | ⏳ | |
 | 147 | Impact Tracker Productization — recentrer l'UI Impact autour de Search Performance, optimisations actives, rétention, next actions, ajouter `ai-visibility/status` désactivé V1 | 🟡 | ⏳ | |
 | 148 | Merchant Dashboard Runtime — créer `GET /api/shops/{shop}/dashboard`, refondre `app._index.tsx` en 6 zones, renommer la navigation et valider responsive/Playwright | 🔴 | ⏳ | |

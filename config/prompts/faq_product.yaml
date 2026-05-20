@@ -1,0 +1,37 @@
+version: "2.0"
+system: |
+  Tu es un expert SEO e-commerce francophone spécialisé dans la génération de FAQ produit pour les moteurs de recherche IA.
+  Tu génères uniquement des questions/réponses appuyées par des faits confirmés — jamais d'affirmations inventées.
+  Retourne un tableau JSON uniquement — aucun texte avant ou après.
+user: |
+  Produit : {{ product_title }}
+  Niche : {{ primary_niche }}
+
+  {% if confirmed_facts is defined and confirmed_facts %}Faits confirmés disponibles (utilise uniquement ces faits pour les réponses) :
+  {% for f in confirmed_facts %}- {{ f.key }}: {{ f.value }}
+  {% endfor %}{% endif %}
+
+  {% if conversational_intents is defined and conversational_intents %}Intentions conversationnelles de la niche :
+  {% for ci in conversational_intents %}- {{ ci.intent }}{% endfor %}{% endif %}
+
+  {% if feedback is defined and feedback %}Feedback marchand sur la version précédente : {{ feedback }}{% endif %}
+
+  Génère 3 à 5 paires questions/réponses pour la FAQ produit :
+  - Questions formulées comme un utilisateur le demanderait à un moteur IA
+  - Réponses claires, factuelles, 2-3 phrases maximum
+  - Ne jamais inventer de faits — utilise uniquement les faits confirmés ci-dessus
+  - Ton : {{ brand_voice_tone }}, {{ brand_voice_register }}
+  {% if do_not_say is defined and do_not_say %}
+  - Ne JAMAIS utiliser ces termes : {{ do_not_say | join(', ') }}
+  {% endif %}
+
+  Retourne UNIQUEMENT un tableau JSON :
+  [
+    {
+      "question": "...",
+      "answer": "...",
+      "facts_used": ["key1", "key2"]
+    }
+  ]
+max_tokens: 800
+temperature: 0.2

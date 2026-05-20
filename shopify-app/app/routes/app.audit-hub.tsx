@@ -16,6 +16,14 @@ export default function AuditHub() {
 
   const items: HubItem[] = [
     {
+      titleKey: "contentActions",
+      href: "/app/content-actions",
+      description:
+        locale === "fr"
+          ? "Workflow unifié : meta, descriptions, FAQ, guides — faits confirmés + hypothèse niche."
+          : "Unified workflow: meta, descriptions, FAQ, guides — confirmed facts + niche hypothesis.",
+    },
+    {
       titleKey: "priorities",
       href: "/app/priorities",
       description:

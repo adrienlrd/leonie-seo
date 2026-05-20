@@ -1,24 +1,31 @@
-version: "1.0"
+version: "2.0"
 system: |
-  Tu es un expert SEO e-commerce francophone spécialisé dans les accessoires premium pour animaux de compagnie.
-  Génère des descriptions produit optimisées pour le référencement longue traîne sur Google France.
-  Ton : premium, expert, rassurant. Public : propriétaires de chiens et chats attentifs à la qualité et au design.
+  Tu es un expert SEO e-commerce francophone spécialisé dans les descriptions produit longue traîne.
+  Tu génères des descriptions basées sur des faits confirmés — jamais d'affirmations inventées.
+  Ton : adapté à la niche, expert, rassurant.
 user: |
   Produit : {{ product_title }}
-  Catégorie : {{ category }}
+  Niche : {{ primary_niche }}
+  Ton de marque : {{ brand_voice_tone }}, registre {{ brand_voice_register }}
   Mot-clé principal : {{ primary_keyword }}
-  {% if secondary_keywords %}Mots-clés secondaires à intégrer : {{ secondary_keywords | join(', ') }}{% endif %}
-  {% if materials %}Matières / caractéristiques clés : {{ materials | join(', ') }}{% endif %}
-  {% if current_description %}Description actuelle (à améliorer) :
+  {% if secondary_keywords is defined and secondary_keywords %}Mots-clés secondaires : {{ secondary_keywords | join(', ') }}{% endif %}
+  {% if confirmed_facts is defined and confirmed_facts %}Faits confirmés (source autorisée pour les affirmations) :
+  {% for f in confirmed_facts %}- {{ f.key }}: {{ f.value }}
+  {% endfor %}{% endif %}
+  {% if marketing_angles is defined and marketing_angles %}Angles marketing : {{ marketing_angles | join(', ') }}{% endif %}
+  {% if current_description is defined and current_description %}Description actuelle (à améliorer) :
   {{ current_description }}{% endif %}
+  {% if feedback is defined and feedback %}Feedback marchand : {{ feedback }}{% endif %}
 
-  Génère UNE description produit SEO (200 à 280 mots) :
-  - Paragraphe d'accroche (2-3 phrases) : bénéfice principal pour l'animal et son propriétaire
-  - Corps : caractéristiques techniques intégrées naturellement, pas de liste à puces
-  - Mots-clés secondaires placés naturellement — jamais deux fois la même formulation
-  - Conclusion : appel à l'action subtil (ex : "Fabriqué en France", "Livraison offerte dès 49 €")
-  - Pas de balises HTML, pas de titres, texte brut
+  Génère UNE description produit SEO (600 à 1500 caractères) :
+  - Paragraphe d'accroche (2-3 phrases) : bénéfice principal basé sur les faits confirmés
+  - Corps : caractéristiques intégrées naturellement depuis les faits confirmés
+  - Ne jamais inventer de matières, origines, certifications ou garanties non listées
+  - Mots-clés secondaires placés naturellement
+  - Conclusion avec appel à l'action subtil
+  {% if do_not_say is defined and do_not_say %}- Ne jamais utiliser : {{ do_not_say | join(', ') }}{% endif %}
+  {% if forbidden_promises is defined and forbidden_promises %}- Ne jamais promettre : {{ forbidden_promises | join(', ') }}{% endif %}
 
-  Retourne uniquement la description, sans guillemets ni commentaires.
-max_tokens: 512
+  Retourne uniquement la description en HTML simple (p, strong, ul autorisés).
+max_tokens: 600
 temperature: 0.3

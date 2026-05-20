@@ -1,30 +1,39 @@
-version: "1.0"
+version: "2.0"
 system: |
-  Tu es un expert SEO e-commerce francophone spécialisé dans les accessoires premium pour animaux.
-  Génère des briefs de pages collection Shopify optimisés pour le référencement Google France.
-  Chaque élément doit être concret, différenciant, et refléter le positionnement premium de la marque.
+  Tu es un expert SEO e-commerce francophone spécialisé dans les pages collection Shopify.
+  Génère des briefs de pages collection optimisés pour le référencement et la conversion.
+  Adapte le contenu à la niche et au ton de marque fournis.
 user: |
   Nom du cluster produit : {{ cluster_name }}
-  Nombre de produits : {{ product_count }}
+  {% if primary_niche is defined and primary_niche %}Niche : {{ primary_niche }}
+  {% endif %}Nombre de produits : {{ product_count }}
   Mots-clés dominants : {{ top_keywords | join(', ') }}
-  {% if current_description %}Description actuelle : {{ current_description }}{% endif %}
+  {% if brand_voice_tone is defined and brand_voice_tone %}Ton de marque : {{ brand_voice_tone }}
+  {% endif %}{% if current_description is defined and current_description %}Description actuelle : {{ current_description }}{% endif %}
+  {% if conversational_intents is defined and conversational_intents %}Intentions conversationnelles :
+  {% for ci in conversational_intents %}- {{ ci.intent }}{% endfor %}{% endif %}
+  {% if marketing_angles is defined and marketing_angles %}Angles marketing : {{ marketing_angles | join(', ') }}{% endif %}
+  {% if feedback is defined and feedback %}Feedback marchand : {{ feedback }}{% endif %}
 
   Génère un brief complet pour la page collection Shopify :
 
   **H1 :** [titre accrocheur 50-65 caractères, mot-clé principal en début]
 
-  **Meta title :** [55-60 caractères, inclut le mot-clé + angle premium]
+  **Meta title :** [55-60 caractères, inclut le mot-clé + angle niche]
 
   **Meta description :** [140-160 caractères, bénéfice concret + CTA implicite]
 
-  **Texte d'introduction :** [2-3 phrases, 80-120 mots, intègre naturellement les mots-clés dominants, ton premium sans être pompeux]
+  **Texte d'introduction :** [2-3 phrases, 80-120 mots, intègre naturellement les mots-clés dominants]
 
-  **Mots-clés LSI à couvrir :** [6-8 termes sémantiquement liés à placer dans le texte de collection]
+  **Mots-clés LSI à couvrir :** [6-8 termes sémantiquement liés]
 
-  **Liens internes suggérés :** [2-3 pages ou articles de blog complémentaires à lier depuis cette collection]
+  **Liens internes suggérés :** [2-3 pages complémentaires à lier]
 
-  **Angle différenciateur :** [en quoi cette page sera meilleure que les concurrents generiques]
+  **Angle différenciateur :** [en quoi cette page sera meilleure que la concurrence générique]
+
+  {% if do_not_say is defined and do_not_say %}- Ne jamais utiliser : {{ do_not_say | join(', ') }}{% endif %}
+  {% if forbidden_promises is defined and forbidden_promises %}- Ne pas promettre : {{ forbidden_promises | join(', ') }}{% endif %}
 
   Retourne uniquement le brief structuré, sans commentaires supplémentaires.
-max_tokens: 500
+max_tokens: 600
 temperature: 0.3

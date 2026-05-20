@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-20** (Phase 11.8 — tâche 141)
+- Dernière session : **2026-05-20** (Phase 11.8 — tâche 145)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -16,10 +16,10 @@
 - Phase 11.5 : **10/10** ✅ (GEO Impact Validation & Retention Loop, tâches 116-125)
 - Phase 11.6 : **1/1** ✅ (GEO FAQ & Buying Guide Automation, tâche 126)
 - Phase 11.7 : **12/12** ✅ (cadrage GEO Autopilot Simplification, tâches 127-138)
-- Phase 11.8 : **6/11** ⏳ (implémentation GEO Autopilot Simplification, tâches 139-149)
+- Phase 11.8 : **7/11** ⏳ (implémentation GEO Autopilot Simplification, tâches 139-149)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 150-151)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : dernière validation complète tâche 144 — `ruff check .` ✅, `pytest` **1435 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
+- Tests : dernière validation complète tâche 145 — `ruff check .` ✅, `pytest` **1470 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
 
 ## Phase 11.8 — Implémentation GEO Autopilot Simplification le 2026-05-20
 
@@ -36,7 +36,38 @@ Transformer le cadrage Phase 11.7 en fonctionnalités produit testées avant le 
 
 ### Prochaine tâche recommandée
 
-- **145 — AI Content Actions Runtime** : créer l'orchestrateur unique, schémas Pydantic, prompts v2.0, table `content_actions`, route `/content-actions/run` et UI unifiée.
+- **146 — Safe Apply Runtime** : créer diff/decisions/writer adapters/rollback adapters, routes `/safe-apply/*`, extension des content types, UI review/apply/rollback et tests de garde-fous.
+
+## Tâche 145 — AI Content Actions Runtime le 2026-05-20
+
+### Objectif
+
+Créer l'orchestrateur unifié de génération de contenu LLM : remplace 7 générateurs disparates par un pipeline unique (schema Pydantic → bundle → LLM tier routing → generate → audit guardrails → persist → review).
+
+### Réalisations
+
+- `app/content_actions/__init__.py` — module vide.
+- `app/content_actions/schema.py` — ContentType (10 types), ContentStatus (7 états), ContentActionRequest, ContentActionResult, ResourceInput, ConfirmedFact, MissingFact, NicheContext, GscSignals, Constraints, PreviousContent, ContentOutput, ConstraintsCheck, QualityResult, LLMMeta.
+- `app/content_actions/audit.py` — 6 vérifications : longueurs (META_TITLE 30-60, META_DESCRIPTION 120-160, ALT_TEXT 8-12 mots), forbidden_promises, do_not_say (case-insensitive), language detection, quality score (0.40×facts + 0.30×queries + 0.20×constraints + 0.10×brand_voice), labels (excellent/bon/à_compléter/incomplet).
+- `app/content_actions/runner.py` — `run_content_action` : validation niche (FACTUAL_CONTENT_TYPES requièrent `validated_by_merchant`), budget check, jsonld_faqpage déterministe, routing LLM tier (low-cost/medium/deterministic), audit guardrails, persist SQLite. `retry_content_action` : recharge depuis DB, injecte feedback, limite 3 retries.
+- `app/api/content_actions.py` — 4 routes : POST `/run`, GET `/{id}`, POST `/{id}/retry`, POST `/{id}/export`.
+- `app/db.py` — table `content_actions` (action_id PK, shop, content_type, resource_id, resource_handle, result_json, status, retry_count, created_at, updated_at).
+- Prompts migrés v1.0 → v2.0 : `meta_title`, `meta_description`, `product_description`, `alt_text`, `collection_brief`, `meta_multilingual`. Toutes les variables niche sont optionnelles (`{% if var is defined and var %}`) pour préserver la compatibilité ascendante avec `batch.py`, `briefs.py`, `multilingual.py`.
+- Nouveaux prompts : `faq_product.yaml` (JSON array), `answer_block.yaml`, `buying_guide.yaml` (JSON object).
+- `shopify-app/app/routes/app.content-actions.tsx` — UI Remix : Select type, résultat avec quality bar, banners violations, export.
+- `shopify-app/app/lib/i18n.ts` — 12 clés content_actions FR/EN.
+- `shopify-app/app/routes/app.audit-hub.tsx` — entrée contentActions ajoutée.
+- `app/main.py` — router content_actions enregistré.
+- `tests/test_content_actions/` — 26 tests (schema, audit, runner). `tests/test_api/test_content_actions.py` — 6 tests API.
+
+### Validations
+
+- `ruff check .` ✅
+- `pytest` : **1470 passed** ✅
+- `npm run typecheck` ✅
+- `npm run build` ✅
+
+---
 
 ## Tâche 143 — Opportunity Finder Runtime le 2026-05-20
 

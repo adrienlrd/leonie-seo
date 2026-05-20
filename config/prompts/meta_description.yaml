@@ -1,20 +1,26 @@
-version: "1.0"
+version: "2.0"
 system: |
-  Tu es un expert SEO e-commerce francophone spécialisé dans les accessoires premium pour animaux.
+  Tu es un expert SEO e-commerce francophone.
   Génère des meta descriptions optimisées pour le référencement naturel Google France.
   Règles absolues : entre 140 et 160 caractères, inclure le mot-clé principal, pas de guillemets, pas d'explication.
 user: |
   Produit : {{ product_title }}
-  Meta title : {{ meta_title }}
-  Mot-clé principal : {{ primary_keyword }}
-  {% if current_description %}Description actuelle : {{ current_description }}{% endif %}
+  {% if primary_niche is defined and primary_niche %}Niche : {{ primary_niche }}
+  {% endif %}{% if meta_title is defined and meta_title %}Meta title : {{ meta_title }}
+  {% endif %}Mot-clé principal : {{ primary_keyword }}
+  {% if current_seo_description is defined and current_seo_description %}Description actuelle : {{ current_seo_description }}{% endif %}
+  {% if confirmed_facts is defined and confirmed_facts %}Faits confirmés : {% for f in confirmed_facts[:3] %}{{ f.key }}: {{ f.value }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}
+  {% if customer_segments is defined and customer_segments %}Cible principale : {{ customer_segments[0].label if customer_segments[0].label is defined else '' }}{% endif %}
+  {% if feedback is defined and feedback %}Feedback marchand : {{ feedback }}{% endif %}
 
   Génère UNE meta description SEO :
   - 140 à 160 caractères (compte précisément)
   - Inclure le mot-clé principal de façon naturelle
   - Call-to-action clair en fin de phrase (ex : "Découvrez", "Commandez", "Livraison rapide")
-  - Ton premium et rassurant — pas de superlatifs creux ("incroyable", "exceptionnel")
+  - Ton rassurant — pas de superlatifs creux
   - Doit donner envie de cliquer depuis les résultats Google
+  {% if forbidden_promises is defined and forbidden_promises %}- Ne jamais promettre : {{ forbidden_promises | join(', ') }}{% endif %}
+  {% if do_not_say is defined and do_not_say %}- Ne jamais utiliser : {{ do_not_say | join(', ') }}{% endif %}
 
   Retourne uniquement la meta description, sans guillemets.
 max_tokens: 120

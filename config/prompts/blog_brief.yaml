@@ -6,8 +6,8 @@ system: |
 user: |
   Requête cible : {{ target_query }}
   Intention de recherche : {{ search_intent }}
-  {% if cluster %}Cluster thématique : {{ cluster }}{% endif %}
-  {% if competitor_titles %}Titres concurrents à battre :
+  {% if cluster is defined and cluster %}Cluster thématique : {{ cluster }}{% endif %}
+  {% if competitor_titles is defined and competitor_titles %}Titres concurrents à battre :
   {% for t in competitor_titles %}- {{ t }}
   {% endfor %}{% endif %}
   Volume estimé : {{ search_volume | default('inconnu') }} recherches/mois
