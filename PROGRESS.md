@@ -16,10 +16,10 @@
 - Phase 11.5 : **10/10** ✅ (GEO Impact Validation & Retention Loop, tâches 116-125)
 - Phase 11.6 : **1/1** ✅ (GEO FAQ & Buying Guide Automation, tâche 126)
 - Phase 11.7 : **12/12** ✅ (cadrage GEO Autopilot Simplification, tâches 127-138)
-- Phase 11.8 : **4/11** ⏳ (implémentation GEO Autopilot Simplification, tâches 139-149)
+- Phase 11.8 : **5/11** ⏳ (implémentation GEO Autopilot Simplification, tâches 139-149)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 150-151)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : dernière validation complète connue tâche 142 — `ruff check .` ✅, `pytest` **1407 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
+- Tests : dernière validation complète tâche 143 — `ruff check .` ✅, `pytest` **1419 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
 
 ## Phase 11.8 — Implémentation GEO Autopilot Simplification le 2026-05-20
 
@@ -36,7 +36,25 @@ Transformer le cadrage Phase 11.7 en fonctionnalités produit testées avant le 
 
 ### Prochaine tâche recommandée
 
-- **143 — Opportunity Finder Runtime** : agréger les signaux existants en opportunités par produit actif, route `/opportunities`, UI dédiée et tests de scoring déterministe.
+- **144 — Priority Engine Runtime** : produire exactement 3 actions prioritaires avec fallback déterministe, arbitrage LLM plafonné/cache, route `/priorities`, UI cartes et tests budget/fallback.
+
+## Tâche 143 — Opportunity Finder Runtime le 2026-05-20
+
+### Objectif
+
+Agréger les signaux existants (GSC, keyword gaps, intent clusters, audit readiness, cannibalization, competitors) en une liste ordonnée d'opportunités par produit actif — sans LLM, sans nouveau détecteur.
+
+### Réalisations
+
+- `app/opportunities/__init__.py` — module vide.
+- `app/opportunities/finder.py` — orchestrateur 7 signaux déterministes : `_gsc_signal_for_product` (classify_url → 1.0/0.7/0.5/0.0), `_keyword_gap_for_product` (cross-ref ProductCluster → KeywordGap), `_audit_pressure` ((100-readiness)/100), `_intent_match_boost` (token overlap + niche_hypothesis → 0.5/1.0), `_cannibalization_for_product` (detect_duplicate_content), `_competitor_pressure` (build_competitor_monitor), `_apply_niche_adjustments` (priority_products +10pts, forbidden_promise alert-only). Formule pondérée (0.30/0.20/0.15/0.10/0.10/0.10/0.05), `_tier` (≥70 high / ≥40 medium / <40 low), `_confidence` (≥3 signaux non-nuls → high).
+- `app/api/opportunities.py` — `GET /api/shops/{shop}/opportunities?scope=active&top=20&intent=...`. Charge snapshot, niche hypothesis, crawl findings, GSC page-level (CSV) et query-level (JSON). Filtre par intent si fourni.
+- `app/main.py` — router opportunities enregistré.
+- `shopify-app/app/lib/i18n.ts` — 11 nouvelles clés FR/EN (opportunities, opportunityScore, tiers, primaryReason, matchedQueries, matchedIntents, opportunitiesEmpty/Total).
+- `shopify-app/app/routes/app.opportunities.tsx` — page Remix : summary bar badges, Tabs intent, liste Cards avec ProgressBar, primary_reason, niche_alerts, matched_queries, recommended_actions.
+- `shopify-app/app/routes/app.audit-hub.tsx` — entrée "Opportunity Finder" ajoutée en tête de hub.
+- `tests/test_opportunities/test_finder.py` — 9 tests : schema, score 0-100, tier, scope, niche priority +10, forbidden alert, confidence, gsc zero, tri desc.
+- `tests/test_api/test_opportunities.py` — 3 tests : schema, scope active, filtre intent.
 
 ## Tâche 142 — Unified Readiness Audit Runtime le 2026-05-20
 

@@ -16,6 +16,14 @@ export default function AuditHub() {
 
   const items: HubItem[] = [
     {
+      titleKey: "opportunities",
+      href: "/app/opportunities",
+      description:
+        locale === "fr"
+          ? "Pages ACTIVE classées par ratio impact/effort — 7 signaux déterministes sans IA."
+          : "ACTIVE pages ranked by impact/effort ratio — 7 deterministic signals, no AI.",
+    },
+    {
       titleKey: "auditReadiness",
       href: "/app/audit-readiness",
       description:
