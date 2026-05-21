@@ -11,6 +11,20 @@
 ## Last completed task
 
 - **Date:** 2026-05-21
+- **Agent:** Codex (GPT-5)
+- **Goal:** Fix dashboard homepage HTTP 500.
+- **Summary:** Correction du dashboard marchand `GET /api/shops/{shop}/dashboard` : `list_geo_events()` renvoie un payload paginé (`{"events": [...]}`), mais l'agrégateur passait ce payload entier à `_build_zone3()` comme une liste. En runtime réel, Zone 3 pouvait donc itérer sur les clés du dictionnaire et déclencher un 500 affiché dans la page d'accueil Remix comme "État du service / HTTP 500". Ajout d'un helper `_load_dashboard_events()` qui extrait défensivement la liste `events` et isole les erreurs ledger pour éviter qu'une zone secondaire casse toute la page.
+- **Files created:** Aucun.
+- **Files modified:** `app/api/dashboard.py`, `tests/test_api/test_dashboard.py`, `docs/AI_HANDOFF.md`.
+- **Validations run:** `ruff check app/api/dashboard.py tests/test_api/test_dashboard.py` ✅ ; `pytest tests/test_api/test_dashboard.py` **7 passed** ✅ ; `ruff check .` ✅ ; `pytest` **1521 passed** ✅.
+- **Validations skipped:** Aucune.
+- **Decisions made:** Garder le dashboard résilient : si le ledger est indisponible ou mal formé, la page affiche simplement zéro optimisation active au lieu de répondre HTTP 500.
+- **Open issues:** Aucun connu pour ce bug après test ciblé.
+- **Next recommended action:** Recharger la page d'accueil Léonie SEO Pilot après déploiement/redémarrage backend.
+
+## Previous completed task
+
+- **Date:** 2026-05-21
 - **Agent:** Claude Code (Sonnet 4.6)
 - **Goal:** Task 149 — Launch Readiness Evidence Pass.
 - **Summary:** Audit mécanique complet des 13 catégories §3.1-§3.13 de `docs/launch-readiness.md` (50+ critères). Résultat : 3 vrais bugs trouvés et corrigés. Verdict `DECISIONS.md` : **NO-GO Phase 12** — bloquant unique = test utilisateur 3 marchands pilotes (§3.1 + §3.12, exigence humaine non substituable par audit interne). Toutes les vérifications techniques passent.

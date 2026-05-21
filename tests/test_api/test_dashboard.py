@@ -147,3 +147,33 @@ def test_dashboard_zone4_pending_gsc_when_no_token(mock_env) -> None:
     z4 = resp.json()["zone4"]
     pending_keys = [s["key"] for s in z4["pending_steps"]]
     assert "gsc" in pending_keys
+
+
+def test_dashboard_zone3_reads_events_from_ledger_payload(mock_env) -> None:
+    with (
+        patch("app.api.dashboard._load_snapshot", return_value=_empty_snapshot()),
+        patch("app.api.dashboard._load_crawl_findings", return_value=[]),
+        patch("app.api.dashboard.get_validated_niche_hypothesis", return_value=None),
+        patch("app.api.dashboard._find_gsc_file", return_value=None),
+        patch("app.api.dashboard._load_gsc_query_rows", return_value=[]),
+        patch(
+            "app.api.dashboard.list_geo_events",
+            return_value={
+                "total": 2,
+                "limit": 200,
+                "offset": 0,
+                "events": [
+                    {"status": "applied", "created_at": "2026-05-01T00:00:00+00:00"},
+                    {"status": "planned", "created_at": "2026-05-02T00:00:00+00:00"},
+                ],
+            },
+        ),
+        patch("app.api.dashboard.build_priority_actions", return_value={"actions": [], "sparse_signal": True}),
+        patch("app.api.dashboard.get_shop_metrics", return_value={"total_cost_usd": 0.0}),
+        patch("app.api.dashboard.check_budget", side_effect=Exception("no db")),
+    ):
+        client = _make_client()
+        resp = client.get(f"/api/shops/{_SHOP}/dashboard")
+
+    assert resp.status_code == 200
+    assert resp.json()["zone3"]["active_optimizations_count"] == 1

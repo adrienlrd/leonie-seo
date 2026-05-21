@@ -164,6 +164,19 @@ def _build_zone3(shop: str, events: list[dict]) -> dict:
     }
 
 
+def _load_dashboard_events(shop: str) -> list[dict[str, Any]]:
+    """Return ledger events for the dashboard without failing the whole page."""
+    try:
+        ledger = list_geo_events(shop, limit=200)
+    except Exception:
+        return []
+
+    events = ledger.get("events") if isinstance(ledger, dict) else ledger
+    if not isinstance(events, list):
+        return []
+    return [event for event in events if isinstance(event, dict)]
+
+
 def _build_zone4(shop: str, niche_hypothesis: dict | None, plan: str) -> dict:
     completed: list[str] = ["shopify"]
     pending: list[dict] = []
@@ -321,7 +334,7 @@ async def get_dashboard(
 
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
 
-    events = list_geo_events(ctx.shop, limit=200)
+    events = _load_dashboard_events(ctx.shop)
 
     zone1 = _build_zone1(ctx.shop, products, niche_hypothesis)
     zone2 = _build_zone2(
