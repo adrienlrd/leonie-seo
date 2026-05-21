@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import {
   Badge,
@@ -58,6 +58,8 @@ interface DashboardData {
     products_in_scope: number;
     niche_summary: string | null;
     niche_validated: boolean;
+    niche_available: boolean;
+    sub_scores: { seo: number; geo: number; content: number; technical: number } | null;
   };
   zone2: {
     actions: PriorityAction[];
@@ -114,6 +116,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
     }
     const dashboard = (await resp.json()) as DashboardData;
+
+    // New merchant with no niche analysis → send to guided onboarding
+    if (!dashboard.zone1.niche_available) {
+      return redirect(localizedPath("/app/onboarding", locale));
+    }
+
     return json<LoaderData>({ shop, locale, plan, dashboard, error: null });
   } catch (err) {
     return json<LoaderData>({
@@ -196,6 +204,13 @@ function DashboardHeader({
   );
 }
 
+const SUB_SCORE_KEYS: Array<{ key: keyof NonNullable<DashboardData["zone1"]["sub_scores"]>; i18n: string }> = [
+  { key: "seo", i18n: "seoSubScore" },
+  { key: "geo", i18n: "geoSubScore" },
+  { key: "content", i18n: "contentSubScore" },
+  { key: "technical", i18n: "technicalSubScore" },
+];
+
 function Zone1({
   data,
   locale,
@@ -210,17 +225,33 @@ function Zone1({
       <BlockStack gap="300">
         <Text as="h2" variant="headingMd">{t(locale, "dashboardZone1Title")}</Text>
         {data.global_score !== null ? (
-          <InlineStack gap="300" blockAlign="center">
-            <Tooltip content={t(locale, "dashboardScoreTooltip")}>
-              <Text as="p" variant="headingXl" fontWeight="bold">
-                {data.global_score}/100
+          <BlockStack gap="200">
+            <InlineStack gap="300" blockAlign="center">
+              <Tooltip content={t(locale, "dashboardScoreTooltip")}>
+                <Text as="p" variant="headingXl" fontWeight="bold">
+                  {data.global_score}/100
+                </Text>
+              </Tooltip>
+              <Badge tone={tone}>{t(locale, LEVEL_I18N_KEYS[level] ?? level)}</Badge>
+              <Text as="p" tone="subdued">
+                {data.products_in_scope} {t(locale, "dashboardZone1Products")}
               </Text>
-            </Tooltip>
-            <Badge tone={tone}>{t(locale, LEVEL_I18N_KEYS[level] ?? level)}</Badge>
-            <Text as="p" tone="subdued">
-              {data.products_in_scope} {t(locale, "dashboardZone1Products")}
-            </Text>
-          </InlineStack>
+            </InlineStack>
+            {data.sub_scores && (
+              <InlineGrid columns={4} gap="200">
+                {SUB_SCORE_KEYS.map(({ key, i18n }) => (
+                  <Box key={key} background="bg-surface-secondary" padding="200" borderRadius="200">
+                    <BlockStack gap="050">
+                      <Text as="p" variant="bodySm" tone="subdued">{t(locale, i18n)}</Text>
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">
+                        {data.sub_scores![key]}/100
+                      </Text>
+                    </BlockStack>
+                  </Box>
+                ))}
+              </InlineGrid>
+            )}
+          </BlockStack>
         ) : (
           <Text as="p" tone="subdued">
             {locale === "fr" ? "Importation Shopify en cours…" : "Shopify import in progress…"}
@@ -480,19 +511,11 @@ export default function IndexPage() {
     );
   }
 
-  const { banners, zone1, zone2, zone3, zone4, zone5, zone6 } = dashboard;
+  const { banners, zone1, zone2, zone3, zone4, zone5 } = dashboard;
 
   return (
     <Page title="Léonie SEO">
       <BlockStack gap="400">
-        {/* Header — LLM budget */}
-        <DashboardHeader
-          shop={dashboard.shop}
-          plan={plan}
-          budget={dashboard.llm_budget}
-          locale={locale}
-        />
-
         {/* Banners */}
         {banners.pilot_safe && (
           <Banner tone="warning">

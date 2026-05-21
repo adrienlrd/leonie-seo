@@ -54,6 +54,16 @@ interface NicheHypothesis {
     promise: string;
     reason: string;
   }>;
+  probable_competitors: Array<{
+    name: string;
+    domain: string | null;
+    confidence: string;
+  }>;
+  priority_products: Array<{
+    product_id: string;
+    reason: string;
+    confidence: string;
+  }>;
   brand_voice: {
     tone: string;
     register: string;
@@ -394,6 +404,58 @@ export default function NicheUnderstanding() {
                         <Badge tone="critical">{item.reason}</Badge>
                       </InlineStack>
                     ))
+                  )}
+                </BlockStack>
+              </Card>
+            </InlineGrid>
+
+            <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    {t(locale, "nicheCompetitors")}
+                  </Text>
+                  {hypothesis.probable_competitors.length === 0 ? (
+                    <Text as="p" tone="subdued">
+                      {locale === "fr"
+                        ? "Aucun concurrent détecté — l'IA n'a pas assez de signaux pour l'instant."
+                        : "No competitors detected — not enough signals yet."}
+                    </Text>
+                  ) : (
+                    <InlineStack gap="150" wrap>
+                      {hypothesis.probable_competitors.map((c) => (
+                        <Badge
+                          key={c.name}
+                          tone={confidenceTone(c.confidence)}
+                        >
+                          {c.domain ? `${c.name} (${c.domain})` : c.name}
+                        </Badge>
+                      ))}
+                    </InlineStack>
+                  )}
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    {t(locale, "nichePriorityProducts")}
+                  </Text>
+                  {hypothesis.priority_products.length === 0 ? (
+                    <Text as="p" tone="subdued">
+                      {locale === "fr"
+                        ? "Aucun produit prioritaire identifié pour l'instant."
+                        : "No priority products identified yet."}
+                    </Text>
+                  ) : (
+                    <BlockStack gap="100">
+                      {hypothesis.priority_products.map((p) => (
+                        <InlineStack key={p.product_id} align="space-between" gap="200">
+                          <Text as="p" variant="bodySm">{p.reason}</Text>
+                          <Badge tone={confidenceTone(p.confidence)}>{p.confidence}</Badge>
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
                   )}
                 </BlockStack>
               </Card>

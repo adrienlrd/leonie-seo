@@ -56,24 +56,44 @@ def _build_zone1(shop: str, products: list[dict], niche_hypothesis: dict | None)
             "niche_validated": False,
         }
 
+    sub_scores: dict[str, int] = {}
     try:
         readiness = score_catalog_readiness(
             products,
             scope="active",
             niche_hypothesis=niche_hypothesis,
         )
-        avg = readiness.get("average_readiness_score", 0)
+        avg = readiness.get("global_score", 0)
         level = readiness.get("global_level", "faible")
-        in_scope = readiness.get("total_products", len(products))
+        in_scope = readiness.get("total", len(products))
+
+        # Aggregate per-dimension sub-scores across all scored products
+        scored_products = readiness.get("products", [])
+        if scored_products:
+            def _avg_component(key: str) -> int:
+                vals = [
+                    p.get("components", {}).get(key, {}).get("score", 0)
+                    for p in scored_products
+                ]
+                return round(sum(vals) / len(vals)) if vals else 0
+
+            sub_scores = {
+                "seo": _avg_component("seo"),
+                "geo": round((_avg_component("schema") + _avg_component("answerability")) / 2),
+                "content": _avg_component("facts"),
+                "technical": round((_avg_component("commerce") + _avg_component("trust")) / 2),
+            }
     except Exception:
         avg, level, in_scope = 0, "faible", len(products)
 
     niche_summary: str | None = None
     niche_validated = False
+    niche_available = False
     if niche_hypothesis:
         summary = niche_hypothesis.get("shop_summary") or {}
         niche_summary = summary.get("what_you_sell")
         niche_validated = niche_hypothesis.get("status") == "validated_by_merchant"
+        niche_available = True
 
     return {
         "global_score": avg,
@@ -81,6 +101,8 @@ def _build_zone1(shop: str, products: list[dict], niche_hypothesis: dict | None)
         "products_in_scope": in_scope,
         "niche_summary": niche_summary,
         "niche_validated": niche_validated,
+        "niche_available": niche_available,
+        "sub_scores": sub_scores,
     }
 
 

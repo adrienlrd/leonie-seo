@@ -378,6 +378,13 @@ const FR: Dictionary = {
   estimatedGain: "Gain estimé",
   prepareAction: "Préparer cette action",
   productReference: "Produit concerné",
+  seoSubScore: "Visibilité Google",
+  geoSubScore: "Lisibilité IA",
+  contentSubScore: "Clarté des pages",
+  technicalSubScore: "Santé du site",
+  subScoresTitle: "Détail du score",
+  nicheCompetitors: "Concurrents détectés",
+  nichePriorityProducts: "Produits prioritaires",
 };
 
 const EN: Dictionary = {
@@ -756,6 +763,13 @@ const EN: Dictionary = {
   estimatedGain: "Estimated gain",
   prepareAction: "Prepare this action",
   productReference: "Product",
+  seoSubScore: "Google visibility",
+  geoSubScore: "AI readability",
+  contentSubScore: "Page clarity",
+  technicalSubScore: "Site health",
+  subScoresTitle: "Score breakdown",
+  nicheCompetitors: "Detected competitors",
+  nichePriorityProducts: "Priority products",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };
