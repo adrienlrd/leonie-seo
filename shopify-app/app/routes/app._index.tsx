@@ -1,6 +1,6 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useActionData, useLoaderData, useSubmit } from "@remix-run/react";
+import { useLoaderData } from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -10,421 +10,499 @@ import {
   Card,
   InlineGrid,
   InlineStack,
-  Link,
   Page,
   ProgressBar,
   Text,
+  Tooltip,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import { Sparkline } from "../components/Sparkline";
 
-interface ShopStatus {
-  installed: boolean;
-  snapshot_available: boolean;
-  product_count: number;
-  collection_count: number;
-  plan: string;
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface SparkPoint {
+  date: string;
+  value: number;
 }
 
-interface GSCStatus {
-  connected: boolean;
-  configured: boolean;
+interface PriorityAction {
+  action_id: string;
+  rank: number;
+  why_now: string;
+  estimates?: { effort?: string; impact?: string };
+  preview?: { product_title?: string; action_label?: string };
 }
 
-interface MerchantAlert {
+interface PendingStep {
+  key: string;
+  label: string;
+}
+
+interface Alert {
   type: string;
-  severity: "critical" | "error" | "warning" | "info";
+  severity: string;
   message: string;
   url?: string | null;
 }
 
-interface AlertSummary {
-  total: number;
-  by_severity: Partial<Record<string, number>>;
-  alerts: MerchantAlert[];
-}
-
-interface Job {
-  id: string;
-  queue: string;
-  status: string;
-  created_at: string;
+interface DashboardData {
+  shop: string;
+  plan: string;
+  health: string;
+  llm_budget: { used_usd: number; limit_usd: number; pct: number };
+  zone1: {
+    global_score: number | null;
+    global_level: string | null;
+    products_in_scope: number;
+    niche_summary: string | null;
+    niche_validated: boolean;
+  };
+  zone2: {
+    actions: PriorityAction[];
+    sparse_signal: boolean;
+    no_action_reason: string | null;
+  };
+  zone3: {
+    active_optimizations_count: number;
+    next_milestone_at: string | null;
+    search_performance_sparkline: SparkPoint[];
+    trend: string;
+  };
+  zone4: { completed_steps: string[]; pending_steps: PendingStep[] };
+  zone5: { alerts: Alert[] };
+  zone6: { ai_visibility_enabled: boolean; available_in: string };
+  banners: {
+    pilot_safe: boolean;
+    stale_snapshot: boolean;
+    bulk_apply_in_progress: { running: boolean; current: number; total: number };
+  };
+  generated_at: string;
 }
 
 interface LoaderData {
   shop: string;
   locale: Locale;
-  status: ShopStatus | null;
-  gsc: GSCStatus | null;
-  alerts: AlertSummary | null;
-  jobs: Job[];
-  backendOk: boolean;
+  plan: string;
+  dashboard: DashboardData | null;
+  error: string | null;
 }
 
-interface ActionData {
-  jobId?: string;
-  error?: string;
-}
-
-async function fetchJson<T>(
-  shop: string,
-  path: string,
-  accessToken: string | undefined
-): Promise<T | null> {
-  try {
-    const r = await callBackendForShop(shop, path, { accessToken });
-    if (!r.ok) return null;
-    return (await r.json()) as T;
-  } catch {
-    return null;
-  }
-}
+// ── Loader ────────────────────────────────────────────────────────────────────
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const locale = getLocale(request);
 
-  const [status, gsc, alerts, jobsResp] = await Promise.all([
-    fetchJson<ShopStatus>(shop, `/api/shops/${shop}/status`, session.accessToken),
-    fetchJson<GSCStatus>(shop, `/api/shops/${shop}/gsc/status`, session.accessToken),
-    fetchJson<AlertSummary>(shop, `/api/shops/${shop}/alerts/summary`, session.accessToken),
-    fetchJson<{ jobs: Job[] }>(
-      shop,
-      `/api/shops/${shop}/jobs?limit=3`,
-      session.accessToken
-    ),
-  ]);
+  // Detect plan from query param (forwarded from billing session) — defaults to "free"
+  const url = new URL(request.url);
+  const plan = (url.searchParams.get("plan") ?? "free") as "free" | "pro" | "agency";
 
-  const backendOk = status !== null;
-
-  return json<LoaderData>({
-    shop,
-    locale,
-    status,
-    gsc,
-    alerts,
-    jobs: jobsResp?.jobs ?? [],
-    backendOk,
-  });
-};
-
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = session.shop;
   try {
-    const resp = await callBackendForShop(shop, "/api/jobs", {
-      method: "POST",
-      accessToken: session.accessToken,
-      body: JSON.stringify({ queue: "seo_audit", shop }),
-    });
+    const resp = await callBackendForShop(
+      shop,
+      `/api/shops/${shop}/dashboard?plan=${plan}`,
+      { accessToken: session.accessToken }
+    );
     if (!resp.ok) {
-      return json<ActionData>({ error: `Erreur ${resp.status}` });
+      return json<LoaderData>({
+        shop, locale, plan,
+        dashboard: null,
+        error: `HTTP ${resp.status}`,
+      });
     }
-    const data = (await resp.json()) as { job_id: string };
-    return json<ActionData>({ jobId: data.job_id });
-  } catch {
-    return json<ActionData>({ error: "Service momentanément indisponible." });
+    const dashboard = (await resp.json()) as DashboardData;
+    return json<LoaderData>({ shop, locale, plan, dashboard, error: null });
+  } catch (err) {
+    return json<LoaderData>({
+      shop, locale, plan,
+      dashboard: null,
+      error: err instanceof Error ? err.message : "Network error",
+    });
   }
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// ── Score level helpers ────────────────────────────────────────────────────────
 
-interface SetupStep {
-  label: string;
-  done: boolean;
-  cta: string;
-  href: string;
-}
-
-function buildSetupSteps(
-  locale: Locale,
-  status: ShopStatus | null,
-  gsc: GSCStatus | null
-): SetupStep[] {
-  const fr = locale === "fr";
-  return [
-    {
-      label: fr ? "Boutique connectée" : "Store connected",
-      done: status?.installed ?? false,
-      cta: fr ? "Reconnecter" : "Reconnect",
-      href: "/app/account",
-    },
-    {
-      label: fr ? "Premier audit SEO lancé" : "First SEO audit run",
-      done: status?.snapshot_available ?? false,
-      cta: fr ? "Lancer l'audit" : "Run audit",
-      href: "/app/audit-hub",
-    },
-    {
-      label: fr ? "Google Search Console relié" : "Google Search Console linked",
-      done: gsc?.connected ?? false,
-      cta: fr ? "Connecter Google" : "Connect Google",
-      href: "/app/onboarding",
-    },
-    {
-      label: fr ? "Abonnement actif" : "Subscription active",
-      done: (status?.plan ?? "free") !== "free",
-      cta: fr ? "Choisir un plan" : "Choose a plan",
-      href: "/app/billing",
-    },
-  ];
-}
-
-const SEV_TONE = {
-  critical: "critical" as const,
-  error: "critical" as const,
-  warning: "warning" as const,
-  info: "info" as const,
+const LEVEL_TONES: Record<string, "success" | "info" | "warning" | "critical"> = {
+  excellent: "success",
+  bon: "info",
+  good: "info",
+  partiel: "warning",
+  partial: "warning",
+  faible: "critical",
+  low: "critical",
 };
 
-// ---------------------------------------------------------------------------
-// Components
-// ---------------------------------------------------------------------------
+const SEV_TONES: Record<string, "critical" | "warning" | "info"> = {
+  critical: "critical",
+  error: "critical",
+  warning: "warning",
+  info: "info",
+};
 
-function SetupCard({
-  steps,
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function DashboardHeader({
+  shop,
+  plan,
+  budget,
   locale,
 }: {
-  steps: SetupStep[];
+  shop: string;
+  plan: string;
+  budget: DashboardData["llm_budget"];
   locale: Locale;
 }) {
-  const done = steps.filter((s) => s.done).length;
-  const progress = Math.round((done / steps.length) * 100);
-  const fr = locale === "fr";
-  const nextStep = steps.find((s) => !s.done);
-
+  const planTone = plan === "agency" ? "success" : plan === "pro" ? "info" : undefined;
   return (
     <Card>
-      <BlockStack gap="400">
-        <BlockStack gap="200">
-          <InlineStack align="space-between" blockAlign="center">
-            <Text as="h2" variant="headingMd">
-              {fr ? "Configuration de votre boutique" : "Store setup"}
+      <InlineStack align="space-between" blockAlign="center" wrap={false}>
+        <InlineStack gap="200" blockAlign="center">
+          <Text as="p" variant="bodyMd" fontWeight="semibold">{shop}</Text>
+          <Badge tone={planTone}>{plan.charAt(0).toUpperCase() + plan.slice(1)}</Badge>
+        </InlineStack>
+        <Tooltip content={t(locale, "dashboardHeaderLLMBudget")}>
+          <BlockStack gap="050">
+            <Text as="p" variant="bodySm" tone="subdued">
+              {t(locale, "dashboardHeaderLLMBudget")}
             </Text>
-            <Badge tone={done === steps.length ? "success" : "attention"}>
-              {`${done}/${steps.length}`}
-            </Badge>
-          </InlineStack>
-          <ProgressBar progress={progress} size="small" />
-        </BlockStack>
-
-        <BlockStack gap="200">
-          {steps.map((step) => (
-            <InlineStack key={step.label} align="space-between" blockAlign="center">
-              <InlineStack gap="200" blockAlign="center">
-                <Badge tone={step.done ? "success" : "attention"}>
-                  {step.done
-                    ? locale === "fr" ? "Fait" : "Done"
-                    : locale === "fr" ? "À faire" : "To do"}
-                </Badge>
-                <Text as="span">{step.label}</Text>
-              </InlineStack>
-              {!step.done && (
-                <Link url={localizedPath(step.href, locale)} removeUnderline>
-                  {step.cta} →
-                </Link>
-              )}
+            <InlineStack gap="100" blockAlign="center">
+              <Text as="p" variant="bodyMd">
+                {budget.used_usd.toFixed(2)} $ / {budget.limit_usd.toFixed(0)} $
+              </Text>
+              <ProgressBar
+                progress={Math.min(budget.pct, 100)}
+                tone={budget.pct >= 80 ? "critical" : "highlight"}
+                size="small"
+              />
             </InlineStack>
-          ))}
-        </BlockStack>
+          </BlockStack>
+        </Tooltip>
+      </InlineStack>
+    </Card>
+  );
+}
 
-        {nextStep && (
-          <Box paddingBlockStart="200">
-            <Button
-              url={localizedPath(nextStep.href, locale)}
-              variant="primary"
-              fullWidth
-            >
-              {nextStep.cta}
-            </Button>
-          </Box>
+function Zone1({
+  data,
+  locale,
+}: {
+  data: DashboardData["zone1"];
+  locale: Locale;
+}) {
+  const level = data.global_level ?? "faible";
+  const tone = LEVEL_TONES[level] ?? "info";
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <Text as="h2" variant="headingMd">{t(locale, "dashboardZone1Title")}</Text>
+        {data.global_score !== null ? (
+          <InlineStack gap="300" blockAlign="center">
+            <Tooltip content={locale === "fr" ? "Score de préparation aux moteurs de recherche IA" : "AI search readiness score"}>
+              <Text as="p" variant="headingXl" fontWeight="bold">
+                {data.global_score}/100
+              </Text>
+            </Tooltip>
+            <Badge tone={tone}>{level}</Badge>
+            <Text as="p" tone="subdued">
+              {data.products_in_scope} {t(locale, "dashboardZone1Products")}
+            </Text>
+          </InlineStack>
+        ) : (
+          <Text as="p" tone="subdued">
+            {locale === "fr" ? "Importation Shopify en cours…" : "Shopify import in progress…"}
+          </Text>
         )}
+        <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+          <BlockStack gap="200">
+            <Text as="p" tone="subdued" variant="bodySm">{t(locale, "dashboardZone1Niche")}</Text>
+            {data.niche_summary ? (
+              <Text as="p">{data.niche_summary}</Text>
+            ) : (
+              <Text as="p" tone="subdued">{t(locale, "dashboardZone1NicheUnvalidated")}</Text>
+            )}
+            <Button url={localizedPath("/app/niche-understanding", locale)} variant="plain" size="slim">
+              {t(locale, "dashboardZone1Cta")}
+            </Button>
+          </BlockStack>
+        </Box>
       </BlockStack>
     </Card>
   );
 }
 
-function AlertsCard({
-  alerts,
+function ActionCard({
+  action,
   locale,
 }: {
-  alerts: AlertSummary | null;
+  action: PriorityAction;
   locale: Locale;
 }) {
-  const fr = locale === "fr";
-  const total = alerts?.total ?? 0;
-  const top = (alerts?.alerts ?? []).slice(0, 3);
+  const title = action.preview?.product_title ?? action.action_id;
+  const label = action.preview?.action_label ?? action.why_now;
+  return (
+    <Card>
+      <BlockStack gap="200">
+        <InlineStack gap="200" blockAlign="center">
+          <Badge tone="info">{`#${action.rank}`}</Badge>
+          <Text as="p" variant="bodyMd" fontWeight="semibold">{title}</Text>
+        </InlineStack>
+        <Text as="p">{label}</Text>
+        {action.why_now && action.why_now !== label && (
+          <Text as="p" tone="subdued" variant="bodySm">{action.why_now}</Text>
+        )}
+        <InlineStack gap="200">
+          {action.estimates?.effort && (
+            <Badge>{`${locale === "fr" ? "Effort" : "Effort"}: ${action.estimates.effort}`}</Badge>
+          )}
+          {action.estimates?.impact && (
+            <Badge tone="success">{`${locale === "fr" ? "Impact" : "Impact"}: ${action.estimates.impact}`}</Badge>
+          )}
+        </InlineStack>
+        <Button
+          url={localizedPath("/app/safe-apply", locale)}
+          variant="primary"
+          size="slim"
+        >
+          {t(locale, "dashboardZone2Cta")}
+        </Button>
+      </BlockStack>
+    </Card>
+  );
+}
+
+function Zone2({
+  data,
+  locale,
+}: {
+  data: DashboardData["zone2"];
+  locale: Locale;
+}) {
+  return (
+    <BlockStack gap="300">
+      <Text as="h2" variant="headingMd">{t(locale, "dashboardZone2Title")}</Text>
+      {data.actions.length === 0 ? (
+        <Card>
+          <Text as="p" tone="subdued">
+            {data.sparse_signal
+              ? t(locale, "dashboardZone2SparseSignal")
+              : t(locale, "dashboardZone2NoAction")}
+          </Text>
+        </Card>
+      ) : (
+        <>
+          {data.sparse_signal && (
+            <Banner tone="info">
+              <p>{t(locale, "dashboardZone2SparseSignal")}</p>
+            </Banner>
+          )}
+          <InlineGrid columns={{ xs: 1, sm: 1, md: 3 }} gap="300">
+            {data.actions.map((action) => (
+              <ActionCard key={action.action_id} action={action} locale={locale} />
+            ))}
+          </InlineGrid>
+        </>
+      )}
+    </BlockStack>
+  );
+}
+
+function Zone3({
+  data,
+  locale,
+}: {
+  data: DashboardData["zone3"];
+  locale: Locale;
+}) {
+  const trendTone =
+    data.trend === "up" ? "success" : data.trend === "down" ? "critical" : undefined;
+
   return (
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center">
-          <Text as="h2" variant="headingMd">
-            {fr ? "Alertes prioritaires" : "Top alerts"}
-          </Text>
-          <Badge tone={total === 0 ? "success" : "attention"}>
-            {String(total)}
-          </Badge>
+          <Text as="h2" variant="headingMd">{t(locale, "dashboardZone3Title")}</Text>
+          {data.trend !== "flat" && (
+            <Badge tone={trendTone}>{data.trend === "up" ? "↑" : "↓"}</Badge>
+          )}
         </InlineStack>
-
-        {total === 0 ? (
-          <Text as="p" tone="subdued">
-            {fr ? "Aucune alerte active. Tout est OK." : "No active alerts. All clear."}
-          </Text>
-        ) : (
-          <BlockStack gap="200">
-            {top.map((a, i) => (
-              <InlineStack key={i} gap="200" blockAlign="start" wrap={false}>
-                <Badge tone={SEV_TONE[a.severity] ?? "info"}>{a.severity}</Badge>
-                <Text as="span" variant="bodySm">
-                  {a.message}
+        {data.active_optimizations_count > 0 ? (
+          <>
+            <InlineStack gap="200" blockAlign="center">
+              <Text as="p" variant="headingLg" fontWeight="bold">
+                {data.active_optimizations_count}
+              </Text>
+              <Text as="p" tone="subdued">{t(locale, "dashboardZone3ActiveCount")}</Text>
+            </InlineStack>
+            {data.search_performance_sparkline.length > 0 && (
+              <Sparkline
+                data={data.search_performance_sparkline}
+                label={locale === "fr" ? "Vues Google (30 j)" : "Google views (30d)"}
+                formatValue={(v: number) => Math.round(v).toLocaleString("fr-FR")}
+              />
+            )}
+            {data.next_milestone_at && (
+              <InlineStack gap="200">
+                <Text as="p" tone="subdued" variant="bodySm">
+                  {t(locale, "dashboardZone3NextMilestone")} :{" "}
+                  {data.next_milestone_at.slice(0, 10)}
                 </Text>
               </InlineStack>
-            ))}
-            <Link url={localizedPath("/app/alerts", locale)} removeUnderline>
-              {fr ? "Voir toutes les alertes →" : "View all alerts →"}
-            </Link>
-          </BlockStack>
+            )}
+            <Button url={localizedPath("/app/impact", locale)} variant="secondary" size="slim">
+              {t(locale, "dashboardZone3Cta")}
+            </Button>
+          </>
+        ) : (
+          <Text as="p" tone="subdued">{t(locale, "dashboardZone3Empty")}</Text>
         )}
       </BlockStack>
     </Card>
   );
 }
 
-function ShortcutsCard({ locale }: { locale: Locale }) {
-  const fr = locale === "fr";
-  const hubs: { titleKey: string; href: string }[] = [
-    { titleKey: "hubAudit", href: "/app/audit-hub" },
-    { titleKey: "hubOptimization", href: "/app/optimization" },
-    { titleKey: "hubContent", href: "/app/content-hub" },
-    { titleKey: "hubInsights", href: "/app/insights" },
-  ];
+function Zone4({
+  data,
+  locale,
+}: {
+  data: DashboardData["zone4"];
+  locale: Locale;
+}) {
+  if (data.pending_steps.length === 0) return null;
+
+  const stepHref: Record<string, string> = {
+    gsc: "/app/onboarding",
+    ga4: "/app/onboarding",
+    niche: "/app/niche-understanding",
+    plan: "/app/billing",
+  };
+
   return (
     <Card>
-      <BlockStack gap="300">
-        <Text as="h2" variant="headingMd">
-          {fr ? "Accès rapide" : "Quick access"}
-        </Text>
-        <InlineGrid columns={{ xs: "1", sm: "2" }} gap="200">
-          {hubs.map((h) => (
-            <Button key={h.href} url={localizedPath(h.href, locale)} variant="secondary">
-              {t(locale, h.titleKey)}
+      <BlockStack gap="200">
+        <Text as="h2" variant="headingMd">{t(locale, "dashboardZone4Title")}</Text>
+        {data.pending_steps.map((step) => (
+          <InlineStack key={step.key} align="space-between" blockAlign="center">
+            <Text as="p">{step.label}</Text>
+            <Button
+              url={localizedPath(stepHref[step.key] ?? "/app/account", locale)}
+              variant="plain"
+              size="slim"
+            >
+              {locale === "fr" ? "Configurer" : "Set up"}
             </Button>
-          ))}
-        </InlineGrid>
+          </InlineStack>
+        ))}
       </BlockStack>
     </Card>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
+function Zone5({
+  data,
+  locale,
+}: {
+  data: DashboardData["zone5"];
+  locale: Locale;
+}) {
+  if (data.alerts.length === 0) return null;
+  return (
+    <BlockStack gap="200">
+      <Text as="h2" variant="headingMd">{t(locale, "dashboardZone5Title")}</Text>
+      {data.alerts.slice(0, 3).map((alert, idx) => (
+        <Banner
+          key={idx}
+          tone={SEV_TONES[alert.severity] ?? "info"}
+        >
+          <p>{alert.message}</p>
+        </Banner>
+      ))}
+    </BlockStack>
+  );
+}
 
-export default function Dashboard() {
-  const { shop, locale, status, gsc, alerts, jobs, backendOk } =
-    useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
-  const submit = useSubmit();
-  const fr = locale === "fr";
+function Zone6({ locale }: { locale: Locale }) {
+  return (
+    <Card>
+      <BlockStack gap="200">
+        <Text as="h2" variant="headingMd">{t(locale, "dashboardZone6Title")}</Text>
+        <Text as="p" tone="subdued">{t(locale, "dashboardZone6Body")}</Text>
+        <InlineStack>
+          <Badge>{t(locale, "aiVisibilityComingSoon")}</Badge>
+        </InlineStack>
+      </BlockStack>
+    </Card>
+  );
+}
 
-  const steps = buildSetupSteps(locale, status, gsc);
-  const runningJob = jobs.find((j) => j.status === "running");
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function IndexPage() {
+  const { locale, plan, dashboard, error } = useLoaderData<typeof loader>() as LoaderData;
+
+  if (error || !dashboard) {
+    return (
+      <Page title="Léonie SEO">
+        <Banner tone="critical" title={t(locale, "systemStatus")}>
+          <p>{error ?? t(locale, "systemUnavailable")}</p>
+        </Banner>
+      </Page>
+    );
+  }
+
+  const { banners, zone1, zone2, zone3, zone4, zone5, zone6 } = dashboard;
 
   return (
-    <Page
-      title={fr ? "Tableau de bord" : "Dashboard"}
-      subtitle={shop}
-      primaryAction={{
-        content: fr ? "Lancer un audit SEO" : "Run SEO audit",
-        onAction: () => submit({}, { method: "post" }),
-        loading: false,
-        disabled: !backendOk || !!runningJob,
-      }}
-    >
-      <BlockStack gap="500">
-        {!backendOk && (
-          <Banner tone="warning" title={t(locale, "systemStatus")}>
-            <Text as="p">{t(locale, "systemUnavailable")}</Text>
+    <Page title="Léonie SEO">
+      <BlockStack gap="400">
+        {/* Header — LLM budget */}
+        <DashboardHeader
+          shop={dashboard.shop}
+          plan={plan}
+          budget={dashboard.llm_budget}
+          locale={locale}
+        />
+
+        {/* Banners */}
+        {banners.pilot_safe && (
+          <Banner tone="warning">
+            <p>{t(locale, "dashboardPilotSafeBanner")}</p>
           </Banner>
         )}
-
-        {actionData?.jobId && (
-          <Banner tone="success">
-            <Text as="p">
-              {fr
-                ? `Audit en cours — tâche ${actionData.jobId.slice(0, 8)}…`
-                : `Audit running — job ${actionData.jobId.slice(0, 8)}…`}
-            </Text>
-          </Banner>
-        )}
-
-        {actionData?.error && (
-          <Banner tone="critical">
-            <Text as="p">{actionData.error}</Text>
-          </Banner>
-        )}
-
-        {runningJob && (
+        {banners.stale_snapshot && (
           <Banner tone="info">
-            <Text as="p">
-              {fr
-                ? `Une tâche est en cours d'exécution (${runningJob.queue}).`
-                : `A task is currently running (${runningJob.queue}).`}
-            </Text>
+            <p>{t(locale, "dashboardStaleSnapshot")}</p>
+          </Banner>
+        )}
+        {banners.bulk_apply_in_progress.running && (
+          <Banner tone="info">
+            <p>
+              {t(locale, "dashboardBulkApplyBanner")}{" "}
+              ({banners.bulk_apply_in_progress.current}/{banners.bulk_apply_in_progress.total})
+            </p>
           </Banner>
         )}
 
-        <InlineGrid columns={{ xs: "1", md: "twoThirds oneThird" }} gap="400">
-          <BlockStack gap="400">
-            <SetupCard steps={steps} locale={locale} />
-            <ShortcutsCard locale={locale} />
-          </BlockStack>
-          <BlockStack gap="400">
-            <AlertsCard alerts={alerts} locale={locale} />
-            <Card>
-              <BlockStack gap="200">
-                <Text as="h2" variant="headingMd">
-                  {fr ? "Activité récente" : "Recent activity"}
-                </Text>
-                {jobs.length === 0 ? (
-                  <Text as="p" tone="subdued">
-                    {fr
-                      ? "Aucune tâche récente."
-                      : "No recent activity."}
-                  </Text>
-                ) : (
-                  jobs.map((j) => (
-                    <InlineStack key={j.id} align="space-between" blockAlign="center">
-                      <Text as="span" variant="bodySm">
-                        {j.queue}
-                      </Text>
-                      <Badge
-                        tone={
-                          j.status === "completed"
-                            ? "success"
-                            : j.status === "failed"
-                            ? "critical"
-                            : j.status === "running"
-                            ? "info"
-                            : "attention"
-                        }
-                      >
-                        {j.status}
-                      </Badge>
-                    </InlineStack>
-                  ))
-                )}
-                <Link url={localizedPath("/app/jobs", locale)} removeUnderline>
-                  {fr ? "Voir toutes les tâches →" : "View all tasks →"}
-                </Link>
-              </BlockStack>
-            </Card>
-          </BlockStack>
-        </InlineGrid>
+        {/* Zone 1 — Store health */}
+        <Zone1 data={zone1} locale={locale} />
+
+        {/* Zone 2 — Priority actions */}
+        <Zone2 data={zone2} locale={locale} />
+
+        {/* Zone 3 — Ongoing optimizations */}
+        <Zone3 data={zone3} locale={locale} />
+
+        {/* Zone 4 — Onboarding (conditional) */}
+        <Zone4 data={zone4} locale={locale} />
+
+        {/* Zone 5 — Alerts (conditional) */}
+        <Zone5 data={zone5} locale={locale} />
+
+        {/* Zone 6 — AI Visibility (disabled V1) */}
+        <Zone6 locale={locale} />
       </BlockStack>
     </Page>
   );
