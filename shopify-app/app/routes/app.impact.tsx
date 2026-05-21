@@ -88,12 +88,51 @@ interface VerdictSummary {
   by_verdict: Record<string, number>;
 }
 
+interface NextMilestone {
+  label: string;
+  due_date: string;
+  days_remaining: number;
+}
+
+interface RetentionSummary {
+  has_active_events: boolean;
+  next_milestone: NextMilestone | null;
+  retention_message_fr: string;
+  retention_message_en: string;
+}
+
+interface NbaAction {
+  action_type: string;
+  priority: string;
+  rationale: string;
+}
+
+interface NbaSummary {
+  total_actions: number;
+  high_priority: number;
+}
+
+interface NbaSummaryData {
+  actions: NbaAction[];
+  summary: NbaSummary;
+}
+
+interface AiVisibilityStatus {
+  enabled: boolean;
+  available_in: string;
+  message_fr: string;
+  message_en: string;
+}
+
 interface LoaderData {
   shop: string;
   locale: Locale;
   curve: ProgressCurve | null;
   confidence: ConfidenceData | null;
   verdictSummary: VerdictSummary | null;
+  retention: RetentionSummary | null;
+  nba: NbaSummaryData | null;
+  aiVisibility: AiVisibilityStatus | null;
   error: string | null;
 }
 
@@ -115,11 +154,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     callBackendForShop(shop, path, { accessToken: session.accessToken });
 
   try {
-    const [curveResp, confResp, reportResp] = await Promise.allSettled([
-      be(`/api/shops/${shop}/geo/progress-curve?days=90`),
-      be(`/api/shops/${shop}/geo/confidence-scores`),
-      be(`/api/shops/${shop}/geo/impact-report`),
-    ]);
+    const [curveResp, confResp, reportResp, retentionResp, nbaResp, aiVisResp] =
+      await Promise.allSettled([
+        be(`/api/shops/${shop}/geo/progress-curve?days=90`),
+        be(`/api/shops/${shop}/geo/confidence-scores`),
+        be(`/api/shops/${shop}/geo/impact-report`),
+        be(`/api/shops/${shop}/geo/retention-milestones`),
+        be(`/api/shops/${shop}/geo/next-best-actions`),
+        be(`/api/shops/${shop}/ai-visibility/status`),
+      ]);
 
     if (curveResp.status === "rejected" || !curveResp.value.ok) {
       const status =
@@ -132,6 +175,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         curve: null,
         confidence: null,
         verdictSummary: null,
+        retention: null,
+        nba: null,
+        aiVisibility: null,
         error: status,
       });
     }
@@ -145,8 +191,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       reportResp.status === "fulfilled" && reportResp.value.ok
         ? ((await reportResp.value.json()) as { summary: VerdictSummary }).summary
         : null;
+    const retention =
+      retentionResp.status === "fulfilled" && retentionResp.value.ok
+        ? ((await retentionResp.value.json()) as RetentionSummary)
+        : null;
+    const nba =
+      nbaResp.status === "fulfilled" && nbaResp.value.ok
+        ? ((await nbaResp.value.json()) as NbaSummaryData)
+        : null;
+    const aiVisibility =
+      aiVisResp.status === "fulfilled" && aiVisResp.value.ok
+        ? ((await aiVisResp.value.json()) as AiVisibilityStatus)
+        : null;
 
-    return json<LoaderData>({ shop, locale, curve, confidence, verdictSummary, error: null });
+    return json<LoaderData>({
+      shop,
+      locale,
+      curve,
+      confidence,
+      verdictSummary,
+      retention,
+      nba,
+      aiVisibility,
+      error: null,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Network error";
     return json<LoaderData>({
@@ -155,6 +223,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       curve: null,
       confidence: null,
       verdictSummary: null,
+      retention: null,
+      nba: null,
+      aiVisibility: null,
       error: message,
     });
   }
@@ -173,7 +244,7 @@ const VERDICT_TONES: Record<string, "success" | "warning" | "critical" | undefin
 };
 
 export default function ImpactPage() {
-  const { locale, curve, confidence, verdictSummary, error } =
+  const { locale, curve, confidence, verdictSummary, retention, nba, aiVisibility, error } =
     useLoaderData<typeof loader>() as LoaderData;
 
   if (error || !curve) {
@@ -411,6 +482,91 @@ export default function ImpactPage() {
                 rows={optimRows}
               />
             )}
+          </BlockStack>
+        </Card>
+
+        {retention?.next_milestone && (
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">
+                {t(locale, "retentionNextMilestone")}
+              </Text>
+              <InlineStack gap="300" blockAlign="center">
+                <Badge tone="info">{retention.next_milestone.label}</Badge>
+                <Text as="p">
+                  {retention.next_milestone.due_date.slice(0, 10)}
+                  {retention.next_milestone.days_remaining > 0 && (
+                    <> — {retention.next_milestone.days_remaining} {t(locale, "retentionDaysRemaining")}</>
+                  )}
+                </Text>
+              </InlineStack>
+              <Text as="p" tone="subdued">
+                {locale === "fr"
+                  ? retention.retention_message_fr
+                  : retention.retention_message_en}
+              </Text>
+              <Button url={localizedPath("/app/retention-milestones", locale)} variant="plain">
+                {t(locale, "retentionLink")}
+              </Button>
+            </BlockStack>
+          </Card>
+        )}
+
+        {nba && nba.summary.total_actions > 0 && (
+          <Card>
+            <BlockStack gap="200">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h2" variant="headingMd">
+                  {t(locale, "nbaInlineSummary")}
+                </Text>
+                {nba.summary.high_priority > 0 && (
+                  <Badge tone="critical">
+                    {`${nba.summary.high_priority} ${t(locale, "nbaHighPriority")}`}
+                  </Badge>
+                )}
+              </InlineStack>
+              <BlockStack gap="100">
+                {nba.actions.slice(0, 3).map((action, idx) => (
+                  <InlineStack key={idx} gap="200" blockAlign="center">
+                    <Badge
+                      tone={
+                        action.priority === "high"
+                          ? "critical"
+                          : action.priority === "medium"
+                          ? "warning"
+                          : undefined
+                      }
+                    >
+                      {action.action_type}
+                    </Badge>
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      {action.rationale}
+                    </Text>
+                  </InlineStack>
+                ))}
+              </BlockStack>
+              <Button url={localizedPath("/app/next-best-actions", locale)} variant="plain">
+                {t(locale, "nbaViewAll")}
+              </Button>
+            </BlockStack>
+          </Card>
+        )}
+
+        <Card>
+          <BlockStack gap="200">
+            <Text as="h2" variant="headingMd">
+              {t(locale, "aiVisibilityTitle")}
+            </Text>
+            <Banner tone="info">
+              <p>
+                {aiVisibility
+                  ? locale === "fr"
+                    ? aiVisibility.message_fr
+                    : aiVisibility.message_en
+                  : t(locale, "aiVisibilityDisabledV1")}
+              </p>
+            </Banner>
+            <Badge>{t(locale, "aiVisibilityComingSoon")}</Badge>
           </BlockStack>
         </Card>
 

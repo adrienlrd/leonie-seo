@@ -834,7 +834,7 @@ L'app expose six modules métier au lieu de la liste actuelle d'outils :
 | 144 | Priority Engine Runtime — produire exactement 3 actions prioritaires avec fallback déterministe, arbitrage LLM plafonné/cache, route `/priorities`, UI cartes et tests budget/fallback | 🔴 | ✅ | 2026-05-20 |
 | 145 | AI Content Actions Runtime — créer l'orchestrateur unique, schémas Pydantic, prompts v2.0, table `content_actions`, route `/content-actions/run` et UI unifiée | 🔴 | ✅ | 2026-05-20 |
 | 146 | Safe Apply Runtime — créer diff/decisions/writer adapters/rollback adapters, routes `/safe-apply/*`, extension des content types, UI review/apply/rollback et tests de garde-fous | 🔴 | ✅ | 2026-05-21 |
-| 147 | Impact Tracker Productization — recentrer l'UI Impact autour de Search Performance, optimisations actives, rétention, next actions, ajouter `ai-visibility/status` désactivé V1 | 🟡 | ⏳ | |
+| 147 | Impact Tracker Productization — recentrer l'UI Impact autour de Search Performance, optimisations actives, rétention, next actions, ajouter `ai-visibility/status` désactivé V1 | 🟡 | ✅ | 2026-05-21 |
 | 148 | Merchant Dashboard Runtime — créer `GET /api/shops/{shop}/dashboard`, refondre `app._index.tsx` en 6 zones, renommer la navigation et valider responsive/Playwright | 🔴 | ⏳ | |
 | 149 | Launch Readiness Evidence Pass — exécuter `docs/launch-readiness.md` §3, cocher chaque critère avec preuve, ouvrir les manques restants et documenter la décision dans `DECISIONS.md` | 🔴 | ⏳ | |
 
