@@ -1,11 +1,12 @@
 import "@shopify/shopify-app-remix/adapters/node";
+import path from "node:path";
 import {
   AppDistribution,
   DeliveryMethod,
   LATEST_API_VERSION,
   shopifyApp,
 } from "@shopify/shopify-app-remix/server";
-import { MemorySessionStorage } from "@shopify/shopify-app-session-storage-memory";
+import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
 import { PostgreSQLSessionStorage } from "@shopify/shopify-app-session-storage-postgresql";
 
 // Use Postgres session storage when DATABASE_URL is configured (production + staging).
@@ -25,7 +26,9 @@ const databaseUrl = process.env.DATABASE_URL
 
 const sessionStorage = databaseUrl
   ? (new PostgreSQLSessionStorage(databaseUrl) as unknown)
-  : (new MemorySessionStorage() as unknown);
+  : (new SQLiteSessionStorage(
+      path.resolve(process.cwd(), "../data/shopify-sessions.db")
+    ) as unknown);
 const appUrl = process.env.SHOPIFY_APP_URL || "";
 const skipWebhookRegistration = (() => {
   try {
@@ -37,9 +40,8 @@ const skipWebhookRegistration = (() => {
 })();
 
 if (!process.env.DATABASE_URL) {
-  console.warn(
-    "[shopify.server] DATABASE_URL not set — sessions will not persist across restarts. " +
-      "Set DATABASE_URL in shopify-app/.env for production use."
+  console.info(
+    "[shopify.server] DATABASE_URL not set — using SQLite session storage at data/shopify-sessions.db"
   );
 }
 
