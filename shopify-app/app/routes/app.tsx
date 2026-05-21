@@ -28,8 +28,9 @@ export default function App() {
           {t(locale, "dashboard")}
         </a>
         <a href={localizedPath("/app/audit-hub", locale)}>{t(locale, "hubAudit")}</a>
-        <a href={localizedPath("/app/safe-apply", locale)}>{t(locale, "hubOptimization")}</a>
-        <a href={localizedPath("/app/impact", locale)}>{t(locale, "hubInsights")}</a>
+        <a href={localizedPath("/app/optimization", locale)}>{t(locale, "hubOptimization")}</a>
+        <a href={localizedPath("/app/content-hub", locale)}>{t(locale, "hubContent")}</a>
+        <a href={localizedPath("/app/insights", locale)}>{t(locale, "hubInsights")}</a>
         <a href={localizedPath("/app/account", locale)}>{t(locale, "hubSettings")}</a>
       </NavMenu>
       <Outlet />
