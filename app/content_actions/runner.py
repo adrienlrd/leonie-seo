@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -68,6 +69,19 @@ _CACHE_TTL_MAP: dict[ContentType, int] = {
     ContentType.BUYING_GUIDE: 30 * 24,
     ContentType.JSONLD_FAQPAGE: 0,
 }
+
+_LOW_COST_ONLY_ENV = "LEONIE_LLM_LOW_COST_ONLY"
+
+
+def _effective_tier(content_type: ContentType) -> str:
+    """Return the LLM tier for a content type, respecting LEONIE_LLM_LOW_COST_ONLY."""
+    base = _LLM_TIER_MAP.get(content_type, "low-cost")
+    if base == "deterministic":
+        return "deterministic"
+    if os.getenv(_LOW_COST_ONLY_ENV, "").lower() in ("1", "true"):
+        return "low-cost"
+    return base
+
 
 _MAX_RETRIES = 3
 
@@ -367,7 +381,7 @@ def _call_llm(
     cached = _llm_cache_lookup(shop, ct, prompt_template.version, content_hash, db_path=db_path)
     if cached is not None:
         return str(cached.get("text", "")), LLMMeta(
-            tier=_LLM_TIER_MAP.get(ct, "low-cost"),
+            tier=_effective_tier(ct),
             prompt_version=prompt_template.version,
             cache_hit=True,
         )
@@ -389,7 +403,7 @@ def _call_llm(
 
     text = completion.text.strip()
     meta = LLMMeta(
-        tier=_LLM_TIER_MAP.get(ct, "low-cost"),
+        tier=_effective_tier(ct),
         provider=completion.provider,
         model=completion.model,
         prompt_version=prompt_template.version,

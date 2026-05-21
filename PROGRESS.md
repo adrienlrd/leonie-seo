@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-21** (Phase 11.8 — tâche 148)
+- Dernière session : **2026-05-21** (Phase 11.8 — tâche 149)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -16,10 +16,10 @@
 - Phase 11.5 : **10/10** ✅ (GEO Impact Validation & Retention Loop, tâches 116-125)
 - Phase 11.6 : **1/1** ✅ (GEO FAQ & Buying Guide Automation, tâche 126)
 - Phase 11.7 : **12/12** ✅ (cadrage GEO Autopilot Simplification, tâches 127-138)
-- Phase 11.8 : **8/11** ⏳ (implémentation GEO Autopilot Simplification, tâches 139-149)
+- Phase 11.8 : **11/11** ✅ (implémentation GEO Autopilot Simplification, tâches 139-149, terminée 2026-05-21)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 150-151)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : dernière validation complète tâche 146 — `ruff check .` ✅, `pytest` **1507 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
+- Tests : dernière validation complète tâche 149 — `ruff check .` ✅, `pytest` **1520 passed** ✅, `npm run typecheck` ✅.
 
 ## Phase 11.8 — Implémentation GEO Autopilot Simplification le 2026-05-20
 
@@ -36,7 +36,52 @@ Transformer le cadrage Phase 11.7 en fonctionnalités produit testées avant le 
 
 ### Prochaine tâche recommandée
 
-- **148 — Merchant Dashboard Runtime** : créer `GET /api/shops/{shop}/dashboard`, refondre `app._index.tsx` en 6 zones, renommer la navigation et valider responsive/Playwright.
+- **149 — Launch Readiness Evidence Pass** : exécuter la checklist §3.1-§3.13, documenter le verdict dans `DECISIONS.md`.
+
+## Tâche 149 — Launch Readiness Evidence Pass le 2026-05-21
+
+### Objectif
+
+Exécuter mécaniquement la checklist `docs/launch-readiness.md` §3.1 → §3.13 (13 catégories, ~50 critères), corriger les gaps identifiés et documenter la décision go/no-go dans `DECISIONS.md`.
+
+### Réalisations
+
+**Audit des 13 catégories §3 :**
+- §3.1 Compréhension marchand : 4/5 ✅ (1 critère ⏳ : test utilisateur 3 marchands — exige validation humaine)
+- §3.2 3 actions prioritaires : 5/5 ✅ (après fix `LEONIE_LLM_LOW_COST_ONLY`)
+- §3.3 IA assistante : 5/5 ✅
+- §3.4 Mesure d'impact : 7/7 ✅
+- §3.5 Scope produit V1 : 4/4 ✅
+- §3.6 Sans Screaming Frog : 5/5 ✅ (après correction CrawlCard.tsx)
+- §3.7 Pas de promesse non prouvée : 4/4 ✅
+- §3.8 Google/IA séparés : 3/3 ✅
+- §3.9 Coût LLM maîtrisé : 10/10 ✅ (après fix `LEONIE_LLM_LOW_COST_ONLY`)
+- §3.10 Rollback opérationnel : 4/4 ✅ (après fix TTL 90 jours)
+- §3.11 Dry-run par défaut : 5/5 ✅
+- §3.12 Dashboard impact lisible : 3/4 ✅ (1 critère ⏳ : test utilisateur)
+- §3.13 Niche gating : 4/4 ✅
+
+**Corrections intégrées (3 bugs réels trouvés) :**
+1. `app/content_actions/runner.py` — ajout `_effective_tier()` avec `LEONIE_LLM_LOW_COST_ONLY` env var override
+2. `app/api/rollback.py` — TTL 90 jours : `confirm_stale_revert` field, 409 sur revert stale, `stale_warning` en dry-run, `applied_at` ajouté à la SELECT query
+3. `shopify-app/app/components/onboarding/CrawlCard.tsx` — "obligatoire" → "optionnel — mode avancé", description mise à jour, `required` retiré de l'input
+4. `shopify-app/app/components/onboarding/InstallationChecklistCard.tsx` — libellé SF mis à jour
+
+**Tests ajoutés :**
+- `tests/test_content_actions/test_runner.py` — 3 tests `_effective_tier` (low-cost env, déterministe préservé, normal sans env)
+- `tests/test_api/test_rollback.py` — 1 test TTL stale (dry-run + stale_warning, 409 sans confirm_stale, reverted avec confirm_stale)
+
+**Décision dans `DECISIONS.md` :** NO-GO Phase 12 à ce jour — bloquant unique : test utilisateur 3 marchands pilotes (§3.1 + §3.12).
+
+### Validations
+
+- `ruff check .` ✅
+- `pytest` **1520 passed** ✅ (+4 nouveaux)
+- `npm run typecheck` ✅ (0 erreur TypeScript)
+
+### Prochaine tâche recommandée
+
+- **Phase 12** : Planifier les 3 sessions test utilisateur marchand (compréhension < 5 min + dashboard impact lisible). Dès validation humaine OK → tâche 150 go/no-go final.
 
 ## Tâche 145 — AI Content Actions Runtime le 2026-05-20
 

@@ -120,8 +120,8 @@ export function InstallationChecklistCard({
                   locale === "fr" ? "problèmes" : "issues"
                 }`
               : locale === "fr"
-              ? "Exporter un CSV Screaming Frog et l'importer"
-              : "Export a Screaming Frog CSV and import it"
+              ? "Crawl automatique actif (CSV Screaming Frog optionnel)"
+              : "Auto-crawl active (Screaming Frog CSV optional)"
           }
         />
       </BlockStack>

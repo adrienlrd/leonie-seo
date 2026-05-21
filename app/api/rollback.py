@@ -16,6 +16,8 @@ from app.apply.shopify_writer import ShopifyWriter
 from app.db_adapter import DB_PATH, get_conn
 from app.safety import require_shopify_write_allowed
 
+_ROLLBACK_TTL_DAYS = 90
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["rollback"])
@@ -126,6 +128,7 @@ async def get_rollback_history(
 class RevertRequest(BaseModel):
     dry_run: bool = True
     confirm_live_write: bool = False
+    confirm_stale_revert: bool = False
 
 
 @router.post("/shops/{shop}/rollback/{change_id}/revert")
@@ -146,7 +149,7 @@ async def revert_change(
     """
     with get_conn(DB_PATH) as conn:
         row = conn.execute(
-            """SELECT id, resource_type, resource_id, field, old_value, status
+            """SELECT id, applied_at, resource_type, resource_id, field, old_value, status
                FROM seo_changes WHERE id = ? AND shop = ?""",
             (change_id, ctx.shop),
         ).fetchone()
@@ -158,6 +161,23 @@ async def revert_change(
     old_value: str | None = row["old_value"]
     resource_id: str = row["resource_id"]
     status: str = row["status"]
+
+    applied_at_str: str = row.get("applied_at", "") or ""
+    try:
+        applied_dt = datetime.fromisoformat(applied_at_str)
+        age_days = (datetime.now(UTC) - applied_dt).days
+    except (ValueError, TypeError):
+        age_days = 0
+
+    if age_days > _ROLLBACK_TTL_DAYS and not body.dry_run and not body.confirm_stale_revert:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Change {change_id} is {age_days} days old "
+                f"(TTL: {_ROLLBACK_TTL_DAYS} days). "
+                "Add confirm_stale_revert=true to confirm revert of stale change."
+            ),
+        )
 
     if status != "applied":
         raise HTTPException(
@@ -182,12 +202,19 @@ async def revert_change(
     )
 
     if body.dry_run:
-        return {
+        result_preview: dict = {
             "change_id": change_id,
             "dry_run": True,
             "status": "preview",
             "detail": f"Would restore {field} to {old_value!r} on {resource_id}",
+            "age_days": age_days,
         }
+        if age_days > _ROLLBACK_TTL_DAYS:
+            result_preview["stale_warning"] = (
+                f"Change is {age_days} days old (> {_ROLLBACK_TTL_DAYS}-day TTL). "
+                "Add confirm_stale_revert=true when applying."
+            )
+        return result_preview
 
     writer = ShopifyWriter(ctx.shop, ctx.access_token)
 

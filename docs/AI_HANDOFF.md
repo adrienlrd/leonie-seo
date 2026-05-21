@@ -5,10 +5,23 @@
 - **Summary:** Léonie SEO est une app Shopify embedded + moteur Python/FastAPI/CLI pour audit SEO, recommandations supervisées, contenus, données structurées, jobs async, intégrations Shopify/Google/LLM et garde-fous dry-run.
 - **Main stack:** Python 3.11+, FastAPI, Click, pytest, ruff, Remix, React, TypeScript, Shopify App Bridge, Shopify Polaris, npm.
 - **Main working areas:** `app/`, `scripts/`, `shopify-app/`, `config/`, `docs/`, `tests/`.
-- **Current roadmap:** Phase 10 clôturée. Phase 11 terminée. Phase 11.5 complète. Phase 11.6 complète. **Phase 11.7 documentée intégralement (12/12 tâches 127-138 ✅, GEO Autopilot Simplification before Public Launch).** **Phase 11.8 en implémentation applicative (10/11 tâches terminées, 139-148 ✅, 149 ⏳)** pour porter le cadrage 11.7 en backend/API/UI/tests/preuves. Phase 12 renumérotée en tâches 150-151 (go/no-go + soumission publique Shopify App Store), à démarrer seulement après la tâche 149.
+- **Current roadmap:** Phase 10 clôturée. Phase 11 terminée. Phase 11.5 complète. Phase 11.6 complète. **Phase 11.7 documentée intégralement (12/12 tâches 127-138 ✅).** **Phase 11.8 complète (11/11 tâches 139-149 ✅, terminée 2026-05-21).** **Phase 12 (tâches 150-151) en attente de test utilisateur sur 3 marchands pilotes — seul critère bloquant restant pour le go/no-go App Store.**
 - **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Le dashboard Impact V1 est livré avec courbes sparklines SVG + score de confiance par optimisation. Crawl L3 existe côté backend/API, mais l'UI Audit n'a pas encore été recentrée autour du bouton natif et les plafonds Free/Pro/Agency ne sont pas encore appliqués par plan. Niche Understanding est disponible, mais les modules aval ne consomment pas encore automatiquement l'hypothèse validée.
 
 ## Last completed task
+
+- **Date:** 2026-05-21
+- **Agent:** Claude Code (Sonnet 4.6)
+- **Goal:** Task 149 — Launch Readiness Evidence Pass.
+- **Summary:** Audit mécanique complet des 13 catégories §3.1-§3.13 de `docs/launch-readiness.md` (50+ critères). Résultat : 3 vrais bugs trouvés et corrigés. Verdict `DECISIONS.md` : **NO-GO Phase 12** — bloquant unique = test utilisateur 3 marchands pilotes (§3.1 + §3.12, exigence humaine non substituable par audit interne). Toutes les vérifications techniques passent.
+- **Files created:** (aucun nouveau fichier)
+- **Files modified:** `app/content_actions/runner.py` (ajout `_effective_tier`, `os` import, `_LOW_COST_ONLY_ENV`), `app/api/rollback.py` (TTL 90j : `_ROLLBACK_TTL_DAYS`, `confirm_stale_revert` dans `RevertRequest`, check 409 + `stale_warning` + `age_days` dans dry_run response, `applied_at` ajouté à SELECT), `shopify-app/app/components/onboarding/CrawlCard.tsx` (texte "obligatoire"→"optionnel — mode avancé", description mini-crawl automatique, `required` retiré), `shopify-app/app/components/onboarding/InstallationChecklistCard.tsx` (libellé SF optionnel), `tests/test_content_actions/test_runner.py` (+3 tests `_effective_tier`), `tests/test_api/test_rollback.py` (+1 test TTL stale, `timedelta` import), `DECISIONS.md`, `ROADMAP.md`, `PROGRESS.md`, `docs/AI_HANDOFF.md`.
+- **Validations run:** `ruff check .` ✅ ; `pytest` **1520 passed** ✅ ; `npm run typecheck` ✅.
+- **Decisions made:** `_effective_tier()` préserve "deterministic" même si `LEONIE_LLM_LOW_COST_ONLY=true` — on ne peut pas downgrader le déterministe. Rollback TTL utilise `confirm_stale_revert: bool = False` champ séparé plutôt que réutiliser `confirm_live_write` — sémantique plus explicite. `applied_at` manquait dans la SELECT `revert_change` — bug latent depuis Task 146, corrigé.
+- **Open issues:** Test utilisateur sur 3 marchands pilotes (§3.1 et §3.12) — seul critère ⏳ restant pour le go/no-go App Store. Non implémentable par code, exige planification humaine.
+- **Next recommended action:** Planifier les 3 sessions test utilisateur marchands pilotes. Dès validation humaine OK → **tâche 150 — Décision finale go/no-go App Store.**
+
+## Previous completed task
 
 - **Date:** 2026-05-21
 - **Agent:** Claude Code (Sonnet 4.6)

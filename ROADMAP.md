@@ -836,7 +836,7 @@ L'app expose six modules métier au lieu de la liste actuelle d'outils :
 | 146 | Safe Apply Runtime — créer diff/decisions/writer adapters/rollback adapters, routes `/safe-apply/*`, extension des content types, UI review/apply/rollback et tests de garde-fous | 🔴 | ✅ | 2026-05-21 |
 | 147 | Impact Tracker Productization — recentrer l'UI Impact autour de Search Performance, optimisations actives, rétention, next actions, ajouter `ai-visibility/status` désactivé V1 | 🟡 | ✅ | 2026-05-21 |
 | 148 | Merchant Dashboard Runtime — créer `GET /api/shops/{shop}/dashboard`, refondre `app._index.tsx` en 6 zones, renommer la navigation et valider responsive/Playwright | 🔴 | ✅ | 2026-05-21 |
-| 149 | Launch Readiness Evidence Pass — exécuter `docs/launch-readiness.md` §3, cocher chaque critère avec preuve, ouvrir les manques restants et documenter la décision dans `DECISIONS.md` | 🔴 | ⏳ | |
+| 149 | Launch Readiness Evidence Pass — exécuter `docs/launch-readiness.md` §3, cocher chaque critère avec preuve, ouvrir les manques restants et documenter la décision dans `DECISIONS.md` | 🔴 | ✅ | 2026-05-21 |
 
 ### Ordre recommandé Phase 11.8
 

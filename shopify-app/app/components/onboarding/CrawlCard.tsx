@@ -17,7 +17,7 @@ interface Props {
   actionData: OnboardingActionData | undefined;
 }
 
-/** Screaming Frog CSV upload + technical crawl summary. */
+/** Screaming Frog CSV upload — optional advanced mode. Mini-crawl runs automatically without it. */
 export function CrawlCard({ locale, crawl, actionData }: Props) {
   const navigation = useNavigation();
   const fr = locale === "fr";
@@ -37,8 +37,8 @@ export function CrawlCard({ locale, crawl, actionData }: Props) {
         </InlineStack>
         <Text as="p" tone="subdued">
           {fr
-            ? "Importez un export CSV Screaming Frog (vue « Internal ») pour détecter les 404, chaînes de redirection, canonicals et titres dupliqués."
-            : "Import a Screaming Frog CSV export (Internal view) to detect 404s, redirect chains, canonicals, and duplicate titles."}
+            ? "L'audit technique s'exécute automatiquement sans Screaming Frog. Importez un CSV (mode avancé) pour enrichir la détection des 404, redirections et canonicals dupliqués."
+            : "The technical audit runs automatically without Screaming Frog. Import a CSV (advanced mode) to enhance detection of 404s, redirect chains, and duplicate canonicals."}
         </Text>
         {crawl?.available && (
           <InlineGrid columns={["oneThird", "oneThird", "oneThird"]} gap="300">
@@ -75,11 +75,11 @@ export function CrawlCard({ locale, crawl, actionData }: Props) {
             <label htmlFor="crawl-overview">
               <Text as="p" variant="bodySm">
                 {fr
-                  ? "Overview CSV (obligatoire — export « Internal » Screaming Frog)"
-                  : "Overview CSV (required — Screaming Frog \"Internal\" export)"}
+                  ? "Overview CSV (optionnel — export « Internal » Screaming Frog)"
+                  : "Overview CSV (optional — Screaming Frog \"Internal\" export)"}
               </Text>
             </label>
-            <input id="crawl-overview" type="file" name="overview" accept=".csv" required />
+            <input id="crawl-overview" type="file" name="overview" accept=".csv" />
             <label htmlFor="crawl-redirects">
               <Text as="p" variant="bodySm">
                 {fr

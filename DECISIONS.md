@@ -4,6 +4,54 @@
 
 ---
 
+## 2026-05-21 — Go/No-Go App Store : NO-GO Phase 12 (tâche 149)
+
+**Contexte :** Tâche 149 — exécution de la checklist `docs/launch-readiness.md` §3.1 → §3.13 avant soumission App Store (Phase 12). Audit mécanique avec preuves sur code base courante (1520 tests verts).
+
+**Décision : NO-GO Phase 12 à date du 2026-05-21**
+
+Trois critères §3 non satisfaits avant corrections intégrées dans cette tâche ; un critère §3.1 ne peut pas être validé par audit interne :
+
+| Critère | §Spec | Statut avant tâche 149 | Statut après remédiation |
+|---|---|---|---|
+| `LEONIE_LLM_LOW_COST_ONLY` env var opérationnel | §3.2 / §3.9 | ❌ non implémenté | ✅ implémenté (`_effective_tier()` dans `runner.py`) |
+| Rollback TTL 90 jours avec avertissement | §3.10 | ❌ absent | ✅ implémenté (`confirm_stale_revert`, 409 + `stale_warning`) |
+| Screaming Frog décrit comme "obligatoire" dans l'UI | §3.6 | ❌ `CrawlCard.tsx` texte "obligatoire" / "required" | ✅ corrigé en "optionnel — mode avancé" |
+| Test utilisateur sur 3 marchands pilotes (§3.1 + §3.12) | §3.1 §3.12 | ⏳ non réalisé | ⏳ **bloquant permanent** |
+
+**Critère non contournable :**
+`docs/launch-readiness.md §7` est explicite : *« Test utilisateur sur 3 marchands pilotes est exigé pour §3.1 et §3.12 — pas négociable, pas remplaçable par 'test interne'. »* Ce critère exige une validation humaine réelle par 3 marchands (compréhension < 5 min + dashboard impact lisible). Aucun audit code ne peut le substituer.
+
+**Résumé de l'audit post-remédiation (13 catégories) :**
+
+| Section | Critères | Statut |
+|---|---|---|
+| §3.1 — Compréhension marchand | 5 | ✅×4 / ⏳×1 (test utilisateur) |
+| §3.2 — 3 actions prioritaires | 5 | ✅×5 |
+| §3.3 — IA assistante | 5 | ✅×5 |
+| §3.4 — Mesure d'impact | 7 | ✅×7 |
+| §3.5 — Scope produit V1 | 4 | ✅×4 |
+| §3.6 — Sans Screaming Frog | 5 | ✅×5 |
+| §3.7 — Pas de promesse non prouvée | 4 | ✅×4 |
+| §3.8 — Google/IA séparés | 3 | ✅×3 |
+| §3.9 — Coût LLM maîtrisé | 10 | ✅×10 |
+| §3.10 — Rollback opérationnel | 4 | ✅×4 |
+| §3.11 — Dry-run par défaut | 5 | ✅×5 |
+| §3.12 — Dashboard impact lisible | 4 | ✅×3 / ⏳×1 (test utilisateur) |
+| §3.13 — Niche gating | 4 | ✅×4 |
+
+**GO conditionnel à :** Réalisation du test utilisateur sur 3 marchands pilotes (§3.1 et §3.12). Toutes les autres implémentations techniques sont complètes et validées par tests.
+
+**Remédiation intégrée dans la tâche 149 :**
+- `app/content_actions/runner.py` : `_effective_tier()` + `LEONIE_LLM_LOW_COST_ONLY` support
+- `app/api/rollback.py` : TTL 90 jours, `confirm_stale_revert`, `stale_warning` en dry-run
+- `shopify-app/app/components/onboarding/CrawlCard.tsx` : "obligatoire" → "optionnel — mode avancé"
+- `shopify-app/app/components/onboarding/InstallationChecklistCard.tsx` : libellé SF mis à jour
+
+**Prochaine action :** Planifier les 3 sessions test utilisateur avec marchands pilotes. Go Phase 12 possible dès validation humaine OK.
+
+---
+
 ## 2026-05-12 — Real-store pilot uses a separate custom-distribution Shopify app
 
 **Context:** Léonie SEO needs real merchant feedback on `leoniedelacroix.com` before the public App Store launch, but Shopify distribution type is a long-lived product choice.

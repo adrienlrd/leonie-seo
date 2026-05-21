@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -228,6 +228,55 @@ def test_revert_live_calls_writer(client, db_with_changes) -> None:
     with sqlite3.connect(db) as conn:
         row = conn.execute("SELECT status FROM seo_changes WHERE id = ?", (change_id,)).fetchone()
     assert row[0] == "reverted"
+
+
+def test_revert_stale_change_requires_confirm_stale(client, tmp_path) -> None:
+    """Change > 90 days old must require confirm_stale_revert=true for live writes."""
+    db = tmp_path / "stale.db"
+    stale_date = (datetime.now(UTC) - timedelta(days=100)).isoformat()
+    with sqlite3.connect(db) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS seo_changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            shop TEXT, applied_at TEXT NOT NULL,
+            resource_type TEXT NOT NULL, resource_id TEXT NOT NULL,
+            field TEXT NOT NULL, old_value TEXT, new_value TEXT,
+            status TEXT NOT NULL)""")
+        conn.execute(
+            "INSERT INTO seo_changes VALUES (1,?,?,?,?,?,?,?,?)",
+            (SHOP, stale_date, "product", "gid://shopify/Product/99",
+             "seo.title", "Old Stale", "New Stale", "applied"),
+        )
+
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.rollback.DB_PATH", db),
+    ):
+        # dry_run → OK but should include stale_warning
+        resp_dry = client.post(
+            f"/api/shops/{SHOP}/rollback/1/revert",
+            json={"dry_run": True},
+        )
+        assert resp_dry.status_code == 200
+        assert resp_dry.json().get("stale_warning") is not None
+
+        # live without confirm_stale_revert → 409
+        resp_live = client.post(
+            f"/api/shops/{SHOP}/rollback/1/revert",
+            json={"dry_run": False, "confirm_live_write": True, "confirm_stale_revert": False},
+        )
+        assert resp_live.status_code == 409
+        assert "90" in resp_live.json()["detail"]
+
+        # live with confirm_stale_revert → proceeds (writer called)
+        mock_result = MagicMock(applied=True, error=None)
+        with patch("app.api.rollback.ShopifyWriter") as MockWriter:
+            MockWriter.return_value.apply_product_seo.return_value = mock_result
+            resp_confirm = client.post(
+                f"/api/shops/{SHOP}/rollback/1/revert",
+                json={"dry_run": False, "confirm_live_write": True, "confirm_stale_revert": True},
+            )
+        assert resp_confirm.status_code == 200
+        assert resp_confirm.json()["status"] == "reverted"
 
 
 def test_log_seo_change_writes_to_db(tmp_path: Path) -> None:

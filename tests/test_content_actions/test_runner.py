@@ -197,6 +197,31 @@ def test_run_jsonld_faqpage_requires_previous_content():
         )
 
 
+def test_low_cost_only_env_var_forces_low_cost_tier(monkeypatch):
+    from app.content_actions.runner import _effective_tier  # noqa: PLC0415
+
+    monkeypatch.setenv("LEONIE_LLM_LOW_COST_ONLY", "true")
+    assert _effective_tier(ContentType.PRODUCT_DESCRIPTION) == "low-cost"
+    assert _effective_tier(ContentType.FAQ_BLOCK) == "low-cost"
+    assert _effective_tier(ContentType.META_TITLE) == "low-cost"
+
+
+def test_low_cost_only_env_var_preserves_deterministic(monkeypatch):
+    from app.content_actions.runner import ContentType as CT  # noqa: PLC0415
+    from app.content_actions.runner import _effective_tier  # noqa: PLC0415
+
+    monkeypatch.setenv("LEONIE_LLM_LOW_COST_ONLY", "true")
+    assert _effective_tier(CT.JSONLD_FAQPAGE) == "deterministic"
+
+
+def test_effective_tier_returns_normal_when_env_unset(monkeypatch):
+    from app.content_actions.runner import _effective_tier  # noqa: PLC0415
+
+    monkeypatch.delenv("LEONIE_LLM_LOW_COST_ONLY", raising=False)
+    assert _effective_tier(ContentType.PRODUCT_DESCRIPTION) == "medium"
+    assert _effective_tier(ContentType.META_TITLE) == "low-cost"
+
+
 def test_run_meta_title_with_validated_niche():
     from app.content_actions.runner import run_content_action  # noqa: PLC0415
 
