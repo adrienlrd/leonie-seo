@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useActionData, useLoaderData, useSubmit } from "@remix-run/react";
+import { Form, useActionData, useLoaderData, useNavigation } from "@remix-run/react";
 import { useEffect, useState } from "react";
 import {
   Badge,
@@ -184,22 +184,15 @@ function JsonEditor({
 export default function NicheUnderstanding() {
   const { locale, data, error } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const submit = useSubmit();
+  const navigation = useNavigation();
   const hypothesis = data?.hypothesis;
   const [draftJson, setDraftJson] = useState("");
+  const submitting = navigation.state !== "idle";
+  const submittingAction = String(navigation.formData?.get("_action") || "");
 
   useEffect(() => {
     setDraftJson(hypothesis ? JSON.stringify(hypothesis, null, 2) : "");
   }, [hypothesis]);
-
-  function submitIntent(intent: "generate" | "save" | "validate") {
-    const formData = new FormData();
-    formData.set("_action", intent);
-    if (draftJson) {
-      formData.set("hypothesis_json", draftJson);
-    }
-    submit(formData, { method: "post" });
-  }
 
   return (
     <Page
@@ -221,29 +214,59 @@ export default function NicheUnderstanding() {
         <Card>
           <BlockStack gap="300">
             <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
-            <InlineStack gap="200" blockAlign="center">
-              <Badge tone={hypothesis?.status === "validated_by_merchant" ? "success" : "warning"}>
-                {hypothesis?.status ?? "missing"}
-              </Badge>
-              {hypothesis && (
-                <Badge tone={confidenceTone(hypothesis.global_confidence)}>
-                  {hypothesis.global_confidence}
+              <InlineStack gap="200" blockAlign="center">
+                <Badge tone={hypothesis?.status === "validated_by_merchant" ? "success" : "warning"}>
+                  {hypothesis?.status ?? "missing"}
                 </Badge>
-              )}
-            </InlineStack>
-            <InlineStack gap="200">
-              <Button onClick={() => submitIntent("generate")}>Analyser</Button>
-              {hypothesis && (
-                <>
-                  <Button onClick={() => submitIntent("save")}>Enregistrer</Button>
-                  <Button onClick={() => submitIntent("validate")} variant="primary">
-                    Valider
+                {hypothesis && (
+                  <Badge tone={confidenceTone(hypothesis.global_confidence)}>
+                    {hypothesis.global_confidence}
+                  </Badge>
+                )}
+              </InlineStack>
+              <InlineStack gap="200">
+                <Form method="post">
+                  <input type="hidden" name="_action" value="generate" />
+                  <Button
+                    submit
+                    loading={submitting && submittingAction === "generate"}
+                    disabled={submitting}
+                  >
+                    Analyser
                   </Button>
-                </>
-              )}
+                </Form>
+                {hypothesis && (
+                  <>
+                    <Form method="post">
+                      <input type="hidden" name="_action" value="save" />
+                      <input type="hidden" name="hypothesis_json" value={draftJson} />
+                      <Button
+                        submit
+                        loading={submitting && submittingAction === "save"}
+                        disabled={submitting}
+                      >
+                        Enregistrer
+                      </Button>
+                    </Form>
+                    <Form method="post">
+                      <input type="hidden" name="_action" value="validate" />
+                      <input type="hidden" name="hypothesis_json" value={draftJson} />
+                      <Button
+                        submit
+                        variant="primary"
+                        loading={submitting && submittingAction === "validate"}
+                        disabled={submitting}
+                      >
+                        Valider
+                      </Button>
+                    </Form>
+                  </>
+                )}
+              </InlineStack>
             </InlineStack>
-            </InlineStack>
-            {hypothesis && <JsonEditor value={draftJson} onChange={setDraftJson} />}
+            {hypothesis && (
+              <JsonEditor value={draftJson} onChange={setDraftJson} />
+            )}
           </BlockStack>
         </Card>
 
