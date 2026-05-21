@@ -181,6 +181,28 @@ function JsonEditor({
   );
 }
 
+function AdvancedJsonEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <details>
+      <summary>Mode avancé : modifier les détails techniques</summary>
+      <div style={{ marginTop: "var(--p-space-300)" }}>
+        <BlockStack gap="200">
+          <Text as="p" tone="subdued">
+            Ce bloc sert uniquement aux corrections fines. Les panneaux ci-dessous restent la vue standard du marchand.
+          </Text>
+          <JsonEditor value={value} onChange={onChange} />
+        </BlockStack>
+      </div>
+    </details>
+  );
+}
+
 export default function NicheUnderstanding() {
   const { locale, data, error } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
@@ -229,6 +251,7 @@ export default function NicheUnderstanding() {
                   <input type="hidden" name="_action" value="generate" />
                   <Button
                     submit
+                    variant="secondary"
                     loading={submitting && submittingAction === "generate"}
                     disabled={submitting}
                   >
@@ -265,7 +288,7 @@ export default function NicheUnderstanding() {
               </InlineStack>
             </InlineStack>
             {hypothesis && (
-              <JsonEditor value={draftJson} onChange={setDraftJson} />
+              <AdvancedJsonEditor value={draftJson} onChange={setDraftJson} />
             )}
           </BlockStack>
         </Card>

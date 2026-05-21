@@ -5,10 +5,79 @@
 - **Summary:** Léonie SEO est une app Shopify embedded + moteur Python/FastAPI/CLI pour audit SEO, recommandations supervisées, contenus, données structurées, jobs async, intégrations Shopify/Google/LLM et garde-fous dry-run.
 - **Main stack:** Python 3.11+, FastAPI, Click, pytest, ruff, Remix, React, TypeScript, Shopify App Bridge, Shopify Polaris, npm.
 - **Main working areas:** `app/`, `scripts/`, `shopify-app/`, `config/`, `docs/`, `tests/`.
-- **Current roadmap:** Phase 10 clôturée. Phase 11 terminée. Phase 11.5 complète. Phase 11.6 complète. **Phase 11.7 documentée intégralement (12/12 tâches 127-138 ✅).** **Phase 11.8 complète (11/11 tâches 139-149 ✅, terminée 2026-05-21).** **Phase 12 (tâches 150-151) en attente de test utilisateur sur 3 marchands pilotes — seul critère bloquant restant pour le go/no-go App Store.**
-- **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Le dashboard Impact V1 est livré avec courbes sparklines SVG + score de confiance par optimisation. Crawl L3 existe côté backend/API, mais l'UI Audit n'a pas encore été recentrée autour du bouton natif et les plafonds Free/Pro/Agency ne sont pas encore appliqués par plan. Niche Understanding est disponible, mais les modules aval ne consomment pas encore automatiquement l'hypothèse validée.
+- **Current roadmap:** Phase 10 clôturée. Phase 11 terminée. Phase 11.5-11.8 complètes. **Phase 11.9 complète (12/12 tâches 152-163 ✅, terminée 2026-05-21).** **Phase 12 (tâches 150-151) démarre seulement après test 3 marchands pilotes (critère humain — `docs/pilot-merchant-test-script.md`).**
+- **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Crawl L3 existe côté backend/API, mais les plafonds Free/Pro/Agency ne sont pas encore appliqués par plan. Niche Understanding est disponible — les modules aval consomment l'hypothèse via gate UX (app._index.tsx + app.priorities.tsx) mais pas encore via appel backend automatique.
 
 ## Last completed task
+
+- **Date:** 2026-05-21
+- **Agent:** Claude Code (Sonnet 4.6)
+- **Goal:** Tasks 155–163 — Phase 11.9 complete (Merchant Journey Unification & Friction Reduction).
+- **Summary:** 8 documents canoniques créés + ajustements UX/i18n dans 5 routes Remix. i18n.ts : 22 nouvelles clés merchant-friendly + 12 clés existantes renommées (Valider, Prévisualiser, Publier, Refuser, statuts, types de contenu). app._index.tsx : Zone 1 CTA primary si niche non validée, badge niveau i18n, Zone 6 masquée. app.safe-apply.tsx : bannière sécurité permanente, labels merchant, boutons restructurés (primary: Valider/Publier, pas de tone critique). app.niche-understanding.tsx : "Analyser" passe en secondary. app.priorities.tsx : gain estimé badge + CTA "Préparer cette action". app.impact.tsx : Banner rétention en haut, section jalons déplacée avant les courbes, CTA NBA primary. launch-readiness.md + DECISIONS.md : §0 prérequis Phase 11.9 ajouté.
+- **Files created:** `docs/dashboard-command-center.md`, `docs/cta-matrix.md`, `docs/merchant-language-glossary.md`, `docs/advanced-tools-strategy.md`, `docs/action-card-spec.md`, `docs/safe-apply-narrative.md`, `docs/impact-feedback-loop.md`, `docs/pilot-merchant-test-script.md`.
+- **Files modified:** `shopify-app/app/lib/i18n.ts`, `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.safe-apply.tsx`, `shopify-app/app/routes/app.niche-understanding.tsx`, `shopify-app/app/routes/app.priorities.tsx`, `shopify-app/app/routes/app.impact.tsx`, `docs/launch-readiness.md`, `DECISIONS.md`, `ROADMAP.md`, `PROGRESS.md`, `docs/AI_HANDOFF.md`.
+- **Validations run:** `npm run typecheck` ✅ ; `npm run build` ✅ ; `git diff --check` ✅.
+- **Validations skipped:** Python tests non relancés — aucun fichier Python modifié.
+- **Decisions made:** Zone 2 gate garde le texte mais supprime le bouton primary (Zone 1 est le seul CTA primary quand niche non validée). `tone="critical"` retiré des boutons Publier/Valider dans safe-apply (remplacé par `variant="primary"`). Jalons rétention déplacés en haut de app.impact avant les courbes techniques pour prioriser la narration marchand.
+- **Open issues:** Vérification visuelle dans l'app Shopify réelle recommandée (comportement `<Banner>` + badges `tone` en contexte Polaris embedded). Test utilisateur 3 marchands pilotes reste le seul critère bloquant pour Phase 12.
+- **Next recommended action:** Planifier les 3 sessions test utilisateur marchands pilotes selon `docs/pilot-merchant-test-script.md`. Dès les 5 critères atteints → **tâche 150 — décision finale go/no-go App Store**.
+
+## Previous completed task
+
+- **Date:** 2026-05-21
+- **Agent:** Codex (GPT-5)
+- **Goal:** Task 154 — Unified Onboarding Flow.
+- **Summary:** Création du document canonique `docs/unified-onboarding-flow.md` et simplification de `app.onboarding` en parcours principal 4 étapes : connecter Google, analyser la boutique avec l'IA, valider la compréhension IA, voir les 3 actions prioritaires. Les anciennes cartes checklist, jobs, GSC détaillé, PageSpeed et crawl restent disponibles derrière **Outils avancés**.
+- **Files created:** `docs/unified-onboarding-flow.md`.
+- **Files modified:** `ROADMAP.md`, `PROGRESS.md`, `shopify-app/app/routes/app.onboarding.tsx`, `docs/AI_HANDOFF.md`.
+- **Validations run:** `npm run typecheck` ✅ ; `npm run build` ✅ ; `git diff --check` ✅.
+- **Validations skipped:** Python tests non relancés car changement limité à Markdown et route Remix frontend.
+- **Decisions made:** Réutiliser les routes existantes : `gsc_connect`, `/niche/understand`, `app.niche-understanding`, `app.priorities`. GA4, PageSpeed et crawl restent non bloquants et repliés.
+- **Open issues:** Vérification visuelle dans l'app Shopify réelle utile pour confirmer le rendu du `<details>` Polaris autour des outils avancés.
+- **Next recommended action:** Démarrer la tâche 155 — Dashboard as Single Command Center.
+
+## Previous completed task
+
+- **Date:** 2026-05-21
+- **Agent:** Codex (GPT-5)
+- **Goal:** Task 153 — Niche Understanding as Mandatory Gate.
+- **Summary:** Création du document canonique `docs/niche-understanding-gate.md` et implémentation d'une gate UX avant les recommandations principales. L'accueil masque désormais les cartes d'actions si `zone1.niche_validated` est faux, et la page Top 3 Actions vérifie `/niche/hypothesis` avant de charger les priorités.
+- **Files created:** `docs/niche-understanding-gate.md`.
+- **Files modified:** `ROADMAP.md`, `PROGRESS.md`, `shopify-app/app/lib/i18n.ts`, `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.priorities.tsx`, `docs/AI_HANDOFF.md`.
+- **Validations run:** `npm run typecheck` ✅ ; `npm run build` ✅ ; `git diff --check` ✅.
+- **Validations skipped:** Python tests non relancés car changement limité à Markdown et routes Remix frontend.
+- **Decisions made:** Gate visuelle sans nouveau backend : réutilisation de `zone1.niche_validated` sur l'accueil et de `/api/shops/{shop}/niche/hypothesis` sur Top 3 Actions. Les réglages et le mode avancé restent accessibles.
+- **Open issues:** Les modules backend peuvent encore exposer certains endpoints si appelés directement ; cette étape verrouille le parcours marchand principal, pas une politique serveur globale.
+- **Next recommended action:** Démarrer la tâche 154 — Unified Onboarding Flow.
+
+## Previous completed task
+
+- **Date:** 2026-05-21
+- **Agent:** Codex (GPT-5)
+- **Goal:** Task 152 — First-Run Journey Map.
+- **Summary:** Création du document canonique `docs/first-run-merchant-journey.md` pour cadrer le parcours marchand de première connexion jusqu'à la première action appliquée. Premier incrément UX associé : le JSON brut de l'écran "Ce que l'IA a compris" est désormais replié derrière un bloc **Mode avancé**, afin de garder la vue standard centrée sur les panneaux marchand.
+- **Files created:** `docs/first-run-merchant-journey.md`.
+- **Files modified:** `ROADMAP.md`, `PROGRESS.md`, `shopify-app/app/routes/app.niche-understanding.tsx`, `docs/AI_HANDOFF.md`.
+- **Validations run:** `npm run typecheck` ✅ ; `npm run build` ✅ ; `git diff --check` ✅.
+- **Validations skipped:** Python tests non relancés car seuls Markdown et une route Remix frontend ont changé.
+- **Decisions made:** Implémenter Phase 11.9 en mini-cycles cadrage + UX concret ; conserver le JSON pour diagnostic/correction fine, mais seulement en mode avancé replié par défaut.
+- **Open issues:** Les panneaux Boutique/Voix/Clients/Intentions/À éviter restent lisibles mais pas encore éditables champ par champ ; cette granularité relève de la tâche 153/154 si retenue.
+- **Next recommended action:** Démarrer la tâche 153 — Niche Understanding as Mandatory Gate.
+
+## Previous completed task
+
+- **Date:** 2026-05-21
+- **Agent:** Codex (GPT-5)
+- **Goal:** Ajouter Phase 11.9 à la roadmap.
+- **Summary:** Mise à jour documentaire uniquement : ajout de la **Phase 11.9 — Merchant Journey Unification & Friction Reduction** dans `ROADMAP.md`, avec tâches 152-163 en attente, principes produit, parcours marchand cible, navigation cible, vocabulaire marchand et critères d'entrée Phase 12. `PROGRESS.md` et ce handoff notent que la Phase 12 démarre après validation Phase 11.9 et tests pilotes.
+- **Files created:** Aucun.
+- **Files modified:** `ROADMAP.md`, `PROGRESS.md`, `docs/AI_HANDOFF.md`.
+- **Validations run:** Vérification documentaire de placement Phase 11.9 avant Phase 12, numérotation 152-163 et mentions Phase 12.
+- **Validations skipped:** Tests code non lancés, changement Markdown uniquement.
+- **Open issues:** Les tâches 153-163 restent à cadrer/implémenter.
+- **Next recommended action:** Démarrer la tâche 152 — First-Run Journey Map.
+
+## Previous completed task
 
 - **Date:** 2026-05-21
 - **Agent:** Codex (GPT-5)

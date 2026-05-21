@@ -52,6 +52,25 @@ Trois critères §3 non satisfaits avant corrections intégrées dans cette tâc
 
 ---
 
+## 2026-05-21 — Phase 11.9 gate : NO-GO Phase 12 tant que parcours marchand non validé (tâche 163)
+
+**Contexte :** Phase 11.9 "Merchant Journey Unification & Friction Reduction" ajoutée après la tâche 149. Tâches 152-163 : docs canoniques + ajustements UX/i18n pour rendre l'app compréhensible en < 5 minutes.
+
+**Décision : Phase 11.9 complète + test 3 marchands pilotes sont des prérequis bloquants avant Phase 12.**
+
+Ce prérequis s'ajoute en amont des §3 de `docs/launch-readiness.md`. Voir `docs/launch-readiness.md` §0 pour la liste complète des prérequis Phase 11.9.
+
+| Gate | Statut | Condition de levée |
+|---|---|---|
+| Tâches 152-163 ✅ | ⏳ (tâches 152-163 en cours / terminées) | ROADMAP.md Phase 11.9 10/12 |
+| Test 3 marchands pilotes | ⏳ | `docs/pilot-merchant-test-script.md` — 5 critères atteints |
+| Vocabulaire marchand vérifié | ⏳ | `docs/merchant-language-glossary.md` — 0 terme interdit visible |
+| CTA unique par écran | ⏳ | `docs/cta-matrix.md` — revue UI |
+
+**Raison :** La tâche 149 a prouvé que les critères techniques §3 sont atteints. Le bloquant restant est humain : comprendre si un marchand non expert peut utiliser l'app sans aide. Phase 11.9 vise à réduire cette friction avant le test pilote formel.
+
+---
+
 ## 2026-05-12 — Real-store pilot uses a separate custom-distribution Shopify app
 
 **Context:** Léonie SEO needs real merchant feedback on `leoniedelacroix.com` before the public App Store launch, but Shopify distribution type is a long-lived product choice.

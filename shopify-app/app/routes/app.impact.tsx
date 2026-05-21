@@ -302,6 +302,10 @@ export default function ImpactPage() {
       }}
     >
       <BlockStack gap="400">
+        <Banner tone="info">
+          <p>{t(locale, "impactRetentionMessage")}</p>
+        </Banner>
+
         {flagsActive && (
           <Banner tone="warning" title={t(locale, "impactFlagsTitle")}>
             <BlockStack gap="100">
@@ -363,6 +367,33 @@ export default function ImpactPage() {
               <Text as="p" tone="subdued">
                 {t(locale, "verdictWidgetTotal")}: {verdictSummary.total}
               </Text>
+            </BlockStack>
+          </Card>
+        )}
+
+        {retention?.next_milestone && (
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">
+                {t(locale, "impactNextMilestoneLabel")}
+              </Text>
+              <InlineStack gap="300" blockAlign="center">
+                <Badge tone="info">{retention.next_milestone.label}</Badge>
+                <Text as="p">
+                  {retention.next_milestone.due_date.slice(0, 10)}
+                  {retention.next_milestone.days_remaining > 0 && (
+                    <> — {retention.next_milestone.days_remaining} {t(locale, "retentionDaysRemaining")}</>
+                  )}
+                </Text>
+              </InlineStack>
+              <Text as="p" tone="subdued">
+                {locale === "fr"
+                  ? retention.retention_message_fr
+                  : retention.retention_message_en}
+              </Text>
+              <Button url={localizedPath("/app/retention-milestones", locale)} variant="plain">
+                {t(locale, "retentionLink")}
+              </Button>
             </BlockStack>
           </Card>
         )}
@@ -485,33 +516,6 @@ export default function ImpactPage() {
           </BlockStack>
         </Card>
 
-        {retention?.next_milestone && (
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">
-                {t(locale, "retentionNextMilestone")}
-              </Text>
-              <InlineStack gap="300" blockAlign="center">
-                <Badge tone="info">{retention.next_milestone.label}</Badge>
-                <Text as="p">
-                  {retention.next_milestone.due_date.slice(0, 10)}
-                  {retention.next_milestone.days_remaining > 0 && (
-                    <> — {retention.next_milestone.days_remaining} {t(locale, "retentionDaysRemaining")}</>
-                  )}
-                </Text>
-              </InlineStack>
-              <Text as="p" tone="subdued">
-                {locale === "fr"
-                  ? retention.retention_message_fr
-                  : retention.retention_message_en}
-              </Text>
-              <Button url={localizedPath("/app/retention-milestones", locale)} variant="plain">
-                {t(locale, "retentionLink")}
-              </Button>
-            </BlockStack>
-          </Card>
-        )}
-
         {nba && nba.summary.total_actions > 0 && (
           <Card>
             <BlockStack gap="200">
@@ -580,7 +584,7 @@ export default function ImpactPage() {
                 {t(locale, "retentionLink")}
               </Button>
               <Button url={localizedPath("/app/next-best-actions", locale)} variant="primary">
-                {t(locale, "nbaLink")}
+                {t(locale, "impactViewNextActions")}
               </Button>
             </InlineStack>
           </BlockStack>

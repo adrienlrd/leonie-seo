@@ -854,10 +854,265 @@ L'app expose six modules métier au lieu de la liste actuelle d'outils :
 
 ---
 
-## PHASE 12 — Soumission publique Shopify App Store
-*Objectif : publier l'app seulement après le pilote réel, la parité fonctionnelle prioritaire entre scripts CLI et app embedded, la simplification GEO Autopilot documentée en Phase 11.7 et implémentée en Phase 11.8.*
+## PHASE 11.9 — Merchant Journey Unification & Friction Reduction
+*Objectif : transformer les briques existantes en un parcours marchand unique, explicite et compréhensible par un non-expert : **Connecter → Comprendre → Valider → Analyser → Proposer → Appliquer → Mesurer**.*
+
+Cette phase ne doit pas ajouter de nouveaux moteurs SEO/GEO. Elle doit réorganiser l'expérience produit autour des technologies déjà codées :
+
+- Google Search Console / GA4 ;
+- Niche Understanding ;
+- Unified Readiness Audit ;
+- Opportunity Finder ;
+- Priority Engine ;
+- AI Content Actions ;
+- Safe Apply ;
+- Rollback ;
+- Impact Tracker ;
+- Dashboard marchand.
+
+Le but est de réduire la friction avant les tests marchands pilotes et avant la soumission publique App Store.
+
+### Principes produit Phase 11.9
+
+- Le marchand ne doit jamais avoir l'impression d'utiliser plusieurs modules séparés.
+- Le parcours principal doit être linéaire, avec un seul CTA principal par écran.
+- Les termes techniques doivent être cachés ou renommés.
+- L'app doit expliquer ce qu'elle fait en langage marchand.
+- Le parcours standard ne doit pas afficher les détails techniques : crawl, JSON-LD, schema, GSC opportunities, Product Facts Layer, logs LLM, scripts, endpoints.
+- Ces briques restent disponibles en interne ou en mode avancé.
+- Niche Understanding devient le socle obligatoire avant les analyses SEO/GEO.
+- Les informations validées par le marchand doivent alimenter les analyses, recommandations, contenus, priorités et mesures d'impact.
+- Les actions affichées au marchand doivent être limitées à 3 priorités maximum.
+- Toute application Shopify reste en dry-run par défaut avec validation humaine.
+- La mesure d'impact reste une valeur centrale : l'app doit montrer si les optimisations ont aidé ou non.
+- Ne pas promettre de ranking garanti dans Google, ChatGPT, Perplexity, Gemini ou Google AI Overviews.
+- Search Performance et AI Visibility restent séparés.
+
+### Parcours marchand cible
+
+1. Première connexion à l'application.
+2. Écran simple : “Connectez Google pour analyser votre visibilité”.
+3. Connexion Google Search Console.
+4. Connexion GA4 optionnelle mais recommandée.
+5. CTA principal : “Analyser ma boutique avec l'IA”.
+6. Écran de progression simple :
+   - lecture des produits actifs ;
+   - lecture des collections ;
+   - analyse des requêtes Google ;
+   - compréhension de la niche ;
+   - détection des pages prioritaires.
+7. Écran “Ce que l'IA a compris” :
+   - niche principale ;
+   - produits importants ;
+   - segments clients ;
+   - motivations d'achat ;
+   - objections probables ;
+   - promesses à éviter ;
+   - concurrents ou alternatives probables ;
+   - niveau de confiance.
+8. Le marchand peut modifier, corriger ou valider ces informations.
+9. Après validation, lancement automatique de l'analyse SEO/GEO.
+10. Arrivée sur l'accueil avec :
+    - score global SEO/GEO lisible ;
+    - résumé de ce que l'IA a compris ;
+    - 3 actions prioritaires ;
+    - état des optimisations en cours ;
+    - résultats mesurés ou en attente.
+11. Le marchand clique sur une action.
+12. L'app affiche :
+    - problème détecté ;
+    - pourquoi cette page est prioritaire ;
+    - ce que l'IA propose ;
+    - preview avant/après ;
+    - niveau de risque ;
+    - gain potentiel ;
+    - métrique de succès.
+13. Le marchand peut approuver, modifier, rejeter ou appliquer en sécurité.
+14. Après application, l'app crée un événement mesurable.
+15. L'app suit l'impact à J+7, J+30, J+60 et J+90.
+16. Verdict simple :
+    - Win ;
+    - Neutral ;
+    - Risk ;
+    - Inconclusive.
+17. L'app propose la prochaine meilleure action.
+
+### Navigation cible
+
+La navigation visible doit rester limitée à 4 entrées :
+
+1. **Accueil**
+   - score global ;
+   - compréhension IA validée ;
+   - 3 actions prioritaires ;
+   - état des optimisations ;
+   - prochains résultats attendus.
+
+2. **Actions**
+   - actions à prévisualiser ;
+   - actions à valider ;
+   - actions prêtes à appliquer ;
+   - historique simple des décisions.
+
+3. **Mesure**
+   - impact des optimisations ;
+   - courbes simples ;
+   - jalons J+7/J+30/J+60/J+90 ;
+   - verdicts Win/Neutral/Risk/Inconclusive ;
+   - prochaine meilleure action.
+
+4. **Compte & configuration**
+   - connexions Google ;
+   - GA4 ;
+   - plan ;
+   - budget IA ;
+   - mode pilot-safe ;
+   - réglages avancés.
+
+Tout le reste doit être masqué du menu principal ou regroupé en mode avancé.
+
+### Renommage des termes techniques
+
+| Terme technique | Terme marchand |
+|---|---|
+| GEO | Visibilité IA |
+| AI Search Readiness | Lisibilité par les IA |
+| Product Facts Layer | Informations produit fiables |
+| JSON-LD / Schema | Données produit structurées |
+| Crawl L3 | Vérification technique |
+| GSC Opportunities | Opportunités Google |
+| Priority Engine | Actions prioritaires |
+| Safe Apply | Application sécurisée |
+| Impact Ledger | Historique des optimisations |
+| Niche Understanding | Ce que l'IA a compris |
+| Content Actions | Améliorations proposées |
+| Rollback | Annuler une modification |
+
+### Tâches Phase 11.9
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
-| 150 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + simplification GEO Autopilot implémentée (Phase 11.8) + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
+| 152 | First-Run Journey Map — documenter le parcours marchand complet de première connexion jusqu'à la première action appliquée : connecter Google, analyser avec l'IA, valider la compréhension IA, lancer l'analyse SEO/GEO, afficher le score et proposer 3 actions | 🟡 | ✅ | 2026-05-21 |
+| 153 | Niche Understanding as Mandatory Gate — cadrer le fait que la compréhension IA validée devient un prérequis logique avant les analyses et recommandations principales, avec possibilité de modifier/relancer avant validation | 🔴 | ✅ | 2026-05-21 |
+| 154 | Unified Onboarding Flow — réduire l'onboarding à 4 étapes maximum : connecter Google, lancer analyse IA, valider compréhension IA, voir les 3 actions prioritaires | 🟡 | ✅ | 2026-05-21 |
+| 155 | Dashboard as Single Command Center — recentrer l'accueil sur score global, résumé IA validé, 3 actions prioritaires, optimisations en cours et résultats mesurés, sans exposer les modules techniques | 🔴 | ✅ | 2026-05-21 |
+| 156 | One Primary CTA per Screen — définir pour chaque écran principal un seul CTA dominant : connecter, analyser, valider, voir actions, prévisualiser, appliquer, mesurer | 🟡 | ✅ | 2026-05-21 |
+| 157 | Merchant Language Pass — remplacer les termes techniques visibles par des termes compréhensibles par un marchand non expert, avec tableau de correspondance FR/EN et garde-fous i18n | 🟡 | ✅ | 2026-05-21 |
+| 158 | Advanced Tools Hiding Strategy — documenter quelles pages restent accessibles en mode avancé mais disparaissent du parcours principal : crawl, JSON-LD, GSC details, PageSpeed details, Product Facts, logs LLM, llms.txt, AI Visibility V2 | 🟡 | ✅ | 2026-05-21 |
+| 159 | Action Detail Unification — cadrer une carte action unique pour toutes les recommandations : problème, raison, page concernée, preview avant/après, risque, gain potentiel, métrique de succès, CTA prévisualiser/appliquer | 🔴 | ✅ | 2026-05-21 |
+| 160 | Safe Apply Narrative Simplification — rendre le workflow dry-run/review/apply/rollback compréhensible : aucune modification publiée sans validation, preview obligatoire, historique et annulation visibles | 🟡 | ✅ | 2026-05-21 |
+| 161 | Impact Feedback Loop UX — cadrer la suite après application : suivi J+7/J+30/J+60/J+90, verdict simple, prochaine meilleure action et explication de la valeur de garder l'app active | 🔴 | ✅ | 2026-05-21 |
+| 162 | Pilot Merchant Test Script — créer un script de test utilisateur pour 3 marchands pilotes afin de vérifier : compréhension en moins de 5 minutes, capacité à lancer l'analyse, valider la compréhension IA, comprendre le score, choisir une action et faire confiance au safe apply | 🟡 | ✅ | 2026-05-21 |
+| 163 | Phase 12 Entry Criteria Update — ajouter les critères bloquants avant soumission App Store : parcours compris en moins de 5 minutes, 3 actions maximum, CTA clair, vocabulaire non technique, compréhension IA validée, safe apply compris, mesure d'impact visible | 🔴 | ✅ | 2026-05-21 |
+
+### Détail attendu des tâches Phase 11.9
+
+1. **152 First-Run Journey Map**
+   - Objectif : formaliser le parcours de première utilisation depuis l'installation jusqu'à la première action appliquée.
+   - Livrable attendu : document de parcours avec étapes, écran attendu, CTA principal, état vide, état erreur et critère de passage. Réalisé dans `docs/first-run-merchant-journey.md`.
+   - Garde-fous : ne pas ajouter de nouveau moteur SEO/GEO, ne pas réintroduire un hub technique comme point d'entrée.
+   - Lien avec l'existant : s'appuie sur onboarding Google, Niche Understanding, dashboard, Priority Engine, Safe Apply et Impact Tracker.
+   - À ne pas ajouter : nouveau module, nouveau score, nouvelle API de recommandation ou nouveau chemin parallèle.
+   - Implémentation initiale : le JSON brut de l'écran "Ce que l'IA a compris" est déplacé derrière un bloc "Mode avancé" afin de garder le parcours standard marchand lisible.
+
+2. **153 Niche Understanding as Mandatory Gate**
+   - Objectif : cadrer la compréhension IA validée comme prérequis logique avant les analyses et recommandations principales.
+   - Livrable attendu : règle produit indiquant quand l'analyse peut démarrer, comment modifier/relancer l'hypothèse, et comment les modules aval consomment la version validée. Réalisé dans `docs/niche-understanding-gate.md`.
+   - Garde-fous : ne pas bloquer l'accès aux réglages, au support ou au mode avancé ; ne pas utiliser une hypothèse non validée pour générer des promesses marchand.
+   - Lien avec l'existant : consomme `niche_hypothesis`, `get_validated_niche_hypothesis()`, Unified Readiness Audit, Opportunity Finder, Priority Engine et AI Content Actions.
+   - À ne pas ajouter : extraction de niche concurrentielle nouvelle, nouveau prompt hors cadrage, ou validation automatique sans marchand.
+   - Implémentation initiale : l'accueil masque les cartes d'actions derrière une gate de validation si `zone1.niche_validated` est faux ; la page Top 3 Actions vérifie `/niche/hypothesis` avant de charger les priorités et redirige le marchand vers l'écran de compréhension boutique.
+
+3. **154 Unified Onboarding Flow**
+   - Objectif : réduire l'onboarding visible à 4 étapes maximum : connecter Google, lancer l'analyse IA, valider la compréhension IA, voir les 3 actions prioritaires.
+   - Livrable attendu : séquence onboarding cible avec textes marchands, CTA, états de progression et fallback si GA4 est absent. Réalisé dans `docs/unified-onboarding-flow.md`.
+   - Garde-fous : GA4 reste recommandé mais non bloquant ; Screaming Frog ne redevient jamais un prérequis.
+   - Lien avec l'existant : réutilise OAuth Google/GSC, GA4, Crawl L3 natif, Niche Understanding et Dashboard Runtime.
+   - À ne pas ajouter : checklist longue, wizard technique multi-écrans, dépendance à un outil desktop externe.
+   - Implémentation initiale : `app.onboarding` affiche une carte principale en 4 étapes avec un seul prochain CTA ; la checklist complète, PageSpeed, crawl et jobs restent accessibles derrière "Outils avancés".
+
+4. **155 Dashboard as Single Command Center**
+   - Objectif : faire de l'accueil le centre de commande unique du marchand.
+   - Livrable attendu : cadrage d'un dashboard affichant score global, résumé IA validé, 3 actions prioritaires, optimisations en cours et résultats mesurés.
+   - Garde-fous : pas de liste exhaustive de modules, pas de jargon de type crawl/schema/GSC opportunity au premier niveau.
+   - Lien avec l'existant : s'appuie sur `GET /api/shops/{shop}/dashboard`, readiness, priorities, impact, alertes et budget LLM.
+   - À ne pas ajouter : widgets personnalisables, analytics avancées, ou score mélangeant Google Search Performance et AI Visibility.
+
+5. **156 One Primary CTA per Screen**
+   - Objectif : réduire l'hésitation en définissant un CTA dominant par écran principal.
+   - Livrable attendu : matrice écran → intention → CTA principal → CTA secondaire éventuel → action interdite.
+   - Garde-fous : ne pas afficher plusieurs actions concurrentes au même niveau ; garder les actions destructives derrière confirmation.
+   - Lien avec l'existant : couvre onboarding, compréhension IA, dashboard, action detail, Safe Apply, rollback et mesure.
+   - À ne pas ajouter : automatisation d'application Shopify sans dry-run ni validation humaine.
+
+6. **157 Merchant Language Pass**
+   - Objectif : remplacer le vocabulaire technique visible par des termes marchands compréhensibles.
+   - Livrable attendu : glossaire FR/EN, règles i18n, liste de termes interdits en premier niveau et mapping vers les labels existants.
+   - Garde-fous : conserver les termes techniques uniquement en mode avancé ou documentation interne ; ne pas promettre de ranking garanti.
+   - Lien avec l'existant : s'applique à `shopify-app/app/lib/i18n.ts`, dashboard, hubs, onboarding, actions et mesure.
+   - À ne pas ajouter : nouveau branding produit ambigu, claims marketing non prouvés, ou mélange Search Performance / AI Visibility.
+
+7. **158 Advanced Tools Hiding Strategy**
+   - Objectif : documenter précisément quelles pages restent accessibles en mode avancé mais disparaissent du parcours principal.
+   - Livrable attendu : inventaire des routes avancées, règle de navigation, libellés “mode avancé”, et critères pour réintégrer une page dans le parcours standard.
+   - Garde-fous : ne pas supprimer les routes historiques ; ne pas exposer logs LLM, scripts, endpoints ou détails crawl au marchand standard.
+   - Lien avec l'existant : couvre crawl, JSON-LD, PageSpeed, Product Facts, llms.txt, AI Visibility V2, jobs et rapports techniques.
+   - À ne pas ajouter : nouveau menu principal, nouveau hub technique visible ou dépendance aux anciens écrans comme chemin recommandé.
+
+8. **159 Action Detail Unification**
+   - Objectif : unifier la présentation de toutes les recommandations dans une seule carte action.
+   - Livrable attendu : structure canonique affichant problème, raison, page concernée, preview avant/après, risque, gain potentiel, métrique de succès et CTA prévisualiser/appliquer.
+   - Garde-fous : 3 actions maximum au premier niveau ; chaque action doit rester explicable sans jargon SEO/GEO.
+   - Lien avec l'existant : s'appuie sur Priority Engine, AI Content Actions, Safe Apply diff, risk guard et success metrics Impact Tracker.
+   - À ne pas ajouter : nouveau moteur de scoring, nouvelle génération LLM ou action automatique sans review.
+
+9. **160 Safe Apply Narrative Simplification**
+   - Objectif : rendre le workflow dry-run/review/apply/rollback compréhensible par un marchand non expert.
+   - Livrable attendu : wording et séquence expliquant qu'aucune modification n'est publiée sans validation, preview obligatoire, historique visible et annulation disponible.
+   - Garde-fous : dry-run par défaut, validation humaine obligatoire, confirmation live write et pilot-safe inchangés.
+   - Lien avec l'existant : réutilise Safe Apply Runtime, rollback adapters, `seo_changes`, `content_action_decisions` et historique rollback.
+   - À ne pas ajouter : auto-approve, bulk apply non supervisé, ou rollback masqué.
+
+10. **161 Impact Feedback Loop UX**
+    - Objectif : cadrer l'expérience post-application comme une boucle de preuve d'impact.
+    - Livrable attendu : parcours J+7/J+30/J+60/J+90 avec verdict Win/Neutral/Risk/Inconclusive, prochaine meilleure action et message de valeur sur la rétention.
+    - Garde-fous : ne pas conclure trop tôt sur faible volume ; séparer Search Performance et AI Visibility ; afficher l'incertitude.
+    - Lien avec l'existant : s'appuie sur Impact Tracker, validation timeline, progress curve, confidence score, retention milestones et next-best-actions.
+    - À ne pas ajouter : attribution cross-channel spéculative, promesse de revenu garanti, ou score unique IA+Google.
+
+11. **162 Pilot Merchant Test Script**
+    - Objectif : préparer le test utilisateur avec 3 marchands pilotes avant go/no-go App Store.
+    - Livrable attendu : script de session, tâches à observer, questions post-test, seuils de réussite et grille de friction.
+    - Garde-fous : mesurer la compréhension réelle en moins de 5 minutes ; ne pas guider excessivement le marchand pendant le test.
+    - Lien avec l'existant : teste onboarding, Niche Understanding, dashboard, actions prioritaires, Safe Apply et mesure.
+    - À ne pas ajouter : nouveaux écrans pendant le test, promesses commerciales, ou contournement des critères bloquants.
+
+12. **163 Phase 12 Entry Criteria Update**
+    - Objectif : ajouter les critères bloquants d'entrée en Phase 12 après unification UX.
+    - Livrable attendu : critères go/no-go à jour incluant Phase 11.9 complétée, test 3 marchands, parcours linéaire validé, vocabulaire marchand et dashboard compris sans explication externe.
+    - Garde-fous : aucun critère de friction majeur ne peut être contourné par une moyenne globale.
+    - Lien avec l'existant : met à jour `docs/launch-readiness.md`, `DECISIONS.md`, Phase 12 et les preuves de validation pilote.
+    - À ne pas ajouter : nouvelle fonctionnalité SEO/GEO, nouvelle métrique de ranking, ou soumission App Store avant validation humaine.
+
+### Contraintes Phase 11.9
+
+- Ne pas ajouter de nouvelles fonctionnalités SEO/GEO.
+- Ne pas ajouter de nouveau module dans la navigation principale.
+- Ne pas remettre Screaming Frog comme prérequis.
+- Ne pas rendre l'application automatique sans validation humaine.
+- Ne pas mélanger les métriques Google et IA dans un score unique.
+- Ne pas promettre de ranking garanti.
+- Ne pas exposer les détails LLM au marchand sauf dans les réglages avancés.
+- Ne pas supprimer les routes historiques : les garder en drill-down ou mode avancé.
+- Ne pas marquer les tâches 152-163 comme terminées tant que le cadrage n'est pas effectivement produit et validé.
+- Ne pas coder cette phase maintenant : uniquement documentation roadmap et cadrage UX.
+
+---
+
+## PHASE 12 — Soumission publique Shopify App Store
+*Objectif : publier l'app seulement après le pilote réel, la parité fonctionnelle prioritaire entre scripts CLI et app embedded, la simplification GEO Autopilot documentée en Phase 11.7, implémentée en Phase 11.8, puis unifiée côté parcours marchand en Phase 11.9. La soumission publique Shopify App Store ne démarre qu'après validation de la Phase 11.9, tests marchands pilotes, et confirmation que le parcours principal est compris en moins de 5 minutes.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 150 | Décision go/no-go App Store après pilote réel + parité fonctionnelle prioritaire + simplification GEO Autopilot implémentée (Phase 11.8) + Phase 11.9 complétée + test utilisateur 3 marchands + parcours linéaire validé + friction réduite + vocabulaire marchand validé + dashboard compris sans explication externe + verrouillage du périmètre V1 public | 🔴 | ⏳ | |
 | 151 | Finaliser la soumission publique Shopify App Store avec preuves issues du pilote, captures à jour, checklist Public Launch Readiness (tâche 149) et configuration de production figée | 🔴 | ⏳ | |

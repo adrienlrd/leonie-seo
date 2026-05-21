@@ -1,8 +1,24 @@
 # Public Launch Readiness Criteria — Léonie SEO
 
-> Checklist canonique d'entrée en **Phase 12 (Soumission publique Shopify App Store)**. Distille les 11 décisions produit/architecture de la Phase 11.7 en critères go/no-go opérationnels. La tâche 139 (décision go/no-go) coche cette liste avant que la tâche 140 (soumission App Store) ne démarre.
+> Checklist canonique d'entrée en **Phase 12 (Soumission publique Shopify App Store)**. Distille les décisions produit/architecture des Phases 11.7–11.9 en critères go/no-go opérationnels. La tâche 150 (décision go/no-go) coche cette liste avant que la tâche 151 (soumission App Store) ne démarre.
 >
-> Statut : critères figés au 2026-05-20 (tâche 138, Phase 11.7). Aucun code applicatif n'est modifié dans cette tâche.
+> Statut : mis à jour au 2026-05-21 (tâche 163, Phase 11.9). **La Phase 11.9 complète (tâches 152-163) est un prérequis non négociable avant de cocher §3.**
+
+---
+
+## 0. Prérequis Phase 11.9 (gate obligatoire)
+
+Avant de démarrer la vérification §3, les conditions suivantes doivent être satisfaites :
+
+| Prérequis | Statut | Preuve attendue |
+|---|---|---|
+| Tâches 152-163 toutes ✅ | ⏳ | ROADMAP.md — Phase 11.9 10/12 → 12/12 |
+| Test utilisateur : 3 marchands pilotes ont compris l'app en < 5 min | ⏳ | `docs/pilot-merchant-test-script.md` — grilles de friction remplies |
+| Vocabulaire marchand appliqué : 0 terme interdit au premier niveau | ⏳ | `docs/merchant-language-glossary.md` — vérification manuelle i18n.ts |
+| Un seul CTA primaire par écran principal | ⏳ | `docs/cta-matrix.md` — revue UI sur chaque écran |
+| Dashboard compris sans explication externe | ⏳ | Session test marchand — 0 question "c'est quoi X ?" |
+
+Un ❌ ou ⏳ dans ce tableau = NO-GO Phase 12, indépendamment des critères §3.
 
 ---
 

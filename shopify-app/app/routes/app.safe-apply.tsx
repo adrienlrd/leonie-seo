@@ -110,16 +110,36 @@ export async function action({ request }: ActionFunctionArgs) {
   return json({ intent, ok: false, error: "Unknown intent" });
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const toneMap: Record<string, "info" | "success" | "warning" | "critical" | "attention"> = {
-    draft: "info",
-    needs_review: "warning",
-    approved: "success",
-    applied: "success",
-    rejected: "critical",
-    exported: "attention",
-  };
-  return <Badge tone={toneMap[status] ?? "info"}>{status}</Badge>;
+const STATUS_TONES: Record<string, "info" | "success" | "warning" | "critical" | "attention"> = {
+  draft: "info",
+  needs_review: "warning",
+  approved: "success",
+  applied: "success",
+  rejected: "critical",
+  exported: "attention",
+};
+
+const STATUS_I18N_KEYS: Record<string, string> = {
+  draft: "statusDraft",
+  needs_review: "statusNeedsReview",
+  approved: "statusApproved",
+  applied: "statusApplied",
+  rejected: "statusRejected",
+};
+
+const CONTENT_TYPE_I18N_KEYS: Record<string, string> = {
+  product_title: "contentTypeProductTitle",
+  product_description: "contentTypeProductDescription",
+  meta_title: "contentTypeMetaTitle",
+  meta_description: "contentTypeMetaDescription",
+};
+
+function StatusBadge({ status, locale }: { status: string; locale: Locale }) {
+  return (
+    <Badge tone={STATUS_TONES[status] ?? "info"}>
+      {t(locale, STATUS_I18N_KEYS[status] ?? status)}
+    </Badge>
+  );
 }
 
 function QualityBar({ score }: { score: number }) {
@@ -143,14 +163,15 @@ function ActionCard({ row, locale }: { row: ContentActionRow; locale: Locale }) 
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center">
           <Text variant="headingMd" as="h3">
-            {row.content_type}
+            {t(locale, CONTENT_TYPE_I18N_KEYS[row.content_type] ?? row.content_type)}
           </Text>
-          <StatusBadge status={row.status} />
+          <StatusBadge status={row.status} locale={locale} />
         </InlineStack>
 
-        <Text as="p" tone="subdued">
-          {row.resource_id}
-        </Text>
+        <InlineStack gap="100">
+          <Text as="p" tone="subdued" variant="bodySm">{t(locale, "productReference")} :</Text>
+          <Text as="p" tone="subdued">{row.resource_id}</Text>
+        </InlineStack>
 
         {row.output?.primary_text && (
           <Box background="bg-surface-secondary" padding="300" borderRadius="200">
@@ -174,23 +195,33 @@ function ActionCard({ row, locale }: { row: ContentActionRow; locale: Locale }) 
             {check?.forbidden_promise_violations?.map((v: string) => (
               <Text key={v} as="p">{t(locale, "forbiddenPromiseViolations")}: {v}</Text>
             ))}
-            {!check?.length_ok && <Text as="p">length_out_of_bounds</Text>}
-            {!check?.language_ok && <Text as="p">language_mismatch</Text>}
+            {!check?.length_ok && <Text as="p">{t(locale, "lengthOutOfBounds")}</Text>}
+            {!check?.language_ok && <Text as="p">{t(locale, "languageMismatch")}</Text>}
           </Banner>
         )}
 
         <Divider />
 
         <ButtonGroup>
-          {!hasViolations && (
+          {row.status === "approved" ? (
             <fetcher.Form method="post">
-              <input type="hidden" name="intent" value="decision" />
+              <input type="hidden" name="intent" value="live_apply" />
               <input type="hidden" name="action_id" value={row.action_id} />
-              <input type="hidden" name="decision" value="accept" />
-              <Button submit tone="success" loading={submitting}>
-                {t(locale, "acceptAction")}
+              <Button submit variant="primary" loading={submitting}>
+                {t(locale, "applyLive")}
               </Button>
             </fetcher.Form>
+          ) : (
+            !hasViolations && (
+              <fetcher.Form method="post">
+                <input type="hidden" name="intent" value="decision" />
+                <input type="hidden" name="action_id" value={row.action_id} />
+                <input type="hidden" name="decision" value="accept" />
+                <Button submit variant="primary" loading={submitting}>
+                  {t(locale, "acceptAction")}
+                </Button>
+              </fetcher.Form>
+            )
           )}
 
           <fetcher.Form method="post">
@@ -200,16 +231,6 @@ function ActionCard({ row, locale }: { row: ContentActionRow; locale: Locale }) 
               {t(locale, "dryRunAction")}
             </Button>
           </fetcher.Form>
-
-          {row.status === "approved" && (
-            <fetcher.Form method="post">
-              <input type="hidden" name="intent" value="live_apply" />
-              <input type="hidden" name="action_id" value={row.action_id} />
-              <Button submit tone="critical" loading={submitting}>
-                {t(locale, "applyLive")}
-              </Button>
-            </fetcher.Form>
-          )}
 
           <fetcher.Form method="post">
             <input type="hidden" name="intent" value="decision" />
@@ -231,6 +252,11 @@ export default function SafeApplyPage() {
   return (
     <Page title={t(locale, "safeApply")} subtitle={t(locale, "safeApplySubtitle")}>
       <Layout>
+        <Layout.Section>
+          <Banner tone="info">
+            <p>{t(locale, "safeApplyNoBadPublish")}</p>
+          </Banner>
+        </Layout.Section>
         <Layout.Section>
           {queue.length === 0 ? (
             <EmptyState

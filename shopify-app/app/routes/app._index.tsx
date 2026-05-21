@@ -136,6 +136,16 @@ const LEVEL_TONES: Record<string, "success" | "info" | "warning" | "critical"> =
   low: "critical",
 };
 
+const LEVEL_I18N_KEYS: Record<string, string> = {
+  excellent: "levelExcellent",
+  bon: "levelBon",
+  good: "levelBon",
+  partiel: "levelPartiel",
+  partial: "levelPartiel",
+  faible: "levelFaible",
+  low: "levelFaible",
+};
+
 const SEV_TONES: Record<string, "critical" | "warning" | "info"> = {
   critical: "critical",
   error: "critical",
@@ -201,12 +211,12 @@ function Zone1({
         <Text as="h2" variant="headingMd">{t(locale, "dashboardZone1Title")}</Text>
         {data.global_score !== null ? (
           <InlineStack gap="300" blockAlign="center">
-            <Tooltip content={locale === "fr" ? "Score de préparation aux moteurs de recherche IA" : "AI search readiness score"}>
+            <Tooltip content={t(locale, "dashboardScoreTooltip")}>
               <Text as="p" variant="headingXl" fontWeight="bold">
                 {data.global_score}/100
               </Text>
             </Tooltip>
-            <Badge tone={tone}>{level}</Badge>
+            <Badge tone={tone}>{t(locale, LEVEL_I18N_KEYS[level] ?? level)}</Badge>
             <Text as="p" tone="subdued">
               {data.products_in_scope} {t(locale, "dashboardZone1Products")}
             </Text>
@@ -224,7 +234,11 @@ function Zone1({
             ) : (
               <Text as="p" tone="subdued">{t(locale, "dashboardZone1NicheUnvalidated")}</Text>
             )}
-            <Button url={localizedPath("/app/niche-understanding", locale)} variant="plain" size="slim">
+            <Button
+              url={localizedPath("/app/niche-understanding", locale)}
+              variant={data.niche_validated ? "plain" : "primary"}
+              size="slim"
+            >
               {t(locale, "dashboardZone1Cta")}
             </Button>
           </BlockStack>
@@ -263,7 +277,7 @@ function ActionCard({
           )}
         </InlineStack>
         <Button
-          url={localizedPath("/app/safe-apply", locale)}
+          url={`${localizedPath("/app/safe-apply", locale)}&highlight=${action.action_id}`}
           variant="primary"
           size="slim"
         >
@@ -276,11 +290,24 @@ function ActionCard({
 
 function Zone2({
   data,
+  nicheValidated,
   locale,
 }: {
   data: DashboardData["zone2"];
+  nicheValidated: boolean;
   locale: Locale;
 }) {
+  if (!nicheValidated) {
+    return (
+      <Card>
+        <BlockStack gap="200">
+          <Text as="h2" variant="headingMd">{t(locale, "dashboardZone2NicheGateTitle")}</Text>
+          <Text as="p" tone="subdued">{t(locale, "dashboardZone2NicheGateBody")}</Text>
+        </BlockStack>
+      </Card>
+    );
+  }
+
   return (
     <BlockStack gap="300">
       <Text as="h2" variant="headingMd">{t(locale, "dashboardZone2Title")}</Text>
@@ -490,7 +517,7 @@ export default function IndexPage() {
         <Zone1 data={zone1} locale={locale} />
 
         {/* Zone 2 — Priority actions */}
-        <Zone2 data={zone2} locale={locale} />
+        <Zone2 data={zone2} nicheValidated={zone1.niche_validated} locale={locale} />
 
         {/* Zone 3 — Ongoing optimizations */}
         <Zone3 data={zone3} locale={locale} />
@@ -501,8 +528,7 @@ export default function IndexPage() {
         {/* Zone 5 — Alerts (conditional) */}
         <Zone5 data={zone5} locale={locale} />
 
-        {/* Zone 6 — AI Visibility (disabled V1) */}
-        <Zone6 locale={locale} />
+        {/* Zone 6 — AI Visibility hidden until V2 */}
       </BlockStack>
     </Page>
   );

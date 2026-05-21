@@ -6,6 +6,7 @@ import {
   Banner,
   BlockStack,
   Box,
+  Button,
   Card,
   InlineGrid,
   InlineStack,
@@ -89,6 +90,7 @@ interface LoaderData {
   locale: Locale;
   data: PrioritiesData | null;
   error: string | null;
+  gated: boolean;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs): Promise<ReturnType<typeof json>> => {
@@ -98,18 +100,34 @@ export const loader = async ({ request }: LoaderFunctionArgs): Promise<ReturnTyp
   const plan = url.searchParams.get("plan") ?? "free";
 
   try {
+    const nicheResp = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/niche/hypothesis`,
+      { accessToken: session.accessToken },
+    );
+    if (!nicheResp.ok) {
+      return json({ locale, data: null, error: `Backend error ${nicheResp.status}`, gated: false });
+    }
+    const nicheData = (await nicheResp.json()) as {
+      hypothesis?: { status?: string } | null;
+    };
+    const isNicheValidated = nicheData.hypothesis?.status === "validated_by_merchant";
+    if (!isNicheValidated) {
+      return json({ locale, data: null, error: null, gated: true });
+    }
+
     const resp = await callBackendForShop(
       session.shop,
       `/api/shops/${session.shop}/priorities?scope=active&plan=${plan}`,
       { accessToken: session.accessToken },
     );
     if (!resp.ok) {
-      return json({ locale, data: null, error: `Backend error ${resp.status}` });
+      return json({ locale, data: null, error: `Backend error ${resp.status}`, gated: false });
     }
     const data: PrioritiesData = await resp.json();
-    return json({ locale, data, error: null });
+    return json({ locale, data, error: null, gated: false });
   } catch (err) {
-    return json({ locale, data: null, error: String(err) });
+    return json({ locale, data: null, error: String(err), gated: false });
   }
 };
 
@@ -138,7 +156,29 @@ function rankBadge(rank: number): string {
 }
 
 export default function PrioritiesPage() {
-  const { locale, data, error } = useLoaderData<LoaderData>();
+  const { locale, data, error, gated } = useLoaderData<LoaderData>();
+
+  if (gated) {
+    return (
+      <Page
+        title={t(locale, "priorities")}
+        subtitle={t(locale, "prioritiesSubtitle")}
+        backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app/optimization", locale) }}
+      >
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingMd">{t(locale, "prioritiesNicheGateTitle")}</Text>
+            <Text as="p" tone="subdued">{t(locale, "prioritiesNicheGateBody")}</Text>
+            <InlineStack>
+              <Button url={localizedPath("/app/niche-understanding", locale)} variant="primary">
+                {t(locale, "prioritiesNicheGateCta")}
+              </Button>
+            </InlineStack>
+          </BlockStack>
+        </Card>
+      </Page>
+    );
+  }
 
   if (error || !data) {
     return (
@@ -223,6 +263,12 @@ export default function PrioritiesPage() {
                     <Badge tone={riskTone(action.risk_guard.status)}>
                       {`${t(locale, "riskLabel")}: ${action.risk_guard.status}`}
                     </Badge>
+                    {action.estimates.revenue_estimate_eur !== null &&
+                      action.estimates.revenue_estimate_eur > 0 && (
+                      <Badge tone="success">
+                        {`${t(locale, "estimatedGain")} : ${action.estimates.revenue_estimate_eur.toFixed(0)} €`}
+                      </Badge>
+                    )}
                   </InlineStack>
 
                   {/* Risk guard override warning */}
@@ -252,6 +298,14 @@ export default function PrioritiesPage() {
                       ))}
                     </BlockStack>
                   )}
+
+                  <Button
+                    url={`${localizedPath("/app/safe-apply", locale)}&highlight=${action.action_id}`}
+                    variant="primary"
+                    size="slim"
+                  >
+                    {t(locale, "prepareAction")}
+                  </Button>
                 </BlockStack>
               </Card>
             ))}

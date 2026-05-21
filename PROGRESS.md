@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-21** (Phase 11.8 — tâche 149)
+- Dernière session : **2026-05-21** (Phase 11.9 — tâches 155-163 complètes)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -17,9 +17,38 @@
 - Phase 11.6 : **1/1** ✅ (GEO FAQ & Buying Guide Automation, tâche 126)
 - Phase 11.7 : **12/12** ✅ (cadrage GEO Autopilot Simplification, tâches 127-138)
 - Phase 11.8 : **11/11** ✅ (implémentation GEO Autopilot Simplification, tâches 139-149, terminée 2026-05-21)
-- Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 150-151)
+- Phase 11.9 : **12/12** ✅ (Merchant Journey Unification & Friction Reduction, tâches 152-163 terminées le 2026-05-21)
+- Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 150-151, démarre après test 3 marchands pilotes)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : dernière validation complète tâche 149 — `ruff check .` ✅, `pytest` **1520 passed** ✅, `npm run typecheck` ✅.
+- Tests : dernière validation complète tâches 155-163 — `npm run typecheck` ✅, `npm run build` ✅, `git diff --check` ✅.
+
+## Phase 11.9 — Merchant Journey Unification & Friction Reduction le 2026-05-21
+
+### Objectif
+
+Rendre l'app Léonie SEO compréhensible par un marchand non expert en moins de 5 minutes, sans explication préalable. Tâches 155-163 : 8 documents canoniques + ajustements UX/i18n dans 5 routes Remix.
+
+### Tâches terminées
+
+- **155 Dashboard as Single Command Center** — Zone 1 CTA primary si niche non validée, badge niveau i18n, tooltip marchand, Zone 6 masquée, lien safe-apply avec highlight.
+- **156 One Primary CTA per Screen** — Matrice CTA documentée + application dans 5 routes : niche-understanding (Analyser→secondary), safe-apply (Valider/Publier→primary, pas tone critique), priorities (Préparer→primary), impact (Voir prochaines→primary).
+- **157 Merchant Language Pass** — 22 nouvelles clés i18n FR+EN + mise à jour de 12 clés existantes : Valider, Prévisualiser, Publier, Refuser, statuts marchands, types de contenu, message rétention, gain estimé.
+- **158 Advanced Tools Hiding Strategy** — doc canonique listant 14 routes avancées, confirmation que nav principale est déjà correcte.
+- **159 Action Detail Unification** — gain estimé (revenue_estimate_eur) affiché en Badge success sur app.priorities + CTA "Préparer cette action" → safe-apply par carte.
+- **160 Safe Apply Narrative Simplification** — bannière de sécurité permanente, StatusBadge i18n, CONTENT_TYPE_I18N_KEYS, erreurs techniques traduites, boutons restructurés (primary: Valider/Publier, secondary: Prévisualiser, plain: Refuser).
+- **161 Impact Feedback Loop UX** — Banner rétention en haut de page, section jalons déplacée avant les courbes techniques, bouton NBA "Voir prochaines actions" primary.
+- **162 Pilot Merchant Test Script** — protocole 6 tâches, grille de friction 0-5, seuils de passage.
+- **163 Phase 12 Entry Criteria Update** — §0 prérequis Phase 11.9 dans launch-readiness.md, section gate Phase 11.9 dans DECISIONS.md.
+
+### Validations
+
+- `npm run typecheck` ✅ (0 erreur TypeScript)
+- `npm run build` ✅ (74 modules SSR)
+- `git diff --check` ✅
+
+### Prochaine tâche recommandée
+
+- **Phase 12 (tâches 150-151)** : planifier les 3 sessions test utilisateur marchands pilotes (`docs/pilot-merchant-test-script.md`). Dès les 5 critères atteints → tâche 150 décision go/no-go App Store.
 
 ## Phase 11.8 — Implémentation GEO Autopilot Simplification le 2026-05-20
 
@@ -82,6 +111,70 @@ Exécuter mécaniquement la checklist `docs/launch-readiness.md` §3.1 → §3.1
 ### Prochaine tâche recommandée
 
 - **Phase 12** : Planifier les 3 sessions test utilisateur marchand (compréhension < 5 min + dashboard impact lisible). Dès validation humaine OK → tâche 150 go/no-go final.
+
+## Roadmap — Ajout Phase 11.9 le 2026-05-21
+
+### Note
+
+Ajout documentaire de la **Phase 11.9 — Merchant Journey Unification & Friction Reduction** dans `ROADMAP.md`, avec les tâches 152-163 en attente. La Phase 12 démarre désormais seulement après validation de la Phase 11.9 et tests marchands pilotes.
+
+## Tâche 152 — First-Run Journey Map le 2026-05-21
+
+### Objectif
+
+Transformer le cadrage Phase 11.9 en premier incrément concret : documenter le parcours marchand de première connexion jusqu'à la première action appliquée, puis retirer un détail technique visible du chemin standard.
+
+### Réalisations
+
+- `docs/first-run-merchant-journey.md` — parcours linéaire Connecter → Comprendre → Valider → Analyser → Proposer → Appliquer → Mesurer, avec écran attendu, CTA principal, état vide, état erreur et critère de passage par étape.
+- `shopify-app/app/routes/app.niche-understanding.tsx` — le JSON brut de "Ce que l'IA a compris" passe derrière un bloc **Mode avancé** replié par défaut.
+- `ROADMAP.md` — tâche 152 marquée terminée et liée au document canonique.
+
+### Validations
+
+- `npm run typecheck` ✅
+- `npm run build` ✅
+- `git diff --check` ✅
+
+## Tâche 153 — Niche Understanding as Mandatory Gate le 2026-05-21
+
+### Objectif
+
+Faire de la compréhension IA validée un prérequis visible avant les recommandations principales, tout en gardant les réglages, la mesure et le mode avancé accessibles.
+
+### Réalisations
+
+- `docs/niche-understanding-gate.md` — règle produit canonique : statut bloquant, surfaces bloquées, surfaces accessibles, briques existantes, garde-fous et critères de validation.
+- `shopify-app/app/routes/app._index.tsx` — la zone "Vos 3 actions prioritaires" affiche un CTA de validation si `zone1.niche_validated` est faux.
+- `shopify-app/app/routes/app.priorities.tsx` — la page Top 3 Actions vérifie `/niche/hypothesis` avant de charger les priorités ; si non validé, elle affiche une gate vers `Compréhension boutique`.
+- `shopify-app/app/lib/i18n.ts` — textes FR/EN pour le gate marchand.
+- `ROADMAP.md` — tâche 153 marquée terminée et liée au document canonique.
+
+### Validations
+
+- `npm run typecheck` ✅
+- `npm run build` ✅
+- `git diff --check` ✅
+
+## Tâche 154 — Unified Onboarding Flow le 2026-05-21
+
+### Objectif
+
+Réduire l'onboarding visible à 4 étapes maximum : connecter Google, lancer l'analyse IA, valider la compréhension IA, voir les 3 actions prioritaires.
+
+### Réalisations
+
+- `docs/unified-onboarding-flow.md` — séquence onboarding cible, règles d'écran, critères de fin d'étape, briques réutilisées et garde-fous.
+- `shopify-app/app/routes/app.onboarding.tsx` — ajout d'un parcours guidé "Démarrer en 4 étapes" avec un seul prochain CTA actif.
+- `shopify-app/app/routes/app.onboarding.tsx` — ajout de l'action `niche_understand` pour lancer `/api/shops/{shop}/niche/understand` depuis l'onboarding.
+- `shopify-app/app/routes/app.onboarding.tsx` — l'ancienne checklist complète, PageSpeed, crawl, GSC détaillé et jobs passent derrière **Outils avancés**.
+- `ROADMAP.md` — tâche 154 marquée terminée et liée au document canonique.
+
+### Validations prévues
+
+- `npm run typecheck` ✅
+- `npm run build` ✅
+- `git diff --check` ✅
 
 ## Tâche 145 — AI Content Actions Runtime le 2026-05-20
 
