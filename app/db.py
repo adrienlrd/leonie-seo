@@ -220,6 +220,21 @@ _SQLITE_DDL = [
         created_at     TEXT NOT NULL,
         updated_at     TEXT NOT NULL
     )""",
+    # Human review decisions for content actions (Phase 11.8, task 146)
+    """CREATE TABLE IF NOT EXISTS content_action_decisions (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop            TEXT NOT NULL,
+        action_id       TEXT NOT NULL,
+        content_type    TEXT NOT NULL,
+        decision        TEXT NOT NULL,
+        decided_by      TEXT NOT NULL DEFAULT 'merchant',
+        decided_at      TEXT NOT NULL,
+        before_hash     TEXT,
+        after_hash      TEXT,
+        edit_diff       TEXT,
+        rejected_reason TEXT,
+        retry_index     INTEGER NOT NULL DEFAULT 0
+    )""",
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────

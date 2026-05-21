@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-20** (Phase 11.8 — tâche 145)
+- Dernière session : **2026-05-21** (Phase 11.8 — tâche 146)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -16,10 +16,10 @@
 - Phase 11.5 : **10/10** ✅ (GEO Impact Validation & Retention Loop, tâches 116-125)
 - Phase 11.6 : **1/1** ✅ (GEO FAQ & Buying Guide Automation, tâche 126)
 - Phase 11.7 : **12/12** ✅ (cadrage GEO Autopilot Simplification, tâches 127-138)
-- Phase 11.8 : **7/11** ⏳ (implémentation GEO Autopilot Simplification, tâches 139-149)
+- Phase 11.8 : **8/11** ⏳ (implémentation GEO Autopilot Simplification, tâches 139-149)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 150-151)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
-- Tests : dernière validation complète tâche 145 — `ruff check .` ✅, `pytest` **1470 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
+- Tests : dernière validation complète tâche 146 — `ruff check .` ✅, `pytest` **1507 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅.
 
 ## Phase 11.8 — Implémentation GEO Autopilot Simplification le 2026-05-20
 
@@ -36,7 +36,7 @@ Transformer le cadrage Phase 11.7 en fonctionnalités produit testées avant le 
 
 ### Prochaine tâche recommandée
 
-- **146 — Safe Apply Runtime** : créer diff/decisions/writer adapters/rollback adapters, routes `/safe-apply/*`, extension des content types, UI review/apply/rollback et tests de garde-fous.
+- **147 — Impact Tracker Productization** : recentrer l'UI Impact autour de Search Performance, optimisations actives, rétention, next actions, ajouter `ai-visibility/status` désactivé V1.
 
 ## Tâche 145 — AI Content Actions Runtime le 2026-05-20
 

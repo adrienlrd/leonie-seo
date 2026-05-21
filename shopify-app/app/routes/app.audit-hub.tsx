@@ -16,6 +16,14 @@ export default function AuditHub() {
 
   const items: HubItem[] = [
     {
+      titleKey: "safeApply",
+      href: "/app/safe-apply",
+      description:
+        locale === "fr"
+          ? "Revue humaine, dry-run, application Shopify et rollback — accept/edit/reject/retry."
+          : "Human review, dry-run, Shopify apply and rollback — accept/edit/reject/retry.",
+    },
+    {
       titleKey: "contentActions",
       href: "/app/content-actions",
       description:
