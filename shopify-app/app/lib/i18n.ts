@@ -3,7 +3,7 @@ export type Locale = "fr" | "en";
 type Dictionary = Record<string, string>;
 
 const FR: Dictionary = {
-  dashboard: "Dashboard",
+  dashboard: "Accueil",
   audit: "Audit",
   longtail: "Longue traîne",
   cannibalization: "Cannibalisation",
@@ -127,13 +127,13 @@ const FR: Dictionary = {
   alertsTotal: "alertes actives",
   // Hub navigation
   hubAudit: "Analyse",
-  hubAuditSubtitle: "Diagnostic complet de votre boutique",
+  hubAuditSubtitle: "Les diagnostics utiles, avec les détails techniques repliés.",
   hubOptimization: "Actions",
-  hubOptimizationSubtitle: "Vos optimisations en cours et passées",
+  hubOptimizationSubtitle: "Commencez par les actions recommandées, puis relisez avant publication.",
   hubContent: "Contenu & visibilité",
-  hubContentSubtitle: "FAQ, briefs blog, hreflang international, JSON-LD, sémantique",
+  hubContentSubtitle: "Générez et validez le contenu utile sans entrer dans les outils techniques.",
   hubInsights: "Mesure",
-  hubInsightsSubtitle: "Suivi de l'impact dans le temps",
+  hubInsightsSubtitle: "Suivez l'impact et les prochaines décisions à prendre.",
   dashboardZone1Title: "État de votre boutique",
   dashboardZone1Niche: "Ce que l'IA a compris de votre boutique",
   dashboardZone1NicheUnvalidated: "L'IA n'a pas encore analysé votre boutique.",
@@ -355,7 +355,7 @@ const FR: Dictionary = {
 };
 
 const EN: Dictionary = {
-  dashboard: "Dashboard",
+  dashboard: "Home",
   audit: "Audit",
   longtail: "Long tail",
   cannibalization: "Cannibalization",
@@ -479,13 +479,13 @@ const EN: Dictionary = {
   alertsTotal: "active alerts",
   // Hub navigation
   hubAudit: "Analyse",
-  hubAuditSubtitle: "Full diagnostics of your store",
+  hubAuditSubtitle: "Useful diagnostics, with technical details folded away.",
   hubOptimization: "Actions",
-  hubOptimizationSubtitle: "Your ongoing and past optimizations",
+  hubOptimizationSubtitle: "Start with recommended actions, then review before publishing.",
   hubContent: "Content & visibility",
-  hubContentSubtitle: "FAQ, blog briefs, international hreflang, JSON-LD, semantics",
+  hubContentSubtitle: "Generate and validate useful content without entering technical tools.",
   hubInsights: "Measure",
-  hubInsightsSubtitle: "Track the impact over time",
+  hubInsightsSubtitle: "Track impact and the next decisions to take.",
   dashboardZone1Title: "Your store's health",
   dashboardZone1Niche: "What the AI understood about your store",
   dashboardZone1NicheUnvalidated: "The AI has not yet analyzed your store.",

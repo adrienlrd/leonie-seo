@@ -4,7 +4,7 @@ import { useLoaderData } from "@remix-run/react";
 import { BlockStack, Page } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
-import { HubGrid, type HubItem } from "../components/HubGrid";
+import { AdvancedToolList, HubGrid, type HubItem } from "../components/HubGrid";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
@@ -14,54 +14,41 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function AuditHub() {
   const { locale } = useLoaderData<typeof loader>() as { locale: Locale };
 
-  const items: HubItem[] = [
+  const primaryItems: HubItem[] = [
     {
-      titleKey: "safeApply",
-      href: "/app/safe-apply",
+      titleKey: "auditReadiness",
+      href: "/app/audit-readiness",
       description:
         locale === "fr"
-          ? "Revue humaine, dry-run, application Shopify et rollback — accept/edit/reject/retry."
-          : "Human review, dry-run, Shopify apply and rollback — accept/edit/reject/retry.",
-    },
-    {
-      titleKey: "contentActions",
-      href: "/app/content-actions",
-      description:
-        locale === "fr"
-          ? "Workflow unifié : meta, descriptions, FAQ, guides — faits confirmés + hypothèse niche."
-          : "Unified workflow: meta, descriptions, FAQ, guides — confirmed facts + niche hypothesis.",
-    },
-    {
-      titleKey: "priorities",
-      href: "/app/priorities",
-      description:
-        locale === "fr"
-          ? "Top 3 actions sélectionnées par score déterministe — LLM arbitrage sur plans Pro/Agency."
-          : "Top 3 actions selected by deterministic score — LLM arbitrage on Pro/Agency plans.",
+          ? "Comprenez rapidement l'état de la boutique et les points à corriger."
+          : "Quickly understand store health and what needs attention.",
     },
     {
       titleKey: "opportunities",
       href: "/app/opportunities",
       description:
         locale === "fr"
-          ? "Pages ACTIVE classées par ratio impact/effort — 7 signaux déterministes sans IA."
-          : "ACTIVE pages ranked by impact/effort ratio — 7 deterministic signals, no AI.",
-    },
-    {
-      titleKey: "auditReadiness",
-      href: "/app/audit-readiness",
-      description:
-        locale === "fr"
-          ? "Score AI Search Readiness unifié : faits produits, crawl L3, hypothèse niche."
-          : "Unified AI Search Readiness score: product facts, crawl L3, niche hypothesis.",
+          ? "Repérez les pages actives qui méritent une optimisation en premier."
+          : "Find active pages that deserve optimization first.",
     },
     {
       titleKey: "audit",
       href: "/app/audit",
       description:
         locale === "fr"
-          ? "Crawl SEO complet : titres, descriptions, JSON-LD, redirections, problèmes techniques."
-          : "Full SEO crawl: titles, descriptions, JSON-LD, redirects, technical issues.",
+          ? "Relancez l'analyse de votre boutique quand les données doivent être actualisées."
+          : "Refresh the store analysis when data needs to be updated.",
+    },
+  ];
+
+  const advancedItems: HubItem[] = [
+    {
+      titleKey: "priorities",
+      href: "/app/priorities",
+      description:
+        locale === "fr"
+          ? "Écran canonique aussi disponible depuis Actions."
+          : "Canonical screen also available from Actions.",
     },
     {
       titleKey: "longtail",
@@ -96,7 +83,12 @@ export default function AuditHub() {
       backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}
     >
       <BlockStack gap="400">
-        <HubGrid items={items} locale={locale} />
+        <HubGrid items={primaryItems} locale={locale} />
+        <AdvancedToolList
+          title={locale === "fr" ? "Diagnostics avancés" : "Advanced diagnostics"}
+          items={advancedItems}
+          locale={locale}
+        />
       </BlockStack>
     </Page>
   );
