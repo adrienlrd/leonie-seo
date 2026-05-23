@@ -16,6 +16,14 @@ export default function InsightsHub() {
 
   const primaryItems: HubItem[] = [
     {
+      titleKey: "marketAnalysis",
+      href: "/app/market-analysis",
+      description:
+        locale === "fr"
+          ? "Analysez les produits actifs : mots-clés SEO, questions GEO, propositions de contenu."
+          : "Analyze active products: SEO keywords, GEO questions, content proposals.",
+    },
+    {
       titleKey: "impact",
       href: "/app/impact",
       description:

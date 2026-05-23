@@ -385,6 +385,20 @@ const FR: Dictionary = {
   subScoresTitle: "Détail du score",
   nicheCompetitors: "Concurrents détectés",
   nichePriorityProducts: "Produits prioritaires",
+  // Market analysis
+  marketAnalysis: "Analyse marché",
+  marketAnalysisSubtitle: "Opportunités SEO/GEO et propositions de contenu par produit actif",
+  marketAnalysisRun: "Analyser",
+  marketAnalysisRunning: "Analyse en cours…",
+  marketAnalysisEmpty: "Lancez une analyse pour voir les opportunités SEO/GEO de vos produits actifs.",
+  marketAnalysisReadOnly: "Mode lecture seule — aucune modification Shopify dans cette version.",
+  marketAnalysisLastRun: "Dernière analyse",
+  marketAnalysisProductCount: "produits actifs analysés",
+  marketAnalysisOpportunityCount: "opportunités détectées",
+  marketAnalysisSeoKeywords: "Mots-clés SEO",
+  marketAnalysisGeoQuestions: "Questions GEO / IA",
+  marketAnalysisProposals: "Propositions de contenu",
+  marketAnalysisFactsMissing: "Faits à vérifier",
 };
 
 const EN: Dictionary = {
@@ -770,6 +784,20 @@ const EN: Dictionary = {
   subScoresTitle: "Score breakdown",
   nicheCompetitors: "Detected competitors",
   nichePriorityProducts: "Priority products",
+  // Market analysis
+  marketAnalysis: "Market analysis",
+  marketAnalysisSubtitle: "SEO/GEO opportunities and content proposals per active product",
+  marketAnalysisRun: "Analyse",
+  marketAnalysisRunning: "Analysis in progress…",
+  marketAnalysisEmpty: "Run an analysis to see SEO/GEO opportunities for your active products.",
+  marketAnalysisReadOnly: "Read-only mode — no Shopify changes in this version.",
+  marketAnalysisLastRun: "Last analysis",
+  marketAnalysisProductCount: "active products analyzed",
+  marketAnalysisOpportunityCount: "opportunities detected",
+  marketAnalysisSeoKeywords: "SEO Keywords",
+  marketAnalysisGeoQuestions: "GEO / AI Questions",
+  marketAnalysisProposals: "Content proposals",
+  marketAnalysisFactsMissing: "Facts to verify",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };
