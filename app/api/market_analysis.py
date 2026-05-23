@@ -12,7 +12,13 @@ from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_da
 from app.api.deps import ShopContext, get_shop_context
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.market_analysis.engine import run_market_analysis
-from app.market_analysis.jobs import create_job, get_job, update_job
+from app.market_analysis.jobs import (
+    create_job,
+    get_job,
+    load_latest_result,
+    save_latest_result,
+    update_job,
+)
 from app.niche.understanding import get_validated_niche_hypothesis
 
 router = APIRouter(prefix="/api", tags=["market_analysis"])
@@ -83,18 +89,22 @@ def _run_analysis_background(
             max_products=0,  # no cap — analyse all active products
             progress_callback=_on_progress,
         )
-        update_job(
-            job_id,
-            status="completed",
-            analyzed_at=result["analyzed_at"],
-            active_product_count=result["active_product_count"],
-            analyzed_product_count=result["analyzed_product_count"],
-            total_opportunity_count=result["total_opportunity_count"],
-            sources_used=result["sources_used"],
-            products=result["products"],
-            progress=result["analyzed_product_count"],
-            total=result["analyzed_product_count"],
-        )
+        completed_data: dict[str, Any] = {
+            "job_id": job_id,
+            "shop": shop_domain,
+            "status": "completed",
+            "analyzed_at": result["analyzed_at"],
+            "active_product_count": result["active_product_count"],
+            "analyzed_product_count": result["analyzed_product_count"],
+            "total_opportunity_count": result["total_opportunity_count"],
+            "sources_used": result["sources_used"],
+            "products": result["products"],
+            "progress": result["analyzed_product_count"],
+            "total": result["analyzed_product_count"],
+            "error": None,
+        }
+        update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
+        save_latest_result(shop_domain, completed_data)
     except Exception as exc:
         update_job(job_id, status="failed", error=str(exc))
 
@@ -150,6 +160,17 @@ async def get_market_analysis_job(
     if job is None:
         raise HTTPException(status_code=404, detail=f"Job {job_id} introuvable")
     return job
+
+
+@router.get("/shops/{shop}/market-analysis/latest")
+async def get_latest_market_analysis(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Return the last completed analysis for this shop (persisted across restarts)."""
+    result = load_latest_result(ctx.shop)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Aucune analyse précédente disponible")
+    return result
 
 
 # Legacy synchronous endpoint kept for backward compatibility

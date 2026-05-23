@@ -13,10 +13,9 @@ import {
   InlineStack,
   Page,
   ProgressBar,
-  Spinner,
   Text,
 } from "@shopify/polaris";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
@@ -76,8 +75,7 @@ interface ProductResult {
 }
 
 interface JobState {
-  job_id: string;
-  shop: string;
+  job_id?: string;
   status: "pending" | "running" | "completed" | "failed";
   progress: number;
   total: number;
@@ -88,19 +86,39 @@ interface JobState {
   total_opportunity_count: number;
   sources_used: string[];
   error: string | null;
-  snapshot_age_days?: number;
 }
 
 interface LoaderData {
   locale: Locale;
   shop: string;
+  latestJob: JobState | null;
 }
 
 // ── Remix loader / action ─────────────────────────────────────────────────────
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  return json({ locale: getLocale(request), shop: session.shop });
+  const locale = getLocale(request);
+
+  let latestJob: JobState | null = null;
+  try {
+    const resp = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/market-analysis/latest`,
+      {
+        accessToken: session.accessToken,
+        method: "GET",
+        signal: AbortSignal.timeout(5_000),
+      },
+    );
+    if (resp.ok) {
+      latestJob = await resp.json() as JobState;
+    }
+  } catch {
+    // No prior results available — silent fail
+  }
+
+  return json({ locale, shop: session.shop, latestJob });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -123,7 +141,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const err = await resp.text();
         return json({ type: "start", jobId: null, error: `Erreur backend ${resp.status}: ${err}` });
       }
-      const data = await resp.json() as { job_id: string; status: string; snapshot_age_days?: number };
+      const data = await resp.json() as { job_id: string };
       return json({ type: "start", jobId: data.job_id, error: null });
     } catch (err) {
       return json({ type: "start", jobId: null, error: String(err) });
@@ -143,8 +161,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         },
       );
       if (!resp.ok) {
-        const err = await resp.text();
-        return json({ type: "poll", job: null, error: `Erreur poll ${resp.status}: ${err}` });
+        return json({ type: "poll", job: null, error: `Erreur poll ${resp.status}` });
       }
       const job = await resp.json() as JobState;
       return json({ type: "poll", job, error: null });
@@ -193,13 +210,7 @@ function progressLabel(locale: Locale, done: number, total: number): string {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SummaryCard({
-  job,
-  locale,
-}: {
-  job: JobState;
-  locale: Locale;
-}) {
+function SummaryCard({ job, locale }: { job: JobState; locale: Locale }) {
   return (
     <Card>
       <BlockStack gap="200">
@@ -223,18 +234,9 @@ function SummaryCard({
   );
 }
 
-function ProductCard({
-  product,
-  locale,
-}: {
-  product: ProductResult;
-  locale: Locale;
-}) {
+function ProductCard({ product, locale }: { product: ProductResult; locale: Locale }) {
   const [openSection, setOpenSection] = useState<string | null>(null);
-
-  const toggle = (section: string) =>
-    setOpenSection((prev) => (prev === section ? null : section));
-
+  const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
   const pack = product.content_test_pack;
 
   return (
@@ -243,34 +245,23 @@ function ProductCard({
         {/* Header */}
         <InlineStack gap="200" align="space-between" wrap>
           <BlockStack gap="100">
-            <Text as="h3" variant="headingSm">
-              {product.product_title}
-            </Text>
-            <Text as="p" variant="bodySm" tone="subdued">
-              /{product.product_handle}
-            </Text>
+            <Text as="h3" variant="headingSm">{product.product_title}</Text>
+            <Text as="p" variant="bodySm" tone="subdued">/{product.product_handle}</Text>
           </BlockStack>
           <InlineStack gap="200">
             <Badge tone={scoreTone(product.opportunity_score)}>
               {`Score ${product.opportunity_score}/100`}
             </Badge>
-            <Badge tone={confidenceTone(product.confidence)}>
-              {product.confidence}
-            </Badge>
+            <Badge tone={confidenceTone(product.confidence)}>{product.confidence}</Badge>
           </InlineStack>
         </InlineStack>
 
-        {/* Summary */}
         {product.product_summary && (
-          <Text as="p" variant="bodySm">
-            {product.product_summary}
-          </Text>
+          <Text as="p" variant="bodySm">{product.product_summary}</Text>
         )}
-
         {product.target_customer && (
           <Text as="p" variant="bodySm" tone="subdued">
-            {locale === "fr" ? "Client cible" : "Target customer"} :{" "}
-            {product.target_customer}
+            {locale === "fr" ? "Client cible" : "Target customer"} : {product.target_customer}
           </Text>
         )}
 
@@ -345,17 +336,11 @@ function ProductCard({
                 <BlockStack gap="300">
                   {pack.proposed_meta_title && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="headingXs">Meta title</Text>
+                      <Text as="h4" variant="headingXs">Meta title</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         {locale === "fr" ? "Actuel" : "Current"} : {pack.current_meta_title}
                       </Text>
-                      <Box
-                        padding="200"
-                        borderWidth="025"
-                        borderRadius="200"
-                        borderColor="border"
-                        background="bg-surface-secondary"
-                      >
+                      <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
                         <Text as="p" variant="bodySm">{pack.proposed_meta_title}</Text>
                       </Box>
                     </BlockStack>
@@ -363,18 +348,12 @@ function ProductCard({
 
                   {pack.proposed_meta_description && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="headingXs">Meta description</Text>
+                      <Text as="h4" variant="headingXs">Meta description</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         {locale === "fr" ? "Actuelle" : "Current"} :{" "}
                         {pack.current_meta_description || (locale === "fr" ? "absente" : "missing")}
                       </Text>
-                      <Box
-                        padding="200"
-                        borderWidth="025"
-                        borderRadius="200"
-                        borderColor="border"
-                        background="bg-surface-secondary"
-                      >
+                      <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
                         <Text as="p" variant="bodySm">{pack.proposed_meta_description}</Text>
                       </Box>
                     </BlockStack>
@@ -382,16 +361,10 @@ function ProductCard({
 
                   {pack.proposed_product_description && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="headingXs">
+                      <Text as="h4" variant="headingXs">
                         {t(locale, "contentTypeProductDescription")}
                       </Text>
-                      <Box
-                        padding="200"
-                        borderWidth="025"
-                        borderRadius="200"
-                        borderColor="border"
-                        background="bg-surface-secondary"
-                      >
+                      <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
                         <Text as="p" variant="bodySm">{pack.proposed_product_description}</Text>
                       </Box>
                     </BlockStack>
@@ -399,7 +372,7 @@ function ProductCard({
 
                   {pack.proposed_faq.length > 0 && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="headingXs">FAQ</Text>
+                      <Text as="h4" variant="headingXs">FAQ</Text>
                       {pack.proposed_faq.map((item, i) => (
                         <Box key={i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
                           <BlockStack gap="100">
@@ -413,16 +386,10 @@ function ProductCard({
 
                   {pack.proposed_geo_answer_block && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="headingXs">
+                      <Text as="h4" variant="headingXs">
                         {locale === "fr" ? "Bloc réponse GEO" : "GEO answer block"}
                       </Text>
-                      <Box
-                        padding="200"
-                        borderWidth="025"
-                        borderRadius="200"
-                        borderColor="border"
-                        background="bg-surface-secondary"
-                      >
+                      <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
                         <Text as="p" variant="bodySm">{pack.proposed_geo_answer_block}</Text>
                       </Box>
                     </BlockStack>
@@ -430,23 +397,17 @@ function ProductCard({
 
                   {pack.proposed_blog_title && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="headingXs">
+                      <Text as="h4" variant="headingXs">
                         {locale === "fr" ? "Idée d'article de blog" : "Blog article idea"}
                       </Text>
-                      <Text as="p" variant="bodySm">
-                        <strong>{pack.proposed_blog_title}</strong>
-                      </Text>
+                      <Text as="p" variant="bodySm"><strong>{pack.proposed_blog_title}</strong></Text>
                       {pack.proposed_blog_intro && (
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          {pack.proposed_blog_intro}
-                        </Text>
+                        <Text as="p" variant="bodySm" tone="subdued">{pack.proposed_blog_intro}</Text>
                       )}
                       {pack.proposed_blog_outline.length > 0 && (
                         <BlockStack gap="050">
                           {pack.proposed_blog_outline.map((line, i) => (
-                            <Text key={i} as="p" variant="bodySm" tone="subdued">
-                              • {line}
-                            </Text>
+                            <Text key={i} as="p" variant="bodySm" tone="subdued">• {line}</Text>
                           ))}
                         </BlockStack>
                       )}
@@ -468,9 +429,7 @@ function ProductCard({
               <Box paddingBlockStart="100">
                 <BlockStack gap="050">
                   {pack.facts_missing.map((f, i) => (
-                    <Text key={i} as="p" variant="bodySm" tone="subdued">
-                      • {f}
-                    </Text>
+                    <Text key={i} as="p" variant="bodySm" tone="subdued">• {f}</Text>
                   ))}
                 </BlockStack>
               </Box>
@@ -485,16 +444,25 @@ function ProductCard({
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function MarketAnalysisPage() {
-  const { locale } = useLoaderData<LoaderData>();
+  const { locale, latestJob } = useLoaderData<LoaderData>();
+
   const startFetcher = useFetcher<{ type: string; jobId: string | null; error: string | null }>();
   const pollFetcher = useFetcher<{ type: string; job: JobState | null; error: string | null }>();
 
+  // Initialize from persisted last result so page is never empty on revisit
   const [jobId, setJobId] = useState<string | null>(null);
-  const [job, setJob] = useState<JobState | null>(null);
+  const [job, setJob] = useState<JobState | null>(latestJob);
   const [pollError, setPollError] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // When "start" action completes, capture the job_id
+  // Refs so the polling interval can read current values without stale closures
+  const jobIdRef = useRef<string | null>(null);
+  const jobStatusRef = useRef<string | undefined>(job?.status);
+  const pollFetcherRef = useRef(pollFetcher);
+  jobIdRef.current = jobId;
+  jobStatusRef.current = job?.status;
+  pollFetcherRef.current = pollFetcher;
+
+  // Capture job_id from "start" response
   useEffect(() => {
     if (startFetcher.data?.type === "start") {
       if (startFetcher.data.jobId) {
@@ -505,48 +473,31 @@ export default function MarketAnalysisPage() {
     }
   }, [startFetcher.data]);
 
-  // When poll action returns, update job state
+  // Merge poll response into job state
   useEffect(() => {
     if (pollFetcher.data?.type === "poll") {
-      if (pollFetcher.data.job) {
-        setJob(pollFetcher.data.job);
-      }
-      if (pollFetcher.data.error) {
-        setPollError(pollFetcher.data.error);
-      }
+      if (pollFetcher.data.job) setJob(pollFetcher.data.job);
+      if (pollFetcher.data.error) setPollError(pollFetcher.data.error);
     }
   }, [pollFetcher.data]);
 
-  // Polling loop — starts when jobId is set, stops when job is terminal
-  const doPoll = useCallback(
-    (id: string) => {
-      const fd = new FormData();
-      fd.set("intent", "poll");
-      fd.set("jobId", id);
-      pollFetcher.submit(fd, { method: "post" });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
+  // Polling loop: starts when jobId is set, self-terminates on completion/failure
   useEffect(() => {
     if (!jobId) return;
 
-    const isTerminal = job?.status === "completed" || job?.status === "failed";
-    if (isTerminal) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      intervalRef.current = null;
-      return;
-    }
-
-    // Start polling immediately, then every 5s
-    doPoll(jobId);
-    intervalRef.current = setInterval(() => doPoll(jobId), 5_000);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    const poll = () => {
+      const status = jobStatusRef.current;
+      if (status === "completed" || status === "failed") return;
+      const fd = new FormData();
+      fd.set("intent", "poll");
+      fd.set("jobId", jobIdRef.current!);
+      pollFetcherRef.current.submit(fd, { method: "post" });
     };
-  }, [jobId, job?.status, doPoll]);
+
+    poll(); // immediate first poll
+    const id = setInterval(poll, 5_000);
+    return () => clearInterval(id);
+  }, [jobId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAnalyse = () => {
     setJobId(null);
@@ -557,14 +508,20 @@ export default function MarketAnalysisPage() {
     startFetcher.submit(fd, { method: "post" });
   };
 
-  const isStarting = startFetcher.state !== "idle" && !jobId;
-  const isRunning = jobId !== null && job?.status !== "completed" && job?.status !== "failed";
+  const isStarting = startFetcher.state !== "idle";
+  const isRunning =
+    jobId !== null &&
+    job?.status !== "completed" &&
+    job?.status !== "failed" &&
+    !pollError;
   const isInProgress = isStarting || isRunning;
-  const startError = startFetcher.data?.type === "start" ? (startFetcher.data.error ?? null) : null;
-  const anyError = startError || pollError || (job?.status === "failed" ? job.error : null);
 
   const progressPct =
     job && job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0;
+
+  const startError =
+    startFetcher.data?.type === "start" ? (startFetcher.data.error ?? null) : null;
+  const anyError = startError || pollError || (job?.status === "failed" ? job.error : null);
 
   return (
     <Page
@@ -581,56 +538,34 @@ export default function MarketAnalysisPage() {
           <Text as="p">{t(locale, "marketAnalysisReadOnly")}</Text>
         </Banner>
 
-        {/* Launch card */}
+        {/* Launch card — button always visible */}
         <Card>
           <BlockStack gap="300">
             {!isInProgress && !job && (
-              <Text as="p">{t(locale, "marketAnalysisEmpty")}</Text>
+              <Text as="p" tone="subdued">{t(locale, "marketAnalysisEmpty")}</Text>
             )}
 
-            {/* Starting state */}
-            {isStarting && (
-              <InlineStack gap="200" align="start">
-                <Spinner size="small" />
-                <Text as="p" tone="subdued">{t(locale, "marketAnalysisStarting")}</Text>
-              </InlineStack>
-            )}
+            <Button
+              variant="primary"
+              onClick={handleAnalyse}
+              disabled={isInProgress}
+              loading={isInProgress}
+            >
+              {isInProgress
+                ? t(locale, "marketAnalysisRunning")
+                : job?.status === "completed"
+                ? (locale === "fr" ? "Relancer l'analyse" : "Re-run analysis")
+                : t(locale, "marketAnalysisRun")}
+            </Button>
 
-            {/* In-progress state */}
-            {isRunning && job && (
-              <BlockStack gap="200">
-                <InlineStack gap="200" align="start">
-                  <Spinner size="small" />
-                  <Text as="p" tone="subdued">
-                    {job.total > 0
-                      ? progressLabel(locale, job.progress, job.total)
-                      : t(locale, "marketAnalysisRunning")}
-                  </Text>
-                </InlineStack>
-                {job.total > 0 && (
-                  <ProgressBar progress={progressPct} size="small" />
-                )}
+            {/* Progress bar (only shown during active run) */}
+            {isRunning && job && job.total > 0 && (
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {progressLabel(locale, job.progress, job.total)}
+                </Text>
+                <ProgressBar progress={progressPct} size="small" />
               </BlockStack>
-            )}
-
-            {/* In-progress but no job data yet */}
-            {isRunning && !job && (
-              <InlineStack gap="200" align="start">
-                <Spinner size="small" />
-                <Text as="p" tone="subdued">{t(locale, "marketAnalysisRunning")}</Text>
-              </InlineStack>
-            )}
-
-            {!isInProgress && (
-              <Button
-                variant="primary"
-                onClick={handleAnalyse}
-                disabled={isInProgress}
-              >
-                {job?.status === "completed"
-                  ? (locale === "fr" ? "Relancer l'analyse" : "Re-run analysis")
-                  : t(locale, "marketAnalysisRun")}
-              </Button>
             )}
           </BlockStack>
         </Card>
@@ -642,23 +577,22 @@ export default function MarketAnalysisPage() {
           </Banner>
         )}
 
-        {/* Summary (show even during run if we have partial data) */}
+        {/* Summary (shows during run too, with partial data) */}
         {job && job.analyzed_product_count > 0 && (
           <SummaryCard job={job} locale={locale} />
         )}
 
-        {/* Product results — progressive display */}
+        {/* Product cards — appear progressively as analysis runs */}
         {job?.products?.map((product) => (
           <ProductCard key={product.product_id} product={product} locale={locale} />
         ))}
 
-        {/* Completed banner */}
+        {/* Completion banner at bottom of results */}
         {job?.status === "completed" && (
           <Banner tone="success">
             <Text as="p">
               {t(locale, "marketAnalysisCompleted")} —{" "}
-              {job.analyzed_product_count}{" "}
-              {t(locale, "marketAnalysisProductCount")}
+              {job.analyzed_product_count} {t(locale, "marketAnalysisProductCount")}
             </Text>
           </Banner>
         )}

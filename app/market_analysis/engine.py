@@ -78,8 +78,11 @@ def _build_prompt(
 ) -> str:
     queries_text = ", ".join(matched_queries[:5]) if matched_queries else "aucune donnée GSC"
     collections_text = ", ".join(collections) if collections else "aucune"
+    today = datetime.now(UTC).strftime("%d/%m/%Y")
+    current_year = datetime.now(UTC).year
 
     return (
+        f"DATE_ACTUELLE: {today} (année {current_year})\n"
         f"NICHE: {niche_summary or 'Non définie'}\n"
         f"PRODUIT: {product_title} | handle: {handle} | prix: {price or 'non renseigné'}\n"
         f"DESCRIPTION: {description[:400]}\n"
@@ -89,6 +92,9 @@ def _build_prompt(
         f"META DESCRIPTION ACTUELLE: {current_meta_description or 'absente'}\n"
         f"REQUÊTES GSC TOP: {queries_text}\n"
         f"SCORE OPPORTUNITÉ: {opportunity_score}/100\n\n"
+        f"IMPORTANT: nous sommes en {current_year}. "
+        "N'utilise jamais d'années passées dans les titres, exemples ou références. "
+        "Toutes les propositions doivent être actuelles et pertinentes pour l'année en cours.\n\n"
         "Réponds uniquement en JSON valide avec exactement ces clés : "
         "product_summary, target_customer, buying_intents (liste de strings), "
         "seo_keywords (5-8 objets avec query/intent_type/demand_score/competition_score/product_fit_score/reason), "
