@@ -39,8 +39,27 @@ _JSON_KEYS = (
 
 
 def _strip_html(html: str) -> str:
-    without_tags = re.sub(r"<[^>]+>", " ", html)
+    without_tags = re.sub(r"<[^>]+>", " ", str(html))
     return re.sub(r"\s+", " ", without_tags).strip()
+
+
+def _coerce_list(value: Any) -> list[Any]:
+    """Coerce a Shopify field to a list, regardless of REST or GraphQL shape.
+
+    REST returns lists directly. GraphQL returns Connection objects like
+    {"edges": [{"node": {...}}]} or {"nodes": [...]}. This helper normalises
+    both to a flat list so [0] indexing never raises KeyError.
+    """
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        edges = value.get("edges")
+        if isinstance(edges, list):
+            return [e.get("node", e) if isinstance(e, dict) else e for e in edges]
+        nodes = value.get("nodes")
+        if isinstance(nodes, list):
+            return nodes
+    return []
 
 
 def _build_prompt(
@@ -114,7 +133,8 @@ def _build_product_result(
     product_id = str(product.get("id", ""))
     product_title = product.get("title", "")
     handle = product.get("handle", "")
-    seo = product.get("seo") or {}
+    raw_seo = product.get("seo")
+    seo: dict[str, Any] = raw_seo if isinstance(raw_seo, dict) else {}
     current_meta_title = seo.get("title") or product_title
     current_meta_description = seo.get("description") or ""
     body_html = product.get("body_html") or product.get("description") or ""
@@ -179,37 +199,34 @@ def _score_active_products(
     for product in active_products:
         if not isinstance(product, dict):
             continue
-        score = 0
-        title = str(product.get("title") or "").lower()
-        body = str(product.get("body_html") or product.get("description") or "")
-        seo = product.get("seo") or {}
-        seo_title = str(seo.get("title", "") if isinstance(seo, dict) else "")
-        seo_desc = str(seo.get("description", "") if isinstance(seo, dict) else "")
-        variants = product.get("variants") or []
+        try:
+            score = 0
+            title = str(product.get("title") or "").lower()
+            body = str(product.get("body_html") or product.get("description") or "")
+            seo = product.get("seo") if isinstance(product.get("seo"), dict) else {}
+            seo_title = str(seo.get("title", ""))
+            seo_desc = str(seo.get("description", ""))
+            variants = _coerce_list(product.get("variants"))
+            first_variant = variants[0] if variants else {}
 
-        # Missing SEO fields → high opportunity
-        if not seo_title or len(seo_title) < 10:
-            score += 30
-        if not seo_desc or len(seo_desc) < 50:
-            score += 20
-        # Thin description
-        if len(_strip_html(body)) < 100:
-            score += 20
-        # GSC signal: title words appear in top queries
-        if any(word in q for q in gsc_queries for word in title.split() if len(word) > 3):
-            score += 15
-        # Has variants with price
-        if variants and isinstance(variants[0], dict) and variants[0].get("price"):
-            score += 5
-        # Has collections
-        if product.get("collections"):
-            score += 5
-        # Has images
-        if product.get("images"):
-            score += 5
+            if not seo_title or len(seo_title) < 10:
+                score += 30
+            if not seo_desc or len(seo_desc) < 50:
+                score += 20
+            if len(_strip_html(body)) < 100:
+                score += 20
+            if any(word in q for q in gsc_queries for word in title.split() if len(word) > 3):
+                score += 15
+            if isinstance(first_variant, dict) and first_variant.get("price"):
+                score += 5
+            if product.get("collections"):
+                score += 5
+            if product.get("images"):
+                score += 5
 
-        product_id = str(product.get("id", ""))
-        scored.append((score, product))
+            scored.append((score, product))
+        except Exception:
+            continue
 
     scored.sort(key=lambda x: x[0], reverse=True)
 
@@ -284,14 +301,14 @@ def run_market_analysis(
             product_title = product.get("title", "")
             handle = product.get("handle", "")
             body_html = product.get("body_html") or product.get("description") or ""
-            description = _strip_html(str(body_html))
+            description = _strip_html(body_html)
 
             raw_seo = product.get("seo")
             seo: dict[str, Any] = raw_seo if isinstance(raw_seo, dict) else {}
             current_meta_title = seo.get("title") or product_title
             current_meta_description = seo.get("description") or ""
 
-            raw_collections = product.get("collections") or []
+            raw_collections = _coerce_list(product.get("collections"))
             collections = [
                 c.get("title", "") if isinstance(c, dict) else str(c)
                 for c in raw_collections
@@ -301,9 +318,9 @@ def run_market_analysis(
             raw_tags = product.get("tags") or ""
             tags = ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
 
-            variants = product.get("variants") or []
+            variants = _coerce_list(product.get("variants"))
             first_variant = variants[0] if variants else {}
-            price = str(first_variant.get("price", "") if isinstance(first_variant, dict) else "")
+            price = str(first_variant.get("price", "")) if isinstance(first_variant, dict) else ""
 
             matched_queries: list[str] = opp.get("matched_queries", [])
             opportunity_score: int = opp.get("opportunity_score", 0)
