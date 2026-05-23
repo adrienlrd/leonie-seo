@@ -399,6 +399,9 @@ const FR: Dictionary = {
   marketAnalysisGeoQuestions: "Questions GEO / IA",
   marketAnalysisProposals: "Propositions de contenu",
   marketAnalysisFactsMissing: "Faits à vérifier",
+  marketAnalysisProgress: "Analyse en cours : {done} / {total} produit(s) traité(s)…",
+  marketAnalysisCompleted: "Analyse terminée",
+  marketAnalysisStarting: "Démarrage de l'analyse…",
 };
 
 const EN: Dictionary = {
@@ -798,6 +801,9 @@ const EN: Dictionary = {
   marketAnalysisGeoQuestions: "GEO / AI Questions",
   marketAnalysisProposals: "Content proposals",
   marketAnalysisFactsMissing: "Facts to verify",
+  marketAnalysisProgress: "Analysis in progress: {done} / {total} product(s) processed…",
+  marketAnalysisCompleted: "Analysis complete",
+  marketAnalysisStarting: "Starting analysis…",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };

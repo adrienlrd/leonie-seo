@@ -16,7 +16,7 @@ import {
   Spinner,
   Text,
 } from "@shopify/polaris";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
@@ -75,14 +75,20 @@ interface ProductResult {
   sources_used: string[];
 }
 
-interface AnalysisResults {
+interface JobState {
+  job_id: string;
   shop: string;
-  analyzed_at: string;
+  status: "pending" | "running" | "completed" | "failed";
+  progress: number;
+  total: number;
+  products: ProductResult[];
+  analyzed_at: string | null;
   active_product_count: number;
   analyzed_product_count: number;
   total_opportunity_count: number;
   sources_used: string[];
-  products: ProductResult[];
+  error: string | null;
+  snapshot_age_days?: number;
 }
 
 interface LoaderData {
@@ -102,29 +108,52 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
-  if (intent !== "run") {
-    return json({ results: null, error: "Unknown intent" });
+  if (intent === "start") {
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+      if (!resp.ok) {
+        const err = await resp.text();
+        return json({ type: "start", jobId: null, error: `Erreur backend ${resp.status}: ${err}` });
+      }
+      const data = await resp.json() as { job_id: string; status: string; snapshot_age_days?: number };
+      return json({ type: "start", jobId: data.job_id, error: null });
+    } catch (err) {
+      return json({ type: "start", jobId: null, error: String(err) });
+    }
   }
 
-  try {
-    const resp = await callBackendForShop(
-      session.shop,
-      `/api/shops/${session.shop}/market-analysis/run?max_products=3`,
-      {
-        accessToken: session.accessToken,
-        method: "POST",
-        signal: AbortSignal.timeout(180_000),
-      },
-    );
-    if (!resp.ok) {
-      const err = await resp.text();
-      return json({ results: null, error: `Erreur backend ${resp.status}: ${err}` });
+  if (intent === "poll") {
+    const jobId = formData.get("jobId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs/${jobId}`,
+        {
+          accessToken: session.accessToken,
+          method: "GET",
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (!resp.ok) {
+        const err = await resp.text();
+        return json({ type: "poll", job: null, error: `Erreur poll ${resp.status}: ${err}` });
+      }
+      const job = await resp.json() as JobState;
+      return json({ type: "poll", job, error: null });
+    } catch (err) {
+      return json({ type: "poll", job: null, error: String(err) });
     }
-    const results: AnalysisResults = await resp.json();
-    return json({ results, error: null });
-  } catch (err) {
-    return json({ results: null, error: String(err) });
   }
+
+  return json({ type: "unknown", error: "Unknown intent" });
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -156,28 +185,36 @@ function formatDate(iso: string): string {
   }
 }
 
+function progressLabel(locale: Locale, done: number, total: number): string {
+  return t(locale, "marketAnalysisProgress")
+    .replace("{done}", String(done))
+    .replace("{total}", String(total));
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function SummaryCard({
-  results,
+  job,
   locale,
 }: {
-  results: AnalysisResults;
+  job: JobState;
   locale: Locale;
 }) {
   return (
     <Card>
       <BlockStack gap="200">
         <InlineStack gap="400" wrap>
-          <Text as="p" variant="bodySm" tone="subdued">
-            {t(locale, "marketAnalysisLastRun")} : {formatDate(results.analyzed_at)}
-          </Text>
+          {job.analyzed_at && (
+            <Text as="p" variant="bodySm" tone="subdued">
+              {t(locale, "marketAnalysisLastRun")} : {formatDate(job.analyzed_at)}
+            </Text>
+          )}
           <Text as="p" variant="bodySm">
-            <strong>{results.analyzed_product_count}</strong>{" "}
+            <strong>{job.analyzed_product_count}</strong>{" "}
             {t(locale, "marketAnalysisProductCount")}
           </Text>
           <Text as="p" variant="bodySm">
-            <strong>{results.total_opportunity_count}</strong>{" "}
+            <strong>{job.total_opportunity_count}</strong>{" "}
             {t(locale, "marketAnalysisOpportunityCount")}
           </Text>
         </InlineStack>
@@ -215,7 +252,7 @@ function ProductCard({
           </BlockStack>
           <InlineStack gap="200">
             <Badge tone={scoreTone(product.opportunity_score)}>
-              Score {product.opportunity_score}/100
+              {`Score ${product.opportunity_score}/100`}
             </Badge>
             <Badge tone={confidenceTone(product.confidence)}>
               {product.confidence}
@@ -240,29 +277,26 @@ function ProductCard({
         {/* SEO Keywords */}
         {product.seo_keywords.length > 0 && (
           <Box>
-            <Button
-              variant="plain"
-              onClick={() => toggle("keywords")}
-            >
-              {t(locale, "marketAnalysisSeoKeywords")} ({product.seo_keywords.length})
+            <Button variant="plain" onClick={() => toggle("keywords")}>
+              {`${t(locale, "marketAnalysisSeoKeywords")} (${product.seo_keywords.length})`}
             </Button>
             <Collapsible id={`kw-${product.product_id}`} open={openSection === "keywords"}>
               <Box paddingBlockStart="200">
                 <DataTable
                   columnContentTypes={["text", "text", "numeric", "numeric", "numeric"]}
                   headings={[
-                    t(locale, "query"),
+                    locale === "fr" ? "Requête" : "Query",
                     "Intent",
                     locale === "fr" ? "Demande" : "Demand",
                     locale === "fr" ? "Concurrence" : "Competition",
-                    locale === "fr" ? "Fit" : "Fit",
+                    "Fit",
                   ]}
                   rows={product.seo_keywords.map((k) => [
                     k.query,
                     k.intent_type,
-                    k.demand_score,
-                    k.competition_score,
-                    k.product_fit_score,
+                    String(k.demand_score),
+                    String(k.competition_score),
+                    String(k.product_fit_score),
                   ])}
                 />
               </Box>
@@ -273,18 +307,15 @@ function ProductCard({
         {/* GEO Questions */}
         {product.geo_questions.length > 0 && (
           <Box>
-            <Button
-              variant="plain"
-              onClick={() => toggle("geo")}
-            >
-              {t(locale, "marketAnalysisGeoQuestions")} ({product.geo_questions.length})
+            <Button variant="plain" onClick={() => toggle("geo")}>
+              {`${t(locale, "marketAnalysisGeoQuestions")} (${product.geo_questions.length})`}
             </Button>
             <Collapsible id={`geo-${product.product_id}`} open={openSection === "geo"}>
               <Box paddingBlockStart="200">
                 <DataTable
                   columnContentTypes={["text", "text", "text"]}
                   headings={[
-                    locale === "fr" ? "Question" : "Question",
+                    "Question",
                     locale === "fr" ? "Angle de réponse" : "Answer angle",
                     locale === "fr" ? "Type de bloc" : "Block type",
                   ]}
@@ -306,10 +337,7 @@ function ProductCard({
           pack.proposed_faq.length > 0 ||
           pack.proposed_blog_title) && (
           <Box>
-            <Button
-              variant="plain"
-              onClick={() => toggle("proposals")}
-            >
+            <Button variant="plain" onClick={() => toggle("proposals")}>
               {t(locale, "marketAnalysisProposals")}
             </Button>
             <Collapsible id={`prop-${product.product_id}`} open={openSection === "proposals"}>
@@ -317,9 +345,7 @@ function ProductCard({
                 <BlockStack gap="300">
                   {pack.proposed_meta_title && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="bodySmBold">
-                        Meta title
-                      </Text>
+                      <Text as="p" variant="headingXs">Meta title</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         {locale === "fr" ? "Actuel" : "Current"} : {pack.current_meta_title}
                       </Text>
@@ -337,9 +363,7 @@ function ProductCard({
 
                   {pack.proposed_meta_description && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="bodySmBold">
-                        Meta description
-                      </Text>
+                      <Text as="p" variant="headingXs">Meta description</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         {locale === "fr" ? "Actuelle" : "Current"} :{" "}
                         {pack.current_meta_description || (locale === "fr" ? "absente" : "missing")}
@@ -358,7 +382,7 @@ function ProductCard({
 
                   {pack.proposed_product_description && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="bodySmBold">
+                      <Text as="p" variant="headingXs">
                         {t(locale, "contentTypeProductDescription")}
                       </Text>
                       <Box
@@ -375,11 +399,11 @@ function ProductCard({
 
                   {pack.proposed_faq.length > 0 && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="bodySmBold">FAQ</Text>
+                      <Text as="p" variant="headingXs">FAQ</Text>
                       {pack.proposed_faq.map((item, i) => (
                         <Box key={i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
                           <BlockStack gap="100">
-                            <Text as="p" variant="bodySmBold">{item.q}</Text>
+                            <Text as="p" variant="headingXs">{item.q}</Text>
                             <Text as="p" variant="bodySm">{item.a}</Text>
                           </BlockStack>
                         </Box>
@@ -389,7 +413,7 @@ function ProductCard({
 
                   {pack.proposed_geo_answer_block && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="bodySmBold">
+                      <Text as="p" variant="headingXs">
                         {locale === "fr" ? "Bloc réponse GEO" : "GEO answer block"}
                       </Text>
                       <Box
@@ -406,7 +430,7 @@ function ProductCard({
 
                   {pack.proposed_blog_title && (
                     <BlockStack gap="100">
-                      <Text as="p" variant="bodySmBold">
+                      <Text as="p" variant="headingXs">
                         {locale === "fr" ? "Idée d'article de blog" : "Blog article idea"}
                       </Text>
                       <Text as="p" variant="bodySm">
@@ -438,7 +462,7 @@ function ProductCard({
         {pack.facts_missing.length > 0 && (
           <Box>
             <Button variant="plain" onClick={() => toggle("facts")}>
-              {t(locale, "marketAnalysisFactsMissing")} ({pack.facts_missing.length})
+              {`${t(locale, "marketAnalysisFactsMissing")} (${pack.facts_missing.length})`}
             </Button>
             <Collapsible id={`facts-${product.product_id}`} open={openSection === "facts"}>
               <Box paddingBlockStart="100">
@@ -462,17 +486,85 @@ function ProductCard({
 
 export default function MarketAnalysisPage() {
   const { locale } = useLoaderData<LoaderData>();
-  const fetcher = useFetcher<{ results: AnalysisResults | null; error: string | null }>();
+  const startFetcher = useFetcher<{ type: string; jobId: string | null; error: string | null }>();
+  const pollFetcher = useFetcher<{ type: string; job: JobState | null; error: string | null }>();
 
-  const isLoading = fetcher.state !== "idle";
-  const results = fetcher.data?.results ?? null;
-  const error = fetcher.data?.error ?? null;
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [job, setJob] = useState<JobState | null>(null);
+  const [pollError, setPollError] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // When "start" action completes, capture the job_id
+  useEffect(() => {
+    if (startFetcher.data?.type === "start") {
+      if (startFetcher.data.jobId) {
+        setJobId(startFetcher.data.jobId);
+        setJob(null);
+        setPollError(null);
+      }
+    }
+  }, [startFetcher.data]);
+
+  // When poll action returns, update job state
+  useEffect(() => {
+    if (pollFetcher.data?.type === "poll") {
+      if (pollFetcher.data.job) {
+        setJob(pollFetcher.data.job);
+      }
+      if (pollFetcher.data.error) {
+        setPollError(pollFetcher.data.error);
+      }
+    }
+  }, [pollFetcher.data]);
+
+  // Polling loop — starts when jobId is set, stops when job is terminal
+  const doPoll = useCallback(
+    (id: string) => {
+      const fd = new FormData();
+      fd.set("intent", "poll");
+      fd.set("jobId", id);
+      pollFetcher.submit(fd, { method: "post" });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  useEffect(() => {
+    if (!jobId) return;
+
+    const isTerminal = job?.status === "completed" || job?.status === "failed";
+    if (isTerminal) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = null;
+      return;
+    }
+
+    // Start polling immediately, then every 5s
+    doPoll(jobId);
+    intervalRef.current = setInterval(() => doPoll(jobId), 5_000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [jobId, job?.status, doPoll]);
 
   const handleAnalyse = () => {
+    setJobId(null);
+    setJob(null);
+    setPollError(null);
     const fd = new FormData();
-    fd.set("intent", "run");
-    fetcher.submit(fd, { method: "post", replace: true });
+    fd.set("intent", "start");
+    startFetcher.submit(fd, { method: "post" });
   };
+
+  const isStarting = startFetcher.state !== "idle" && !jobId;
+  const isRunning = jobId !== null && job?.status !== "completed" && job?.status !== "failed";
+  const isInProgress = isStarting || isRunning;
+  const startError = startFetcher.data?.type === "start" ? (startFetcher.data.error ?? null) : null;
+  const anyError = startError || pollError || (job?.status === "failed" ? job.error : null);
+
+  const progressPct =
+    job && job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0;
 
   return (
     <Page
@@ -492,42 +584,84 @@ export default function MarketAnalysisPage() {
         {/* Launch card */}
         <Card>
           <BlockStack gap="300">
-            <Text as="p">
-              {t(locale, "marketAnalysisEmpty")}
-            </Text>
-            {isLoading ? (
+            {!isInProgress && !job && (
+              <Text as="p">{t(locale, "marketAnalysisEmpty")}</Text>
+            )}
+
+            {/* Starting state */}
+            {isStarting && (
               <InlineStack gap="200" align="start">
                 <Spinner size="small" />
-                <Text as="p" tone="subdued">
-                  {t(locale, "marketAnalysisRunning")}
-                </Text>
+                <Text as="p" tone="subdued">{t(locale, "marketAnalysisStarting")}</Text>
               </InlineStack>
-            ) : (
+            )}
+
+            {/* In-progress state */}
+            {isRunning && job && (
+              <BlockStack gap="200">
+                <InlineStack gap="200" align="start">
+                  <Spinner size="small" />
+                  <Text as="p" tone="subdued">
+                    {job.total > 0
+                      ? progressLabel(locale, job.progress, job.total)
+                      : t(locale, "marketAnalysisRunning")}
+                  </Text>
+                </InlineStack>
+                {job.total > 0 && (
+                  <ProgressBar progress={progressPct} size="small" />
+                )}
+              </BlockStack>
+            )}
+
+            {/* In-progress but no job data yet */}
+            {isRunning && !job && (
+              <InlineStack gap="200" align="start">
+                <Spinner size="small" />
+                <Text as="p" tone="subdued">{t(locale, "marketAnalysisRunning")}</Text>
+              </InlineStack>
+            )}
+
+            {!isInProgress && (
               <Button
                 variant="primary"
                 onClick={handleAnalyse}
-                disabled={isLoading}
+                disabled={isInProgress}
               >
-                {t(locale, "marketAnalysisRun")}
+                {job?.status === "completed"
+                  ? (locale === "fr" ? "Relancer l'analyse" : "Re-run analysis")
+                  : t(locale, "marketAnalysisRun")}
               </Button>
             )}
           </BlockStack>
         </Card>
 
         {/* Error */}
-        {error && (
+        {anyError && (
           <Banner tone="critical">
-            <Text as="p">{error}</Text>
+            <Text as="p">{anyError}</Text>
           </Banner>
         )}
 
-        {/* Summary */}
-        {results && <SummaryCard results={results} locale={locale} />}
+        {/* Summary (show even during run if we have partial data) */}
+        {job && job.analyzed_product_count > 0 && (
+          <SummaryCard job={job} locale={locale} />
+        )}
 
-        {/* Product results */}
-        {results?.products?.map((product) => (
+        {/* Product results — progressive display */}
+        {job?.products?.map((product) => (
           <ProductCard key={product.product_id} product={product} locale={locale} />
         ))}
+
+        {/* Completed banner */}
+        {job?.status === "completed" && (
+          <Banner tone="success">
+            <Text as="p">
+              {t(locale, "marketAnalysisCompleted")} —{" "}
+              {job.analyzed_product_count}{" "}
+              {t(locale, "marketAnalysisProductCount")}
+            </Text>
+          </Banner>
+        )}
       </BlockStack>
     </Page>
   );

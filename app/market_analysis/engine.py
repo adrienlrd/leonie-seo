@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -186,12 +187,11 @@ def _build_product_result(
 def _score_active_products(
     active_products: list[dict[str, Any]],
     gsc_query_rows: list[dict[str, Any]],
-    top: int,
 ) -> list[dict[str, Any]]:
     """Lightweight deterministic scorer — no ML, no clustering, no OOM risk.
 
-    Scores each active product on simple field signals and returns the top N.
-    Replaces the heavy find_opportunities_for_catalog() call for this page.
+    Scores each active product on simple field signals and returns all of them
+    sorted by descending score (caller decides how many to process).
     """
     gsc_queries = [str(r.get("query", "")).lower() for r in gsc_query_rows if r.get("query")]
 
@@ -231,10 +231,9 @@ def _score_active_products(
     scored.sort(key=lambda x: x[0], reverse=True)
 
     results = []
-    for score, product in scored[:top]:
+    for score, product in scored:
         product_id = str(product.get("id", ""))
         title = product.get("title", "")
-        # Simple matched queries: title word overlap
         title_words = set(title.lower().split())
         matched = [
             str(r.get("query", ""))
@@ -259,16 +258,27 @@ def run_market_analysis(
     *,
     niche_hypothesis: dict[str, Any] | None = None,
     crawl_findings: list[dict[str, Any]] | None = None,
-    max_products: int = 10,
+    max_products: int = 0,
+    progress_callback: Callable[[int, int, list[dict[str, Any]]], None] | None = None,
 ) -> dict[str, Any]:
     """Run full SEO/GEO market analysis for active products.
 
     Returns a structured dict with opportunity scores and AI-generated content
-    packs for the top active products. Read-only: no Shopify writes.
+    packs for active products. Read-only: no Shopify writes.
+
+    Args:
+        max_products: Maximum number of products to analyse. 0 means no limit (all active products).
+        progress_callback: Called after each product with (done, total, partial_results).
     """
     active_products = filter_products_by_scope(products, "active")
 
-    opportunities = _score_active_products(active_products, gsc_query_rows, max_products)
+    opportunities = _score_active_products(active_products, gsc_query_rows)
+
+    # Apply cap only when explicitly requested
+    if max_products and max_products > 0:
+        opportunities = opportunities[:max_products]
+
+    total = len(opportunities)
 
     product_by_id: dict[str, dict[str, Any]] = {
         str(p.get("id", "")): p for p in active_products
@@ -291,7 +301,7 @@ def run_market_analysis(
 
     product_results: list[dict[str, Any]] = []
 
-    for opp in opportunities[:max_products]:
+    for idx, opp in enumerate(opportunities):
         product_id = opp.get("product_id", "")
         product = product_by_id.get(product_id)
         if not product:
@@ -370,6 +380,12 @@ def run_market_analysis(
                 pass
 
         product_results.append(_build_product_result(product, opp, llm_pack, shop))
+
+        if progress_callback is not None:
+            try:
+                progress_callback(idx + 1, total, list(product_results))
+            except Exception:
+                pass
 
     total_opportunity_count = sum(
         len(r.get("seo_keywords", [])) + len(r.get("geo_questions", []))
