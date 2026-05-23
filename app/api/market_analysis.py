@@ -53,12 +53,25 @@ def _load_gsc_query_rows(shop: str) -> list[dict[str, Any]]:
     return []
 
 
+def _load_ga4_page_rows(shop: str) -> dict[str, dict[str, Any]]:
+    """Load GA4 organic page metrics if GA4 is connected for this shop. Returns {} otherwise."""
+    try:
+        from app.api.ga4 import _build_ga4_client  # noqa: PLC0415
+        from app.ga4.queries import get_organic_by_page  # noqa: PLC0415
+
+        client = _build_ga4_client(shop)
+        return get_organic_by_page(client, days=90)
+    except Exception:
+        return {}
+
+
 def _run_analysis_background(
     job_id: str,
     products: list[dict[str, Any]],
     shop_domain: str,
     gsc_page_rows: dict[str, dict[str, Any]],
     gsc_query_rows: list[dict[str, Any]],
+    ga4_page_rows: dict[str, dict[str, Any]],
     niche_hypothesis: dict[str, Any] | None,
     crawl_findings: list[dict[str, Any]] | None,
 ) -> None:
@@ -84,6 +97,7 @@ def _run_analysis_background(
             shop_domain,
             gsc_page_rows,
             gsc_query_rows,
+            ga4_page_rows=ga4_page_rows,
             niche_hypothesis=niche_hypothesis,
             crawl_findings=crawl_findings or None,
             max_products=0,  # no cap — analyse all active products
@@ -133,6 +147,9 @@ async def start_market_analysis_job(
 
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
 
+    # GA4 — load once in the request context (handles HTTPException from _build_ga4_client)
+    ga4_page_rows = _load_ga4_page_rows(ctx.shop)
+
     job_id = create_job(ctx.shop)
 
     background_tasks.add_task(
@@ -142,6 +159,7 @@ async def start_market_analysis_job(
         shop_domain,
         gsc_page_rows,
         gsc_query_rows,
+        ga4_page_rows,
         niche_hypothesis,
         crawl_findings,
     )

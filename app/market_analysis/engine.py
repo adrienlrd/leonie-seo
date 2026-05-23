@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -10,6 +11,8 @@ from typing import Any
 
 from app.llm import LLMError, get_router
 from app.snapshot.scope import filter_products_by_scope
+
+logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = (
     "Tu es un expert SEO et GEO copywriter pour boutiques Shopify. "
@@ -45,12 +48,7 @@ def _strip_html(html: str) -> str:
 
 
 def _coerce_list(value: Any) -> list[Any]:
-    """Coerce a Shopify field to a list, regardless of REST or GraphQL shape.
-
-    REST returns lists directly. GraphQL returns Connection objects like
-    {"edges": [{"node": {...}}]} or {"nodes": [...]}. This helper normalises
-    both to a flat list so [0] indexing never raises KeyError.
-    """
+    """Coerce a Shopify field to a list, regardless of REST or GraphQL shape."""
     if isinstance(value, list):
         return value
     if isinstance(value, dict):
@@ -63,6 +61,53 @@ def _coerce_list(value: Any) -> list[Any]:
     return []
 
 
+def _fetch_trends_once(top_titles: list[str]) -> list[Any]:
+    """Call Google Trends once with up to 5 product title seeds. Returns [] on any error."""
+    if not top_titles:
+        return []
+    try:
+        from app.niche.signals.trends import fetch_related_queries  # noqa: PLC0415
+        return fetch_related_queries(top_titles[:5], geo="FR", timeframe="today 12-m")
+    except Exception as exc:
+        logger.debug("Google Trends unavailable: %s", exc)
+        return []
+
+
+def _match_trends(
+    product_title: str,
+    all_trend_signals: list[Any],
+) -> tuple[list[str], list[str]]:
+    """Return (top_queries, rising_queries) whose keywords overlap with the product title."""
+    title_words = {w for w in product_title.lower().split() if len(w) > 3}
+    top, rising = [], []
+    for sig in all_trend_signals:
+        kw = getattr(sig, "keyword", "")
+        if not any(w in kw for w in title_words):
+            continue
+        if getattr(sig, "source", "") == "trends_rising":
+            rising.append(kw)
+        else:
+            top.append(kw)
+    return top[:5], rising[:5]
+
+
+def _read_stock(product: dict[str, Any]) -> tuple[int | None, str]:
+    """Return (quantity, status_label) from the first variant. quantity=None if unmanaged."""
+    variants = _coerce_list(product.get("variants"))
+    first = variants[0] if variants else {}
+    if not isinstance(first, dict):
+        return None, "inconnu"
+    qty_raw = first.get("inventory_quantity") or first.get("inventoryQuantity")
+    if qty_raw is None:
+        return None, "non géré"
+    qty = int(qty_raw)
+    if qty <= 0:
+        return qty, "rupture de stock"
+    if qty < 10:
+        return qty, "stock faible"
+    return qty, "en stock"
+
+
 def _build_prompt(
     product_title: str,
     handle: str,
@@ -70,27 +115,62 @@ def _build_prompt(
     collections: list[str],
     tags: str,
     price: str,
+    nb_variants: int,
     current_meta_title: str,
     current_meta_description: str,
     matched_queries: list[str],
     opportunity_score: int,
     niche_summary: str,
+    ga4_metrics: dict[str, Any],
+    trend_top: list[str],
+    trend_rising: list[str],
+    stock_qty: int | None,
+    stock_status: str,
 ) -> str:
     queries_text = ", ".join(matched_queries[:5]) if matched_queries else "aucune donnée GSC"
     collections_text = ", ".join(collections) if collections else "aucune"
     today = datetime.now(UTC).strftime("%d/%m/%Y")
     current_year = datetime.now(UTC).year
 
+    ga4_text = "non connecté"
+    if ga4_metrics:
+        sessions = ga4_metrics.get("sessions", 0)
+        conversions = ga4_metrics.get("conversions", 0)
+        revenue = ga4_metrics.get("revenue", 0.0)
+        conv_rate = ga4_metrics.get("conversion_rate", 0.0)
+        ga4_text = (
+            f"{sessions} sessions, {conversions} conversions, "
+            f"{revenue}€ revenus, taux conv. {conv_rate:.1%}"
+        )
+
+    stock_text = (
+        f"{stock_qty} unités ({stock_status})"
+        if stock_qty is not None
+        else stock_status
+    )
+
+    trend_text = ""
+    if trend_top:
+        trend_text += f"Top tendances : {', '.join(trend_top)}. "
+    if trend_rising:
+        trend_text += f"En hausse : {', '.join(trend_rising)}."
+    if not trend_text:
+        trend_text = "aucune donnée Trends disponible"
+
     return (
         f"DATE_ACTUELLE: {today} (année {current_year})\n"
         f"NICHE: {niche_summary or 'Non définie'}\n"
-        f"PRODUIT: {product_title} | handle: {handle} | prix: {price or 'non renseigné'}\n"
+        f"PRODUIT: {product_title} | handle: {handle} | prix: {price or 'non renseigné'}"
+        f" | {nb_variants} variante(s)\n"
         f"DESCRIPTION: {description[:400]}\n"
         f"COLLECTIONS: {collections_text}\n"
         f"TAGS: {tags or 'aucun'}\n"
         f"META TITLE ACTUEL: {current_meta_title or 'absent'}\n"
         f"META DESCRIPTION ACTUELLE: {current_meta_description or 'absente'}\n"
         f"REQUÊTES GSC TOP: {queries_text}\n"
+        f"GA4 (90 derniers jours): {ga4_text}\n"
+        f"TENDANCES GOOGLE: {trend_text}\n"
+        f"STOCK: {stock_text}\n"
         f"SCORE OPPORTUNITÉ: {opportunity_score}/100\n\n"
         f"IMPORTANT: nous sommes en {current_year}. "
         "N'utilise jamais d'années passées dans les titres, exemples ou références. "
@@ -157,7 +237,7 @@ def _build_product_result(
         "buying_intents": llm_pack.get("buying_intents", []),
         "seo_keywords": llm_pack.get("seo_keywords", []),
         "geo_questions": llm_pack.get("geo_questions", []),
-        "trend_signals": [],
+        "trend_signals": opportunity.get("trend_signals", []),
         "competitor_signals": opportunity.get("signals", []),
         "content_test_pack": {
             "current_meta_title": current_meta_title,
@@ -183,23 +263,21 @@ def _build_product_result(
         "recommended_content_actions": llm_pack.get("recommended_content_actions", []),
         "confidence": llm_pack.get("confidence", opportunity.get("confidence", "low")),
         "opportunity_score": opportunity.get("opportunity_score", 0),
-        "sources_used": [
-            sig.get("name", "") for sig in (opportunity.get("signals") or [])
-            if isinstance(sig, dict) and sig.get("score", 0) > 0
-        ],
+        "sources_used": opportunity.get("sources_used", []),
     }
 
 
 def _score_active_products(
     active_products: list[dict[str, Any]],
     gsc_query_rows: list[dict[str, Any]],
+    ga4_page_rows: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Lightweight deterministic scorer — no ML, no clustering, no OOM risk.
+    """Lightweight deterministic scorer with GSC, GA4, stock and field signals.
 
-    Scores each active product on simple field signals and returns all of them
-    sorted by descending score (caller decides how many to process).
+    Returns all active products sorted by descending opportunity score.
     """
     gsc_queries = [str(r.get("query", "")).lower() for r in gsc_query_rows if r.get("query")]
+    ga4 = ga4_page_rows or {}
 
     scored: list[tuple[int, dict[str, Any]]] = []
     for product in active_products:
@@ -212,17 +290,52 @@ def _score_active_products(
             seo = product.get("seo") if isinstance(product.get("seo"), dict) else {}
             seo_title = str(seo.get("title", ""))
             seo_desc = str(seo.get("description", ""))
+            handle = str(product.get("handle") or "")
             variants = _coerce_list(product.get("variants"))
             first_variant = variants[0] if variants else {}
 
+            # ── SEO field signals (existing) ───────────────────────────────
             if not seo_title or len(seo_title) < 10:
                 score += 30
             if not seo_desc or len(seo_desc) < 50:
                 score += 20
             if len(_strip_html(body)) < 100:
                 score += 20
+
+            # ── GSC overlap ────────────────────────────────────────────────
             if any(word in q for q in gsc_queries for word in title.split() if len(word) > 3):
                 score += 15
+
+            # ── GA4 signals ────────────────────────────────────────────────
+            page_path = f"/products/{handle}"
+            ga4_row = ga4.get(page_path) or ga4.get(f"/{handle}") or {}
+            if ga4_row:
+                sessions = int(ga4_row.get("sessions", 0))
+                conv_rate = float(ga4_row.get("conversion_rate", 0.0))
+                revenue = float(ga4_row.get("revenue", 0.0))
+                # Traffic but very low conversion → high SEO opportunity
+                if sessions >= 50 and conv_rate < 0.01:
+                    score += 25
+                # Revenue generated → worth optimizing
+                if revenue > 0:
+                    score += 10
+                # Has some traffic but no conversions at all
+                if sessions > 0 and conv_rate == 0.0:
+                    score += 15
+            else:
+                # No GA4 data for this page = completely untapped organically
+                score += 10
+
+            # ── Stock signals ──────────────────────────────────────────────
+            stock_qty, stock_status = _read_stock(product)
+            if stock_qty is not None and stock_qty <= 0:
+                # Out of stock — deprioritize
+                score -= 15
+            elif stock_qty is not None and stock_qty < 10:
+                # Low stock — slight urgency boost
+                score += 5
+
+            # ── Basic product signals ──────────────────────────────────────
             if isinstance(first_variant, dict) and first_variant.get("price"):
                 score += 5
             if product.get("collections"):
@@ -230,7 +343,7 @@ def _score_active_products(
             if product.get("images"):
                 score += 5
 
-            scored.append((score, product))
+            scored.append((max(score, 0), product))
         except Exception:
             continue
 
@@ -240,18 +353,31 @@ def _score_active_products(
     for score, product in scored:
         product_id = str(product.get("id", ""))
         title = product.get("title", "")
+        handle = str(product.get("handle") or "")
         title_words = set(title.lower().split())
         matched = [
             str(r.get("query", ""))
             for r in gsc_query_rows
             if any(w in str(r.get("query", "")).lower() for w in title_words if len(w) > 3)
         ][:5]
+
+        page_path = f"/products/{handle}"
+        ga4_row = ga4.get(page_path) or ga4.get(f"/{handle}") or {}
+
+        src: list[str] = ["shopify_snapshot"]
+        if gsc_queries:
+            src.append("gsc")
+        if ga4_row:
+            src.append("ga4")
+
         results.append({
             "product_id": product_id,
             "opportunity_score": min(score, 100),
-            "confidence": "medium" if score >= 40 else "low",
+            "confidence": "high" if score >= 60 else "medium" if score >= 35 else "low",
             "signals": [],
             "matched_queries": matched,
+            "ga4_metrics": ga4_row,
+            "sources_used": src,
         })
     return results
 
@@ -262,6 +388,7 @@ def run_market_analysis(
     gsc_page_rows: dict[str, dict[str, Any]],
     gsc_query_rows: list[dict[str, Any]],
     *,
+    ga4_page_rows: dict[str, dict[str, Any]] | None = None,
     niche_hypothesis: dict[str, Any] | None = None,
     crawl_findings: list[dict[str, Any]] | None = None,
     max_products: int = 0,
@@ -269,18 +396,18 @@ def run_market_analysis(
 ) -> dict[str, Any]:
     """Run full SEO/GEO market analysis for active products.
 
-    Returns a structured dict with opportunity scores and AI-generated content
-    packs for active products. Read-only: no Shopify writes.
+    Sources used: Shopify snapshot, GSC queries, GA4 page metrics (if connected),
+    Google Trends (one global call), stock/inventory data from variants.
+    Read-only: no Shopify writes.
 
     Args:
-        max_products: Maximum number of products to analyse. 0 means no limit (all active products).
+        max_products: Cap on products to analyse. 0 = no cap (all active products).
         progress_callback: Called after each product with (done, total, partial_results).
     """
     active_products = filter_products_by_scope(products, "active")
 
-    opportunities = _score_active_products(active_products, gsc_query_rows)
+    opportunities = _score_active_products(active_products, gsc_query_rows, ga4_page_rows)
 
-    # Apply cap only when explicitly requested
     if max_products and max_products > 0:
         opportunities = opportunities[:max_products]
 
@@ -290,15 +417,26 @@ def run_market_analysis(
         str(p.get("id", "")): p for p in active_products
     }
 
-    sources_used = ["shopify_snapshot"]
+    # Global sources tracker
+    sources_used: list[str] = ["shopify_snapshot"]
     if gsc_query_rows:
         sources_used.append("gsc")
+    if ga4_page_rows:
+        sources_used.append("ga4")
     if niche_hypothesis:
         sources_used.append("niche_hypothesis")
 
-    niche_summary: str = ""
-    if niche_hypothesis:
-        niche_summary = niche_hypothesis.get("primary_niche", "")
+    niche_summary: str = niche_hypothesis.get("primary_niche", "") if niche_hypothesis else ""
+
+    # Fetch Google Trends once — use top-5 product titles as seeds
+    top_titles = [
+        product_by_id.get(opp["product_id"], {}).get("title", "")
+        for opp in opportunities[:5]
+        if opp.get("product_id") in product_by_id
+    ]
+    trend_signals = _fetch_trends_once([t for t in top_titles if t])
+    if trend_signals:
+        sources_used.append("trends")
 
     try:
         llm_router = get_router(shop=shop)
@@ -337,18 +475,22 @@ def run_market_analysis(
             variants = _coerce_list(product.get("variants"))
             first_variant = variants[0] if variants else {}
             price = str(first_variant.get("price", "")) if isinstance(first_variant, dict) else ""
+            nb_variants = len(variants)
+
+            stock_qty, stock_status = _read_stock(product)
+            ga4_metrics: dict[str, Any] = opp.get("ga4_metrics", {})
+            trend_top, trend_rising = _match_trends(product_title, trend_signals)
 
             matched_queries: list[str] = opp.get("matched_queries", [])
             opportunity_score: int = opp.get("opportunity_score", 0)
         except Exception:
             product_title = product.get("title", "") if isinstance(product, dict) else ""
             handle = product.get("handle", "") if isinstance(product, dict) else ""
-            description = ""
-            current_meta_title = product_title
-            current_meta_description = ""
-            collections = []
-            tags = ""
-            price = ""
+            description = current_meta_title = product_title
+            current_meta_description = collections = tags = price = ""
+            nb_variants = 0
+            stock_qty, stock_status = None, "inconnu"
+            ga4_metrics, trend_top, trend_rising = {}, [], []
             matched_queries = []
             opportunity_score = opp.get("opportunity_score", 0) if isinstance(opp, dict) else 0
 
@@ -359,11 +501,17 @@ def run_market_analysis(
             collections=collections,
             tags=tags,
             price=price,
+            nb_variants=nb_variants,
             current_meta_title=current_meta_title,
             current_meta_description=current_meta_description,
             matched_queries=matched_queries,
             opportunity_score=opportunity_score,
             niche_summary=niche_summary,
+            ga4_metrics=ga4_metrics,
+            trend_top=trend_top,
+            trend_rising=trend_rising,
+            stock_qty=stock_qty,
+            stock_status=stock_status,
         )
 
         llm_pack: dict[str, Any] = _fallback_pack(product_title, current_meta_title, current_meta_description)
