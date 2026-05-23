@@ -10,6 +10,20 @@
 
 ## Last completed task
 
+- **Date:** 2026-05-23
+- **Agent:** Claude Code (Sonnet 4.6)
+- **Goal:** Page expérimentale "Analyse marché" — V1 lecture seule (SEO/GEO par produit actif).
+- **Summary:** Ajout complet de la fonctionnalité "Analyse marché" : moteur Python d'analyse LLM par produit actif, endpoint FastAPI POST, route Remix avec `useFetcher`, affichage Polaris (DataTable keywords SEO, questions GEO, propositions contenu, faits manquants, FAQ, blog). Plusieurs bugs corrigés en post-déploiement : `_coerce_list()` pour normaliser REST vs GraphQL Shopify, fallback gracieux si LLMError, scorer léger sans ML pour éviter l'OOM sur Render 512MB, timeout 180s côté Remix. L'analyse fonctionne en production (3 produits, 200 OK confirmé par le marchand).
+- **Files created:** `app/market_analysis/__init__.py`, `app/market_analysis/engine.py`, `app/api/market_analysis.py`.
+- **Files modified:** `app/main.py` (+1 import +1 include_router), `shopify-app/app/lib/i18n.ts` (+13 clés FR + 13 clés EN), `shopify-app/app/routes/app.market-analysis.tsx` (créé de zéro), `shopify-app/app/routes/app.insights.tsx` (+1 item HubGrid).
+- **Validations run:** `ruff check .` ✅ ; `npm run typecheck` ✅ ; test manuel en production (200 OK, 3 produits analysés) ✅.
+- **Validations skipped:** `pytest` non relancé — aucun test existant ne couvre le module market_analysis ; les tests Python core n'ont pas été modifiés.
+- **Decisions made:** (1) Scorer léger `_score_active_products` (heuristiques de champs) à la place de `find_opportunities_for_catalog` (TF-IDF/K-means) → évite OOM Render 512MB. (2) `_coerce_list()` comme normaliseur universel pour les shapes REST (liste) et GraphQL (Connection) de Shopify. (3) `max_products=3` par défaut côté Remix pour rester sous le timeout 180s. (4) Merge vers `main` immédiat car Render déploie uniquement depuis `main`.
+- **Open issues:** L'analyse est limitée à 3 produits par contrainte de timeout et RAM. Pour analyser plus, il faudrait un job async (POST → polling). La qualité des propositions LLM dépend de la complétude des données GSC/niche hypothesis.
+- **Next recommended action:** Collecter le feedback marchand sur la qualité des propositions (mots-clés, questions GEO, textes) et décider si la V2 nécessite un job async pour couvrir plus de produits.
+
+## Previous completed task
+
 - **Date:** 2026-05-21
 - **Agent:** Claude Code (Sonnet 4.6)
 - **Goal:** Tasks 155–163 — Phase 11.9 complete (Merchant Journey Unification & Friction Reduction).
