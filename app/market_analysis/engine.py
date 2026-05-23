@@ -40,7 +40,8 @@ _JSON_KEYS = (
 
 
 def _strip_html(html: str) -> str:
-    return re.sub(r"<[^>]+>", " ", html).strip()
+    without_tags = re.sub(r"<[^>]+>", " ", html)
+    return re.sub(r"\s+", " ", without_tags).strip()
 
 
 def _build_prompt(
