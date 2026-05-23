@@ -157,7 +157,10 @@ def _build_product_result(
         "recommended_content_actions": llm_pack.get("recommended_content_actions", []),
         "confidence": llm_pack.get("confidence", opportunity.get("confidence", "low")),
         "opportunity_score": opportunity.get("opportunity_score", 0),
-        "sources_used": [sig.get("name", "") for sig in opportunity.get("signals", []) if sig.get("score", 0) > 0],
+        "sources_used": [
+            sig.get("name", "") for sig in (opportunity.get("signals") or [])
+            if isinstance(sig, dict) and sig.get("score", 0) > 0
+        ],
     }
 
 
@@ -220,19 +223,44 @@ def run_market_analysis(
         if not product:
             continue
 
-        product_title = product.get("title", "")
-        handle = product.get("handle", "")
-        body_html = product.get("body_html") or product.get("description") or ""
-        description = _strip_html(body_html)
-        seo = product.get("seo") or {}
-        current_meta_title = seo.get("title") or product_title
-        current_meta_description = seo.get("description") or ""
-        collections = [c.get("title", "") for c in (product.get("collections") or [])]
-        tags = product.get("tags") or ""
-        variants = product.get("variants") or []
-        price = str(variants[0].get("price", "")) if variants else ""
-        matched_queries: list[str] = opp.get("matched_queries", [])
-        opportunity_score: int = opp.get("opportunity_score", 0)
+        try:
+            product_title = product.get("title", "")
+            handle = product.get("handle", "")
+            body_html = product.get("body_html") or product.get("description") or ""
+            description = _strip_html(str(body_html))
+
+            raw_seo = product.get("seo")
+            seo: dict[str, Any] = raw_seo if isinstance(raw_seo, dict) else {}
+            current_meta_title = seo.get("title") or product_title
+            current_meta_description = seo.get("description") or ""
+
+            raw_collections = product.get("collections") or []
+            collections = [
+                c.get("title", "") if isinstance(c, dict) else str(c)
+                for c in raw_collections
+                if c
+            ]
+
+            raw_tags = product.get("tags") or ""
+            tags = ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
+
+            variants = product.get("variants") or []
+            first_variant = variants[0] if variants else {}
+            price = str(first_variant.get("price", "") if isinstance(first_variant, dict) else "")
+
+            matched_queries: list[str] = opp.get("matched_queries", [])
+            opportunity_score: int = opp.get("opportunity_score", 0)
+        except Exception:
+            product_title = product.get("title", "") if isinstance(product, dict) else ""
+            handle = product.get("handle", "") if isinstance(product, dict) else ""
+            description = ""
+            current_meta_title = product_title
+            current_meta_description = ""
+            collections = []
+            tags = ""
+            price = ""
+            matched_queries = []
+            opportunity_score = opp.get("opportunity_score", 0) if isinstance(opp, dict) else 0
 
         prompt = _build_prompt(
             product_title=product_title,
