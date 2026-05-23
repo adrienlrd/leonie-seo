@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_days
 from app.api.deps import ShopContext, get_shop_context
@@ -70,15 +70,18 @@ async def run_market_analysis_endpoint(
 
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
 
-    result = run_market_analysis(
-        products,
-        shop_domain,
-        gsc_page_rows,
-        gsc_query_rows,
-        niche_hypothesis=niche_hypothesis,
-        crawl_findings=crawl_findings or None,
-        max_products=max_products,
-    )
+    try:
+        result = run_market_analysis(
+            products,
+            shop_domain,
+            gsc_page_rows,
+            gsc_query_rows,
+            niche_hypothesis=niche_hypothesis,
+            crawl_findings=crawl_findings or None,
+            max_products=max_products,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Erreur analyse marché : {exc}") from exc
 
     age = _snapshot_age_days(snapshot)
     return {**result, "snapshot_age_days": age}

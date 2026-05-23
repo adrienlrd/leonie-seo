@@ -178,17 +178,20 @@ def run_market_analysis(
     """
     active_products = filter_products_by_scope(products, "active")
 
-    opportunities_result = find_opportunities_for_catalog(
-        products,
-        shop,
-        gsc_page_rows,
-        gsc_query_rows,
-        niche_hypothesis=niche_hypothesis,
-        crawl_findings=crawl_findings,
-        scope="active",
-        top=max_products,
-    )
-    opportunities = opportunities_result.get("opportunities", [])
+    try:
+        opportunities_result = find_opportunities_for_catalog(
+            products,
+            shop,
+            gsc_page_rows,
+            gsc_query_rows,
+            niche_hypothesis=niche_hypothesis,
+            crawl_findings=crawl_findings,
+            scope="active",
+            top=max_products,
+        )
+        opportunities = opportunities_result.get("opportunities", [])
+    except Exception:
+        opportunities = []
 
     product_by_id: dict[str, dict[str, Any]] = {
         str(p.get("id", "")): p for p in active_products
@@ -204,7 +207,11 @@ def run_market_analysis(
     if niche_hypothesis:
         niche_summary = niche_hypothesis.get("primary_niche", "")
 
-    llm_router = get_router(shop=shop)
+    try:
+        llm_router = get_router(shop=shop)
+    except LLMError:
+        llm_router = None
+
     product_results: list[dict[str, Any]] = []
 
     for opp in opportunities[:max_products]:
@@ -242,23 +249,23 @@ def run_market_analysis(
         )
 
         llm_pack: dict[str, Any] = _fallback_pack(product_title, current_meta_title, current_meta_description)
-        try:
-            completion = llm_router.complete(
-                prompt,
-                system=_SYSTEM_PROMPT,
-                max_tokens=2048,
-                temperature=0.3,
-            )
-            raw = completion.text.strip()
-            # Strip optional markdown code fences
-            if raw.startswith("```"):
-                raw = re.sub(r"^```[a-z]*\n?", "", raw)
-                raw = re.sub(r"\n?```$", "", raw)
-            parsed = json.loads(raw)
-            if isinstance(parsed, dict):
-                llm_pack = {k: parsed.get(k, llm_pack.get(k)) for k in _JSON_KEYS}
-        except (LLMError, json.JSONDecodeError, ValueError, KeyError):
-            pass
+        if llm_router is not None:
+            try:
+                completion = llm_router.complete(
+                    prompt,
+                    system=_SYSTEM_PROMPT,
+                    max_tokens=2048,
+                    temperature=0.3,
+                )
+                raw = completion.text.strip()
+                if raw.startswith("```"):
+                    raw = re.sub(r"^```[a-z]*\n?", "", raw)
+                    raw = re.sub(r"\n?```$", "", raw)
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    llm_pack = {k: parsed.get(k, llm_pack.get(k)) for k in _JSON_KEYS}
+            except (LLMError, json.JSONDecodeError, ValueError, KeyError, Exception):
+                pass
 
         product_results.append(_build_product_result(product, opp, llm_pack, shop))
 
