@@ -109,11 +109,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const resp = await callBackendForShop(
       session.shop,
-      `/api/shops/${session.shop}/market-analysis/run?max_products=10`,
+      `/api/shops/${session.shop}/market-analysis/run?max_products=3`,
       {
         accessToken: session.accessToken,
         method: "POST",
-        signal: AbortSignal.timeout(90_000),
+        signal: AbortSignal.timeout(180_000),
       },
     );
     if (!resp.ok) {
