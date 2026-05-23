@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.llm import LLMError, get_router
-from app.opportunities.finder import find_opportunities_for_catalog
 from app.snapshot.scope import filter_products_by_scope
 
 _SYSTEM_PROMPT = (
@@ -164,6 +163,77 @@ def _build_product_result(
     }
 
 
+def _score_active_products(
+    active_products: list[dict[str, Any]],
+    gsc_query_rows: list[dict[str, Any]],
+    top: int,
+) -> list[dict[str, Any]]:
+    """Lightweight deterministic scorer — no ML, no clustering, no OOM risk.
+
+    Scores each active product on simple field signals and returns the top N.
+    Replaces the heavy find_opportunities_for_catalog() call for this page.
+    """
+    gsc_queries = [str(r.get("query", "")).lower() for r in gsc_query_rows if r.get("query")]
+
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for product in active_products:
+        if not isinstance(product, dict):
+            continue
+        score = 0
+        title = str(product.get("title") or "").lower()
+        body = str(product.get("body_html") or product.get("description") or "")
+        seo = product.get("seo") or {}
+        seo_title = str(seo.get("title", "") if isinstance(seo, dict) else "")
+        seo_desc = str(seo.get("description", "") if isinstance(seo, dict) else "")
+        variants = product.get("variants") or []
+
+        # Missing SEO fields → high opportunity
+        if not seo_title or len(seo_title) < 10:
+            score += 30
+        if not seo_desc or len(seo_desc) < 50:
+            score += 20
+        # Thin description
+        if len(_strip_html(body)) < 100:
+            score += 20
+        # GSC signal: title words appear in top queries
+        if any(word in q for q in gsc_queries for word in title.split() if len(word) > 3):
+            score += 15
+        # Has variants with price
+        if variants and isinstance(variants[0], dict) and variants[0].get("price"):
+            score += 5
+        # Has collections
+        if product.get("collections"):
+            score += 5
+        # Has images
+        if product.get("images"):
+            score += 5
+
+        product_id = str(product.get("id", ""))
+        scored.append((score, product))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    results = []
+    for score, product in scored[:top]:
+        product_id = str(product.get("id", ""))
+        title = product.get("title", "")
+        # Simple matched queries: title word overlap
+        title_words = set(title.lower().split())
+        matched = [
+            str(r.get("query", ""))
+            for r in gsc_query_rows
+            if any(w in str(r.get("query", "")).lower() for w in title_words if len(w) > 3)
+        ][:5]
+        results.append({
+            "product_id": product_id,
+            "opportunity_score": min(score, 100),
+            "confidence": "medium" if score >= 40 else "low",
+            "signals": [],
+            "matched_queries": matched,
+        })
+    return results
+
+
 def run_market_analysis(
     products: list[dict[str, Any]],
     shop: str,
@@ -181,20 +251,7 @@ def run_market_analysis(
     """
     active_products = filter_products_by_scope(products, "active")
 
-    try:
-        opportunities_result = find_opportunities_for_catalog(
-            products,
-            shop,
-            gsc_page_rows,
-            gsc_query_rows,
-            niche_hypothesis=niche_hypothesis,
-            crawl_findings=crawl_findings,
-            scope="active",
-            top=max_products,
-        )
-        opportunities = opportunities_result.get("opportunities", [])
-    except Exception:
-        opportunities = []
+    opportunities = _score_active_products(active_products, gsc_query_rows, max_products)
 
     product_by_id: dict[str, dict[str, Any]] = {
         str(p.get("id", "")): p for p in active_products
