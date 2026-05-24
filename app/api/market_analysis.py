@@ -11,6 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_days
 from app.api.deps import ShopContext, get_shop_context
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
+from app.market_analysis.competitors import load_competitors, save_competitors
 from app.market_analysis.engine import run_market_analysis
 from app.market_analysis.identifier import generate_product_labels
 from app.market_analysis.jobs import (
@@ -151,6 +152,8 @@ def _run_analysis_background(
             "analyzed_product_count": result["analyzed_product_count"],
             "total_opportunity_count": result["total_opportunity_count"],
             "sources_used": result["sources_used"],
+            "provider_status": result.get("provider_status", {}),
+            "competitor_signals": result.get("competitor_signals", []),
             "products": result["products"],
             "progress": result["analyzed_product_count"],
             "total": result["analyzed_product_count"],
@@ -284,6 +287,30 @@ async def get_latest_market_analysis(
     if result is None:
         raise HTTPException(status_code=404, detail="Aucune analyse précédente disponible")
     return result
+
+
+# ── Competitors (manual entry, used by market analysis) ─────────────────────
+
+
+@router.get("/shops/{shop}/market-analysis/competitors")
+async def list_competitors(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Return the manual competitor list for this shop."""
+    return {"competitors": load_competitors(ctx.shop)}
+
+
+@router.put("/shops/{shop}/market-analysis/competitors")
+async def replace_competitors(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    body: dict[str, Any],
+) -> dict[str, Any]:
+    """Replace the merchant competitor list. Body: {"competitors": [...]}"""
+    raw = body.get("competitors", [])
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="competitors must be a list")
+    save_competitors(ctx.shop, raw)
+    return {"competitors": load_competitors(ctx.shop)}
 
 
 # Legacy synchronous endpoint kept for backward compatibility

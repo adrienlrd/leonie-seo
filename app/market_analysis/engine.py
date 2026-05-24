@@ -10,6 +10,14 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.llm import LLMError, get_router
+from app.market_analysis.competitors import build_competitor_signals
+from app.market_analysis.providers.dataforseo_provider import DataForSEOProvider
+from app.market_analysis.providers.free_provider import (
+    FreeProvider,
+    signals_from_llm_keywords,
+)
+from app.market_analysis.providers.google_ads_provider import GoogleAdsKeywordProvider
+from app.market_analysis.providers.types import KeywordSignal
 from app.snapshot.scope import filter_products_by_scope
 
 logger = logging.getLogger(__name__)
@@ -194,22 +202,58 @@ def _build_prompt(
     )
 
 
-def _build_gsc_lookup(gsc_query_rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Build a normalised query → GSC metrics map from raw query rows."""
-    lookup: dict[str, dict[str, Any]] = {}
-    for row in gsc_query_rows:
-        query = str(row.get("query", "")).lower().strip()
-        if query:
-            lookup[query] = {
-                "impressions": int(row.get("impressions", 0)),
-                "clicks": int(row.get("clicks", 0)),
-                "position": float(row.get("position", 0)),
-            }
-    return lookup
+def _apply_signals_to_keywords(
+    seo_keywords: list[dict[str, Any]],
+    signals: list[KeywordSignal],
+) -> list[dict[str, Any]]:
+    """Merge enriched KeywordSignal data back into the LLM-shaped keyword dicts.
+
+    The frontend consumes the LLM shape (query, demand_score, …) and now also
+    reads the normalised fields (search_volume, cpc, ads_competition, source,
+    difficulty_source) directly from the same object.
+    """
+    by_keyword: dict[str, KeywordSignal] = {
+        str(s.get("keyword", "")).strip().lower(): s for s in signals
+    }
+    out: list[dict[str, Any]] = []
+    for kw in seo_keywords:
+        if not isinstance(kw, dict):
+            continue
+        merged = dict(kw)
+        key = str(merged.get("query", "")).strip().lower()
+        sig = by_keyword.get(key)
+        if sig:
+            # Real free signals override LLM estimates when available
+            if sig.get("source") == "gsc":
+                impressions = sig.get("impressions") or 0
+                merged["demand_score"] = _impressions_bucket(int(impressions))
+                merged["competition_score"] = int(sig.get("difficulty_score", merged.get("competition_score", 50)))
+                merged["gsc_impressions"] = sig.get("impressions")
+                merged["gsc_clicks"] = sig.get("clicks")
+                merged["gsc_position"] = sig.get("avg_position")
+            # Paid-provider overrides (DataForSEO) — replace estimates with real volume/CPC
+            if sig.get("source") == "dataforseo" and sig.get("search_volume") is not None:
+                merged["demand_score"] = _volume_bucket(int(sig["search_volume"]))
+                merged["competition_score"] = int(sig.get("difficulty_score", merged.get("competition_score", 50)))
+            merged["data_source"] = sig.get("source", "llm_estimated")
+            merged["difficulty_source"] = sig.get("difficulty_source", "free_estimated")
+            merged["search_volume"] = sig.get("search_volume")  # None in free mode — UI shows "missing"
+            merged["cpc"] = sig.get("cpc")
+            merged["ads_competition"] = sig.get("ads_competition")
+            merged["confidence"] = sig.get("confidence", "low")
+            merged["notes"] = sig.get("notes", [])
+        else:
+            merged.setdefault("data_source", "llm_estimated")
+            merged.setdefault("difficulty_source", "free_estimated")
+            merged.setdefault("search_volume", None)
+            merged.setdefault("cpc", None)
+            merged.setdefault("ads_competition", None)
+        out.append(merged)
+    return out
 
 
-def _impressions_to_demand_score(impressions: int) -> int:
-    """Map raw GSC impressions to a 0-100 demand score."""
+def _impressions_bucket(impressions: int) -> int:
+    """Quick demand-score bucket from GSC impressions (free proxy)."""
     if impressions >= 10000:
         return 95
     if impressions >= 5000:
@@ -225,45 +269,19 @@ def _impressions_to_demand_score(impressions: int) -> int:
     return 20
 
 
-def _position_to_competition_score(position: float) -> int:
-    """Map GSC average position to a 0-100 competition score.
-
-    Lower position (closer to 1) = keyword already fought over = high competition.
-    """
-    if position <= 3:
+def _volume_bucket(volume: int) -> int:
+    """Demand-score bucket from a real monthly search volume."""
+    if volume >= 100000:
+        return 100
+    if volume >= 10000:
         return 90
-    if position <= 10:
+    if volume >= 1000:
         return 75
-    if position <= 20:
+    if volume >= 100:
         return 55
-    if position <= 50:
-        return 35
-    return 15
-
-
-def _enrich_keywords_with_gsc(
-    seo_keywords: list[dict[str, Any]],
-    gsc_lookup: dict[str, dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Replace LLM-estimated demand/competition scores with real GSC data where available."""
-    enriched = []
-    for kw in seo_keywords:
-        if not isinstance(kw, dict):
-            continue
-        kw = dict(kw)
-        query = str(kw.get("query", "")).lower().strip()
-        gsc_row = gsc_lookup.get(query)
-        if gsc_row and gsc_row["impressions"] > 0:
-            kw["demand_score"] = _impressions_to_demand_score(gsc_row["impressions"])
-            kw["competition_score"] = _position_to_competition_score(gsc_row["position"])
-            kw["data_source"] = "gsc"
-            kw["gsc_impressions"] = gsc_row["impressions"]
-            kw["gsc_clicks"] = gsc_row["clicks"]
-            kw["gsc_position"] = round(gsc_row["position"], 1)
-        else:
-            kw["data_source"] = "llm_estimated"
-        enriched.append(kw)
-    return enriched
+    if volume >= 10:
+        return 30
+    return 10
 
 
 def _fallback_pack(product_title: str, current_meta_title: str, current_meta_description: str) -> dict[str, Any]:
@@ -522,8 +540,25 @@ def run_market_analysis(
     except LLMError:
         llm_router = None
 
-    # Build GSC lookup once — used to enrich keyword scores after each LLM call
-    gsc_lookup = _build_gsc_lookup(gsc_query_rows)
+    # ── Provider pipeline ───────────────────────────────────────────────────
+    # Free provider always runs. Paid providers run only when env-activated.
+    free_provider = FreeProvider(
+        gsc_query_rows=gsc_query_rows,
+        trend_signals=trend_signals,
+    )
+    dataforseo_provider = DataForSEOProvider()
+    google_ads_provider = GoogleAdsKeywordProvider()
+    paid_providers = [p for p in (dataforseo_provider, google_ads_provider) if p.available]
+
+    provider_status: dict[str, Any] = {
+        "free": True,
+        "dataforseo": dataforseo_provider.available,
+        "google_ads": google_ads_provider.available,
+    }
+    if dataforseo_provider.available:
+        sources_used.append("dataforseo")
+    if google_ads_provider.available:
+        sources_used.append("google_ads")
 
     product_results: list[dict[str, Any]] = []
 
@@ -626,10 +661,14 @@ def run_market_analysis(
             except Exception as exc:
                 logger.warning("Unexpected error for %r: %s", product_title, exc)
 
-        # Enrich keyword scores with real GSC data where available
-        if llm_pack.get("seo_keywords") and gsc_lookup:
-            llm_pack["seo_keywords"] = _enrich_keywords_with_gsc(
-                llm_pack["seo_keywords"], gsc_lookup
+        # ── Provider pipeline: free first, then each enabled paid provider ──
+        if llm_pack.get("seo_keywords"):
+            signals = signals_from_llm_keywords(llm_pack["seo_keywords"])
+            signals = free_provider.enrich(signals, shop=shop)
+            for paid in paid_providers:
+                signals = paid.enrich(signals, shop=shop)
+            llm_pack["seo_keywords"] = _apply_signals_to_keywords(
+                llm_pack["seo_keywords"], signals
             )
 
         product_results.append(_build_product_result(product, opp, llm_pack, shop))
@@ -645,6 +684,20 @@ def run_market_analysis(
         for r in product_results
     )
 
+    # Competitor signals — manual + (future) paid SERP signals
+    first_kw_seeds: list[str] = []
+    for prod in product_results:
+        for k in prod.get("seo_keywords", []) or []:
+            q = k.get("query") if isinstance(k, dict) else None
+            if q:
+                first_kw_seeds.append(str(q))
+                break
+        if first_kw_seeds:
+            break
+    competitor_signals = build_competitor_signals(shop, keywords=first_kw_seeds or None)
+    if competitor_signals:
+        sources_used.append("competitors_manual")
+
     return {
         "shop": shop,
         "analyzed_at": datetime.now(UTC).isoformat(),
@@ -652,5 +705,16 @@ def run_market_analysis(
         "analyzed_product_count": len(product_results),
         "total_opportunity_count": total_opportunity_count,
         "sources_used": sources_used,
+        "provider_status": provider_status,
+        "competitor_signals": competitor_signals,
         "products": product_results,
     }
+    # TODO paid-provider:
+    #   - enrich seo_keywords with volume, CPC, ads competition (DataForSEO/Google Ads)
+    #   - enrich competitor_signals with the real top-10 SERP per keyword (DataForSEO SERP)
+    #   - enrich geo_questions with PAA / featured snippets / AI Overview (DataForSEO SERP)
+    #   - replace free_estimated difficulty_score with paid difficulty when available
+    # TODO future-autopilot:
+    #   - human validation gate before any Shopify write
+    #   - history of recommendations (before/after compare)
+    #   - semi-automated publication of meta title/description/FAQ/blog with rollback

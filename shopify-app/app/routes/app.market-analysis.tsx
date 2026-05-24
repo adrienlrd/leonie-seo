@@ -26,6 +26,9 @@ import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type KeywordSource = "gsc" | "ga4" | "trends" | "shopify" | "llm_estimated" | "dataforseo" | "google_ads";
+type DifficultySource = "free_estimated" | "dataforseo" | "google_ads";
+
 interface SeoKeyword {
   query: string;
   intent_type: string;
@@ -33,10 +36,31 @@ interface SeoKeyword {
   competition_score: number;
   product_fit_score: number;
   reason: string;
-  data_source?: "gsc" | "llm_estimated";
-  gsc_impressions?: number;
-  gsc_clicks?: number;
-  gsc_position?: number;
+  data_source?: KeywordSource;
+  difficulty_source?: DifficultySource;
+  gsc_impressions?: number | null;
+  gsc_clicks?: number | null;
+  gsc_position?: number | null;
+  search_volume?: number | null;
+  cpc?: number | null;
+  ads_competition?: number | null;
+  notes?: string[];
+}
+
+interface CompetitorSignal {
+  domain: string;
+  url?: string | null;
+  matched_keyword?: string;
+  detected_from: "manual" | "gsc" | "merchant_input" | "paid_provider";
+  content_angle?: string;
+  estimated_strength?: number;
+  confidence?: "high" | "medium" | "low";
+}
+
+interface ProviderStatus {
+  free?: boolean;
+  dataforseo?: boolean;
+  google_ads?: boolean;
 }
 
 interface GeoQuestion {
@@ -93,6 +117,8 @@ interface JobState {
   analyzed_product_count: number;
   total_opportunity_count: number;
   sources_used: string[];
+  provider_status?: ProviderStatus;
+  competitor_signals?: CompetitorSignal[];
   error: string | null;
   // identification job fields
   labels?: Record<string, string>;
@@ -386,23 +412,31 @@ function progressLabel(locale: Locale, done: number, total: number): string {
 function DataSourcesCard({
   gscConnected,
   ga4Connected,
+  providerStatus,
   locale,
 }: {
   gscConnected: boolean;
   ga4Connected: boolean;
+  providerStatus: ProviderStatus | undefined;
   locale: Locale;
 }) {
+  const dataforseoOn = providerStatus?.dataforseo === true;
+  const googleAdsOn = providerStatus?.google_ads === true;
   return (
     <Card>
       <BlockStack gap="200">
         <Text as="h3" variant="headingSm">
-          {locale === "fr" ? "Sources de données" : "Data sources"}
+          {t(locale, "marketAnalysisDataUsed")}
         </Text>
         <InlineStack gap="400" wrap>
           <InlineStack gap="200" blockAlign="center">
+            <Text as="span" variant="bodySm">Shopify</Text>
+            <Badge tone="success">{t(locale, "marketAnalysisBadgeReal")}</Badge>
+          </InlineStack>
+          <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="bodySm">Google Search Console</Text>
             {gscConnected ? (
-              <Badge tone="success">OK</Badge>
+              <Badge tone="success">{t(locale, "marketAnalysisBadgeReal")}</Badge>
             ) : (
               <Button variant="plain" size="slim" url="/app/onboarding">
                 {locale === "fr" ? "Se connecter" : "Connect"}
@@ -412,17 +446,113 @@ function DataSourcesCard({
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="bodySm">Google Analytics 4</Text>
             {ga4Connected ? (
-              <Badge tone="success">OK</Badge>
+              <Badge tone="success">{t(locale, "marketAnalysisBadgeReal")}</Badge>
             ) : (
               <Button variant="plain" size="slim" url="/app/ga4">
                 {locale === "fr" ? "Se connecter" : "Connect"}
               </Button>
             )}
           </InlineStack>
+          <InlineStack gap="200" blockAlign="center">
+            <Text as="span" variant="bodySm">DataForSEO</Text>
+            <Badge tone={dataforseoOn ? "success" : "attention"}>
+              {dataforseoOn ? t(locale, "marketAnalysisBadgeReal") : t(locale, "marketAnalysisBadgePaid")}
+            </Badge>
+          </InlineStack>
+          <InlineStack gap="200" blockAlign="center">
+            <Text as="span" variant="bodySm">Google Ads API</Text>
+            <Badge tone={googleAdsOn ? "success" : "attention"}>
+              {googleAdsOn ? t(locale, "marketAnalysisBadgeReal") : t(locale, "marketAnalysisBadgePaid")}
+            </Badge>
+          </InlineStack>
         </InlineStack>
       </BlockStack>
     </Card>
   );
+}
+
+function FreeLimitsCard({ locale }: { locale: Locale }) {
+  return (
+    <Banner tone="info" title={t(locale, "marketAnalysisFreeLimits")}>
+      <p>{t(locale, "marketAnalysisFreeLimitsBody")}</p>
+    </Banner>
+  );
+}
+
+function PaidRecommendedCard({
+  providerStatus,
+  locale,
+}: {
+  providerStatus: ProviderStatus | undefined;
+  locale: Locale;
+}) {
+  // Hide once at least one paid provider is on
+  if (providerStatus?.dataforseo || providerStatus?.google_ads) return null;
+  return (
+    <Banner tone="warning" title={t(locale, "marketAnalysisPaidRecommended")}>
+      <p>{t(locale, "marketAnalysisPaidRecommendedBody")}</p>
+    </Banner>
+  );
+}
+
+function CompetitorsCard({
+  signals,
+  locale,
+}: {
+  signals: CompetitorSignal[] | undefined;
+  locale: Locale;
+}) {
+  const items = signals ?? [];
+  return (
+    <Card>
+      <BlockStack gap="200">
+        <InlineStack align="space-between" blockAlign="center">
+          <Text as="h3" variant="headingSm">
+            {t(locale, "marketAnalysisCompetitors")}
+          </Text>
+          <Button
+            variant="plain"
+            size="slim"
+            url={localizedPath("/app/settings/competitors", locale)}
+          >
+            {t(locale, "marketAnalysisAddCompetitor")}
+          </Button>
+        </InlineStack>
+        {items.length === 0 ? (
+          <Text as="p" variant="bodySm" tone="subdued">
+            {t(locale, "marketAnalysisCompetitorsNone")}
+          </Text>
+        ) : (
+          <BlockStack gap="100">
+            {items.map((c) => (
+              <InlineStack key={c.domain} gap="200" blockAlign="center" wrap>
+                <Text as="span" variant="bodySm"><strong>{c.domain}</strong></Text>
+                <Badge tone={c.detected_from === "paid_provider" ? "success" : "info"}>
+                  {c.detected_from === "manual"
+                    ? (locale === "fr" ? "manuel" : "manual")
+                    : c.detected_from === "paid_provider"
+                    ? (locale === "fr" ? "SERP réel" : "real SERP")
+                    : c.detected_from}
+                </Badge>
+                {c.content_angle && (
+                  <Text as="span" variant="bodySm" tone="subdued">{c.content_angle}</Text>
+                )}
+              </InlineStack>
+            ))}
+          </BlockStack>
+        )}
+      </BlockStack>
+    </Card>
+  );
+}
+
+function KeywordSourceBadge({ source, locale }: { source: KeywordSource | undefined; locale: Locale }) {
+  if (!source) return null;
+  if (source === "gsc") return <Badge tone="success">{t(locale, "marketAnalysisSourceGsc")}</Badge>;
+  if (source === "dataforseo") return <Badge tone="success">{t(locale, "marketAnalysisSourceDataforseo")}</Badge>;
+  if (source === "ga4") return <Badge tone="success">{t(locale, "marketAnalysisSourceGa4")}</Badge>;
+  if (source === "shopify") return <Badge tone="info">{t(locale, "marketAnalysisSourceShopify")}</Badge>;
+  return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlm")}</Badge>;
 }
 
 function SummaryCard({ job, locale }: { job: JobState; locale: Locale }) {
@@ -505,27 +635,67 @@ function ProductCard({
             </Button>
             <Collapsible id={`kw-${product.product_id}`} open={openSection === "keywords"}>
               <Box paddingBlockStart="200">
-                <DataTable
-                  columnContentTypes={["text", "text", "numeric", "numeric", "numeric", "text", "text"]}
-                  headings={[
-                    locale === "fr" ? "Requête" : "Query",
-                    "Intent",
-                    locale === "fr" ? "Demande" : "Demand",
-                    locale === "fr" ? "Concurrence" : "Competition",
-                    "Fit",
-                    locale === "fr" ? "Impr. GSC" : "GSC Impr.",
-                    locale === "fr" ? "Pos. GSC" : "GSC Pos.",
-                  ]}
-                  rows={product.seo_keywords.map((k) => [
-                    k.data_source === "gsc" ? `${k.query} ✓` : k.query,
-                    k.intent_type,
-                    String(k.demand_score),
-                    String(k.competition_score),
-                    String(k.product_fit_score),
-                    k.data_source === "gsc" ? String(k.gsc_impressions ?? "") : "—",
-                    k.data_source === "gsc" ? String(k.gsc_position ?? "") : "—",
-                  ])}
-                />
+                <BlockStack gap="200">
+                  {product.seo_keywords.map((k, idx) => (
+                    <Box
+                      key={`${k.query}-${idx}`}
+                      padding="200"
+                      borderWidth="025"
+                      borderRadius="200"
+                      borderColor="border"
+                      background="bg-surface-secondary"
+                    >
+                      <BlockStack gap="100">
+                        <InlineStack gap="200" align="space-between" wrap blockAlign="center">
+                          <InlineStack gap="200" blockAlign="center" wrap>
+                            <Text as="span" variant="bodyMd"><strong>{k.query}</strong></Text>
+                            <Badge>{k.intent_type || "—"}</Badge>
+                            <KeywordSourceBadge source={k.data_source} locale={locale} />
+                          </InlineStack>
+                          <InlineStack gap="100">
+                            <Badge tone={scoreTone(k.demand_score)}>
+                              {`${locale === "fr" ? "Demande" : "Demand"} ${k.demand_score}`}
+                            </Badge>
+                            <Badge tone="info">
+                              {`${t(locale, "marketAnalysisDifficulty")} ${k.competition_score}`}
+                            </Badge>
+                            <Badge tone={scoreTone(k.product_fit_score)}>
+                              {`Fit ${k.product_fit_score}`}
+                            </Badge>
+                          </InlineStack>
+                        </InlineStack>
+                        <InlineStack gap="300" wrap>
+                          <Text as="span" variant="bodySm" tone="subdued">
+                            {t(locale, "marketAnalysisVolume")}:{" "}
+                            {k.search_volume != null ? (
+                              <strong>{k.search_volume.toLocaleString()}</strong>
+                            ) : (
+                              <em>{t(locale, "marketAnalysisPaidUnavailable")}</em>
+                            )}
+                          </Text>
+                          <Text as="span" variant="bodySm" tone="subdued">
+                            {t(locale, "marketAnalysisCpc")}:{" "}
+                            {k.cpc != null ? <strong>{k.cpc}€</strong> : <em>—</em>}
+                          </Text>
+                          <Text as="span" variant="bodySm" tone="subdued">
+                            {t(locale, "marketAnalysisAdsCompetition")}:{" "}
+                            {k.ads_competition != null ? <strong>{k.ads_competition}</strong> : <em>—</em>}
+                          </Text>
+                          {k.gsc_impressions != null && (
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              GSC: <strong>{k.gsc_impressions}</strong> impr., pos {k.gsc_position}
+                            </Text>
+                          )}
+                        </InlineStack>
+                        {k.notes && k.notes.length > 0 && (
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {k.notes.join(" · ")}
+                          </Text>
+                        )}
+                      </BlockStack>
+                    </Box>
+                  ))}
+                </BlockStack>
               </Box>
             </Collapsible>
           </Box>
@@ -990,7 +1160,25 @@ export default function MarketAnalysisPage() {
         </Banner>
 
         {/* Data sources status */}
-        <DataSourcesCard gscConnected={gscConnected} ga4Connected={ga4Connected} locale={locale} />
+        <DataSourcesCard
+          gscConnected={gscConnected}
+          ga4Connected={ga4Connected}
+          providerStatus={job?.provider_status ?? latestJob?.provider_status}
+          locale={locale}
+        />
+
+        {/* Free-mode limits + paid recommendations + competitors */}
+        <FreeLimitsCard locale={locale} />
+        <PaidRecommendedCard
+          providerStatus={job?.provider_status ?? latestJob?.provider_status}
+          locale={locale}
+        />
+        {(job ?? latestJob) && (
+          <CompetitorsCard
+            signals={job?.competitor_signals ?? latestJob?.competitor_signals}
+            locale={locale}
+          />
+        )}
 
         {/* ── STEP 1: Product identification ─────────────────────────────── */}
         {step === "identification" && (
