@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
+import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -106,6 +107,16 @@ interface LoaderData {
   gscConnected: boolean;
   ga4Connected: boolean;
 }
+
+// ── Revalidation guard — polling actions must not re-run the loader ───────────
+
+export const shouldRevalidate: ShouldRevalidateFunction = (args) => {
+  const intent = args.formData?.get("intent");
+  if (intent === "poll" || intent === "pollIdentify" || intent === "pollSingle") {
+    return false;
+  }
+  return args.defaultShouldRevalidate;
+};
 
 // ── Remix loader / action ─────────────────────────────────────────────────────
 

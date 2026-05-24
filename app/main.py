@@ -2,6 +2,7 @@
 # ruff: noqa: I001  — import order is forced by load_dotenv() runtime constraint
 
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # load_dotenv must run before any module that reads env vars at import time
 load_dotenv()
+
+# Configure application logging so WARNING/ERROR messages from all app modules
+# appear in stdout (captured by Render and other log aggregators).
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:%(name)s:%(message)s",
+)
 
 from app.api.apply import router as apply_router  # noqa: E402
 from app.api.crawl import router as crawl_router  # noqa: E402
