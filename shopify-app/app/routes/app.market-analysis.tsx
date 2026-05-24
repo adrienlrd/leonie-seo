@@ -590,6 +590,18 @@ export default function MarketAnalysisPage() {
   const startFetcher = useFetcher<ActionData>();
   const pollFetcher = useFetcher<ActionData>();
 
+  // ── Auto-start identification on first visit (no labels, no prior analysis) ──
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    if (step === "identification" && Object.keys(identifications).length === 0) {
+      autoStartedRef.current = true;
+      const fd = new FormData();
+      fd.set("intent", "startIdentify");
+      identifyFetcher.submit(fd, { method: "post" });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Refs for polling loops (avoid stale closures) ─────────────────────────
   const identifyJobIdRef = useRef<string | null>(null);
   const identifyStatusRef = useRef<string | undefined>(identifyJob?.status);
