@@ -684,19 +684,35 @@ def run_market_analysis(
         for r in product_results
     )
 
-    # Competitor signals — manual + (future) paid SERP signals
-    first_kw_seeds: list[str] = []
+    # Collect top-2 keywords per product for SERP (sorted by demand_score desc)
+    serp_keywords: list[str] = []
     for prod in product_results:
-        for k in prod.get("seo_keywords", []) or []:
-            q = k.get("query") if isinstance(k, dict) else None
-            if q:
-                first_kw_seeds.append(str(q))
-                break
-        if first_kw_seeds:
-            break
-    competitor_signals = build_competitor_signals(shop, keywords=first_kw_seeds or None)
+        kws = prod.get("seo_keywords", []) or []
+        top = sorted(
+            [k for k in kws if isinstance(k, dict)],
+            key=lambda k: k.get("demand_score", 0),
+            reverse=True,
+        )[:2]
+        for k in top:
+            q = k.get("query")
+            if q and q not in serp_keywords:
+                serp_keywords.append(str(q))
+
+    # Manual competitor signals (always)
+    competitor_signals = build_competitor_signals(shop, keywords=serp_keywords or None)
     if competitor_signals:
         sources_used.append("competitors_manual")
+
+    # Real SERP competitors via DataForSEO (when enabled)
+    if dataforseo_provider.available and serp_keywords:
+        serp_signals = dataforseo_provider.fetch_serp_competitors(serp_keywords)
+        if serp_signals:
+            competitor_signals = list(competitor_signals) + serp_signals
+            sources_used.append("dataforseo_serp")
+
+    # TODO future-autopilot:
+    #   - human validation gate before any Shopify write
+    #   - history of recommendations (before/after compare)
 
     return {
         "shop": shop,
@@ -709,12 +725,4 @@ def run_market_analysis(
         "competitor_signals": competitor_signals,
         "products": product_results,
     }
-    # TODO paid-provider:
-    #   - enrich seo_keywords with volume, CPC, ads competition (DataForSEO/Google Ads)
-    #   - enrich competitor_signals with the real top-10 SERP per keyword (DataForSEO SERP)
-    #   - enrich geo_questions with PAA / featured snippets / AI Overview (DataForSEO SERP)
-    #   - replace free_estimated difficulty_score with paid difficulty when available
-    # TODO future-autopilot:
-    #   - human validation gate before any Shopify write
-    #   - history of recommendations (before/after compare)
     #   - semi-automated publication of meta title/description/FAQ/blog with rollback

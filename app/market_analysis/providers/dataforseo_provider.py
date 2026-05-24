@@ -1,18 +1,22 @@
-"""DataForSEO provider — real implementation of the Keywords Data API.
+"""DataForSEO provider — Keywords Data, Keyword Difficulty, and SERP.
 
-Activation:
+Activation (three env vars, same credentials for all three APIs):
     DATAFORSEO_LOGIN=<email>
     DATAFORSEO_PASSWORD=<api password>
     DATAFORSEO_ENABLED=true
 
-If any of these is missing or `DATAFORSEO_ENABLED!=true`, the provider
-reports `available = False` and the engine silently skips it.
+APIs used:
+    1. POST /v3/keywords_data/google_ads/search_volume/live
+       → real search volume, CPC, ads competition per keyword (~$0.001/kw)
+    2. POST /v3/dataforseo_labs/google/bulk_keyword_difficulty/live
+       → true SEO difficulty 0–100 per keyword (replaces heuristic)
+    3. POST /v3/serp/google/organic/live/advanced
+       → real French SERP: top-10 competitors, featured snippet, PAA (~$0.003/kw)
 
-Endpoint used:
-    POST https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live
+If any credential is missing or DATAFORSEO_ENABLED!=true, the provider
+reports available=False and the engine silently skips it.
 
-Cost: roughly $0.0005–0.001 per keyword. The engine deduplicates keywords
-before calling the provider to minimise cost.
+All remote calls fail silently — analysis continues with free signals only.
 """
 
 from __future__ import annotations
@@ -21,33 +25,37 @@ import logging
 import os
 from typing import Any
 
-from app.market_analysis.providers.types import KeywordSignal
+from app.market_analysis.providers.types import CompetitorSignal, KeywordSignal
 
 logger = logging.getLogger(__name__)
 
-_API_URL = "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live"
+_VOLUME_URL = "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live"
+_DIFFICULTY_URL = "https://api.dataforseo.com/v3/dataforseo_labs/google/bulk_keyword_difficulty/live"
+_SERP_URL = "https://api.dataforseo.com/v3/serp/google/organic/live/advanced"
+
 _DEFAULT_LOCATION_CODE = 2250  # France
 _DEFAULT_LANGUAGE_CODE = "fr"
-_HTTP_TIMEOUT = 30.0
+_HTTP_TIMEOUT = 45.0
+_SERP_TIMEOUT = 60.0
+_SERP_MAX_KEYWORDS = 50  # cost cap per analysis run
 
 
 def _to_difficulty(competition: float | None) -> int:
-    """Map Google Ads competition (0.0–1.0) to a 0-100 difficulty score."""
+    """Map Google Ads competition (0.0–1.0) to a 0-100 difficulty score (fallback only)."""
     if competition is None:
         return 50
-    competition = max(0.0, min(1.0, float(competition)))
-    return int(round(competition * 100))
+    return int(round(max(0.0, min(1.0, float(competition))) * 100))
 
 
 def _to_demand_bucket(volume: int | None) -> int:
     """Map raw monthly search volume to a 0-100 demand bucket."""
     if not volume or volume <= 0:
         return 5
-    if volume >= 100000:
+    if volume >= 100_000:
         return 100
-    if volume >= 10000:
+    if volume >= 10_000:
         return 90
-    if volume >= 1000:
+    if volume >= 1_000:
         return 75
     if volume >= 100:
         return 55
@@ -56,8 +64,13 @@ def _to_demand_bucket(volume: int | None) -> int:
     return 15
 
 
+def _serp_strength(rank: int) -> int:
+    """Estimate competitor strength (0–100) from SERP rank position."""
+    return max(10, 100 - (rank - 1) * 7)
+
+
 class DataForSEOProvider:
-    """Real DataForSEO Keywords Data provider — env-gated, fails silently."""
+    """DataForSEO provider — env-gated, fails silently on any remote error."""
 
     name = "dataforseo"
 
@@ -77,58 +90,91 @@ class DataForSEOProvider:
     def available(self) -> bool:
         return bool(self._enabled and self._login and self._password)
 
+    # ── Public API used by the engine ────────────────────────────────────────
+
     def enrich(self, signals: list[KeywordSignal], *, shop: str) -> list[KeywordSignal]:  # noqa: ARG002
+        """Enrich keyword signals with real volume, CPC, and SEO difficulty."""
         if not self.available or not signals:
             return signals
         keywords = sorted({str(s.get("keyword", "")).strip() for s in signals if s.get("keyword")})
         if not keywords:
             return signals
 
+        volumes: dict[str, dict[str, Any]] = {}
+        difficulties: dict[str, int] = {}
+
         try:
             volumes = self._fetch_search_volumes(keywords)
-        except Exception as exc:  # remote-call failure must never crash analysis
-            logger.warning("DataForSEO call failed: %s", exc)
-            return signals
+        except Exception as exc:
+            logger.warning("DataForSEO search volume call failed: %s", exc)
 
-        # Apply enrichment — replace estimated difficulty with API data
+        try:
+            difficulties = self._fetch_keyword_difficulty(keywords)
+        except Exception as exc:
+            logger.warning("DataForSEO keyword difficulty call failed: %s", exc)
+
         for sig in signals:
             kw = str(sig.get("keyword", "")).strip().lower()
-            data = volumes.get(kw)
-            if not data:
-                continue
-            sig["search_volume"] = data.get("search_volume")
-            sig["cpc"] = data.get("cpc")
-            sig["ads_competition"] = data.get("competition_index")
-            sig["difficulty_score"] = _to_difficulty(data.get("competition_index"))
-            sig["difficulty_source"] = "dataforseo"
-            sig["source"] = "dataforseo"
-            sig["confidence"] = "high"
-            notes = list(sig.get("notes", []))
-            vol = data.get("search_volume")
-            cpc = data.get("cpc")
-            notes.append(
-                f"DataForSEO: volume {vol if vol is not None else '—'} /mois, "
-                f"CPC {cpc if cpc is not None else '—'}€, "
-                f"concurrence Ads {data.get('competition_index')}"
-            )
-            sig["notes"] = notes
+            vol_data = volumes.get(kw)
+            difficulty = difficulties.get(kw)
+
+            if vol_data or difficulty is not None:
+                sig["source"] = "dataforseo"
+                sig["confidence"] = "high"
+                notes = list(sig.get("notes", []))
+
+                if vol_data:
+                    vol = vol_data.get("search_volume")
+                    cpc = vol_data.get("cpc")
+                    comp = vol_data.get("competition_index")
+                    sig["search_volume"] = vol
+                    sig["cpc"] = cpc
+                    sig["ads_competition"] = comp
+                    if vol is not None:
+                        sig["difficulty_score"] = _to_demand_bucket(vol)
+                    notes.append(
+                        f"DataForSEO: {vol if vol is not None else '—'} rech./mois, "
+                        f"CPC {cpc if cpc is not None else '—'}€, "
+                        f"concurrence Ads {comp}"
+                    )
+                    sig["notes"] = notes
+
+                # Real SEO difficulty overrides ads competition mapping
+                if difficulty is not None:
+                    sig["difficulty_score"] = difficulty
+                    sig["difficulty_source"] = "dataforseo"
+
         return signals
 
-    # ── Internal HTTP ────────────────────────────────────────────────────────
+    def fetch_serp_competitors(self, keywords: list[str]) -> list[CompetitorSignal]:
+        """Fetch real French SERP for top keywords and return competitor signals.
+
+        Capped at _SERP_MAX_KEYWORDS per analysis run to control cost.
+        Returns [] on any error — never raises.
+        """
+        if not self.available or not keywords:
+            return []
+        capped = list(dict.fromkeys(keywords))[:_SERP_MAX_KEYWORDS]
+        try:
+            serp_data = self._fetch_serp(capped)
+        except Exception as exc:
+            logger.warning("DataForSEO SERP call failed: %s", exc)
+            return []
+        return _parse_serp_competitors(serp_data)
+
+    # ── Internal HTTP calls ──────────────────────────────────────────────────
 
     def _fetch_search_volumes(self, keywords: list[str]) -> dict[str, dict[str, Any]]:
-        """Call the DataForSEO Keywords Data API and return {keyword_lower: row}."""
+        """POST to Keywords Data API. Returns {keyword_lower: {search_volume, cpc, competition_index}}."""
         import requests  # noqa: PLC0415
 
-        payload = [
-            {
-                "keywords": keywords[:1000],  # DataForSEO hard cap per call
-                "location_code": self._location_code,
-                "language_code": self._language_code,
-            }
-        ]
+        payload = [{
+            "keywords": keywords[:1000],
+            "location_code": self._location_code,
+            "language_code": self._language_code,
+        }]
         resp = requests.post(
-            _API_URL,
+            _VOLUME_URL,
             json=payload,
             auth=(self._login, self._password),
             timeout=_HTTP_TIMEOUT,
@@ -139,11 +185,132 @@ class DataForSEOProvider:
         for task in body.get("tasks", []) or []:
             for result in task.get("result", []) or []:
                 kw = str(result.get("keyword", "")).strip().lower()
-                if not kw:
-                    continue
-                out[kw] = {
-                    "search_volume": result.get("search_volume"),
-                    "cpc": result.get("cpc"),
-                    "competition_index": result.get("competition_index"),
-                }
+                if kw:
+                    out[kw] = {
+                        "search_volume": result.get("search_volume"),
+                        "cpc": result.get("cpc"),
+                        "competition_index": result.get("competition_index"),
+                    }
         return out
+
+    def _fetch_keyword_difficulty(self, keywords: list[str]) -> dict[str, int]:
+        """POST to DataForSEO Labs Bulk Keyword Difficulty. Returns {keyword_lower: difficulty_0_100}."""
+        import requests  # noqa: PLC0415
+
+        payload = [{
+            "keywords": keywords[:1000],
+            "location_code": self._location_code,
+            "language_code": self._language_code,
+        }]
+        resp = requests.post(
+            _DIFFICULTY_URL,
+            json=payload,
+            auth=(self._login, self._password),
+            timeout=_HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        out: dict[str, int] = {}
+        for task in body.get("tasks", []) or []:
+            for result in task.get("result", []) or []:
+                kw = str(result.get("keyword", "")).strip().lower()
+                difficulty = result.get("keyword_difficulty")
+                if kw and difficulty is not None:
+                    out[kw] = int(difficulty)
+        return out
+
+    def _fetch_serp(self, keywords: list[str]) -> dict[str, list[dict[str, Any]]]:
+        """POST to SERP Google Organic Advanced. Returns {keyword_lower: items_list}."""
+        import requests  # noqa: PLC0415
+
+        payload = [
+            {
+                "keyword": kw,
+                "location_code": self._location_code,
+                "language_code": self._language_code,
+                "device": "desktop",
+                "os": "windows",
+                "depth": 10,
+            }
+            for kw in keywords
+        ]
+        resp = requests.post(
+            _SERP_URL,
+            json=payload,
+            auth=(self._login, self._password),
+            timeout=_SERP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        out: dict[str, list[dict[str, Any]]] = {}
+        for task in body.get("tasks", []) or []:
+            task_kw = str((task.get("data") or {}).get("keyword", "")).strip().lower()
+            items: list[dict[str, Any]] = []
+            for result in task.get("result", []) or []:
+                items.extend(result.get("items", []) or [])
+            if task_kw:
+                out[task_kw] = items
+        return out
+
+
+# ── SERP parsing (pure function — easier to test) ────────────────────────────
+
+def _parse_serp_competitors(serp_data: dict[str, list[dict[str, Any]]]) -> list[CompetitorSignal]:
+    """Convert raw SERP items into deduplicated CompetitorSignal list.
+
+    Priority: featured_snippet (strength 100) > organic by rank.
+    One signal per domain — keeps the best (highest strength) occurrence.
+    """
+    best: dict[str, CompetitorSignal] = {}  # domain → signal
+
+    for kw, items in serp_data.items():
+        paa_questions: list[str] = []
+
+        # First pass: collect PAA questions for this keyword
+        for item in items:
+            if item.get("type") == "people_also_ask":
+                q = item.get("title", "").strip()
+                if q:
+                    paa_questions.append(q)
+
+        # Second pass: build competitor signals
+        for item in items:
+            item_type = item.get("type", "")
+            domain = str(item.get("domain", "")).strip().lower()
+            if not domain:
+                continue
+
+            if item_type == "featured_snippet":
+                sig: CompetitorSignal = {
+                    "domain": domain,
+                    "url": item.get("url"),
+                    "matched_keyword": kw,
+                    "detected_from": "paid_provider",
+                    "content_angle": f"[Featured Snippet] {item.get('title', '').strip()}",
+                    "estimated_strength": 100,
+                    "confidence": "high",
+                }
+                existing = best.get(domain)
+                if existing is None or (existing.get("estimated_strength", 0) < 100):
+                    best[domain] = sig
+
+            elif item_type == "organic":
+                rank = int(item.get("rank_absolute", 10))
+                strength = _serp_strength(rank)
+                angle = item.get("title", "").strip()
+                if paa_questions:
+                    angle += f" | PAA: {paa_questions[0]}"
+                sig = {
+                    "domain": domain,
+                    "url": item.get("url"),
+                    "matched_keyword": kw,
+                    "detected_from": "paid_provider",
+                    "content_angle": angle,
+                    "estimated_strength": strength,
+                    "confidence": "high",
+                }
+                existing = best.get(domain)
+                if existing is None or (existing.get("estimated_strength", 0) < strength):
+                    best[domain] = sig
+
+    return sorted(best.values(), key=lambda s: s.get("estimated_strength", 0), reverse=True)
