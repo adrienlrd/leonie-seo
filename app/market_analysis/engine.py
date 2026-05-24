@@ -526,11 +526,12 @@ def run_market_analysis(
 
         llm_pack: dict[str, Any] = _fallback_pack(product_title, current_meta_title, current_meta_description)
         if llm_router is not None:
+            raw = ""
             try:
                 completion = llm_router.complete(
                     prompt,
                     system=_SYSTEM_PROMPT,
-                    max_tokens=2048,
+                    max_tokens=4096,
                     temperature=0.3,
                 )
                 raw = completion.text.strip()
@@ -540,8 +541,15 @@ def run_market_analysis(
                 parsed = json.loads(raw)
                 if isinstance(parsed, dict):
                     llm_pack = {k: parsed.get(k, llm_pack.get(k)) for k in _JSON_KEYS}
-            except (LLMError, json.JSONDecodeError, ValueError, KeyError, Exception):
-                pass
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    "JSON parse failed for %r — likely truncated (%d chars): %s | start: %s",
+                    product_title, len(raw), exc, raw[:200],
+                )
+            except LLMError as exc:
+                logger.warning("LLM call failed for %r: %s", product_title, exc)
+            except Exception as exc:
+                logger.warning("Unexpected error for %r: %s", product_title, exc)
 
         product_results.append(_build_product_result(product, opp, llm_pack, shop))
 
