@@ -710,6 +710,43 @@ def run_market_analysis(
             competitor_signals = list(competitor_signals) + serp_signals
             sources_used.append("dataforseo_serp")
 
+    # Keyword Ideas — add DataForSEO suggestions to top-5 products by opportunity_score
+    if dataforseo_provider.available:
+        top_products = sorted(
+            product_results,
+            key=lambda p: p.get("opportunity_score", 0),
+            reverse=True,
+        )[:5]
+        for prod in top_products:
+            kws = prod.get("seo_keywords", []) or []
+            seeds = [
+                k["query"] for k in sorted(kws, key=lambda k: k.get("demand_score", 0), reverse=True)[:3]
+                if isinstance(k, dict) and k.get("query")
+            ]
+            if not seeds:
+                continue
+            ideas = dataforseo_provider.fetch_keyword_ideas(seeds, limit=15)
+            if ideas:
+                existing = {k.get("query", "").lower() for k in kws if isinstance(k, dict)}
+                new_ideas = [i for i in ideas if i.get("query", "").lower() not in existing]
+                prod["seo_keywords"] = list(kws) + new_ideas
+                if "dataforseo_keyword_ideas" not in sources_used:
+                    sources_used.append("dataforseo_keyword_ideas")
+
+    # Domain competitors — shop-level view of who competes with the merchant on Google
+    if dataforseo_provider.available and shop:
+        domain_signals = dataforseo_provider.fetch_domain_competitors(shop)
+        if domain_signals:
+            competitor_signals = list(competitor_signals) + domain_signals
+            if "dataforseo_domain_competitors" not in sources_used:
+                sources_used.append("dataforseo_domain_competitors")
+
+    # Recount after keyword ideas expansion
+    total_opportunity_count = sum(
+        len(r.get("seo_keywords", [])) + len(r.get("geo_questions", []))
+        for r in product_results
+    )
+
     # TODO future-autopilot:
     #   - human validation gate before any Shopify write
     #   - history of recommendations (before/after compare)
