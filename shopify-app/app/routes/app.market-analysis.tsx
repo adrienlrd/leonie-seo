@@ -892,10 +892,12 @@ export default function MarketAnalysisPage() {
                   </Button>
                 ) : null}
 
-                {isRunning && job && job.total > 0 && (
+                {isRunning && (
                   <BlockStack gap="100">
                     <Text as="p" variant="bodySm" tone="subdued">
-                      {progressLabel(locale, job.progress, job.total)}
+                      {job && job.total > 0
+                        ? progressLabel(locale, job.progress, job.total)
+                        : t(locale, "marketAnalysisRunning")}
                     </Text>
                     <ProgressBar progress={progressPct} size="small" />
                   </BlockStack>

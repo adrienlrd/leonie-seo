@@ -125,6 +125,10 @@ def _run_analysis_background(
         )
 
     try:
+        # Set total immediately so the frontend can show 0/N from the first poll
+        active_count = len(filter_products_by_scope(products, "active"))
+        update_job(job_id, status="running", total=active_count, progress=0)
+
         result = run_market_analysis(
             products,
             shop_domain,
