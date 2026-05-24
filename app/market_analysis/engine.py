@@ -126,6 +126,7 @@ def _build_prompt(
     trend_rising: list[str],
     stock_qty: int | None,
     stock_status: str,
+    merchant_label: str = "",
 ) -> str:
     queries_text = ", ".join(matched_queries[:5]) if matched_queries else "aucune donnée GSC"
     collections_text = ", ".join(collections) if collections else "aucune"
@@ -157,11 +158,16 @@ def _build_prompt(
     if not trend_text:
         trend_text = "aucune donnée Trends disponible"
 
+    merchant_label_text = (
+        f"LABEL SEO MARCHAND: {merchant_label}\n" if merchant_label else ""
+    )
+
     return (
         f"DATE_ACTUELLE: {today} (année {current_year})\n"
         f"NICHE: {niche_summary or 'Non définie'}\n"
         f"PRODUIT: {product_title} | handle: {handle} | prix: {price or 'non renseigné'}"
         f" | {nb_variants} variante(s)\n"
+        f"{merchant_label_text}"
         f"DESCRIPTION: {description[:400]}\n"
         f"COLLECTIONS: {collections_text}\n"
         f"TAGS: {tags or 'aucun'}\n"
@@ -454,9 +460,8 @@ def run_market_analysis(
 
         try:
             product_title = product.get("title", "")
-            # Use merchant-validated label if available (step 1 of 2-step flow)
-            if product_labels and product_id in product_labels:
-                product_title = product_labels[product_id] or product_title
+            # Merchant-validated SEO label (bonus context, not a title replacement)
+            merchant_label = (product_labels or {}).get(product_id, "")
             handle = product.get("handle", "")
             body_html = product.get("body_html") or product.get("description") or ""
             description = _strip_html(body_html)
@@ -516,6 +521,7 @@ def run_market_analysis(
             trend_rising=trend_rising,
             stock_qty=stock_qty,
             stock_status=stock_status,
+            merchant_label=merchant_label,
         )
 
         llm_pack: dict[str, Any] = _fallback_pack(product_title, current_meta_title, current_meta_description)

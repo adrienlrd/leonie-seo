@@ -81,11 +81,13 @@ def _run_identification_background(
     try:
         update_job(job_id, status="running")
         labels = generate_product_labels(products, shop_domain, niche_summary)
+        product_titles = {str(p.get("id", "")): p.get("title", "") for p in products}
         completed_data: dict[str, Any] = {
             "job_id": job_id,
             "shop": shop_domain,
             "status": "completed",
             "labels": labels,
+            "product_titles": product_titles,
             "product_count": len(labels),
             "error": None,
         }

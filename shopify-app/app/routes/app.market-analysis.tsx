@@ -90,6 +90,7 @@ interface JobState {
   error: string | null;
   // identification job fields
   labels?: Record<string, string>;
+  product_titles?: Record<string, string>;
   product_count?: number;
 }
 
@@ -97,7 +98,10 @@ interface LoaderData {
   locale: Locale;
   shop: string;
   latestJob: JobState | null;
-  latestIdentification: { labels: Record<string, string> } | null;
+  latestIdentification: {
+    labels: Record<string, string>;
+    product_titles: Record<string, string>;
+  } | null;
   gscConnected: boolean;
   ga4Connected: boolean;
 }
@@ -134,9 +138,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     latestJob = await latestJobResp.value.json() as JobState;
   }
 
-  let latestIdentification: { labels: Record<string, string> } | null = null;
+  let latestIdentification: { labels: Record<string, string>; product_titles: Record<string, string> } | null = null;
   if (identifyResp.status === "fulfilled" && identifyResp.value.ok) {
-    latestIdentification = await identifyResp.value.json() as { labels: Record<string, string> };
+    latestIdentification = await identifyResp.value.json() as typeof latestIdentification;
   }
 
   let gscConnected = false;
@@ -569,6 +573,10 @@ export default function MarketAnalysisPage() {
   const [identifications, setIdentifications] = useState<Record<string, string>>(
     latestIdentification?.labels ?? {},
   );
+  // Raw Shopify product titles — shown read-only alongside the editable label
+  const [productTitles, setProductTitles] = useState<Record<string, string>>(
+    latestIdentification?.product_titles ?? {},
+  );
 
   // ── Analysis state ────────────────────────────────────────────────────────
   const [jobId, setJobId] = useState<string | null>(null);
@@ -620,6 +628,7 @@ export default function MarketAnalysisPage() {
         setIdentifyJob(j);
         if (j.status === "completed" && j.labels) {
           setIdentifications(j.labels);
+          if (j.product_titles) setProductTitles(j.product_titles as Record<string, string>);
         }
       }
       if (pollIdentifyFetcher.data.error) setIdentifyError(pollIdentifyFetcher.data.error);
@@ -787,19 +796,32 @@ export default function MarketAnalysisPage() {
               {hasLabels && !isIdentifying && (
                 <BlockStack gap="300">
                   {Object.entries(identifications).map(([productId, label]) => (
-                    <InlineStack key={productId} gap="300" blockAlign="center" wrap={false}>
-                      <Box minWidth="120px">
-                        <Text as="p" variant="bodySm" tone="subdued">{productId.slice(-8)}</Text>
+                    <InlineStack key={productId} gap="400" blockAlign="start" wrap={false}>
+                      {/* Left: Shopify product title (read-only) */}
+                      <Box minWidth="180px" maxWidth="220px">
+                        <BlockStack gap="050">
+                          <Text as="p" variant="bodyMd">
+                            {productTitles[productId] || productId.slice(-8)}
+                          </Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {locale === "fr" ? "Titre boutique" : "Store title"}
+                          </Text>
+                        </BlockStack>
                       </Box>
+                      {/* Right: AI-generated label, editable by merchant */}
                       <Box width="100%">
                         <TextField
-                          label=""
-                          labelHidden
+                          label={locale === "fr" ? "Label SEO (modifiable)" : "SEO label (editable)"}
                           value={label}
                           onChange={(val) =>
                             setIdentifications((prev) => ({ ...prev, [productId]: val }))
                           }
                           placeholder={t(locale, "marketAnalysisLabelPlaceholder")}
+                          helpText={
+                            locale === "fr"
+                              ? "Ajouté comme contexte bonus à l'analyse IA — ne remplace pas le titre."
+                              : "Added as bonus context to the AI analysis — does not replace the title."
+                          }
                           autoComplete="off"
                         />
                       </Box>
