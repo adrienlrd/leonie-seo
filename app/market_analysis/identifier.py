@@ -68,8 +68,12 @@ def _build_label_prompt(items: list[dict[str, str]], niche_summary: str) -> str:
 
 def _parse_labels(raw: str, fallback: dict[str, str]) -> dict[str, str]:
     """Parse LLM JSON output; fall back to original titles on any error."""
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-z]*\n?", "", cleaned)
+        cleaned = re.sub(r"\n?```$", "", cleaned).strip()
     try:
-        data = json.loads(raw.strip())
+        data = json.loads(cleaned)
         if isinstance(data, dict):
             return {str(k): str(v) for k, v in data.items()}
     except (json.JSONDecodeError, ValueError):

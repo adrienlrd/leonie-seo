@@ -452,19 +452,22 @@ function DataSourcesCard({
               </Button>
             )}
           </InlineStack>
-          <InlineStack gap="200" blockAlign="center">
-            <Text as="span" variant="bodySm">DataForSEO</Text>
-            <Badge tone={dataforseoOn ? "success" : "attention"}>
-              {dataforseoOn ? t(locale, "marketAnalysisBadgeReal") : t(locale, "marketAnalysisBadgePaid")}
-            </Badge>
-          </InlineStack>
+          {providerStatus !== undefined && (
+            <InlineStack gap="200" blockAlign="center">
+              <Text as="span" variant="bodySm">DataForSEO</Text>
+              <Badge tone={dataforseoOn ? "success" : "attention"}>
+                {dataforseoOn ? t(locale, "marketAnalysisBadgeReal") : t(locale, "marketAnalysisBadgePaid")}
+              </Badge>
+            </InlineStack>
+          )}
         </InlineStack>
       </BlockStack>
     </Card>
   );
 }
 
-function FreeLimitsCard({ locale }: { locale: Locale }) {
+function FreeLimitsCard({ providerStatus, locale }: { providerStatus: ProviderStatus | undefined; locale: Locale }) {
+  if (providerStatus?.dataforseo) return null;
   return (
     <Banner tone="info" title={t(locale, "marketAnalysisFreeLimits")}>
       <p>{t(locale, "marketAnalysisFreeLimitsBody")}</p>
@@ -1160,12 +1163,19 @@ export default function MarketAnalysisPage() {
           locale={locale}
         />
 
-        {/* Free-mode limits + paid recommendations + competitors */}
-        <FreeLimitsCard locale={locale} />
-        <PaidRecommendedCard
-          providerStatus={job?.provider_status ?? latestJob?.provider_status}
-          locale={locale}
-        />
+        {/* Free-mode limits + paid recommendations — only in analysis step */}
+        {step === "analysis" && (
+          <>
+            <FreeLimitsCard
+              providerStatus={job?.provider_status ?? latestJob?.provider_status}
+              locale={locale}
+            />
+            <PaidRecommendedCard
+              providerStatus={job?.provider_status ?? latestJob?.provider_status}
+              locale={locale}
+            />
+          </>
+        )}
         {(job ?? latestJob) && (
           <CompetitorsCard
             signals={job?.competitor_signals ?? latestJob?.competitor_signals}
