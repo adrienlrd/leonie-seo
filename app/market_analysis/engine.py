@@ -194,6 +194,78 @@ def _build_prompt(
     )
 
 
+def _build_gsc_lookup(gsc_query_rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Build a normalised query → GSC metrics map from raw query rows."""
+    lookup: dict[str, dict[str, Any]] = {}
+    for row in gsc_query_rows:
+        query = str(row.get("query", "")).lower().strip()
+        if query:
+            lookup[query] = {
+                "impressions": int(row.get("impressions", 0)),
+                "clicks": int(row.get("clicks", 0)),
+                "position": float(row.get("position", 0)),
+            }
+    return lookup
+
+
+def _impressions_to_demand_score(impressions: int) -> int:
+    """Map raw GSC impressions to a 0-100 demand score."""
+    if impressions >= 10000:
+        return 95
+    if impressions >= 5000:
+        return 85
+    if impressions >= 1000:
+        return 75
+    if impressions >= 500:
+        return 65
+    if impressions >= 100:
+        return 50
+    if impressions >= 10:
+        return 35
+    return 20
+
+
+def _position_to_competition_score(position: float) -> int:
+    """Map GSC average position to a 0-100 competition score.
+
+    Lower position (closer to 1) = keyword already fought over = high competition.
+    """
+    if position <= 3:
+        return 90
+    if position <= 10:
+        return 75
+    if position <= 20:
+        return 55
+    if position <= 50:
+        return 35
+    return 15
+
+
+def _enrich_keywords_with_gsc(
+    seo_keywords: list[dict[str, Any]],
+    gsc_lookup: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Replace LLM-estimated demand/competition scores with real GSC data where available."""
+    enriched = []
+    for kw in seo_keywords:
+        if not isinstance(kw, dict):
+            continue
+        kw = dict(kw)
+        query = str(kw.get("query", "")).lower().strip()
+        gsc_row = gsc_lookup.get(query)
+        if gsc_row and gsc_row["impressions"] > 0:
+            kw["demand_score"] = _impressions_to_demand_score(gsc_row["impressions"])
+            kw["competition_score"] = _position_to_competition_score(gsc_row["position"])
+            kw["data_source"] = "gsc"
+            kw["gsc_impressions"] = gsc_row["impressions"]
+            kw["gsc_clicks"] = gsc_row["clicks"]
+            kw["gsc_position"] = round(gsc_row["position"], 1)
+        else:
+            kw["data_source"] = "llm_estimated"
+        enriched.append(kw)
+    return enriched
+
+
 def _fallback_pack(product_title: str, current_meta_title: str, current_meta_description: str) -> dict[str, Any]:
     return {
         "product_summary": "",
@@ -450,6 +522,9 @@ def run_market_analysis(
     except LLMError:
         llm_router = None
 
+    # Build GSC lookup once — used to enrich keyword scores after each LLM call
+    gsc_lookup = _build_gsc_lookup(gsc_query_rows)
+
     product_results: list[dict[str, Any]] = []
 
     for idx, opp in enumerate(opportunities):
@@ -550,6 +625,12 @@ def run_market_analysis(
                 logger.warning("LLM call failed for %r: %s", product_title, exc)
             except Exception as exc:
                 logger.warning("Unexpected error for %r: %s", product_title, exc)
+
+        # Enrich keyword scores with real GSC data where available
+        if llm_pack.get("seo_keywords") and gsc_lookup:
+            llm_pack["seo_keywords"] = _enrich_keywords_with_gsc(
+                llm_pack["seo_keywords"], gsc_lookup
+            )
 
         product_results.append(_build_product_result(product, opp, llm_pack, shop))
 

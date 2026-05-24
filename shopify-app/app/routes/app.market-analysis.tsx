@@ -33,6 +33,10 @@ interface SeoKeyword {
   competition_score: number;
   product_fit_score: number;
   reason: string;
+  data_source?: "gsc" | "llm_estimated";
+  gsc_impressions?: number;
+  gsc_clicks?: number;
+  gsc_position?: number;
 }
 
 interface GeoQuestion {
@@ -502,17 +506,24 @@ function ProductCard({
             <Collapsible id={`kw-${product.product_id}`} open={openSection === "keywords"}>
               <Box paddingBlockStart="200">
                 <DataTable
-                  columnContentTypes={["text", "text", "numeric", "numeric", "numeric"]}
+                  columnContentTypes={["text", "text", "numeric", "numeric", "numeric", "text", "text"]}
                   headings={[
                     locale === "fr" ? "Requête" : "Query",
                     "Intent",
                     locale === "fr" ? "Demande" : "Demand",
                     locale === "fr" ? "Concurrence" : "Competition",
                     "Fit",
+                    locale === "fr" ? "Impr. GSC" : "GSC Impr.",
+                    locale === "fr" ? "Pos. GSC" : "GSC Pos.",
                   ]}
                   rows={product.seo_keywords.map((k) => [
-                    k.query, k.intent_type,
-                    String(k.demand_score), String(k.competition_score), String(k.product_fit_score),
+                    k.data_source === "gsc" ? `${k.query} ✓` : k.query,
+                    k.intent_type,
+                    String(k.demand_score),
+                    String(k.competition_score),
+                    String(k.product_fit_score),
+                    k.data_source === "gsc" ? String(k.gsc_impressions ?? "") : "—",
+                    k.data_source === "gsc" ? String(k.gsc_position ?? "") : "—",
                   ])}
                 />
               </Box>
