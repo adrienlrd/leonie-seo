@@ -421,7 +421,6 @@ function DataSourcesCard({
   locale: Locale;
 }) {
   const dataforseoOn = providerStatus?.dataforseo === true;
-  const googleAdsOn = providerStatus?.google_ads === true;
   return (
     <Card>
       <BlockStack gap="200">
@@ -459,12 +458,6 @@ function DataSourcesCard({
               {dataforseoOn ? t(locale, "marketAnalysisBadgeReal") : t(locale, "marketAnalysisBadgePaid")}
             </Badge>
           </InlineStack>
-          <InlineStack gap="200" blockAlign="center">
-            <Text as="span" variant="bodySm">Google Ads API</Text>
-            <Badge tone={googleAdsOn ? "success" : "attention"}>
-              {googleAdsOn ? t(locale, "marketAnalysisBadgeReal") : t(locale, "marketAnalysisBadgePaid")}
-            </Badge>
-          </InlineStack>
         </InlineStack>
       </BlockStack>
     </Card>
@@ -487,7 +480,7 @@ function PaidRecommendedCard({
   locale: Locale;
 }) {
   // Hide once at least one paid provider is on
-  if (providerStatus?.dataforseo || providerStatus?.google_ads) return null;
+  if (providerStatus?.dataforseo) return null;
   return (
     <Banner tone="warning" title={t(locale, "marketAnalysisPaidRecommended")}>
       <p>{t(locale, "marketAnalysisPaidRecommendedBody")}</p>
