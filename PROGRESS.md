@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-21** (Phase 11.9 — tâches 155-163 complètes)
+- Dernière session : **2026-05-24** (Phase 11.10 ajoutée — Market Analysis Improvements, tâches 164-168)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -18,6 +18,7 @@
 - Phase 11.7 : **12/12** ✅ (cadrage GEO Autopilot Simplification, tâches 127-138)
 - Phase 11.8 : **11/11** ✅ (implémentation GEO Autopilot Simplification, tâches 139-149, terminée 2026-05-21)
 - Phase 11.9 : **12/12** ✅ (Merchant Journey Unification & Friction Reduction, tâches 152-163 terminées le 2026-05-21)
+- Phase 11.10 : **0/5** ⏳ (Market Analysis Improvements, tâches 164-168, parallèle aux tests marchands pilotes)
 - Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 150-151, démarre après test 3 marchands pilotes)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
 - Tests : dernière validation complète tâches 155-163 — `npm run typecheck` ✅, `npm run build` ✅, `git diff --check` ✅.
@@ -48,6 +49,7 @@ Rendre l'app Léonie SEO compréhensible par un marchand non expert en moins de 
 
 ### Prochaine tâche recommandée
 
+- **Phase 11.10 (tâche 164)** : filtrage et tri des résultats Analyse marché — première amélioration client-side, sans impact backend.
 - **Phase 12 (tâches 150-151)** : planifier les 3 sessions test utilisateur marchands pilotes (`docs/pilot-merchant-test-script.md`). Dès les 5 critères atteints → tâche 150 décision go/no-go App Store.
 
 ## Phase 11.8 — Implémentation GEO Autopilot Simplification le 2026-05-20

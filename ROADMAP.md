@@ -1109,6 +1109,59 @@ Tout le reste doit être masqué du menu principal ou regroupé en mode avancé.
 
 ---
 
+## PHASE 11.10 — Market Analysis Improvements
+*Objectif : faire passer la page Analyse marché d'un outil read-only de découverte à un outil actionnable intégré au reste du parcours marchand. Les résultats de l'analyse doivent pouvoir être filtrés, exportés, comparés dans le temps et — pour les propositions de contenu — envoyés directement vers le flux Safe Apply.*
+
+| # | Tâche | Difficulté | Statut | Date |
+|---|---|---|---|---|
+| 164 | Filtrage et tri des résultats — trier les cartes produits par score d'opportunité, filtrer par type d'intention (informational, transactional…) et par niveau de confiance (high / medium / low) | 🟡 | ⏳ | |
+| 165 | Connexion vers Safe Apply — bouton "Appliquer cette proposition" sur chaque content_test_pack ; envoie la proposition sélectionnée (meta title, meta description ou description produit) dans le flux Safe Apply existant avec dry-run par défaut | 🔴 | ⏳ | |
+| 166 | Export CSV des résultats — télécharger l'analyse complète (score, mots-clés, questions GEO, propositions) en CSV pour partage ou archivage | 🟡 | ⏳ | |
+| 167 | Historique et comparaison — conserver les 3 dernières analyses par boutique en base, afficher la date de chaque run, indiquer visuellement si le score d'un produit a progressé ou régressé par rapport au run précédent | 🔴 | ⏳ | |
+| 168 | Enrichissement moteur — intégrer les données GSC réelles (impressions, position moyenne) dans le prompt LLM pour ancrer les propositions de mots-clés sur des signaux mesurés plutôt que sur des estimations | 🔴 | ⏳ | |
+
+### Détail attendu des tâches Phase 11.10
+
+1. **164 Filtrage et tri**
+    - Objectif : rendre les résultats d'une analyse portant sur beaucoup de produits navigables sans tout lire.
+    - Livrable attendu : barre de filtre au-dessus des cartes (dropdown intention, dropdown confiance, tri score croissant/décroissant).
+    - Garde-fous : le filtre est client-side, aucun re-call backend.
+    - Lien avec l'existant : `app.market-analysis.tsx`, composant `ProductCard`.
+
+2. **165 Connexion vers Safe Apply**
+    - Objectif : fermer la boucle entre la découverte (Analyse marché) et l'application (Safe Apply) sans copier-coller manuel.
+    - Livrable attendu : bouton "Appliquer" sur chaque proposition de content_test_pack → POST vers `/api/shops/{shop}/safe-apply/jobs` avec le champ sélectionné, dry-run activé.
+    - Garde-fous : confirmation humaine obligatoire ; aucune écriture Shopify sans validation explicite.
+    - Lien avec l'existant : `app.safe-apply.tsx`, `app/api/market_analysis.py`.
+
+3. **166 Export CSV**
+    - Objectif : permettre au marchand ou à un consultant de partager les résultats hors de l'app.
+    - Livrable attendu : bouton "Exporter" déclenche un download CSV côté Remix (response avec Content-Disposition).
+    - Garde-fous : pas de données sensibles (access token, clés API) dans l'export.
+    - Lien avec l'existant : loader `app.market-analysis.tsx`, endpoint `/market-analysis/latest`.
+
+4. **167 Historique et comparaison**
+    - Objectif : mesurer la progression de la boutique dans le temps sans relancer une analyse complète.
+    - Livrable attendu : endpoint `/market-analysis/history` renvoyant les 3 derniers runs ; indicateur delta (↑ / ↓ / =) sur chaque carte produit.
+    - Garde-fous : stocker uniquement les scores et dates, pas les propositions LLM complètes (espace disque).
+    - Lien avec l'existant : `app/market_analysis/jobs.py`, `app/api/market_analysis.py`.
+
+5. **168 Enrichissement moteur avec données GSC**
+    - Objectif : ancrer les recommandations de mots-clés sur les vraies performances de la boutique plutôt que sur des estimations génériques.
+    - Livrable attendu : le prompt LLM reçoit les top 10 requêtes GSC du produit (impressions, position) ; les `seo_keywords` générés indiquent si la requête est déjà positionnée.
+    - Garde-fous : GSC optionnel — si non connecté, l'analyse tourne sans enrichissement (pas de blocage).
+    - Lien avec l'existant : `app/market_analysis/engine.py`, intégration GSC existante dans `scripts/`.
+
+### Contraintes Phase 11.10
+
+- Ne pas bloquer la Phase 12 sur cette phase — elle est parallèle aux tests marchands pilotes.
+- Ne pas rendre l'application automatique (tâche 165) : dry-run et validation humaine obligatoires.
+- Ne pas exposer les prompts LLM au marchand.
+- Ne pas supprimer la bannière read-only tant que la tâche 165 n'est pas validée en pilote.
+- Garder le design en accord avec le parcours marchand unifié (Phase 11.9) : un CTA primary par écran maximum.
+
+---
+
 ## PHASE 12 — Soumission publique Shopify App Store
 *Objectif : publier l'app seulement après le pilote réel, la parité fonctionnelle prioritaire entre scripts CLI et app embedded, la simplification GEO Autopilot documentée en Phase 11.7, implémentée en Phase 11.8, puis unifiée côté parcours marchand en Phase 11.9. La soumission publique Shopify App Store ne démarre qu'après validation de la Phase 11.9, tests marchands pilotes, et confirmation que le parcours principal est compris en moins de 5 minutes.*
 

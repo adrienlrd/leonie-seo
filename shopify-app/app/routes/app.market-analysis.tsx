@@ -92,6 +92,8 @@ interface LoaderData {
   locale: Locale;
   shop: string;
   latestJob: JobState | null;
+  gscConnected: boolean;
+  ga4Connected: boolean;
 }
 
 // ── Remix loader / action ─────────────────────────────────────────────────────
@@ -100,25 +102,41 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const locale = getLocale(request);
 
+  const fetchOpt = { accessToken: session.accessToken, method: "GET" as const };
+
+  const [latestJobResp, gscResp, ga4Resp] = await Promise.allSettled([
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/market-analysis/latest`, {
+      ...fetchOpt,
+      signal: AbortSignal.timeout(5_000),
+    }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/gsc/status`, {
+      ...fetchOpt,
+      signal: AbortSignal.timeout(5_000),
+    }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/ga4/status`, {
+      ...fetchOpt,
+      signal: AbortSignal.timeout(5_000),
+    }),
+  ]);
+
   let latestJob: JobState | null = null;
-  try {
-    const resp = await callBackendForShop(
-      session.shop,
-      `/api/shops/${session.shop}/market-analysis/latest`,
-      {
-        accessToken: session.accessToken,
-        method: "GET",
-        signal: AbortSignal.timeout(5_000),
-      },
-    );
-    if (resp.ok) {
-      latestJob = await resp.json() as JobState;
-    }
-  } catch {
-    // No prior results available — silent fail
+  if (latestJobResp.status === "fulfilled" && latestJobResp.value.ok) {
+    latestJob = await latestJobResp.value.json() as JobState;
   }
 
-  return json({ locale, shop: session.shop, latestJob });
+  let gscConnected = false;
+  if (gscResp.status === "fulfilled" && gscResp.value.ok) {
+    const data = await gscResp.value.json() as { connected?: boolean };
+    gscConnected = data.connected === true;
+  }
+
+  let ga4Connected = false;
+  if (ga4Resp.status === "fulfilled" && ga4Resp.value.ok) {
+    const data = await ga4Resp.value.json() as { ready?: boolean };
+    ga4Connected = data.ready === true;
+  }
+
+  return json({ locale, shop: session.shop, latestJob, gscConnected, ga4Connected });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -209,6 +227,48 @@ function progressLabel(locale: Locale, done: number, total: number): string {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function DataSourcesCard({
+  gscConnected,
+  ga4Connected,
+  locale,
+}: {
+  gscConnected: boolean;
+  ga4Connected: boolean;
+  locale: Locale;
+}) {
+  return (
+    <Card>
+      <BlockStack gap="200">
+        <Text as="h3" variant="headingSm">
+          {locale === "fr" ? "Sources de données" : "Data sources"}
+        </Text>
+        <InlineStack gap="400" wrap>
+          <InlineStack gap="200" blockAlign="center">
+            <Text as="span" variant="bodySm">Google Search Console</Text>
+            {gscConnected ? (
+              <Badge tone="success">OK</Badge>
+            ) : (
+              <Button variant="plain" size="slim" url="/app/onboarding">
+                {locale === "fr" ? "Se connecter" : "Connect"}
+              </Button>
+            )}
+          </InlineStack>
+          <InlineStack gap="200" blockAlign="center">
+            <Text as="span" variant="bodySm">Google Analytics 4</Text>
+            {ga4Connected ? (
+              <Badge tone="success">OK</Badge>
+            ) : (
+              <Button variant="plain" size="slim" url="/app/ga4">
+                {locale === "fr" ? "Se connecter" : "Connect"}
+              </Button>
+            )}
+          </InlineStack>
+        </InlineStack>
+      </BlockStack>
+    </Card>
+  );
+}
 
 function SummaryCard({ job, locale }: { job: JobState; locale: Locale }) {
   return (
@@ -444,7 +504,7 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function MarketAnalysisPage() {
-  const { locale, latestJob } = useLoaderData<LoaderData>();
+  const { locale, latestJob, gscConnected, ga4Connected } = useLoaderData<LoaderData>();
 
   const startFetcher = useFetcher<{ type: string; jobId: string | null; error: string | null }>();
   const pollFetcher = useFetcher<{ type: string; job: JobState | null; error: string | null }>();
@@ -537,6 +597,9 @@ export default function MarketAnalysisPage() {
         <Banner tone="info">
           <Text as="p">{t(locale, "marketAnalysisReadOnly")}</Text>
         </Banner>
+
+        {/* Data sources status */}
+        <DataSourcesCard gscConnected={gscConnected} ga4Connected={ga4Connected} locale={locale} />
 
         {/* Launch card — button always visible */}
         <Card>
