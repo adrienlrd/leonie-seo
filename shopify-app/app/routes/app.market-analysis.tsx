@@ -795,31 +795,23 @@ export default function MarketAnalysisPage() {
               {/* Editable labels */}
               {hasLabels && !isIdentifying && (
                 <BlockStack gap="300">
-                  {/* Header row */}
-                  <InlineStack gap="400" wrap={false}>
-                    <Box width="220px">
-                      <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
-                        {locale === "fr" ? "Titre boutique" : "Store title"}
-                      </Text>
-                    </Box>
-                    <Box width="100%">
-                      <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
-                        {locale === "fr" ? "Quel est le produit concrètement ?" : "What is the product concretely?"}
-                      </Text>
-                    </Box>
-                  </InlineStack>
+                  <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: "8px 16px", alignItems: "center" }}>
+                    {/* Column headers */}
+                    <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
+                      {locale === "fr" ? "Titre boutique" : "Store title"}
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
+                      {locale === "fr" ? "Quel est le produit concrètement ?" : "What is the product concretely?"}
+                    </Text>
 
-                  {Object.entries(identifications).map(([productId, label]) => (
-                    <InlineStack key={productId} gap="400" blockAlign="center" wrap={false}>
-                      {/* Left: fixed-width Shopify title */}
-                      <Box width="220px" minWidth="220px">
-                        <Text as="p" variant="bodyMd">
+                    {/* Product rows */}
+                    {Object.entries(identifications).map(([productId, label]) => (
+                      <>
+                        <Text key={productId + "-title"} as="p" variant="bodyMd">
                           {productTitles[productId] || productId.slice(-8)}
                         </Text>
-                      </Box>
-                      {/* Right: AI label, editable */}
-                      <Box width="100%">
                         <TextField
+                          key={productId + "-field"}
                           label=""
                           labelHidden
                           value={label}
@@ -829,9 +821,9 @@ export default function MarketAnalysisPage() {
                           placeholder={t(locale, "marketAnalysisLabelPlaceholder")}
                           autoComplete="off"
                         />
-                      </Box>
-                    </InlineStack>
-                  ))}
+                      </>
+                    ))}
+                  </div>
                   <Button
                     variant="primary"
                     onClick={handleSaveAndStart}

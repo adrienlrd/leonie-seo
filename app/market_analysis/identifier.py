@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from app.llm import LLMError, get_router
@@ -11,6 +12,34 @@ from app.llm import LLMError, get_router
 logger = logging.getLogger(__name__)
 
 _CHUNK_SIZE = 30  # max products per LLM call
+
+
+def _extract_description(product: dict[str, Any]) -> str:
+    """Return first 200 chars of plain-text product description."""
+    raw = product.get("body_html") or product.get("description") or ""
+    plain = re.sub(r"<[^>]+>", " ", str(raw))
+    plain = re.sub(r"\s+", " ", plain).strip()
+    return plain[:200]
+
+
+def _extract_collections(product: dict[str, Any]) -> str:
+    """Return comma-joined collection titles, handling REST and GraphQL shapes."""
+    raw = product.get("collections")
+    if not raw:
+        return ""
+    if isinstance(raw, dict):
+        edges = raw.get("edges") or []
+        items = [e.get("node", e) if isinstance(e, dict) else e for e in edges]
+        if not items:
+            items = raw.get("nodes") or []
+        raw = items
+    if not isinstance(raw, list):
+        return ""
+    titles = [
+        c.get("title", "") if isinstance(c, dict) else str(c)
+        for c in raw if c
+    ]
+    return ", ".join(t for t in titles if t)[:100]
 
 _SYSTEM_PROMPT = (
     "Tu es un expert SEO pour boutiques Shopify. "
@@ -78,11 +107,9 @@ def generate_product_labels(
             {
                 "id": str(p.get("id", "")),
                 "title": p.get("title", ""),
-                "collections": ", ".join(
-                    c.get("title", "") if isinstance(c, dict) else str(c)
-                    for c in (p.get("collections") or [])
-                )[:100],
-                "tags": str(p.get("tags", ""))[:80],
+                "description": _extract_description(p),
+                "collections": _extract_collections(p),
+                "tags": str(p.get("tags") or "")[:80],
             }
             for p in chunk
             if isinstance(p, dict)
