@@ -410,6 +410,12 @@ const FR: Dictionary = {
   marketAnalysisEditIdentification: "Modifier l'identification",
   marketAnalysisRerun: "Relancer l'analyse",
   marketAnalysisLabelPlaceholder: "Description courte du produit",
+  marketAnalysisSaveLabels: "Valider",
+  marketAnalysisCancelEdit: "Annuler",
+  marketAnalysisAnalyzeAll: "Analyser tous les produits",
+  marketAnalysisAnalyzeAllTitle: "Analyser tous les produits ?",
+  marketAnalysisAnalyzeAllWarning: "Cela relancera l'analyse de tous vos produits actifs. Les résultats actuels seront remplacés. Cette opération prend 1 à 2 minutes.",
+  marketAnalysisAnalyzeOne: "Analyser ce produit",
 };
 
 const EN: Dictionary = {
@@ -820,6 +826,12 @@ const EN: Dictionary = {
   marketAnalysisEditIdentification: "Edit identification",
   marketAnalysisRerun: "Re-run analysis",
   marketAnalysisLabelPlaceholder: "Short product description",
+  marketAnalysisSaveLabels: "Save",
+  marketAnalysisCancelEdit: "Cancel",
+  marketAnalysisAnalyzeAll: "Analyze all products",
+  marketAnalysisAnalyzeAllTitle: "Analyze all products?",
+  marketAnalysisAnalyzeAllWarning: "This will re-run the analysis for all your active products. Current results will be replaced. This takes 1 to 2 minutes.",
+  marketAnalysisAnalyzeOne: "Analyze this product",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };

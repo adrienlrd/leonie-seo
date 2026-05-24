@@ -11,6 +11,7 @@ import {
   Collapsible,
   DataTable,
   InlineStack,
+  Modal,
   Page,
   ProgressBar,
   Spinner,
@@ -272,6 +273,64 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // ── Step 1→2: save validated labels only (no new analysis) ───────────────
+  if (intent === "saveOnly") {
+    const identificationsRaw = formData.get("identifications") as string;
+    try {
+      const identifications = JSON.parse(identificationsRaw) as Record<string, string>;
+      await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/identifications`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: JSON.stringify({ identifications }),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+    } catch {
+      // Non-blocking
+    }
+    return json({ type: "saveOnly", error: null });
+  }
+
+  // ── Single-product analysis ────────────────────────────────────────────────
+  if (intent === "startSingle") {
+    const productId = formData.get("productId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs?product_ids=${encodeURIComponent(productId)}`,
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(30_000) },
+      );
+      if (!resp.ok) {
+        const err = await resp.text();
+        return json({ type: "startSingle", jobId: null, productId, error: `Erreur ${resp.status}: ${err}` });
+      }
+      const data = await resp.json() as { job_id: string };
+      return json({ type: "startSingle", jobId: data.job_id, productId, error: null });
+    } catch (err) {
+      return json({ type: "startSingle", jobId: null, productId, error: String(err) });
+    }
+  }
+
+  if (intent === "pollSingle") {
+    const jobId = formData.get("jobId") as string;
+    const productId = formData.get("productId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs/${jobId}`,
+        { accessToken: session.accessToken, method: "GET", signal: AbortSignal.timeout(10_000) },
+      );
+      if (!resp.ok) return json({ type: "pollSingle", job: null, productId, error: `Erreur poll ${resp.status}` });
+      const job = await resp.json() as JobState;
+      return json({ type: "pollSingle", job, productId, error: null });
+    } catch (err) {
+      return json({ type: "pollSingle", job: null, productId, error: String(err) });
+    }
+  }
+
   return json({ type: "unknown", error: "Unknown intent" });
 };
 
@@ -375,7 +434,19 @@ function SummaryCard({ job, locale }: { job: JobState; locale: Locale }) {
   );
 }
 
-function ProductCard({ product, locale }: { product: ProductResult; locale: Locale }) {
+function ProductCard({
+  product,
+  locale,
+  isAnalyzing,
+  onAnalyze,
+  analyzeDisabled,
+}: {
+  product: ProductResult;
+  locale: Locale;
+  isAnalyzing: boolean;
+  onAnalyze: () => void;
+  analyzeDisabled: boolean;
+}) {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
   const pack = product.content_test_pack;
@@ -393,6 +464,13 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
               {`Score ${product.opportunity_score}/100`}
             </Badge>
             <Badge tone={confidenceTone(product.confidence)}>{product.confidence}</Badge>
+            {isAnalyzing ? (
+              <Spinner size="small" />
+            ) : (
+              <Button size="slim" onClick={onAnalyze} disabled={analyzeDisabled}>
+                {t(locale, "marketAnalysisAnalyzeOne")}
+              </Button>
+            )}
           </InlineStack>
         </InlineStack>
 
@@ -583,12 +661,25 @@ export default function MarketAnalysisPage() {
   const [job, setJob] = useState<JobState | null>(latestJob);
   const [pollError, setPollError] = useState<string | null>(null);
 
+  // ── Edit mode (came from "Modifier l'identification") ─────────────────────
+  const [editMode, setEditMode] = useState(false);
+
+  // ── Full re-run confirmation modal ────────────────────────────────────────
+  const [showRerunModal, setShowRerunModal] = useState(false);
+
+  // ── Single-product analysis state ─────────────────────────────────────────
+  const [singleProductJobId, setSingleProductJobId] = useState<string | null>(null);
+  const [singleProductId, setSingleProductId] = useState<string | null>(null);
+  const [singleProductJob, setSingleProductJob] = useState<JobState | null>(null);
+
   // ── Fetchers ──────────────────────────────────────────────────────────────
-  type ActionData = { type: string; jobId?: string | null; job?: JobState | null; error?: string | null };
+  type ActionData = { type: string; jobId?: string | null; job?: JobState | null; error?: string | null; productId?: string | null };
   const identifyFetcher = useFetcher<ActionData>();
   const pollIdentifyFetcher = useFetcher<ActionData>();
   const startFetcher = useFetcher<ActionData>();
   const pollFetcher = useFetcher<ActionData>();
+  const singleFetcher = useFetcher<ActionData>();
+  const pollSingleFetcher = useFetcher<ActionData>();
 
   // ── Auto-start identification on first visit (no labels, no prior analysis) ──
   const autoStartedRef = useRef(false);
@@ -616,6 +707,15 @@ export default function MarketAnalysisPage() {
   jobIdRef.current = jobId;
   jobStatusRef.current = job?.status;
   pollFetcherRef.current = pollFetcher;
+
+  const singleJobIdRef = useRef<string | null>(null);
+  const singleJobStatusRef = useRef<string | undefined>(undefined);
+  const singleProductIdRef = useRef<string | null>(null);
+  const pollSingleFetcherRef = useRef(pollSingleFetcher);
+  singleJobIdRef.current = singleProductJobId;
+  singleJobStatusRef.current = singleProductJob?.status;
+  singleProductIdRef.current = singleProductId;
+  pollSingleFetcherRef.current = pollSingleFetcher;
 
   // ── Effects: capture action responses ────────────────────────────────────
 
@@ -667,6 +767,54 @@ export default function MarketAnalysisPage() {
     }
   }, [pollFetcher.data]);
 
+  // saveOnly — labels saved, go back to step 2
+  useEffect(() => {
+    if (startFetcher.data?.type === "saveOnly") {
+      setStep("analysis");
+      setEditMode(false);
+    }
+  }, [startFetcher.data]);
+
+  // Single product analysis started
+  useEffect(() => {
+    if (singleFetcher.data?.type === "startSingle") {
+      if (singleFetcher.data.jobId) {
+        setSingleProductJobId(singleFetcher.data.jobId);
+        setSingleProductJob(null);
+      }
+    }
+  }, [singleFetcher.data]);
+
+  // Poll single product analysis
+  useEffect(() => {
+    if (pollSingleFetcher.data?.type === "pollSingle") {
+      const d = pollSingleFetcher.data;
+      if (d.job) {
+        setSingleProductJob(d.job);
+        if (d.job.status === "completed" && d.job.products && d.job.products.length > 0) {
+          const updated = d.job.products[0];
+          setJob((prev) => {
+            if (!prev) return prev;
+            const idx = prev.products.findIndex((p) => p.product_id === updated.product_id);
+            const newProducts =
+              idx >= 0
+                ? prev.products.map((p, i) => (i === idx ? updated : p))
+                : [...prev.products, updated];
+            return { ...prev, products: newProducts };
+          });
+          setSingleProductJobId(null);
+          setSingleProductId(null);
+          setSingleProductJob(null);
+        }
+        if (d.job.status === "failed") {
+          setSingleProductJobId(null);
+          setSingleProductId(null);
+          setSingleProductJob(null);
+        }
+      }
+    }
+  }, [pollSingleFetcher.data]);
+
   // ── Polling loop: identification job ─────────────────────────────────────
   useEffect(() => {
     if (!identifyJobId) return;
@@ -699,6 +847,23 @@ export default function MarketAnalysisPage() {
     return () => clearInterval(id);
   }, [jobId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Polling loop: single-product analysis ─────────────────────────────────
+  useEffect(() => {
+    if (!singleProductJobId) return;
+    const poll = () => {
+      const status = singleJobStatusRef.current;
+      if (status === "completed" || status === "failed") return;
+      const fd = new FormData();
+      fd.set("intent", "pollSingle");
+      fd.set("jobId", singleJobIdRef.current!);
+      fd.set("productId", singleProductIdRef.current || "");
+      pollSingleFetcherRef.current.submit(fd, { method: "post" });
+    };
+    poll();
+    const id = setInterval(poll, 5_000);
+    return () => clearInterval(id);
+  }, [singleProductJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Derived state ─────────────────────────────────────────────────────────
   const isIdentifying =
     identifyFetcher.state !== "idle" ||
@@ -724,6 +889,12 @@ export default function MarketAnalysisPage() {
   const startError =
     startFetcher.data?.type === "start" ? (startFetcher.data.error ?? null) : null;
   const anyError = startError || pollError || (job?.status === "failed" ? job.error : null);
+
+  const isSingleRunning =
+    singleFetcher.state !== "idle" ||
+    (singleProductJobId !== null &&
+      singleProductJob?.status !== "completed" &&
+      singleProductJob?.status !== "failed");
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleStartIdentify = () => {
@@ -753,8 +924,31 @@ export default function MarketAnalysisPage() {
 
   const handleEditIdentification = () => {
     setStep("identification");
+    setEditMode(true);
     setIdentifyJobId(null);
     setIdentifyJob(null);
+  };
+
+  const handleSaveOnly = () => {
+    const fd = new FormData();
+    fd.set("intent", "saveOnly");
+    fd.set("identifications", JSON.stringify(identifications));
+    startFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleCancelEdit = () => {
+    setStep("analysis");
+    setEditMode(false);
+  };
+
+  const handleAnalyzeSingle = (productId: string) => {
+    setSingleProductJobId(null);
+    setSingleProductId(productId);
+    setSingleProductJob(null);
+    const fd = new FormData();
+    fd.set("intent", "startSingle");
+    fd.set("productId", productId);
+    singleFetcher.submit(fd, { method: "post" });
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -836,14 +1030,32 @@ export default function MarketAnalysisPage() {
                       </>
                     ))}
                   </div>
-                  <Button
-                    variant="primary"
-                    onClick={handleSaveAndStart}
-                    loading={isStarting}
-                    disabled={isStarting}
-                  >
-                    {t(locale, "marketAnalysisValidateLabels")}
-                  </Button>
+                  {editMode ? (
+                    /* Came from "Modifier l'identification" — save only, no new analysis */
+                    <InlineStack gap="300">
+                      <Button
+                        variant="primary"
+                        onClick={handleSaveOnly}
+                        loading={isStarting}
+                        disabled={isStarting}
+                      >
+                        {t(locale, "marketAnalysisSaveLabels")}
+                      </Button>
+                      <Button variant="plain" onClick={handleCancelEdit} disabled={isStarting}>
+                        {t(locale, "marketAnalysisCancelEdit")}
+                      </Button>
+                    </InlineStack>
+                  ) : (
+                    /* First time — validate and launch analysis */
+                    <Button
+                      variant="primary"
+                      onClick={handleSaveAndStart}
+                      loading={isStarting}
+                      disabled={isStarting}
+                    >
+                      {t(locale, "marketAnalysisValidateLabels")}
+                    </Button>
+                  )}
                 </BlockStack>
               )}
 
@@ -862,14 +1074,39 @@ export default function MarketAnalysisPage() {
           <>
             {/* Action buttons (re-run / edit identification) */}
             {job?.status === "completed" && (
-              <InlineStack gap="300" wrap>
-                <Button variant="primary" onClick={handleRerun} loading={isInProgress} disabled={isInProgress}>
-                  {t(locale, "marketAnalysisRerun")}
-                </Button>
-                <Button variant="plain" onClick={handleEditIdentification} disabled={isInProgress}>
-                  {t(locale, "marketAnalysisEditIdentification")}
-                </Button>
-              </InlineStack>
+              <>
+                <InlineStack gap="300" wrap>
+                  <Button
+                    variant="primary"
+                    onClick={() => setShowRerunModal(true)}
+                    loading={isInProgress}
+                    disabled={isInProgress}
+                  >
+                    {t(locale, "marketAnalysisAnalyzeAll")}
+                  </Button>
+                  <Button variant="plain" onClick={handleEditIdentification} disabled={isInProgress}>
+                    {t(locale, "marketAnalysisEditIdentification")}
+                  </Button>
+                </InlineStack>
+
+                <Modal
+                  open={showRerunModal}
+                  onClose={() => setShowRerunModal(false)}
+                  title={t(locale, "marketAnalysisAnalyzeAllTitle")}
+                  primaryAction={{
+                    content: locale === "fr" ? "Confirmer" : "Confirm",
+                    onAction: () => { setShowRerunModal(false); handleRerun(); },
+                  }}
+                  secondaryActions={[{
+                    content: locale === "fr" ? "Annuler" : "Cancel",
+                    onAction: () => setShowRerunModal(false),
+                  }]}
+                >
+                  <Modal.Section>
+                    <Text as="p">{t(locale, "marketAnalysisAnalyzeAllWarning")}</Text>
+                  </Modal.Section>
+                </Modal>
+              </>
             )}
 
             {/* Launch card */}
@@ -919,7 +1156,14 @@ export default function MarketAnalysisPage() {
 
             {/* Product cards */}
             {job?.products?.map((product) => (
-              <ProductCard key={product.product_id} product={product} locale={locale} />
+              <ProductCard
+                key={product.product_id}
+                product={product}
+                locale={locale}
+                isAnalyzing={singleProductId === product.product_id && isSingleRunning}
+                onAnalyze={() => handleAnalyzeSingle(product.product_id)}
+                analyzeDisabled={isSingleRunning || isInProgress}
+              />
             ))}
 
             {/* Completion banner */}

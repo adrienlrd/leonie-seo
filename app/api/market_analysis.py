@@ -107,6 +107,7 @@ def _run_analysis_background(
     niche_hypothesis: dict[str, Any] | None,
     crawl_findings: list[dict[str, Any]] | None,
     identifications: dict[str, str] | None = None,
+    persist: bool = True,
 ) -> None:
     """Background task: runs the full analysis and updates the job store incrementally."""
 
@@ -156,7 +157,8 @@ def _run_analysis_background(
             "error": None,
         }
         update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
-        save_latest_result(shop_domain, completed_data)
+        if persist:
+            save_latest_result(shop_domain, completed_data)
     except Exception as exc:
         update_job(job_id, status="failed", error=str(exc))
 
@@ -213,10 +215,16 @@ async def save_market_analysis_identifications(
 async def start_market_analysis_job(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     background_tasks: BackgroundTasks,
+    product_ids: list[str] | None = Query(default=None),
 ) -> dict[str, Any]:
     """Start an async market analysis job. Uses saved identifications if available."""
     snapshot = _load_snapshot(ctx)
     products = snapshot.get("products", [])
+    persist = True
+    if product_ids:
+        pid_set = set(product_ids)
+        products = [p for p in products if str(p.get("id", "")) in pid_set]
+        persist = False
     shop_info = snapshot.get("shop")
     shop_domain = shop_info.get("domain", ctx.shop) if isinstance(shop_info, dict) else ctx.shop
 
@@ -248,6 +256,7 @@ async def start_market_analysis_job(
         niche_hypothesis,
         crawl_findings,
         identifications or None,
+        persist,
     )
 
     age = _snapshot_age_days(snapshot)
