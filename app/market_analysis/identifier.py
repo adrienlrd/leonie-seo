@@ -22,9 +22,16 @@ def _build_label_prompt(items: list[dict[str, str]], niche_summary: str) -> str:
     return (
         f"NICHE: {niche_summary or 'non définie'}\n"
         "Pour chaque produit, génère un label court en français (3 à 6 mots) "
-        "qui décrit précisément le produit de façon SEO-friendly.\n"
-        "Exemples corrects : 'bol en céramique pour chat', 'fontaine à eau sans fil pour chat', "
-        "'pull en cachemire pour chat'.\n"
+        "qui décrit concrètement CE QU'EST le produit — matière, type, usage — "
+        "de façon SEO-friendly. "
+        "NE PAS répéter le nom de marque ou le nom commercial. "
+        "NE PAS utiliser le titre tel quel. "
+        "Décrire le produit comme un client le rechercherait sur Google.\n"
+        "Exemples :\n"
+        "  Titre 'Le Léonie' → label 'pull en cachemire pour chat'\n"
+        "  Titre 'Fontaine Premium' → label 'fontaine à eau filtrante pour chat'\n"
+        "  Titre 'Bowl Set' → label 'bol en céramique pour chat'\n"
+        "  Titre 'Couchette Royale' → label 'coussin orthopédique pour chat'\n"
         f"PRODUITS: {json.dumps(items, ensure_ascii=False)}\n"
         'Réponds uniquement avec un JSON valide : {"<product_id>": "<label>", ...}'
     )

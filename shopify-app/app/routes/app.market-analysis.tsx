@@ -795,33 +795,38 @@ export default function MarketAnalysisPage() {
               {/* Editable labels */}
               {hasLabels && !isIdentifying && (
                 <BlockStack gap="300">
+                  {/* Header row */}
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="220px">
+                      <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
+                        {locale === "fr" ? "Titre boutique" : "Store title"}
+                      </Text>
+                    </Box>
+                    <Box width="100%">
+                      <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
+                        {locale === "fr" ? "Quel est le produit concrètement ?" : "What is the product concretely?"}
+                      </Text>
+                    </Box>
+                  </InlineStack>
+
                   {Object.entries(identifications).map(([productId, label]) => (
-                    <InlineStack key={productId} gap="400" blockAlign="start" wrap={false}>
-                      {/* Left: Shopify product title (read-only) */}
-                      <Box minWidth="180px" maxWidth="220px">
-                        <BlockStack gap="050">
-                          <Text as="p" variant="bodyMd">
-                            {productTitles[productId] || productId.slice(-8)}
-                          </Text>
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            {locale === "fr" ? "Titre boutique" : "Store title"}
-                          </Text>
-                        </BlockStack>
+                    <InlineStack key={productId} gap="400" blockAlign="center" wrap={false}>
+                      {/* Left: fixed-width Shopify title */}
+                      <Box width="220px" minWidth="220px">
+                        <Text as="p" variant="bodyMd">
+                          {productTitles[productId] || productId.slice(-8)}
+                        </Text>
                       </Box>
-                      {/* Right: AI-generated label, editable by merchant */}
+                      {/* Right: AI label, editable */}
                       <Box width="100%">
                         <TextField
-                          label={locale === "fr" ? "Label SEO (modifiable)" : "SEO label (editable)"}
+                          label=""
+                          labelHidden
                           value={label}
                           onChange={(val) =>
                             setIdentifications((prev) => ({ ...prev, [productId]: val }))
                           }
                           placeholder={t(locale, "marketAnalysisLabelPlaceholder")}
-                          helpText={
-                            locale === "fr"
-                              ? "Ajouté comme contexte bonus à l'analyse IA — ne remplace pas le titre."
-                              : "Added as bonus context to the AI analysis — does not replace the title."
-                          }
                           autoComplete="off"
                         />
                       </Box>
