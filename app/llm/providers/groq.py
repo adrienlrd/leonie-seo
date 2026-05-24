@@ -10,7 +10,7 @@ from app.llm.provider import (
     LLMUnavailableError,
 )
 
-_DEFAULT_MODEL = "llama3-70b-8192"
+_DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 
 class GroqProvider(LLMProvider):

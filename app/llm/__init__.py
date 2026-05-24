@@ -39,10 +39,11 @@ def _build_providers() -> list[LLMProvider]:
     providers: list[LLMProvider] = []
 
     if key := os.getenv("OPENAI_API_KEY"):
-        providers.append(OpenAIProvider(api_key=key))
+        # 90s — gpt-4o-mini generates ~70 tok/s; 4096 output tokens can take 60s+
+        providers.append(OpenAIProvider(api_key=key, timeout=90.0))
 
     if key := os.getenv("GROQ_API_KEY"):
-        providers.append(GroqProvider(api_key=key))
+        providers.append(GroqProvider(api_key=key, timeout=90.0))
 
     account_id = os.getenv("CF_ACCOUNT_ID")
     api_token = os.getenv("CF_API_TOKEN")
