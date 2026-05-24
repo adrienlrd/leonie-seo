@@ -12,14 +12,20 @@ from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_da
 from app.api.deps import ShopContext, get_shop_context
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.market_analysis.engine import run_market_analysis
+from app.market_analysis.identifier import generate_product_labels
 from app.market_analysis.jobs import (
     create_job,
     get_job,
+    load_identification_job,
+    load_identifications,
     load_latest_result,
+    save_identification_job,
+    save_identifications,
     save_latest_result,
     update_job,
 )
 from app.niche.understanding import get_validated_niche_hypothesis
+from app.snapshot.scope import filter_products_by_scope
 
 router = APIRouter(prefix="/api", tags=["market_analysis"])
 
@@ -65,6 +71,30 @@ def _load_ga4_page_rows(shop: str) -> dict[str, dict[str, Any]]:
         return {}
 
 
+def _run_identification_background(
+    job_id: str,
+    products: list[dict[str, Any]],
+    shop_domain: str,
+    niche_summary: str,
+) -> None:
+    """Background task: generate AI short labels for all active products."""
+    try:
+        update_job(job_id, status="running")
+        labels = generate_product_labels(products, shop_domain, niche_summary)
+        completed_data: dict[str, Any] = {
+            "job_id": job_id,
+            "shop": shop_domain,
+            "status": "completed",
+            "labels": labels,
+            "product_count": len(labels),
+            "error": None,
+        }
+        update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
+        save_identification_job(shop_domain, completed_data)
+    except Exception as exc:
+        update_job(job_id, status="failed", error=str(exc))
+
+
 def _run_analysis_background(
     job_id: str,
     products: list[dict[str, Any]],
@@ -74,6 +104,7 @@ def _run_analysis_background(
     ga4_page_rows: dict[str, dict[str, Any]],
     niche_hypothesis: dict[str, Any] | None,
     crawl_findings: list[dict[str, Any]] | None,
+    identifications: dict[str, str] | None = None,
 ) -> None:
     """Background task: runs the full analysis and updates the job store incrementally."""
 
@@ -100,7 +131,8 @@ def _run_analysis_background(
             ga4_page_rows=ga4_page_rows,
             niche_hypothesis=niche_hypothesis,
             crawl_findings=crawl_findings or None,
-            max_products=0,  # no cap — analyse all active products
+            max_products=0,
+            product_labels=identifications or None,
             progress_callback=_on_progress,
         )
         completed_data: dict[str, Any] = {
@@ -123,12 +155,60 @@ def _run_analysis_background(
         update_job(job_id, status="failed", error=str(exc))
 
 
+@router.post("/shops/{shop}/market-analysis/identify")
+async def start_identification_job(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
+    """Start an async job to generate AI short labels for all active products (step 1)."""
+    snapshot = _load_snapshot(ctx)
+    products = filter_products_by_scope(snapshot.get("products", []), "active")
+    niche_hypothesis = get_validated_niche_hypothesis(ctx.shop)
+    niche_summary = niche_hypothesis.get("primary_niche", "") if niche_hypothesis else ""
+    shop_info = snapshot.get("shop")
+    shop_domain = shop_info.get("domain", ctx.shop) if isinstance(shop_info, dict) else ctx.shop
+
+    job_id = create_job(ctx.shop)
+    background_tasks.add_task(
+        _run_identification_background,
+        job_id,
+        products,
+        shop_domain,
+        niche_summary,
+    )
+    return {"job_id": job_id, "status": "pending", "product_count": len(products)}
+
+
+@router.get("/shops/{shop}/market-analysis/identify/latest")
+async def get_latest_identification(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Return the last completed identification job for this shop."""
+    result = load_identification_job(ctx.shop)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Aucune identification précédente disponible")
+    return result
+
+
+@router.post("/shops/{shop}/market-analysis/identifications")
+async def save_market_analysis_identifications(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    body: dict[str, Any],
+) -> dict[str, Any]:
+    """Persist merchant-validated product labels {product_id: label}."""
+    identifications: dict[str, str] = {
+        str(k): str(v) for k, v in body.get("identifications", {}).items()
+    }
+    save_identifications(ctx.shop, identifications)
+    return {"saved": len(identifications)}
+
+
 @router.post("/shops/{shop}/market-analysis/jobs")
 async def start_market_analysis_job(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
-    """Start an async market analysis job. Returns immediately with job_id."""
+    """Start an async market analysis job. Uses saved identifications if available."""
     snapshot = _load_snapshot(ctx)
     products = snapshot.get("products", [])
     shop_info = snapshot.get("shop")
@@ -146,9 +226,8 @@ async def start_market_analysis_job(
             pass
 
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
-
-    # GA4 — load once in the request context (handles HTTPException from _build_ga4_client)
     ga4_page_rows = _load_ga4_page_rows(ctx.shop)
+    identifications = load_identifications(ctx.shop)  # {} if none saved yet
 
     job_id = create_job(ctx.shop)
 
@@ -162,6 +241,7 @@ async def start_market_analysis_job(
         ga4_page_rows,
         niche_hypothesis,
         crawl_findings,
+        identifications or None,
     )
 
     age = _snapshot_age_days(snapshot)

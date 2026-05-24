@@ -13,7 +13,9 @@ import {
   InlineStack,
   Page,
   ProgressBar,
+  Spinner,
   Text,
+  TextField,
 } from "@shopify/polaris";
 import { useEffect, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
@@ -86,12 +88,16 @@ interface JobState {
   total_opportunity_count: number;
   sources_used: string[];
   error: string | null;
+  // identification job fields
+  labels?: Record<string, string>;
+  product_count?: number;
 }
 
 interface LoaderData {
   locale: Locale;
   shop: string;
   latestJob: JobState | null;
+  latestIdentification: { labels: Record<string, string> } | null;
   gscConnected: boolean;
   ga4Connected: boolean;
 }
@@ -104,8 +110,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const fetchOpt = { accessToken: session.accessToken, method: "GET" as const };
 
-  const [latestJobResp, gscResp, ga4Resp] = await Promise.allSettled([
+  const [latestJobResp, identifyResp, gscResp, ga4Resp] = await Promise.allSettled([
     callBackendForShop(session.shop, `/api/shops/${session.shop}/market-analysis/latest`, {
+      ...fetchOpt,
+      signal: AbortSignal.timeout(5_000),
+    }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/market-analysis/identify/latest`, {
       ...fetchOpt,
       signal: AbortSignal.timeout(5_000),
     }),
@@ -124,6 +134,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     latestJob = await latestJobResp.value.json() as JobState;
   }
 
+  let latestIdentification: { labels: Record<string, string> } | null = null;
+  if (identifyResp.status === "fulfilled" && identifyResp.value.ok) {
+    latestIdentification = await identifyResp.value.json() as { labels: Record<string, string> };
+  }
+
   let gscConnected = false;
   if (gscResp.status === "fulfilled" && gscResp.value.ok) {
     const data = await gscResp.value.json() as { connected?: boolean };
@@ -136,7 +151,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ga4Connected = data.ready === true;
   }
 
-  return json({ locale, shop: session.shop, latestJob, gscConnected, ga4Connected });
+  return json({ locale, shop: session.shop, latestJob, latestIdentification, gscConnected, ga4Connected });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -144,16 +159,67 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
-  if (intent === "start") {
+  // ── Step 1: start identification job ──────────────────────────────────────
+  if (intent === "startIdentify") {
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/identify`,
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(30_000) },
+      );
+      if (!resp.ok) {
+        const err = await resp.text();
+        return json({ type: "startIdentify", jobId: null, error: `Erreur backend ${resp.status}: ${err}` });
+      }
+      const data = await resp.json() as { job_id: string };
+      return json({ type: "startIdentify", jobId: data.job_id, error: null });
+    } catch (err) {
+      return json({ type: "startIdentify", jobId: null, error: String(err) });
+    }
+  }
+
+  // ── Step 1: poll identification job ───────────────────────────────────────
+  if (intent === "pollIdentify") {
+    const jobId = formData.get("jobId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs/${jobId}`,
+        { accessToken: session.accessToken, method: "GET", signal: AbortSignal.timeout(10_000) },
+      );
+      if (!resp.ok) return json({ type: "pollIdentify", job: null, error: `Erreur poll ${resp.status}` });
+      const job = await resp.json() as JobState;
+      return json({ type: "pollIdentify", job, error: null });
+    } catch (err) {
+      return json({ type: "pollIdentify", job: null, error: String(err) });
+    }
+  }
+
+  // ── Step 1→2: save validated labels then start full analysis ──────────────
+  if (intent === "saveAndStart") {
+    const identificationsRaw = formData.get("identifications") as string;
+    try {
+      const identifications = JSON.parse(identificationsRaw) as Record<string, string>;
+      // 1. Persist validated labels
+      await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/identifications`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: JSON.stringify({ identifications }),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+    } catch {
+      // Non-blocking — proceed to analysis even if persist fails
+    }
+    // 2. Start analysis job
     try {
       const resp = await callBackendForShop(
         session.shop,
         `/api/shops/${session.shop}/market-analysis/jobs`,
-        {
-          accessToken: session.accessToken,
-          method: "POST",
-          signal: AbortSignal.timeout(30_000),
-        },
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(30_000) },
       );
       if (!resp.ok) {
         const err = await resp.text();
@@ -166,21 +232,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // ── Step 2: start analysis (re-run, skips step 1) ─────────────────────────
+  if (intent === "start") {
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs`,
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(30_000) },
+      );
+      if (!resp.ok) {
+        const err = await resp.text();
+        return json({ type: "start", jobId: null, error: `Erreur backend ${resp.status}: ${err}` });
+      }
+      const data = await resp.json() as { job_id: string };
+      return json({ type: "start", jobId: data.job_id, error: null });
+    } catch (err) {
+      return json({ type: "start", jobId: null, error: String(err) });
+    }
+  }
+
+  // ── Step 2: poll analysis job ─────────────────────────────────────────────
   if (intent === "poll") {
     const jobId = formData.get("jobId") as string;
     try {
       const resp = await callBackendForShop(
         session.shop,
         `/api/shops/${session.shop}/market-analysis/jobs/${jobId}`,
-        {
-          accessToken: session.accessToken,
-          method: "GET",
-          signal: AbortSignal.timeout(10_000),
-        },
+        { accessToken: session.accessToken, method: "GET", signal: AbortSignal.timeout(10_000) },
       );
-      if (!resp.ok) {
-        return json({ type: "poll", job: null, error: `Erreur poll ${resp.status}` });
-      }
+      if (!resp.ok) return json({ type: "poll", job: null, error: `Erreur poll ${resp.status}` });
       const job = await resp.json() as JobState;
       return json({ type: "poll", job, error: null });
     } catch (err) {
@@ -209,11 +289,8 @@ function confidenceTone(c: string): "success" | "warning" | "critical" | "info" 
 function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
     });
   } catch {
     return iso;
@@ -302,7 +379,6 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
   return (
     <Card>
       <BlockStack gap="300">
-        {/* Header */}
         <InlineStack gap="200" align="space-between" wrap>
           <BlockStack gap="100">
             <Text as="h3" variant="headingSm">{product.product_title}</Text>
@@ -325,7 +401,6 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
           </Text>
         )}
 
-        {/* SEO Keywords */}
         {product.seo_keywords.length > 0 && (
           <Box>
             <Button variant="plain" onClick={() => toggle("keywords")}>
@@ -343,11 +418,8 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
                     "Fit",
                   ]}
                   rows={product.seo_keywords.map((k) => [
-                    k.query,
-                    k.intent_type,
-                    String(k.demand_score),
-                    String(k.competition_score),
-                    String(k.product_fit_score),
+                    k.query, k.intent_type,
+                    String(k.demand_score), String(k.competition_score), String(k.product_fit_score),
                   ])}
                 />
               </Box>
@@ -355,7 +427,6 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
           </Box>
         )}
 
-        {/* GEO Questions */}
         {product.geo_questions.length > 0 && (
           <Box>
             <Button variant="plain" onClick={() => toggle("geo")}>
@@ -370,22 +441,15 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
                     locale === "fr" ? "Angle de réponse" : "Answer angle",
                     locale === "fr" ? "Type de bloc" : "Block type",
                   ]}
-                  rows={product.geo_questions.map((q) => [
-                    q.question,
-                    q.answer_angle,
-                    q.content_block_type,
-                  ])}
+                  rows={product.geo_questions.map((q) => [q.question, q.answer_angle, q.content_block_type])}
                 />
               </Box>
             </Collapsible>
           </Box>
         )}
 
-        {/* Content proposals */}
-        {(pack.proposed_meta_title ||
-          pack.proposed_meta_description ||
-          pack.proposed_product_description ||
-          pack.proposed_faq.length > 0 ||
+        {(pack.proposed_meta_title || pack.proposed_meta_description ||
+          pack.proposed_product_description || pack.proposed_faq.length > 0 ||
           pack.proposed_blog_title) && (
           <Box>
             <Button variant="plain" onClick={() => toggle("proposals")}>
@@ -405,7 +469,6 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
                       </Box>
                     </BlockStack>
                   )}
-
                   {pack.proposed_meta_description && (
                     <BlockStack gap="100">
                       <Text as="h4" variant="headingXs">Meta description</Text>
@@ -418,7 +481,6 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
                       </Box>
                     </BlockStack>
                   )}
-
                   {pack.proposed_product_description && (
                     <BlockStack gap="100">
                       <Text as="h4" variant="headingXs">
@@ -429,7 +491,6 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
                       </Box>
                     </BlockStack>
                   )}
-
                   {pack.proposed_faq.length > 0 && (
                     <BlockStack gap="100">
                       <Text as="h4" variant="headingXs">FAQ</Text>
@@ -443,18 +504,6 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
                       ))}
                     </BlockStack>
                   )}
-
-                  {pack.proposed_geo_answer_block && (
-                    <BlockStack gap="100">
-                      <Text as="h4" variant="headingXs">
-                        {locale === "fr" ? "Bloc réponse GEO" : "GEO answer block"}
-                      </Text>
-                      <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                        <Text as="p" variant="bodySm">{pack.proposed_geo_answer_block}</Text>
-                      </Box>
-                    </BlockStack>
-                  )}
-
                   {pack.proposed_blog_title && (
                     <BlockStack gap="100">
                       <Text as="h4" variant="headingXs">
@@ -479,7 +528,6 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
           </Box>
         )}
 
-        {/* Facts missing */}
         {pack.facts_missing.length > 0 && (
           <Box>
             <Button variant="plain" onClick={() => toggle("facts")}>
@@ -504,17 +552,44 @@ function ProductCard({ product, locale }: { product: ProductResult; locale: Loca
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function MarketAnalysisPage() {
-  const { locale, latestJob, gscConnected, ga4Connected } = useLoaderData<LoaderData>();
+  const { locale, latestJob, latestIdentification, gscConnected, ga4Connected } =
+    useLoaderData<LoaderData>();
 
-  const startFetcher = useFetcher<{ type: string; jobId: string | null; error: string | null }>();
-  const pollFetcher = useFetcher<{ type: string; job: JobState | null; error: string | null }>();
+  // ── UI step: "identification" (step 1) or "analysis" (step 2) ────────────
+  const [step, setStep] = useState<"identification" | "analysis">(
+    latestJob ? "analysis" : "identification",
+  );
 
-  // Initialize from persisted last result so page is never empty on revisit
+  // ── Identification state ──────────────────────────────────────────────────
+  const [identifyJobId, setIdentifyJobId] = useState<string | null>(null);
+  const [identifyJob, setIdentifyJob] = useState<JobState | null>(null);
+  const [identifyError, setIdentifyError] = useState<string | null>(null);
+
+  // Labels editable by the merchant — initialised from persisted identification
+  const [identifications, setIdentifications] = useState<Record<string, string>>(
+    latestIdentification?.labels ?? {},
+  );
+
+  // ── Analysis state ────────────────────────────────────────────────────────
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobState | null>(latestJob);
   const [pollError, setPollError] = useState<string | null>(null);
 
-  // Refs so the polling interval can read current values without stale closures
+  // ── Fetchers ──────────────────────────────────────────────────────────────
+  type ActionData = { type: string; jobId?: string | null; job?: JobState | null; error?: string | null };
+  const identifyFetcher = useFetcher<ActionData>();
+  const pollIdentifyFetcher = useFetcher<ActionData>();
+  const startFetcher = useFetcher<ActionData>();
+  const pollFetcher = useFetcher<ActionData>();
+
+  // ── Refs for polling loops (avoid stale closures) ─────────────────────────
+  const identifyJobIdRef = useRef<string | null>(null);
+  const identifyStatusRef = useRef<string | undefined>(identifyJob?.status);
+  const pollIdentifyRef = useRef(pollIdentifyFetcher);
+  identifyJobIdRef.current = identifyJobId;
+  identifyStatusRef.current = identifyJob?.status;
+  pollIdentifyRef.current = pollIdentifyFetcher;
+
   const jobIdRef = useRef<string | null>(null);
   const jobStatusRef = useRef<string | undefined>(job?.status);
   const pollFetcherRef = useRef(pollFetcher);
@@ -522,18 +597,48 @@ export default function MarketAnalysisPage() {
   jobStatusRef.current = job?.status;
   pollFetcherRef.current = pollFetcher;
 
-  // Capture job_id from "start" response
+  // ── Effects: capture action responses ────────────────────────────────────
+
+  // Identification job started
+  useEffect(() => {
+    if (identifyFetcher.data?.type === "startIdentify") {
+      if (identifyFetcher.data.jobId) {
+        setIdentifyJobId(identifyFetcher.data.jobId);
+        setIdentifyJob(null);
+        setIdentifyError(null);
+      } else if (identifyFetcher.data.error) {
+        setIdentifyError(identifyFetcher.data.error);
+      }
+    }
+  }, [identifyFetcher.data]);
+
+  // Poll identification job
+  useEffect(() => {
+    if (pollIdentifyFetcher.data?.type === "pollIdentify") {
+      if (pollIdentifyFetcher.data.job) {
+        const j = pollIdentifyFetcher.data.job;
+        setIdentifyJob(j);
+        if (j.status === "completed" && j.labels) {
+          setIdentifications(j.labels);
+        }
+      }
+      if (pollIdentifyFetcher.data.error) setIdentifyError(pollIdentifyFetcher.data.error);
+    }
+  }, [pollIdentifyFetcher.data]);
+
+  // Analysis job started (from saveAndStart or start)
   useEffect(() => {
     if (startFetcher.data?.type === "start") {
       if (startFetcher.data.jobId) {
         setJobId(startFetcher.data.jobId);
         setJob(null);
         setPollError(null);
+        setStep("analysis");
       }
     }
   }, [startFetcher.data]);
 
-  // Merge poll response into job state
+  // Poll analysis job
   useEffect(() => {
     if (pollFetcher.data?.type === "poll") {
       if (pollFetcher.data.job) setJob(pollFetcher.data.job);
@@ -541,10 +646,25 @@ export default function MarketAnalysisPage() {
     }
   }, [pollFetcher.data]);
 
-  // Polling loop: starts when jobId is set, self-terminates on completion/failure
+  // ── Polling loop: identification job ─────────────────────────────────────
+  useEffect(() => {
+    if (!identifyJobId) return;
+    const poll = () => {
+      const status = identifyStatusRef.current;
+      if (status === "completed" || status === "failed") return;
+      const fd = new FormData();
+      fd.set("intent", "pollIdentify");
+      fd.set("jobId", identifyJobIdRef.current!);
+      pollIdentifyRef.current.submit(fd, { method: "post" });
+    };
+    poll();
+    const id = setInterval(poll, 3_000);
+    return () => clearInterval(id);
+  }, [identifyJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Polling loop: analysis job ────────────────────────────────────────────
   useEffect(() => {
     if (!jobId) return;
-
     const poll = () => {
       const status = jobStatusRef.current;
       if (status === "completed" || status === "failed") return;
@@ -553,20 +673,21 @@ export default function MarketAnalysisPage() {
       fd.set("jobId", jobIdRef.current!);
       pollFetcherRef.current.submit(fd, { method: "post" });
     };
-
-    poll(); // immediate first poll
+    poll();
     const id = setInterval(poll, 5_000);
     return () => clearInterval(id);
   }, [jobId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleAnalyse = () => {
-    setJobId(null);
-    setJob(null);
-    setPollError(null);
-    const fd = new FormData();
-    fd.set("intent", "start");
-    startFetcher.submit(fd, { method: "post" });
-  };
+  // ── Derived state ─────────────────────────────────────────────────────────
+  const isIdentifying =
+    identifyFetcher.state !== "idle" ||
+    (identifyJobId !== null &&
+      identifyJob?.status !== "completed" &&
+      identifyJob?.status !== "failed");
+
+  const hasLabels =
+    identifyJob?.status === "completed" ||
+    Object.keys(identifications).length > 0;
 
   const isStarting = startFetcher.state !== "idle";
   const isRunning =
@@ -583,6 +704,39 @@ export default function MarketAnalysisPage() {
     startFetcher.data?.type === "start" ? (startFetcher.data.error ?? null) : null;
   const anyError = startError || pollError || (job?.status === "failed" ? job.error : null);
 
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleStartIdentify = () => {
+    setIdentifyJobId(null);
+    setIdentifyJob(null);
+    setIdentifyError(null);
+    const fd = new FormData();
+    fd.set("intent", "startIdentify");
+    identifyFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleSaveAndStart = () => {
+    const fd = new FormData();
+    fd.set("intent", "saveAndStart");
+    fd.set("identifications", JSON.stringify(identifications));
+    startFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleRerun = () => {
+    setJobId(null);
+    setJob(null);
+    setPollError(null);
+    const fd = new FormData();
+    fd.set("intent", "start");
+    startFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleEditIdentification = () => {
+    setStep("identification");
+    setIdentifyJobId(null);
+    setIdentifyJob(null);
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Page
       title={t(locale, "marketAnalysis")}
@@ -601,63 +755,150 @@ export default function MarketAnalysisPage() {
         {/* Data sources status */}
         <DataSourcesCard gscConnected={gscConnected} ga4Connected={ga4Connected} locale={locale} />
 
-        {/* Launch card — button always visible */}
-        <Card>
-          <BlockStack gap="300">
-            {!isInProgress && !job && (
-              <Text as="p" tone="subdued">{t(locale, "marketAnalysisEmpty")}</Text>
-            )}
-
-            <Button
-              variant="primary"
-              onClick={handleAnalyse}
-              disabled={isInProgress}
-              loading={isInProgress}
-            >
-              {isInProgress
-                ? t(locale, "marketAnalysisRunning")
-                : job?.status === "completed"
-                ? (locale === "fr" ? "Relancer l'analyse" : "Re-run analysis")
-                : t(locale, "marketAnalysisRun")}
-            </Button>
-
-            {/* Progress bar (only shown during active run) */}
-            {isRunning && job && job.total > 0 && (
+        {/* ── STEP 1: Product identification ─────────────────────────────── */}
+        {step === "identification" && (
+          <Card>
+            <BlockStack gap="400">
               <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">{t(locale, "marketAnalysisIdentificationTitle")}</Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {progressLabel(locale, job.progress, job.total)}
+                  {t(locale, "marketAnalysisIdentificationSubtitle")}
                 </Text>
-                <ProgressBar progress={progressPct} size="small" />
               </BlockStack>
+
+              {/* Generating spinner */}
+              {isIdentifying && (
+                <InlineStack gap="300" blockAlign="center">
+                  <Spinner size="small" />
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {t(locale, "marketAnalysisGenerating")}
+                  </Text>
+                </InlineStack>
+              )}
+
+              {/* Error */}
+              {identifyError && (
+                <Banner tone="critical">
+                  <Text as="p">{identifyError}</Text>
+                </Banner>
+              )}
+
+              {/* Editable labels */}
+              {hasLabels && !isIdentifying && (
+                <BlockStack gap="300">
+                  {Object.entries(identifications).map(([productId, label]) => (
+                    <InlineStack key={productId} gap="300" blockAlign="center" wrap={false}>
+                      <Box minWidth="120px">
+                        <Text as="p" variant="bodySm" tone="subdued">{productId.slice(-8)}</Text>
+                      </Box>
+                      <Box width="100%">
+                        <TextField
+                          label=""
+                          labelHidden
+                          value={label}
+                          onChange={(val) =>
+                            setIdentifications((prev) => ({ ...prev, [productId]: val }))
+                          }
+                          placeholder={t(locale, "marketAnalysisLabelPlaceholder")}
+                          autoComplete="off"
+                        />
+                      </Box>
+                    </InlineStack>
+                  ))}
+                  <Button
+                    variant="primary"
+                    onClick={handleSaveAndStart}
+                    loading={isStarting}
+                    disabled={isStarting}
+                  >
+                    {t(locale, "marketAnalysisValidateLabels")}
+                  </Button>
+                </BlockStack>
+              )}
+
+              {/* No labels yet — generate button */}
+              {!hasLabels && !isIdentifying && (
+                <Button variant="primary" onClick={handleStartIdentify}>
+                  {t(locale, "marketAnalysisGenerateLabels")}
+                </Button>
+              )}
+            </BlockStack>
+          </Card>
+        )}
+
+        {/* ── STEP 2: Full analysis ──────────────────────────────────────── */}
+        {step === "analysis" && (
+          <>
+            {/* Action buttons (re-run / edit identification) */}
+            {job?.status === "completed" && (
+              <InlineStack gap="300" wrap>
+                <Button variant="primary" onClick={handleRerun} loading={isInProgress} disabled={isInProgress}>
+                  {t(locale, "marketAnalysisRerun")}
+                </Button>
+                <Button variant="plain" onClick={handleEditIdentification} disabled={isInProgress}>
+                  {t(locale, "marketAnalysisEditIdentification")}
+                </Button>
+              </InlineStack>
             )}
-          </BlockStack>
-        </Card>
 
-        {/* Error */}
-        {anyError && (
-          <Banner tone="critical">
-            <Text as="p">{anyError}</Text>
-          </Banner>
-        )}
+            {/* Launch card */}
+            <Card>
+              <BlockStack gap="300">
+                {!isInProgress && !job && (
+                  <Text as="p" tone="subdued">{t(locale, "marketAnalysisEmpty")}</Text>
+                )}
 
-        {/* Summary (shows during run too, with partial data) */}
-        {job && job.analyzed_product_count > 0 && (
-          <SummaryCard job={job} locale={locale} />
-        )}
+                {!job?.status || job.status === "failed" ? (
+                  <Button
+                    variant="primary"
+                    onClick={handleRerun}
+                    disabled={isInProgress}
+                    loading={isInProgress}
+                  >
+                    {isInProgress
+                      ? t(locale, "marketAnalysisRunning")
+                      : t(locale, "marketAnalysisRun")}
+                  </Button>
+                ) : null}
 
-        {/* Product cards — appear progressively as analysis runs */}
-        {job?.products?.map((product) => (
-          <ProductCard key={product.product_id} product={product} locale={locale} />
-        ))}
+                {isRunning && job && job.total > 0 && (
+                  <BlockStack gap="100">
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {progressLabel(locale, job.progress, job.total)}
+                    </Text>
+                    <ProgressBar progress={progressPct} size="small" />
+                  </BlockStack>
+                )}
+              </BlockStack>
+            </Card>
 
-        {/* Completion banner at bottom of results */}
-        {job?.status === "completed" && (
-          <Banner tone="success">
-            <Text as="p">
-              {t(locale, "marketAnalysisCompleted")} —{" "}
-              {job.analyzed_product_count} {t(locale, "marketAnalysisProductCount")}
-            </Text>
-          </Banner>
+            {/* Error */}
+            {anyError && (
+              <Banner tone="critical">
+                <Text as="p">{anyError}</Text>
+              </Banner>
+            )}
+
+            {/* Summary */}
+            {job && job.analyzed_product_count > 0 && (
+              <SummaryCard job={job} locale={locale} />
+            )}
+
+            {/* Product cards */}
+            {job?.products?.map((product) => (
+              <ProductCard key={product.product_id} product={product} locale={locale} />
+            ))}
+
+            {/* Completion banner */}
+            {job?.status === "completed" && (
+              <Banner tone="success">
+                <Text as="p">
+                  {t(locale, "marketAnalysisCompleted")} —{" "}
+                  {job.analyzed_product_count} {t(locale, "marketAnalysisProductCount")}
+                </Text>
+              </Banner>
+            )}
+          </>
         )}
       </BlockStack>
     </Page>

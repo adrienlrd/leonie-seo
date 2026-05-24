@@ -402,6 +402,14 @@ const FR: Dictionary = {
   marketAnalysisProgress: "Analyse en cours : {done} / {total} produit(s) traité(s)…",
   marketAnalysisCompleted: "Analyse terminée",
   marketAnalysisStarting: "Démarrage de l'analyse…",
+  marketAnalysisIdentificationTitle: "Identification des produits",
+  marketAnalysisIdentificationSubtitle: "L'IA a généré une description courte pour chaque produit. Ajustez si besoin avant de lancer l'analyse.",
+  marketAnalysisGenerating: "Génération des descriptions en cours…",
+  marketAnalysisGenerateLabels: "Identifier les produits avec l'IA",
+  marketAnalysisValidateLabels: "Valider et analyser",
+  marketAnalysisEditIdentification: "Modifier l'identification",
+  marketAnalysisRerun: "Relancer l'analyse",
+  marketAnalysisLabelPlaceholder: "Description courte du produit",
 };
 
 const EN: Dictionary = {
@@ -804,6 +812,14 @@ const EN: Dictionary = {
   marketAnalysisProgress: "Analysis in progress: {done} / {total} product(s) processed…",
   marketAnalysisCompleted: "Analysis complete",
   marketAnalysisStarting: "Starting analysis…",
+  marketAnalysisIdentificationTitle: "Product identification",
+  marketAnalysisIdentificationSubtitle: "The AI generated a short description for each product. Adjust if needed before running the analysis.",
+  marketAnalysisGenerating: "Generating descriptions…",
+  marketAnalysisGenerateLabels: "Identify products with AI",
+  marketAnalysisValidateLabels: "Validate and analyse",
+  marketAnalysisEditIdentification: "Edit identification",
+  marketAnalysisRerun: "Re-run analysis",
+  marketAnalysisLabelPlaceholder: "Short product description",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };

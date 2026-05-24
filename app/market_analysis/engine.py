@@ -392,6 +392,7 @@ def run_market_analysis(
     niche_hypothesis: dict[str, Any] | None = None,
     crawl_findings: list[dict[str, Any]] | None = None,
     max_products: int = 0,
+    product_labels: dict[str, str] | None = None,
     progress_callback: Callable[[int, int, list[dict[str, Any]]], None] | None = None,
 ) -> dict[str, Any]:
     """Run full SEO/GEO market analysis for active products.
@@ -453,6 +454,9 @@ def run_market_analysis(
 
         try:
             product_title = product.get("title", "")
+            # Use merchant-validated label if available (step 1 of 2-step flow)
+            if product_labels and product_id in product_labels:
+                product_title = product_labels[product_id] or product_title
             handle = product.get("handle", "")
             body_html = product.get("body_html") or product.get("description") or ""
             description = _strip_html(body_html)
