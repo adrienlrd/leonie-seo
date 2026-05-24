@@ -119,11 +119,12 @@ def generate_product_labels(
         prompt = _build_label_prompt(items, niche_summary)
 
         try:
-            raw = router.complete(
+            completion = router.complete(
+                prompt,
                 system=_SYSTEM_PROMPT,
-                user=prompt,
                 max_tokens=1024,
             )
+            raw = completion.text.strip()
             chunk_labels = _parse_labels(raw, chunk_fallback)
             results.update(chunk_labels)
         except Exception as exc:
