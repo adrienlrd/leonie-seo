@@ -25,6 +25,8 @@ from app.market_analysis.jobs import (
     save_latest_result,
     update_job,
 )
+from app.market_analysis.providers.dataforseo_provider import DataForSEOProvider
+from app.market_analysis.providers.google_ads_provider import GoogleAdsKeywordProvider
 from app.niche.understanding import get_validated_niche_hypothesis
 from app.snapshot.scope import filter_products_by_scope
 
@@ -127,9 +129,15 @@ def _run_analysis_background(
         )
 
     try:
-        # Set total immediately so the frontend can show 0/N from the first poll
+        # Compute provider_status early (env-var check only, no I/O) so the
+        # frontend sees the correct badges from the very first poll
+        early_provider_status: dict[str, Any] = {
+            "free": True,
+            "dataforseo": DataForSEOProvider().available,
+            "google_ads": GoogleAdsKeywordProvider().available,
+        }
         active_count = len(filter_products_by_scope(products, "active"))
-        update_job(job_id, status="running", total=active_count, progress=0)
+        update_job(job_id, status="running", total=active_count, progress=0, provider_status=early_provider_status)
 
         result = run_market_analysis(
             products,
