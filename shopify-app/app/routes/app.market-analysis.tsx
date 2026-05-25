@@ -879,8 +879,18 @@ function ProductCard({
                             )}
                           </InlineStack>
                           <InlineStack gap="100">
-                            <Badge tone={scoreTone(k.demand_score)}>
-                              {`${locale === "fr" ? "Demande" : "Demand"} ${k.demand_score}`}
+                            <Badge
+                              tone={
+                                k.data_source === "llm_estimated" || k.data_source === "shopify"
+                                  ? undefined
+                                  : scoreTone(k.demand_score)
+                              }
+                            >
+                              {`${locale === "fr" ? "Demande" : "Demand"} ${k.demand_score}${
+                                k.data_source === "llm_estimated" || k.data_source === "shopify"
+                                  ? " (estimé)"
+                                  : ""
+                              }`}
                             </Badge>
                             <Badge tone="info">
                               {`${t(locale, "marketAnalysisDifficulty")} ${k.competition_score}`}
