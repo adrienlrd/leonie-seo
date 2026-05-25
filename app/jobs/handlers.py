@@ -60,7 +60,10 @@ async def handle_seo_audit(payload: dict, shop: str | None) -> dict:
     if not access_token:
         raise ValueError("access_token is required for seo_audit")
 
-    return await asyncio.to_thread(crawl_shopify_catalog_for_job, shop, access_token)
+    products_only = bool(payload.get("products_only", False))
+    return await asyncio.to_thread(
+        crawl_shopify_catalog_for_job, shop, access_token, products_only=products_only
+    )
 
 
 @register("meta_generation")

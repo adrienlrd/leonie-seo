@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from app.api.deps import get_authenticated_shop
 from app.jobs.handlers import registered_queues
-from app.jobs.store import enqueue, get_job, list_jobs
+from app.jobs.store import cancel_shop_jobs, enqueue, enqueue_unique, get_job, list_jobs
 from app.oauth.token_store import save_token
 
 router = APIRouter(prefix="/api", tags=["jobs"])
@@ -45,7 +45,10 @@ async def create_job(
             x_shopify_access_token,
             os.getenv("SHOPIFY_SCOPES", ""),
         )
-    job_id = enqueue(
+
+    # Deduplicate: seo_audit must not pile up — return the existing job if already queued.
+    _enqueue = enqueue_unique if body.queue == "seo_audit" else enqueue
+    job_id = _enqueue(
         body.queue,
         payload,
         shop=authenticated_shop,
@@ -89,3 +92,20 @@ async def list_shop_jobs(
         raise HTTPException(status_code=403, detail="Authenticated shop does not match path")
     jobs = list_jobs(shop=authenticated_shop, queue=queue, status=status, limit=min(limit, 200))
     return {"shop": authenticated_shop, "jobs": jobs, "count": len(jobs)}
+
+
+@router.delete("/shops/{shop}/jobs")
+async def cancel_shop_pending_jobs(
+    shop: str,
+    authenticated_shop: Annotated[str, Depends(get_authenticated_shop)],
+    queue: str | None = None,
+) -> dict:
+    """Cancel all pending and running jobs for a shop (optional queue filter).
+
+    Marks matching jobs as failed immediately without waiting for the worker.
+    Use to recover from stuck or piled-up job queues.
+    """
+    if authenticated_shop != shop:
+        raise HTTPException(status_code=403, detail="Authenticated shop does not match path")
+    cancelled = cancel_shop_jobs(shop, queue=queue or None)
+    return {"cancelled": cancelled, "shop": shop, "queue": queue}

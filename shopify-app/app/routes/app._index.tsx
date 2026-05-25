@@ -130,7 +130,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       callBackendForShop(shop, "/api/jobs", {
         accessToken: session.accessToken,
         method: "POST",
-        body: JSON.stringify({ queue: "seo_audit" }),
+        body: JSON.stringify({ queue: "seo_audit", payload: { products_only: true }, max_retries: 1 }),
       }).catch(() => {});
       const errStatus = dashResp.status === "fulfilled" ? dashResp.value.status : 0;
       return json<LoaderData>({
@@ -148,7 +148,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       callBackendForShop(shop, "/api/jobs", {
         accessToken: session.accessToken,
         method: "POST",
-        body: JSON.stringify({ queue: "seo_audit" }),
+        body: JSON.stringify({ queue: "seo_audit", payload: { products_only: true }, max_retries: 1 }),
       }).catch(() => {});
     }
 

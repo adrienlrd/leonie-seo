@@ -218,6 +218,69 @@ def recover_stale_running_jobs(
     return repaired
 
 
+def enqueue_unique(
+    queue: str,
+    payload: dict,
+    *,
+    shop: str | None = None,
+    db_path: Path | None = None,
+    delay_seconds: int = 0,
+    max_retries: int = _DEFAULT_MAX_RETRIES,
+    priority: int = _DEFAULT_PRIORITY,
+) -> str:
+    """Enqueue a job only if no pending/running job already exists for queue+shop.
+
+    Returns the existing job ID if one is already queued, otherwise the new one.
+    Prevents duplicate background jobs that pile up on repeated triggers.
+    """
+    path = db_path if db_path is not None else DB_PATH
+    with get_conn(path) as conn:
+        row = conn.execute(
+            """SELECT id FROM jobs
+               WHERE queue = ? AND shop IS ? AND status IN ('pending', 'running')
+               ORDER BY created_at DESC LIMIT 1""",
+            (queue, shop),
+        ).fetchone()
+    if row:
+        return row["id"]
+    return enqueue(
+        queue,
+        payload,
+        shop=shop,
+        db_path=db_path,
+        delay_seconds=delay_seconds,
+        max_retries=max_retries,
+        priority=priority,
+    )
+
+
+def cancel_shop_jobs(
+    shop: str,
+    *,
+    queue: str | None = None,
+    db_path: Path | None = None,
+) -> int:
+    """Mark all pending and running jobs for a shop (and optional queue) as failed.
+
+    Used to clear a stuck job queue without restarting the worker process.
+    Returns the number of jobs cancelled.
+    """
+    path = db_path if db_path is not None else DB_PATH
+    now = _now()
+    queue_filter = "AND queue = ?" if queue else ""
+    params: tuple = (now, shop, *([queue] if queue else []))
+
+    with get_conn(path) as conn:
+        cur = conn.execute(
+            f"""UPDATE jobs
+                SET status = 'failed', result = '"cancelled by admin"', completed_at = ?
+                WHERE shop = ? AND status IN ('pending', 'running')
+                {queue_filter}""",  # noqa: S608
+            params,
+        )
+        return cur.rowcount
+
+
 def update_job(
     job_id: str,
     *,

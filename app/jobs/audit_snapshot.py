@@ -93,6 +93,7 @@ def crawl_shopify_catalog_for_job(
     access_token: str,
     db_path: Path | None = None,
     raw_dir: Path | None = None,
+    products_only: bool = False,
 ) -> dict[str, Any]:
     """Run a read-only Shopify catalog crawl and persist a tenant snapshot.
 
@@ -101,6 +102,9 @@ def crawl_shopify_catalog_for_job(
         access_token: Shopify Admin API access token from the embedded session.
         db_path: Optional SQLite override for tests.
         raw_dir: Optional raw-data directory override for tests.
+        products_only: When True, skip pages/articles/redirects and reuse the
+            existing snapshot for those fields. Much faster — use for background
+            auto-refresh triggered on app open.
 
     Returns:
         Summary containing product/collection counts and snapshot paths.
@@ -109,10 +113,25 @@ def crawl_shopify_catalog_for_job(
     headers = _admin_headers(access_token)
     products = fetch_products(endpoint=endpoint, headers=headers)
     collections = fetch_collections(endpoint=endpoint, headers=headers)
-    pages = fetch_pages(endpoint=endpoint, headers=headers)
-    articles = fetch_articles(endpoint=endpoint, headers=headers)
-    redirects = fetch_url_redirects(endpoint=endpoint, headers=headers)
     shop_metadata = fetch_shop_metadata(endpoint=endpoint, headers=headers)
+
+    if products_only:
+        # Reuse existing pages/articles/redirects from the last full snapshot.
+        root = raw_dir or _RAW_DIR
+        existing_path = root / shop / "shopify_snapshot.json"
+        existing: dict[str, Any] = {}
+        if existing_path.exists():
+            try:
+                existing = json.loads(existing_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                pass
+        pages = existing.get("pages", [])
+        articles = existing.get("articles", [])
+        redirects = existing.get("redirects", [])
+    else:
+        pages = fetch_pages(endpoint=endpoint, headers=headers)
+        articles = fetch_articles(endpoint=endpoint, headers=headers)
+        redirects = fetch_url_redirects(endpoint=endpoint, headers=headers)
 
     payload = {
         "shop": shop_metadata,
