@@ -145,7 +145,7 @@ interface LoaderData {
 
 export const shouldRevalidate: ShouldRevalidateFunction = (args) => {
   const intent = args.formData?.get("intent");
-  if (intent === "poll" || intent === "pollIdentify" || intent === "pollSingle") {
+  if (intent === "poll" || intent === "pollIdentify" || intent === "pollSingle" || intent === "saveProposals") {
     return false;
   }
   return args.defaultShouldRevalidate;
@@ -384,6 +384,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ type: "pollSingle", job, productId, error: null });
     } catch (err) {
       return json({ type: "pollSingle", job: null, productId, error: String(err) });
+    }
+  }
+
+  // ── Save edited proposals for one product ─────────────────────────────────
+  if (intent === "saveProposals") {
+    const productId = formData.get("productId") as string;
+    const proposalsRaw = formData.get("proposals") as string;
+    try {
+      const proposals = JSON.parse(proposalsRaw);
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/proposals/${encodeURIComponent(productId)}`,
+        {
+          accessToken: session.accessToken,
+          method: "PATCH",
+          body: JSON.stringify(proposals),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (!resp.ok) {
+        const err = await resp.text();
+        return json({ type: "saveProposals", error: `Erreur ${resp.status}: ${err}` });
+      }
+      return json({ type: "saveProposals", error: null });
+    } catch (err) {
+      return json({ type: "saveProposals", error: String(err) });
     }
   }
 
@@ -650,14 +676,64 @@ function ProductCard({
   const pack = product.content_test_pack;
   const kwQueries = product.seo_keywords.map((k) => k.query);
 
+  // ── Proposal edit mode ──────────────────────────────────────────────────
+  const [editMode, setEditMode] = useState(false);
+  const [editedPack, setEditedPack] = useState<ContentTestPack>({ ...pack });
+  const saveFetcher = useFetcher<{ type: string; error: string | null }>();
+  const isSaving = saveFetcher.state !== "idle";
+
+  useEffect(() => {
+    if (saveFetcher.data?.type === "saveProposals" && !saveFetcher.data.error) {
+      setEditMode(false);
+    }
+  }, [saveFetcher.data]);
+
+  const updateProp = (key: keyof ContentTestPack, value: string) =>
+    setEditedPack((prev) => ({ ...prev, [key]: value }));
+
+  const updateFaq = (idx: number, field: "q" | "a", value: string) =>
+    setEditedPack((prev) => {
+      const faq = [...prev.proposed_faq];
+      faq[idx] = { ...faq[idx], [field]: value };
+      return { ...prev, proposed_faq: faq };
+    });
+
+  const addFaqItem = () =>
+    setEditedPack((prev) => ({
+      ...prev,
+      proposed_faq: [...prev.proposed_faq, { q: "", a: "" }],
+    }));
+
+  const removeFaqItem = (idx: number) =>
+    setEditedPack((prev) => ({
+      ...prev,
+      proposed_faq: prev.proposed_faq.filter((_, i) => i !== idx),
+    }));
+
+  const handleSaveProposals = () => {
+    const proposals = {
+      proposed_meta_title: editedPack.proposed_meta_title,
+      proposed_meta_description: editedPack.proposed_meta_description,
+      proposed_product_description: editedPack.proposed_product_description,
+      proposed_faq: editedPack.proposed_faq,
+      proposed_blog_title: editedPack.proposed_blog_title,
+      proposed_blog_intro: editedPack.proposed_blog_intro,
+      proposed_blog_outline: editedPack.proposed_blog_outline,
+    };
+    saveFetcher.submit(
+      { intent: "saveProposals", productId: product.product_id, proposals: JSON.stringify(proposals) },
+      { method: "POST" },
+    );
+  };
+
   const proposalText = [
-    pack.proposed_meta_title,
-    pack.proposed_meta_description,
-    pack.proposed_product_description,
-    ...pack.proposed_faq.map((item) => `${item.q} ${item.a}`),
-    pack.proposed_blog_title,
-    pack.proposed_blog_intro,
-    ...pack.proposed_blog_outline,
+    editedPack.proposed_meta_title,
+    editedPack.proposed_meta_description,
+    editedPack.proposed_product_description,
+    ...editedPack.proposed_faq.map((item) => `${item.q} ${item.a}`),
+    editedPack.proposed_blog_title,
+    editedPack.proposed_blog_intro,
+    ...editedPack.proposed_blog_outline,
   ]
     .filter(Boolean)
     .join(" ")
@@ -801,9 +877,9 @@ function ProductCard({
           </Box>
         )}
 
-        {(pack.proposed_meta_title || pack.proposed_meta_description ||
-          pack.proposed_product_description || pack.proposed_faq.length > 0 ||
-          pack.proposed_blog_title) && (
+        {(editedPack.proposed_meta_title || editedPack.proposed_meta_description ||
+          editedPack.proposed_product_description || editedPack.proposed_faq.length > 0 ||
+          editedPack.proposed_blog_title) && (
           <Box>
             <Button variant="plain" onClick={() => toggle("proposals")}>
               {t(locale, "marketAnalysisProposals")}
@@ -811,67 +887,209 @@ function ProductCard({
             <Collapsible id={`prop-${product.product_id}`} open={openSection === "proposals"}>
               <Box paddingBlockStart="200">
                 <BlockStack gap="300">
-                  {pack.proposed_meta_title && (
+                  {/* ── Edit / save controls ── */}
+                  <InlineStack gap="200" align="end">
+                    {editMode ? (
+                      <>
+                        <Button
+                          size="slim"
+                          loading={isSaving}
+                          onClick={handleSaveProposals}
+                        >
+                          {locale === "fr" ? "Sauvegarder" : "Save"}
+                        </Button>
+                        <Button size="slim" variant="plain" onClick={() => { setEditMode(false); setEditedPack({ ...pack }); }}>
+                          {locale === "fr" ? "Annuler" : "Cancel"}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="slim" variant="plain" onClick={() => setEditMode(true)}>
+                        {locale === "fr" ? "Modifier" : "Edit"}
+                      </Button>
+                    )}
+                  </InlineStack>
+
+                  {saveFetcher.data?.type === "saveProposals" && saveFetcher.data.error && (
+                    <Banner tone="critical">
+                      <Text as="p" variant="bodySm">{saveFetcher.data.error}</Text>
+                    </Banner>
+                  )}
+
+                  {/* ── Meta title ── */}
+                  {editedPack.proposed_meta_title && (
                     <BlockStack gap="100">
                       <Text as="h4" variant="headingXs">Meta title</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         {locale === "fr" ? "Actuel" : "Current"} : {pack.current_meta_title}
                       </Text>
-                      <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                        <Text as="p" variant="bodySm">{highlightKeywords(pack.proposed_meta_title, kwQueries)}</Text>
-                      </Box>
+                      {editMode ? (
+                        <TextField
+                          label=""
+                          labelHidden
+                          value={editedPack.proposed_meta_title}
+                          onChange={(v) => updateProp("proposed_meta_title", v)}
+                          autoComplete="off"
+                          maxLength={70}
+                          showCharacterCount
+                        />
+                      ) : (
+                        <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+                          <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_meta_title, kwQueries)}</Text>
+                        </Box>
+                      )}
                     </BlockStack>
                   )}
-                  {pack.proposed_meta_description && (
+
+                  {/* ── Meta description ── */}
+                  {editedPack.proposed_meta_description && (
                     <BlockStack gap="100">
                       <Text as="h4" variant="headingXs">Meta description</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
                         {locale === "fr" ? "Actuelle" : "Current"} :{" "}
                         {pack.current_meta_description || (locale === "fr" ? "absente" : "missing")}
                       </Text>
-                      <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                        <Text as="p" variant="bodySm">{highlightKeywords(pack.proposed_meta_description, kwQueries)}</Text>
-                      </Box>
+                      {editMode ? (
+                        <TextField
+                          label=""
+                          labelHidden
+                          value={editedPack.proposed_meta_description}
+                          onChange={(v) => updateProp("proposed_meta_description", v)}
+                          multiline={3}
+                          autoComplete="off"
+                          maxLength={160}
+                          showCharacterCount
+                        />
+                      ) : (
+                        <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+                          <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_meta_description, kwQueries)}</Text>
+                        </Box>
+                      )}
                     </BlockStack>
                   )}
-                  {pack.proposed_product_description && (
+
+                  {/* ── Product description ── */}
+                  {editedPack.proposed_product_description && (
                     <BlockStack gap="100">
                       <Text as="h4" variant="headingXs">
                         {t(locale, "contentTypeProductDescription")}
                       </Text>
-                      <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                        <Text as="p" variant="bodySm">{highlightKeywords(pack.proposed_product_description, kwQueries)}</Text>
-                      </Box>
+                      {editMode ? (
+                        <TextField
+                          label=""
+                          labelHidden
+                          value={editedPack.proposed_product_description}
+                          onChange={(v) => updateProp("proposed_product_description", v)}
+                          multiline={5}
+                          autoComplete="off"
+                        />
+                      ) : (
+                        <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+                          <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_product_description, kwQueries)}</Text>
+                        </Box>
+                      )}
                     </BlockStack>
                   )}
-                  {pack.proposed_faq.length > 0 && (
+
+                  {/* ── FAQ ── */}
+                  {(editedPack.proposed_faq.length > 0 || editMode) && (
                     <BlockStack gap="100">
                       <Text as="h4" variant="headingXs">FAQ</Text>
-                      {pack.proposed_faq.map((item, i) => (
+                      {editedPack.proposed_faq.map((item, i) => (
                         <Box key={i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
-                          <BlockStack gap="100">
-                            <Text as="p" variant="headingXs">{highlightKeywords(item.q, kwQueries)}</Text>
-                            <Text as="p" variant="bodySm">{highlightKeywords(item.a, kwQueries)}</Text>
+                          <BlockStack gap="150">
+                            {editMode ? (
+                              <>
+                                <InlineStack gap="200" align="space-between" blockAlign="start">
+                                  <Box width="100%">
+                                    <TextField
+                                      label={locale === "fr" ? "Question" : "Question"}
+                                      value={item.q}
+                                      onChange={(v) => updateFaq(i, "q", v)}
+                                      autoComplete="off"
+                                    />
+                                  </Box>
+                                  <Button
+                                    size="slim"
+                                    variant="plain"
+                                    tone="critical"
+                                    onClick={() => removeFaqItem(i)}
+                                  >
+                                    ×
+                                  </Button>
+                                </InlineStack>
+                                <TextField
+                                  label={locale === "fr" ? "Réponse" : "Answer"}
+                                  value={item.a}
+                                  onChange={(v) => updateFaq(i, "a", v)}
+                                  multiline={3}
+                                  autoComplete="off"
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <Text as="p" variant="headingXs">{highlightKeywords(item.q, kwQueries)}</Text>
+                                <Text as="p" variant="bodySm">{highlightKeywords(item.a, kwQueries)}</Text>
+                              </>
+                            )}
                           </BlockStack>
                         </Box>
                       ))}
+                      {editMode && (
+                        <Button size="slim" variant="plain" onClick={addFaqItem}>
+                          {locale === "fr" ? "+ Ajouter une question" : "+ Add question"}
+                        </Button>
+                      )}
                     </BlockStack>
                   )}
-                  {pack.proposed_blog_title && (
+
+                  {/* ── Blog ── */}
+                  {editedPack.proposed_blog_title && (
                     <BlockStack gap="100">
                       <Text as="h4" variant="headingXs">
                         {locale === "fr" ? "Idée d'article de blog" : "Blog article idea"}
                       </Text>
-                      <Text as="p" variant="bodySm"><strong>{highlightKeywords(pack.proposed_blog_title, kwQueries)}</strong></Text>
-                      {pack.proposed_blog_intro && (
-                        <Text as="p" variant="bodySm" tone="subdued">{highlightKeywords(pack.proposed_blog_intro, kwQueries)}</Text>
-                      )}
-                      {pack.proposed_blog_outline.length > 0 && (
-                        <BlockStack gap="050">
-                          {pack.proposed_blog_outline.map((line, i) => (
-                            <Text key={i} as="p" variant="bodySm" tone="subdued">• {highlightKeywords(line, kwQueries)}</Text>
-                          ))}
+                      {editMode ? (
+                        <BlockStack gap="200">
+                          <TextField
+                            label={locale === "fr" ? "Titre" : "Title"}
+                            value={editedPack.proposed_blog_title}
+                            onChange={(v) => updateProp("proposed_blog_title", v)}
+                            autoComplete="off"
+                          />
+                          <TextField
+                            label="Intro"
+                            value={editedPack.proposed_blog_intro}
+                            onChange={(v) => updateProp("proposed_blog_intro", v)}
+                            multiline={3}
+                            autoComplete="off"
+                          />
+                          <TextField
+                            label={locale === "fr" ? "Plan (une section par ligne)" : "Outline (one section per line)"}
+                            value={editedPack.proposed_blog_outline.join("\n")}
+                            onChange={(v) =>
+                              setEditedPack((prev) => ({
+                                ...prev,
+                                proposed_blog_outline: v.split("\n"),
+                              }))
+                            }
+                            multiline={4}
+                            autoComplete="off"
+                          />
                         </BlockStack>
+                      ) : (
+                        <>
+                          <Text as="p" variant="bodySm"><strong>{highlightKeywords(editedPack.proposed_blog_title, kwQueries)}</strong></Text>
+                          {editedPack.proposed_blog_intro && (
+                            <Text as="p" variant="bodySm" tone="subdued">{highlightKeywords(editedPack.proposed_blog_intro, kwQueries)}</Text>
+                          )}
+                          {editedPack.proposed_blog_outline.length > 0 && (
+                            <BlockStack gap="050">
+                              {editedPack.proposed_blog_outline.map((line, i) => (
+                                <Text key={i} as="p" variant="bodySm" tone="subdued">• {highlightKeywords(line, kwQueries)}</Text>
+                              ))}
+                            </BlockStack>
+                          )}
+                        </>
                       )}
                     </BlockStack>
                   )}

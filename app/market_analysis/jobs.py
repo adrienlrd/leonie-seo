@@ -111,3 +111,24 @@ def load_identification_job(shop: str) -> dict[str, Any] | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+
+
+def patch_product_proposals(shop: str, product_id: str, proposals: dict[str, Any]) -> bool:
+    """Update content_test_pack fields for one product in the persisted analysis result.
+
+    Returns True if the product was found and the file updated, False otherwise.
+    """
+    path = _DATA_DIR / shop / "market_analysis_latest.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    for product in data.get("products", []):
+        if str(product.get("product_id", "")) == str(product_id):
+            if "content_test_pack" not in product:
+                product["content_test_pack"] = {}
+            product["content_test_pack"].update(proposals)
+            path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+            return True
+    return False

@@ -20,6 +20,7 @@ from app.market_analysis.jobs import (
     load_identification_job,
     load_identifications,
     load_latest_result,
+    patch_product_proposals,
     save_identification_job,
     save_identifications,
     save_latest_result,
@@ -302,6 +303,29 @@ async def get_latest_market_analysis(
     if result is None:
         raise HTTPException(status_code=404, detail="Aucune analyse précédente disponible")
     return result
+
+
+@router.patch("/shops/{shop}/market-analysis/proposals/{product_id}")
+async def patch_market_analysis_proposals(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    product_id: str,
+    body: dict[str, Any],
+) -> dict[str, Any]:
+    """Update editable proposal fields for one product in the persisted analysis result."""
+    allowed_keys = {
+        "proposed_meta_title",
+        "proposed_meta_description",
+        "proposed_product_description",
+        "proposed_faq",
+        "proposed_blog_title",
+        "proposed_blog_intro",
+        "proposed_blog_outline",
+    }
+    proposals = {k: v for k, v in body.items() if k in allowed_keys}
+    found = patch_product_proposals(ctx.shop, product_id, proposals)
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Product {product_id} not found in latest analysis")
+    return {"saved": True}
 
 
 # ── Competitors (manual entry, used by market analysis) ─────────────────────
