@@ -252,6 +252,34 @@ def _apply_signals_to_keywords(
     return out
 
 
+_FR_STOP_WORDS = frozenset(
+    "de du la le les des pour avec sans sur par en au aux un une et ou à dans que qui ne pas"
+    " se ce cet cette ces mon ma mes ton ta tes son sa ses notre nos votre vos leur leurs"
+    " je tu il elle nous vous ils elles".split()
+)
+
+
+def _content_words(text: str) -> frozenset[str]:
+    """Extract meaningful lowercase words (≥3 chars, non-stop) from a keyword string."""
+    return frozenset(
+        w for w in text.lower().split()
+        if len(w) >= 3 and w not in _FR_STOP_WORDS
+    )
+
+
+def _idea_is_relevant(idea_query: str, seed_queries: list[str], min_overlap: int = 2) -> bool:
+    """Return True if the idea shares ≥min_overlap content words with any seed keyword.
+
+    Filters out DataForSEO Keyword Ideas that are semantically unrelated to the
+    product context (e.g. 'fable de la fontaine' when seeds are about cat fountains).
+    """
+    idea_words = _content_words(idea_query)
+    if not idea_words:
+        return False
+    seed_words = frozenset().union(*(_content_words(s) for s in seed_queries))
+    return len(idea_words & seed_words) >= min_overlap
+
+
 def _impressions_bucket(impressions: int) -> int:
     """Quick demand-score bucket from GSC impressions (free proxy)."""
     if impressions >= 10000:
@@ -728,7 +756,11 @@ def run_market_analysis(
             ideas = dataforseo_provider.fetch_keyword_ideas(seeds, limit=15)
             if ideas:
                 existing = {k.get("query", "").lower() for k in kws if isinstance(k, dict)}
-                new_ideas = [i for i in ideas if i.get("query", "").lower() not in existing]
+                new_ideas = [
+                    i for i in ideas
+                    if i.get("query", "").lower() not in existing
+                    and _idea_is_relevant(i.get("query", ""), seeds)
+                ]
                 prod["seo_keywords"] = list(kws) + new_ideas
                 if "dataforseo_keyword_ideas" not in sources_used:
                     sources_used.append("dataforseo_keyword_ideas")
