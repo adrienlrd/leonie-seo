@@ -342,6 +342,7 @@ def _build_pass2_prompt(
     current_meta_description: str,
     merchant_label: str = "",
     ga4_metrics: dict[str, Any] | None = None,
+    domain_competitors: list[dict[str, Any]] | None = None,
 ) -> str:
     """Build the pass-2 (content) prompt with strict per-field rules.
 
@@ -468,6 +469,16 @@ def _build_pass2_prompt(
         parts.append("\n=== PROBLÈMES TECHNIQUES DÉTECTÉS (crawl) ===")
         parts.extend(crawl_lines)
 
+    # ── Domain-level competitors (DataForSEO Competitors Domain) ────────────
+    if domain_competitors:
+        parts.append("\n=== CONCURRENTS DE DOMAINE PRIORITAIRES (DataForSEO) ===")
+        parts.append("Ces sites se positionnent sur les mêmes mots-clés que la boutique. Utilise-les pour différencier.")
+        for comp in domain_competitors[:10]:
+            domain = comp.get("domain", "")
+            angle = comp.get("content_angle", "")
+            strength = comp.get("estimated_strength", 0)
+            parts.append(f"  • {domain} (force {strength}/100) — {angle}")
+
     # ── Strict per-field rules — every paid signal above MUST be used ──────
     top_kw_1 = top_queries[0] if top_queries else "le mot-clé principal"
     top_kw_list = ", ".join(f'"{q}"' for q in top_queries) if top_queries else "—"
@@ -485,32 +496,39 @@ def _build_pass2_prompt(
         f"\n▶ proposed_meta_description (140-160 caractères) :\n"
         f"   • OBLIGATOIRE : contient le mot-clé #1 ET au moins 1 autre du top 5.\n"
         f"   • Bénéfice produit + CTA (livraison, garantie, etc.).\n"
+        f"   • Si des CONCURRENTS DE DOMAINE sont listés, l'angle doit être distinct du leur.\n"
         f"\n▶ proposed_product_description (200-300 mots, plusieurs paragraphes) :\n"
         f"   • OBLIGATOIRE : intègre AU MOINS 4 mots-clés différents du top 8 (varie singulier/pluriel/synonymes).\n"
         f"   • Première phrase contient le mot-clé #1.\n"
-        f"   • Si des concurrents listés existent, mentionne 1 angle qui les surpasse.\n"
+        f"   • Si des CONCURRENTS DE DOMAINE sont listés, mentionne explicitement 1 angle que ces concurrents ne couvrent pas.\n"
         f"\n▶ proposed_faq (5-8 entrées) :\n"
         f"   • OBLIGATOIRE : reprend AU MOINS 3 des QUESTIONS PAA Google ci-dessus (reformulation autorisée).\n"
         f"   • Chaque question contient un mot-clé du top 8.\n"
         f"   • Réponses 2-4 phrases factuelles ; pas de blabla marketing.\n"
         f"\n▶ proposed_blog_title :\n"
         f"   • OBLIGATOIRE : contient un mot-clé longue traîne (4+ mots OU intent informational depuis la liste).\n"
-        f"   • Différent des titres concurrents listés.\n"
+        f"   • Différent des titres concurrents SERP ET des domaines concurrents listés.\n"
         f"\n▶ proposed_blog_intro (2-3 phrases) :\n"
         f"   • OBLIGATOIRE : contient au moins 2 mots-clés du top 5.\n"
         f"\n▶ proposed_blog_outline (5-7 sections H2) :\n"
         f"   • Chaque H2 couvre soit un mot-clé du top 8 soit une question PAA non utilisée dans la FAQ.\n"
+        f"   • Si des CONCURRENTS DE DOMAINE sont présents, inclure 1 H2 sur un angle qu'ils sous-exploitent.\n"
+        f"\n▶ recommended_content_actions :\n"
+        f"   • Si des CONCURRENTS DE DOMAINE sont listés, recommande au moins 1 action comparative\n"
+        f"     (ex. : 'Créer un guide comparatif vs [domaine_concurrent]', 'Ajouter un tableau comparatif',\n"
+        f"     'Rédiger une collection thématique absente chez [concurrent]').\n"
         f"\n▶ facts_used (CRITIQUE — c'est ta trace d'utilisation) :\n"
-        f"   • Liste, par champ, les mots-clés/PAA effectivement utilisés.\n"
-        f'   • Format : ["meta_title: <kw>", "meta_desc: <kw1>, <kw2>", "description: <kw1>, <kw2>, <kw3>, <kw4>", "faq: <PAA1>, <PAA3>, <kw>", "blog: <kw_longue_traine>"]\n'
+        f"   • Liste, par champ, les mots-clés/PAA/concurrents effectivement utilisés.\n"
+        f'   • Format : ["meta_title: <kw>", "meta_desc: <kw1>, <kw2>", "description: <kw1>…<kw4>, concurrent: <domaine>", "faq: <PAA1>, <PAA3>, <kw>", "blog: <kw_longue_traine>", "actions: <domaine_concurrent>"]\n'
         f"   • Si tu n'as pas pu utiliser un signal payant (GA4, GSC, concurrent), explique-le dans facts_missing.\n"
-        f"\n▶ facts_missing : signaux absents ou inexploitables (ex : 'pas de PAA pour ce mot-clé').\n"
+        f"\n▶ facts_missing : signaux absents ou inexploitables (ex : 'pas de PAA pour ce mot-clé', 'concurrents domaine absents').\n"
         f"\n▶ confidence : high (≥80% des règles respectées) | medium (≥50%) | low (<50%).\n"
         f"\nCONTRAINTES GLOBALES :\n"
         f"- Nous sommes en {current_year}. JAMAIS d'années passées dans titres ou exemples.\n"
         f"- N'invente JAMAIS de faits (matériau, dimensions, certifications) — liste-les dans facts_missing.\n"
         f"- Priorise les mots-clés à fort volume (>500/mois) dans les champs visibles (meta_title, blog_title, début description).\n"
         f"- Si GSC réel montre un keyword en position 4-20, attaque-le en priorité dans le blog (potentiel quick win).\n"
+        f"- Si des CONCURRENTS DE DOMAINE sont listés : différencie chaque champ (meta, description, blog) de leurs formulations.\n"
         f"\nRéponds UNIQUEMENT en JSON valide avec ces clés exactes : "
         f"proposed_meta_title, proposed_meta_description, proposed_product_title_if_different, "
         f"proposed_product_description, proposed_faq (5-8 objets {{q, a}}), "
@@ -521,6 +539,34 @@ def _build_pass2_prompt(
     )
 
     return "\n".join(p for p in parts if p != "")
+
+
+_GENERIC_DOMAINS = frozenset({
+    "amazon.fr", "amazon.com", "amazon.co.uk", "amazon.de", "amazon.es", "amazon.it",
+    "ebay.fr", "ebay.com", "ebay.co.uk",
+    "fnac.com", "cdiscount.com", "rakuten.fr", "aliexpress.com", "wish.com",
+    "wikipedia.org", "fr.wikipedia.org", "en.wikipedia.org",
+    "youtube.com", "youtu.be",
+    "facebook.com", "instagram.com", "pinterest.com", "tiktok.com", "twitter.com",
+    "reddit.com",
+    "google.com", "google.fr",
+    "leboncoin.fr", "vinted.fr",
+    "manomano.fr", "boulanger.com", "darty.com", "ldlc.com",
+})
+
+
+def _filter_domain_competitors(
+    signals: list[dict[str, Any]],
+    *,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    """Remove generic marketplaces and keep the top `limit` by estimated_strength."""
+    filtered = [
+        s for s in signals
+        if s.get("detected_from") == "paid_provider"
+        and str(s.get("domain", "")).strip().lower() not in _GENERIC_DOMAINS
+    ]
+    return sorted(filtered, key=lambda s: s.get("estimated_strength", 0), reverse=True)[:limit]
 
 
 def _find_parent_keyword_data(
@@ -1212,10 +1258,14 @@ def run_market_analysis(
         serp_signals = dataforseo_provider.fetch_serp_competitors(serp_keywords)
         if serp_signals:
             competitor_signals = list(competitor_signals) + serp_signals
+
+    # Fetch domain competitors early so they can be injected into each Pass 2 prompt
+    domain_competitor_signals: list[dict[str, Any]] = []
     if dataforseo_provider.available and shop:
-        domain_signals = dataforseo_provider.fetch_domain_competitors(shop)
-        if domain_signals:
-            competitor_signals = list(competitor_signals) + domain_signals
+        raw_domain_signals = dataforseo_provider.fetch_domain_competitors(shop)
+        if raw_domain_signals:
+            domain_competitor_signals = _filter_domain_competitors(raw_domain_signals)
+            competitor_signals = list(competitor_signals) + raw_domain_signals
             if "dataforseo_domain_competitors" not in sources_used:
                 sources_used.append("dataforseo_domain_competitors")
 
@@ -1244,6 +1294,7 @@ def run_market_analysis(
                 current_meta_description=fields["current_meta_description"],
                 merchant_label=fields["merchant_label"],
                 ga4_metrics=fields.get("ga4_metrics"),
+                domain_competitors=domain_competitor_signals or None,
             )
             pack = _complete_json(llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192)
 
