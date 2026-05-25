@@ -650,6 +650,23 @@ function ProductCard({
   const pack = product.content_test_pack;
   const kwQueries = product.seo_keywords.map((k) => k.query);
 
+  const proposalText = [
+    pack.proposed_meta_title,
+    pack.proposed_meta_description,
+    pack.proposed_product_description,
+    ...pack.proposed_faq.map((item) => `${item.q} ${item.a}`),
+    pack.proposed_blog_title,
+    pack.proposed_blog_intro,
+    ...pack.proposed_blog_outline,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const usedKeywords = new Set(
+    kwQueries.filter((q) => proposalText.includes(q.toLowerCase())),
+  );
+
   return (
     <Card>
       <BlockStack gap="300">
@@ -708,6 +725,11 @@ function ProductCard({
                             <Text as="span" variant="bodyMd"><strong>{k.query}</strong></Text>
                             <Badge>{k.intent_type || "—"}</Badge>
                             <KeywordSourceBadge source={k.data_source} locale={locale} />
+                            {usedKeywords.has(k.query.toLowerCase()) && (
+                              <Badge tone="success">
+                                {locale === "fr" ? "✓ utilisé" : "✓ used"}
+                              </Badge>
+                            )}
                           </InlineStack>
                           <InlineStack gap="100">
                             <Badge tone={scoreTone(k.demand_score)}>
