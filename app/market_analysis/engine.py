@@ -496,6 +496,25 @@ def _idea_is_relevant(idea_query: str, seed_queries: list[str], min_overlap: int
     return len(idea_words & seed_words) >= min_overlap
 
 
+def _score_idea_fit(idea_query: str, product_words: frozenset[str]) -> int:
+    """Heuristic product_fit_score for DataForSEO keyword ideas (no extra LLM call).
+
+    Counts content-word overlap between the idea and the product's own text
+    (title + handle + tags + collections). Ideas already passed _idea_is_relevant,
+    so they share words with the seed keywords; a 0-overlap result here still gets
+    a non-zero floor (50) rather than the misleading 0 from the provider.
+    """
+    idea_words = _content_words(idea_query)
+    overlap = len(idea_words & product_words)
+    if overlap >= 3:
+        return 90
+    if overlap >= 2:
+        return 75
+    if overlap >= 1:
+        return 60
+    return 50
+
+
 def _impressions_bucket(impressions: int) -> int:
     """Quick demand-score bucket from GSC impressions (free proxy)."""
     if impressions >= 10000:
@@ -992,8 +1011,17 @@ def run_market_analysis(
             ideas = dataforseo_provider.fetch_keyword_ideas(seeds, limit=15)
             if ideas:
                 existing = {k.get("query", "").lower() for k in kws if isinstance(k, dict)}
+                fields = state["fields"]
+                product_text = " ".join(filter(None, [
+                    fields.get("product_title", ""),
+                    fields.get("handle", "").replace("-", " "),
+                    str(fields.get("tags", "")),
+                    " ".join(fields.get("collections", [])),
+                ]))
+                product_words = _content_words(product_text)
                 new_ideas = [
-                    i for i in ideas
+                    {**i, "product_fit_score": _score_idea_fit(i.get("query", ""), product_words)}
+                    for i in ideas
                     if i.get("query", "").lower() not in existing
                     and _idea_is_relevant(i.get("query", ""), seeds)
                 ]
