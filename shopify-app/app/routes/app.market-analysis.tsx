@@ -138,6 +138,7 @@ interface LoaderData {
   } | null;
   gscConnected: boolean;
   ga4Connected: boolean;
+  activeHandles: string[];
 }
 
 // ── Revalidation guard — polling actions must not re-run the loader ───────────
@@ -158,7 +159,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const fetchOpt = { accessToken: session.accessToken, method: "GET" as const };
 
-  const [latestJobResp, identifyResp, gscResp, ga4Resp] = await Promise.allSettled([
+  const [latestJobResp, identifyResp, gscResp, ga4Resp, activeProductsResp] = await Promise.allSettled([
     callBackendForShop(session.shop, `/api/shops/${session.shop}/market-analysis/latest`, {
       ...fetchOpt,
       signal: AbortSignal.timeout(5_000),
@@ -172,6 +173,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       signal: AbortSignal.timeout(5_000),
     }),
     callBackendForShop(session.shop, `/api/shops/${session.shop}/ga4/status`, {
+      ...fetchOpt,
+      signal: AbortSignal.timeout(5_000),
+    }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/products/active`, {
       ...fetchOpt,
       signal: AbortSignal.timeout(5_000),
     }),
@@ -199,7 +204,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ga4Connected = data.ready === true;
   }
 
-  return json({ locale, shop: session.shop, latestJob, latestIdentification, gscConnected, ga4Connected });
+  let activeHandles: string[] = [];
+  if (activeProductsResp.status === "fulfilled" && activeProductsResp.value.ok) {
+    try {
+      const prods = (await activeProductsResp.value.json()) as { handle: string }[];
+      activeHandles = prods.map((p) => p.handle);
+    } catch { /* ignore */ }
+  }
+
+  return json({ locale, shop: session.shop, latestJob, latestIdentification, gscConnected, ga4Connected, activeHandles });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -854,7 +867,7 @@ function ProductCard({
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function MarketAnalysisPage() {
-  const { locale, latestJob, latestIdentification, gscConnected, ga4Connected } =
+  const { locale, latestJob, latestIdentification, gscConnected, ga4Connected, activeHandles } =
     useLoaderData<LoaderData>();
 
   // ── UI step: "identification" (step 1) or "analysis" (step 2) ────────────
@@ -883,6 +896,9 @@ export default function MarketAnalysisPage() {
 
   // ── Edit mode (came from "Modifier l'identification") ─────────────────────
   const [editMode, setEditMode] = useState(false);
+
+  // ── Active-only filter ────────────────────────────────────────────────────
+  const [showInactive, setShowInactive] = useState(false);
 
   // ── Full re-run confirmation modal ────────────────────────────────────────
   const [showRerunModal, setShowRerunModal] = useState(false);
@@ -1410,19 +1426,43 @@ export default function MarketAnalysisPage() {
               <SummaryCard job={job} locale={locale} />
             )}
 
-            {/* Product cards */}
-            <RenderErrorBoundary>
-              {job?.products?.map((product) => (
-                <ProductCard
-                  key={product.product_id}
-                  product={product}
-                  locale={locale}
-                  isAnalyzing={singleProductId === product.product_id && isSingleRunning}
-                  onAnalyze={() => handleAnalyzeSingle(product.product_id)}
-                  analyzeDisabled={isSingleRunning || isInProgress}
-                />
-              ))}
-            </RenderErrorBoundary>
+            {/* Product cards — filtered to active by default */}
+            {(() => {
+              const allProducts = job?.products ?? [];
+              const activeSet = new Set(activeHandles);
+              const hasFilter = activeHandles.length > 0;
+              const visibleProducts =
+                !hasFilter || showInactive
+                  ? allProducts
+                  : allProducts.filter((p) => activeSet.has(p.product_handle));
+              const hiddenCount = allProducts.length - visibleProducts.length;
+
+              return (
+                <>
+                  <RenderErrorBoundary>
+                    {visibleProducts.map((product) => (
+                      <ProductCard
+                        key={product.product_id}
+                        product={product}
+                        locale={locale}
+                        isAnalyzing={singleProductId === product.product_id && isSingleRunning}
+                        onAnalyze={() => handleAnalyzeSingle(product.product_id)}
+                        analyzeDisabled={isSingleRunning || isInProgress}
+                      />
+                    ))}
+                  </RenderErrorBoundary>
+                  {hiddenCount > 0 && (
+                    <Button variant="plain" onClick={() => setShowInactive((v) => !v)}>
+                      {showInactive
+                        ? (locale === "fr" ? "Masquer les produits inactifs" : "Hide inactive products")
+                        : (locale === "fr"
+                            ? `Voir aussi les ${hiddenCount} produits inactifs`
+                            : `Show ${hiddenCount} inactive product${hiddenCount > 1 ? "s" : ""}`)}
+                    </Button>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Completion banner */}
             {job?.status === "completed" && (
