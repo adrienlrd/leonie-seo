@@ -39,7 +39,7 @@ def _admin_headers(access_token: str) -> dict[str, str]:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
 def _store_snapshot_rows(
@@ -148,14 +148,18 @@ def crawl_shopify_catalog_for_job(
     timestamped_path = shop_dir / f"snapshot_{timestamp}.json"
 
     _write_json(latest_path, payload)
-    _write_json(timestamped_path, payload)
+    # Skip timestamped history copy for fast auto-refresh — only write for full audits.
+    if not products_only:
+        _write_json(timestamped_path, payload)
+    # Only persist the rows that were actually fetched; reused pages/articles/redirects
+    # are already in the DB from the previous full snapshot.
     _store_snapshot_rows(
         shop,
         products,
         collections,
-        pages=pages,
-        articles=articles,
-        redirects=redirects,
+        pages=pages if not products_only else [],
+        articles=articles if not products_only else [],
+        redirects=redirects if not products_only else [],
         db_path=db_path,
     )
 

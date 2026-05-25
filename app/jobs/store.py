@@ -234,12 +234,19 @@ def enqueue_unique(
     Prevents duplicate background jobs that pile up on repeated triggers.
     """
     path = db_path if db_path is not None else DB_PATH
+    # IS is SQLite-only for value equality. PostgreSQL requires = for non-null values.
+    if shop is not None:
+        shop_clause = "AND shop = ?"
+        params: tuple = (queue, shop)
+    else:
+        shop_clause = "AND shop IS NULL"
+        params = (queue,)
     with get_conn(path) as conn:
         row = conn.execute(
-            """SELECT id FROM jobs
-               WHERE queue = ? AND shop IS ? AND status IN ('pending', 'running')
-               ORDER BY created_at DESC LIMIT 1""",
-            (queue, shop),
+            f"""SELECT id FROM jobs
+               WHERE queue = ? {shop_clause} AND status IN ('pending', 'running')
+               ORDER BY created_at DESC LIMIT 1""",  # noqa: S608
+            params,
         ).fetchone()
     if row:
         return row["id"]
