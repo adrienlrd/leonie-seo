@@ -471,6 +471,30 @@ function progressLabel(locale: Locale, done: number, total: number): string {
     .replace("{total}", String(total));
 }
 
+const FR_STOP_WORDS = new Set([
+  "de", "du", "la", "le", "les", "des", "pour", "avec", "sans", "sur", "par",
+  "en", "au", "aux", "un", "une", "et", "ou", "à", "dans", "que", "qui", "ne",
+  "pas", "se", "ce", "cet", "cette", "ces", "mon", "ma", "mes", "son", "sa",
+  "ses", "nos", "vos", "leur", "leurs", "est", "sont", "être", "avoir",
+]);
+
+function contentWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[\s\-_/]+/)
+    .map((w) => w.replace(/[^a-zàâäéèêëîïôùûüç]/g, ""))
+    .filter((w) => w.length >= 3 && !FR_STOP_WORDS.has(w));
+}
+
+function keywordIsUsed(keyword: string, proposalWords: string[]): boolean {
+  const kwWords = contentWords(keyword);
+  if (kwWords.length === 0) return false;
+  return kwWords.every((kw) =>
+    // stem match: "chien" matches "chiens", "harnais" matches "harnais"
+    proposalWords.some((pw) => pw.startsWith(kw) || kw.startsWith(pw)),
+  );
+}
+
 function highlightKeywords(text: string, keywords: string[]): ReactNode {
   if (!keywords.length || !text) return <>{text}</>;
   const sorted = [...keywords].sort((a, b) => b.length - a.length);
@@ -736,11 +760,12 @@ function ProductCard({
     ...editedPack.proposed_blog_outline,
   ]
     .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    .join(" ");
+
+  const proposalWords = contentWords(proposalText);
 
   const usedKeywords = new Set(
-    kwQueries.filter((q) => proposalText.includes(q.toLowerCase())),
+    kwQueries.filter((q) => keywordIsUsed(q, proposalWords)),
   );
 
   return (
