@@ -617,6 +617,10 @@ export default function IndexPage() {
   const auditStatusRef = useRef<string | null>(null);
   auditStatusRef.current = auditStatus;
 
+  // Progress bar: animates linearly from 5 → 90% over 40s, jumps to 100 on done.
+  const [auditProgress, setAuditProgress] = useState(5);
+  const auditStartRef = useRef<number>(0);
+
   useEffect(() => {
     if (!auditJobId) return;
     const poll = () => {
@@ -637,12 +641,26 @@ export default function IndexPage() {
 
   useEffect(() => {
     if (auditStatus === "completed") {
+      setAuditProgress(100);
       const id = setTimeout(() => window.location.reload(), 1_500);
       return () => clearTimeout(id);
     }
   }, [auditStatus]);
 
   const auditRunning = auditJobId !== null && auditStatus !== "completed" && auditStatus !== "failed";
+
+  // Animate progress while the audit runs.
+  useEffect(() => {
+    if (!auditRunning) return;
+    auditStartRef.current = Date.now();
+    setAuditProgress(5);
+    const tick = setInterval(() => {
+      const elapsed = Date.now() - auditStartRef.current;
+      // Linear 5 → 90 over 40 s, capped at 90 until job completes.
+      setAuditProgress(Math.min(Math.round(5 + (elapsed / 40_000) * 85), 90));
+    }, 500);
+    return () => clearInterval(tick);
+  }, [auditRunning]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error || !dashboard) {
     return (
@@ -667,14 +685,17 @@ export default function IndexPage() {
         )}
         {auditRunning && (
           <Banner tone="info">
-            <InlineStack gap="300" blockAlign="center">
-              <Spinner size="small" />
-              <Text as="p">
-                {locale === "fr"
-                  ? "Synchronisation de votre catalogue en cours…"
-                  : "Syncing your catalog…"}
-              </Text>
-            </InlineStack>
+            <BlockStack gap="150">
+              <InlineStack gap="200" blockAlign="center" align="space-between">
+                <Text as="p">
+                  {locale === "fr"
+                    ? "Synchronisation de votre catalogue en cours…"
+                    : "Syncing your catalog…"}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">{auditProgress}%</Text>
+              </InlineStack>
+              <ProgressBar progress={auditProgress} size="small" tone="highlight" />
+            </BlockStack>
           </Banner>
         )}
         {auditStatus === "completed" && (
