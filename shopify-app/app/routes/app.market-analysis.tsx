@@ -490,8 +490,15 @@ function keywordIsUsed(keyword: string, proposalWords: string[]): boolean {
   const kwWords = contentWords(keyword);
   if (kwWords.length === 0) return false;
   return kwWords.every((kw) =>
-    // stem match: "chien" matches "chiens", "harnais" matches "harnais"
-    proposalWords.some((pw) => pw.startsWith(kw) || kw.startsWith(pw)),
+    proposalWords.some(
+      (pw) =>
+        pw === kw ||          // exact
+        pw === kw + "s" ||    // singular keyword → plural proposal (chien→chiens)
+        pw === kw + "x" ||    // singular keyword → plural-x proposal (eau→eaux)
+        pw === kw + "es" ||   // singular keyword → plural-es proposal
+        kw === pw + "s" ||    // plural keyword → singular proposal
+        kw === pw + "x",      // plural-x keyword → singular proposal
+    ),
   );
 }
 
