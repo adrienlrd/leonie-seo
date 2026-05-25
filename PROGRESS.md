@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-24** (Phase 11.10 ajoutée — Market Analysis Improvements, tâches 164-168)
+- Dernière session : **2026-05-25** (DataForSEO 5 APIs actives + migration infra prod planifiée Phase 12)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅
@@ -19,9 +19,28 @@
 - Phase 11.8 : **11/11** ✅ (implémentation GEO Autopilot Simplification, tâches 139-149, terminée 2026-05-21)
 - Phase 11.9 : **12/12** ✅ (Merchant Journey Unification & Friction Reduction, tâches 152-163 terminées le 2026-05-21)
 - Phase 11.10 : **0/5** ⏳ (Market Analysis Improvements, tâches 164-168, parallèle aux tests marchands pilotes)
-- Phase 12 : **0/2** ⏳ (go/no-go + soumission publique Shopify App Store, tâches 150-151, démarre après test 3 marchands pilotes)
+- Phase 12 : **0/5** ⏳ (go/no-go + soumission publique Shopify App Store + migration infra prod, tâches 150-151 + 169-171, démarre après test 3 marchands pilotes)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
 - Tests : dernière validation complète tâches 155-163 — `npm run typecheck` ✅, `npm run build` ✅, `git diff --check` ✅.
+
+## Phase 12 — tâches planifiées (à venir)
+
+### Tâches App Store (existantes)
+- **150** — Décision go/no-go Shopify App Store (après 3 tests marchands pilotes)
+- **151** — Finaliser et soumettre l'app au Shopify App Store
+
+### Tâches migration infra prod (nouvelles)
+- **169** — Migrer le stockage JSON vers Supabase (PostgreSQL JSONB)
+  Remplacer toutes les fonctions `save_*` / `load_*` dans `app/market_analysis/jobs.py` et équivalents par des requêtes Supabase. Zéro impact sur l'API publique.
+- **170** — Déployer le backend FastAPI sur Railway (remplace Render)
+  Adapter `Dockerfile` si nécessaire, configurer les variables d'env Railway, vérifier les endpoints.
+- **171** — Déployer le frontend Remix sur Vercel (remplace Render)
+  Configurer `vercel.json`, variables d'env Shopify, domaine custom si applicable.
+
+**Prérequis tâche 169** : créer le projet Supabase, récupérer `SUPABASE_URL` + `SUPABASE_ANON_KEY`, ajouter `supabase-py` aux dépendances.
+**Coût cible prod** : ~$5/mois infra (Vercel free + Railway Hobby $5 + Supabase free).
+
+---
 
 ## Phase 11.9 — Merchant Journey Unification & Friction Reduction le 2026-05-21
 
