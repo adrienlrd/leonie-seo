@@ -529,14 +529,16 @@ def _volume_bucket(volume: int) -> int:
 
 
 def _fallback_pack(product_title: str, current_meta_title: str, current_meta_description: str) -> dict[str, Any]:
+    # proposed_* fields are intentionally empty: using current Shopify values here would
+    # make truncated/failed LLM responses look like successful proposals in the UI.
     return {
         "product_summary": "",
         "target_customer": "",
         "buying_intents": [],
         "seo_keywords": [],
         "geo_questions": [],
-        "proposed_meta_title": current_meta_title,
-        "proposed_meta_description": current_meta_description,
+        "proposed_meta_title": "",
+        "proposed_meta_description": "",
         "proposed_product_title_if_different": product_title,
         "proposed_product_description": "",
         "proposed_faq": [],
@@ -728,6 +730,8 @@ def _complete_json(
     keys: tuple[str, ...],
     fallback: dict[str, Any],
     product_title: str,
+    *,
+    max_tokens: int = 4096,
 ) -> dict[str, Any]:
     """Run one LLM completion and merge the parsed `keys` into a copy of `fallback`.
 
@@ -741,7 +745,7 @@ def _complete_json(
         completion = llm_router.complete(
             prompt,
             system=_SYSTEM_PROMPT,
-            max_tokens=4096,
+            max_tokens=max_tokens,
             temperature=0.3,
         )
         raw = completion.text.strip()
@@ -1036,7 +1040,14 @@ def run_market_analysis(
                 current_meta_description=fields["current_meta_description"],
                 merchant_label=fields["merchant_label"],
             )
-            pack = _complete_json(llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"])
+            pack = _complete_json(llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192)
+            if not pack.get("proposed_product_description") or not pack.get("proposed_faq"):
+                logger.warning(
+                    "Pass 2 incomplete for %r — proposed_product_description=%r, proposed_faq=%r",
+                    fields["product_title"],
+                    bool(pack.get("proposed_product_description")),
+                    len(pack.get("proposed_faq") or []),
+                )
 
         product_results.append(_build_product_result(state["product"], state["opp"], pack, shop))
         if progress_callback is not None:
