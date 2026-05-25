@@ -298,6 +298,37 @@ def _crawl_for_handle(handle: str, crawl_findings: list[dict[str, Any]] | None) 
     ]
 
 
+def _build_pass2_retry_prompt(
+    *,
+    product_title: str,
+    niche_summary: str,
+    keywords: list[str],
+    current_meta_title: str,
+    current_meta_description: str,
+) -> str:
+    """Simplified fallback prompt for Pass 2 when the main prompt returns incomplete JSON.
+
+    Requests only the essential fields in a compact format to avoid any token overflow.
+    """
+    today = datetime.now(UTC).strftime("%d/%m/%Y")
+    kw_str = ", ".join(f'"{q}"' for q in keywords) if keywords else "non disponible"
+    return (
+        f"DATE: {today}\n"
+        f"NICHE: {niche_summary or 'Non définie'}\n"
+        f"PRODUIT: {product_title}\n"
+        f"META TITLE ACTUEL: {current_meta_title or 'absent'}\n"
+        f"META DESCRIPTION ACTUELLE: {current_meta_description or 'absente'}\n"
+        f"MOTS-CLÉS SEO CIBLES: {kw_str}\n\n"
+        "Génère en JSON valide UNIQUEMENT ces clés (ne rien omettre) :\n"
+        "proposed_meta_title (≤70 car.), proposed_meta_description (≤160 car.), "
+        "proposed_product_title_if_different, proposed_product_description (2-3 phrases), "
+        "proposed_faq (3 objets {q, a}), proposed_geo_answer_block (1 phrase), "
+        "proposed_blog_title, proposed_blog_outline (3 strings), proposed_blog_intro (1 phrase), "
+        "recommended_content_actions (2 strings), facts_used (2 strings), "
+        "facts_missing (1 string), confidence (high/medium/low)."
+    )
+
+
 def _build_pass2_prompt(
     *,
     product_title: str,
@@ -773,13 +804,22 @@ def _complete_json(
             raw = re.sub(r"\n?```$", "", raw)
         parsed = json.loads(raw)
         if isinstance(parsed, dict):
+            present = [k for k in keys if k in parsed]
+            missing = [k for k in keys if k not in parsed]
+            if missing:
+                logger.warning(
+                    "Pass2 partial for %r — present=%s missing=%s (raw_len=%d)",
+                    product_title, present, missing, len(raw),
+                )
             for k in keys:
                 if k in parsed:
                     pack[k] = parsed[k]
+        else:
+            logger.warning("Pass2 non-dict response for %r: type=%s raw[:100]=%s", product_title, type(parsed).__name__, raw[:100])
     except json.JSONDecodeError as exc:
         logger.warning(
-            "JSON parse failed for %r — likely truncated (%d chars): %s | start: %s",
-            product_title, len(raw), exc, raw[:200],
+            "JSON parse failed for %r — likely truncated (%d chars): %s | raw[:300]=%s",
+            product_title, len(raw), exc, raw[:300],
         )
     except LLMError as exc:
         logger.warning("LLM call failed for %r: %s", product_title, exc)
@@ -1069,13 +1109,26 @@ def run_market_analysis(
                 merchant_label=fields["merchant_label"],
             )
             pack = _complete_json(llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192)
-            if not pack.get("proposed_product_description") or not pack.get("proposed_faq"):
+
+            # Retry once when the essential content fields are missing — the LLM sometimes
+            # returns a valid but incomplete JSON (e.g. only meta fields, no description/FAQ).
+            _essential = ("proposed_meta_title", "proposed_meta_description", "proposed_product_description")
+            if not all(pack.get(k) for k in _essential):
                 logger.warning(
-                    "Pass 2 incomplete for %r — proposed_product_description=%r, proposed_faq=%r",
+                    "Pass 2 missing essential fields for %r, retrying with simplified prompt",
                     fields["product_title"],
-                    bool(pack.get("proposed_product_description")),
-                    len(pack.get("proposed_faq") or []),
                 )
+                retry_prompt = _build_pass2_retry_prompt(
+                    product_title=fields["product_title"],
+                    niche_summary=niche_summary,
+                    keywords=[
+                        kw["query"] for kw in (pack.get("seo_keywords") or [])[:6]
+                        if isinstance(kw, dict) and kw.get("query")
+                    ],
+                    current_meta_title=fields["current_meta_title"],
+                    current_meta_description=fields["current_meta_description"],
+                )
+                pack = _complete_json(llm_router, retry_prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=4096)
 
         product_results.append(_build_product_result(state["product"], state["opp"], pack, shop))
         if progress_callback is not None:
