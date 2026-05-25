@@ -1103,8 +1103,14 @@ export default function MarketAnalysisPage() {
     !pollError;
   const isInProgress = isStarting || isRunning;
 
-  const progressPct =
-    job && job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0;
+  const progressPct = (() => {
+    if (!job || job.total <= 0) return 0;
+    const frac = job.progress / job.total;
+    // pass1 fills 0→50%, pass2 fills 50→100% so the bar advances continuously
+    if (job.phase === "targeting") return Math.round(frac * 50);
+    if (job.phase === "content") return Math.round(50 + frac * 50);
+    return Math.round(frac * 100);
+  })();
 
   const startError =
     startFetcher.data?.type === "start" ? (startFetcher.data.error ?? null) : null;

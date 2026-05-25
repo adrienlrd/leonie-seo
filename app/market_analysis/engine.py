@@ -946,7 +946,7 @@ def run_market_analysis(
         if progress_callback is not None:
             try:
                 partial = [_build_product_result(s["product"], s["opp"], s["pack"], shop) for s in pass1_states]
-                progress_callback(idx + 1, total * 2, partial, "targeting")
+                progress_callback(idx + 1, total, partial, "targeting")
             except Exception:
                 pass
 
@@ -1041,7 +1041,7 @@ def run_market_analysis(
         product_results.append(_build_product_result(state["product"], state["opp"], pack, shop))
         if progress_callback is not None:
             try:
-                progress_callback(total + idx + 1, total * 2, list(product_results), "content")
+                progress_callback(idx + 1, total, list(product_results), "content")
             except Exception:
                 pass
 
