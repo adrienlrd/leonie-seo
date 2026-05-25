@@ -1178,7 +1178,7 @@ export default function MarketAnalysisPage() {
         )}
         {(job ?? latestJob) && (
           <CompetitorsCard
-            signals={job?.competitor_signals ?? latestJob?.competitor_signals}
+            signals={job?.competitor_signals?.length ? job.competitor_signals : latestJob?.competitor_signals}
             locale={locale}
           />
         )}
