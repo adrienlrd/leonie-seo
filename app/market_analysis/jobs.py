@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 _jobs: dict[str, dict[str, Any]] = {}
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = Path(os.environ.get("DATA_DIR", str(Path(__file__).parents[2] / "data" / "raw")))
+logger.info("Market analysis data directory: %s", _DATA_DIR)
 
 
 def create_job(shop: str) -> str:
@@ -47,20 +52,22 @@ def save_latest_result(shop: str, data: dict[str, Any]) -> None:
     try:
         shop_dir = _DATA_DIR / shop
         shop_dir.mkdir(parents=True, exist_ok=True)
-        (shop_dir / "market_analysis_latest.json").write_text(
-            json.dumps(data, ensure_ascii=False),
-            encoding="utf-8",
-        )
-    except OSError:
-        pass
+        dest = shop_dir / "market_analysis_latest.json"
+        dest.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        logger.info("Analysis saved to %s (%d bytes)", dest, dest.stat().st_size)
+    except OSError as exc:
+        logger.error("Failed to save analysis for %s: %s", shop, exc)
 
 
 def load_latest_result(shop: str) -> dict[str, Any] | None:
     """Load the last persisted analysis result for a shop, or None if unavailable."""
     path = _DATA_DIR / shop / "market_analysis_latest.json"
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        logger.info("Analysis loaded from %s", path)
+        return data
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.info("No saved analysis for %s: %s", shop, exc)
         return None
 
 
