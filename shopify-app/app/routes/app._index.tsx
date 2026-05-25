@@ -1,6 +1,7 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useFetcher, useLoaderData } from "@remix-run/react";
+import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -12,9 +13,11 @@ import {
   InlineStack,
   Page,
   ProgressBar,
+  Spinner,
   Text,
   Tooltip,
 } from "@shopify/polaris";
+import { useEffect, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
@@ -96,21 +99,37 @@ interface LoaderData {
   plan: string;
   dashboard: DashboardData | null;
   activeProducts: ActiveProduct[];
+  auditJobId: string | null;
   error: string | null;
 }
 
 // ── Loader ────────────────────────────────────────────────────────────────────
+
+async function _fireAudit(shop: string, accessToken: string): Promise<string | null> {
+  try {
+    const r = await callBackendForShop(shop, "/api/jobs", {
+      accessToken,
+      method: "POST",
+      body: JSON.stringify({ queue: "seo_audit", payload: { products_only: true }, max_retries: 1 }),
+    });
+    if (!r.ok) return null;
+    const d = (await r.json()) as { job_id: string };
+    return d.job_id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const locale = getLocale(request);
 
-  // Detect plan from query param (forwarded from billing session) — defaults to "free"
   const url = new URL(request.url);
   const plan = (url.searchParams.get("plan") ?? "free") as "free" | "pro" | "agency";
 
   let activeProducts: ActiveProduct[] = [];
+  let auditJobId: string | null = null;
 
   try {
     const [dashResp, productsResp] = await Promise.allSettled([
@@ -118,54 +137,69 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken }),
     ]);
 
-    // Resolve active products (non-blocking — graceful degradation)
     if (productsResp.status === "fulfilled" && productsResp.value.ok) {
       try {
         activeProducts = (await productsResp.value.json()) as ActiveProduct[];
       } catch (_parseErr) { /* ignore */ }
     }
 
-    // Dashboard failed — likely no snapshot yet. Trigger one in the background.
     if (dashResp.status !== "fulfilled" || !dashResp.value.ok) {
-      callBackendForShop(shop, "/api/jobs", {
-        accessToken: session.accessToken,
-        method: "POST",
-        body: JSON.stringify({ queue: "seo_audit", payload: { products_only: true }, max_retries: 1 }),
-      }).catch(() => {});
+      auditJobId = await _fireAudit(shop, session.accessToken ?? "");
       const errStatus = dashResp.status === "fulfilled" ? dashResp.value.status : 0;
       return json<LoaderData>({
         shop, locale, plan,
         dashboard: null,
         activeProducts,
+        auditJobId,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
       });
     }
 
     const dashboard = (await dashResp.value.json()) as DashboardData;
 
-    // Auto-refresh snapshot in the background when stale — fire and forget
     if (dashboard.banners.stale_snapshot) {
-      callBackendForShop(shop, "/api/jobs", {
-        accessToken: session.accessToken,
-        method: "POST",
-        body: JSON.stringify({ queue: "seo_audit", payload: { products_only: true }, max_retries: 1 }),
-      }).catch(() => {});
+      auditJobId = await _fireAudit(shop, session.accessToken ?? "");
     }
 
-    // New merchant with no niche analysis → send to guided onboarding
     if (!dashboard.zone1.niche_available) {
       return redirect(localizedPath("/app/onboarding", locale));
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, auditJobId, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
       dashboard: null,
       activeProducts,
+      auditJobId,
       error: err instanceof Error ? err.message : "Network error",
     });
   }
+};
+
+// ── Action (audit job polling) ────────────────────────────────────────────────
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const jobId = formData.get("jobId") as string;
+  try {
+    const resp = await callBackendForShop(session.shop, `/api/jobs/${jobId}`, {
+      accessToken: session.accessToken,
+    });
+    if (!resp.ok) return json({ status: "unknown", error: `HTTP ${resp.status}` });
+    const job = (await resp.json()) as { status: string };
+    return json({ status: job.status, error: null });
+  } catch (err) {
+    return json({ status: "unknown", error: String(err) });
+  }
+};
+
+// ── Revalidation guard — polling must not re-run the loader ──────────────────
+
+export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
+  if (formData?.get("jobId")) return false;
+  return true;
 };
 
 // ── Score level helpers ────────────────────────────────────────────────────────
@@ -575,7 +609,40 @@ function Zone6({ locale }: { locale: Locale }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { locale, plan, dashboard, activeProducts, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { locale, plan, dashboard, activeProducts, auditJobId, error } = useLoaderData<typeof loader>() as LoaderData;
+
+  // ── Audit job polling ─────────────────────────────────────────────────────
+  const auditFetcher = useFetcher<{ status: string; error: string | null }>();
+  const [auditStatus, setAuditStatus] = useState<string | null>(null);
+  const auditStatusRef = useRef<string | null>(null);
+  auditStatusRef.current = auditStatus;
+
+  useEffect(() => {
+    if (!auditJobId) return;
+    const poll = () => {
+      const s = auditStatusRef.current;
+      if (s === "completed" || s === "failed") return;
+      const fd = new FormData();
+      fd.set("jobId", auditJobId);
+      auditFetcher.submit(fd, { method: "post" });
+    };
+    poll();
+    const id = setInterval(poll, 3_000);
+    return () => clearInterval(id);
+  }, [auditJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (auditFetcher.data?.status) setAuditStatus(auditFetcher.data.status);
+  }, [auditFetcher.data]);
+
+  useEffect(() => {
+    if (auditStatus === "completed") {
+      const id = setTimeout(() => window.location.reload(), 1_500);
+      return () => clearTimeout(id);
+    }
+  }, [auditStatus]);
+
+  const auditRunning = auditJobId !== null && auditStatus !== "completed" && auditStatus !== "failed";
 
   if (error || !dashboard) {
     return (
@@ -598,7 +665,28 @@ export default function IndexPage() {
             <p>{t(locale, "dashboardPilotSafeBanner")}</p>
           </Banner>
         )}
-        {banners.stale_snapshot && (
+        {auditRunning && (
+          <Banner tone="info">
+            <InlineStack gap="300" blockAlign="center">
+              <Spinner size="small" />
+              <Text as="p">
+                {locale === "fr"
+                  ? "Synchronisation de votre catalogue en cours…"
+                  : "Syncing your catalog…"}
+              </Text>
+            </InlineStack>
+          </Banner>
+        )}
+        {auditStatus === "completed" && (
+          <Banner tone="success">
+            <Text as="p">
+              {locale === "fr"
+                ? "Catalogue synchronisé — rechargement en cours…"
+                : "Catalog synced — reloading…"}
+            </Text>
+          </Banner>
+        )}
+        {!auditRunning && auditStatus !== "completed" && banners.stale_snapshot && (
           <Banner tone="info">
             <p>{t(locale, "dashboardStaleSnapshot")}</p>
           </Banner>
