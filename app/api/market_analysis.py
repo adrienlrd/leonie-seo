@@ -111,15 +111,19 @@ def _run_analysis_background(
     crawl_findings: list[dict[str, Any]] | None,
     identifications: dict[str, str] | None = None,
     persist: bool = True,
+    plan: str | None = None,
 ) -> None:
     """Background task: runs the full analysis and updates the job store incrementally."""
 
-    def _on_progress(done: int, total: int, partial: list[dict[str, Any]]) -> None:
+    def _on_progress(
+        done: int, total: int, partial: list[dict[str, Any]], phase: str = "content"
+    ) -> None:
         update_job(
             job_id,
             progress=done,
             total=total,
             status="running",
+            phase=phase,
             products=list(partial),
             analyzed_product_count=done,
             total_opportunity_count=sum(
@@ -149,6 +153,7 @@ def _run_analysis_background(
             crawl_findings=crawl_findings or None,
             max_products=0,
             product_labels=identifications or None,
+            plan=plan,
             progress_callback=_on_progress,
         )
         completed_data: dict[str, Any] = {
@@ -227,6 +232,7 @@ async def start_market_analysis_job(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     background_tasks: BackgroundTasks,
     product_ids: list[str] | None = Query(default=None),
+    plan: str | None = Query(default=None),
 ) -> dict[str, Any]:
     """Start an async market analysis job. Uses saved identifications if available."""
     snapshot = _load_snapshot(ctx)
@@ -268,6 +274,7 @@ async def start_market_analysis_job(
         crawl_findings,
         identifications or None,
         persist,
+        plan,
     )
 
     age = _snapshot_age_days(snapshot)
@@ -326,6 +333,7 @@ async def replace_competitors(
 async def run_market_analysis_endpoint(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     max_products: int = Query(default=10, ge=1, le=20),
+    plan: str | None = Query(default=None),
 ) -> dict[str, Any]:
     """Synchronous analysis (legacy). Prefer the async /jobs endpoint for all products."""
     snapshot = _load_snapshot(ctx)
@@ -355,6 +363,7 @@ async def run_market_analysis_endpoint(
             niche_hypothesis=niche_hypothesis,
             crawl_findings=crawl_findings or None,
             max_products=max_products,
+            plan=plan,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erreur analyse marché : {exc}") from exc

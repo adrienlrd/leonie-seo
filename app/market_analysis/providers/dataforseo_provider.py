@@ -168,6 +168,27 @@ class DataForSEOProvider:
             return []
         return _parse_serp_competitors(serp_data)
 
+    def fetch_serp_intelligence(self, keywords: list[str]) -> dict[str, dict[str, Any]]:
+        """Fetch SERP signals usable to inform LLM content generation.
+
+        Returns {keyword_lower: {"paa": list[str], "top_competitors":
+        list[{domain, title, url, rank}], "featured_snippet": str | None}}.
+        Capped at _SERP_MAX_KEYWORDS per run. Returns {} if unavailable or on error.
+
+        Unlike fetch_serp_competitors (which deduplicates to a domain-level
+        competitor list), this keeps the People-Also-Ask questions and per-keyword
+        top organic titles so the engine can feed them into the content prompt.
+        """
+        if not self.available or not keywords:
+            return {}
+        capped = list(dict.fromkeys(keywords))[:_SERP_MAX_KEYWORDS]
+        try:
+            serp_data = self._fetch_serp(capped)
+        except Exception as exc:
+            logger.warning("DataForSEO SERP intelligence call failed: %s", exc)
+            return {}
+        return _parse_serp_intelligence(serp_data)
+
     # ── Internal HTTP calls ──────────────────────────────────────────────────
 
     def _fetch_search_volumes(self, keywords: list[str]) -> dict[str, dict[str, Any]]:
@@ -435,3 +456,47 @@ def _parse_serp_competitors(serp_data: dict[str, list[dict[str, Any]]]) -> list[
                     best[domain] = sig
 
     return sorted(best.values(), key=lambda s: s.get("estimated_strength", 0), reverse=True)
+
+
+def _parse_serp_intelligence(
+    serp_data: dict[str, list[dict[str, Any]]],
+) -> dict[str, dict[str, Any]]:
+    """Extract per-keyword PAA questions, top organic titles and featured snippet.
+
+    Unlike _parse_serp_competitors, the People-Also-Ask question strings are
+    kept here so they can seed the content prompt's FAQ and GEO questions.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    for kw, items in serp_data.items():
+        paa: list[str] = []
+        top_competitors: list[dict[str, Any]] = []
+        featured_snippet: str | None = None
+
+        for item in items:
+            item_type = item.get("type", "")
+            if item_type == "people_also_ask":
+                question = str(item.get("title", "")).strip()
+                if question and question not in paa:
+                    paa.append(question)
+            elif item_type == "featured_snippet":
+                if featured_snippet is None:
+                    title = str(item.get("title", "")).strip()
+                    if title:
+                        featured_snippet = title
+            elif item_type == "organic":
+                domain = str(item.get("domain", "")).strip().lower()
+                title = str(item.get("title", "")).strip()
+                if domain and len(top_competitors) < 5:
+                    top_competitors.append({
+                        "domain": domain,
+                        "title": title,
+                        "url": item.get("url"),
+                        "rank": int(item.get("rank_absolute", 0) or 0),
+                    })
+
+        out[kw] = {
+            "paa": paa,
+            "top_competitors": top_competitors,
+            "featured_snippet": featured_snippet,
+        }
+    return out

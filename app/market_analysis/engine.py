@@ -18,6 +18,7 @@ from app.market_analysis.providers.free_provider import (
 )
 from app.market_analysis.providers.google_ads_provider import GoogleAdsKeywordProvider
 from app.market_analysis.providers.types import KeywordSignal
+from app.observability.metrics import check_budget
 from app.snapshot.scope import filter_products_by_scope
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,17 @@ _SYSTEM_PROMPT = (
     "Ne jamais inventer de faits. Signaler clairement les affirmations incertaines."
 )
 
-_JSON_KEYS = (
+# Pass 1 (targeting): product understanding + candidate keywords.
+_PASS1_KEYS = (
     "product_summary",
     "target_customer",
     "buying_intents",
     "seo_keywords",
     "geo_questions",
+)
+
+# Pass 2 (content): the full content pack, generated with real SERP/PAA/crawl data.
+_PASS2_KEYS = (
     "proposed_meta_title",
     "proposed_meta_description",
     "proposed_product_title_if_different",
@@ -48,6 +54,15 @@ _JSON_KEYS = (
     "facts_missing",
     "confidence",
 )
+
+_JSON_KEYS = _PASS1_KEYS + _PASS2_KEYS
+
+# Per-plan monthly LLM budget (USD). Two LLM passes per product double the cost,
+# so the engine gates pass 2 on remaining budget. Free keeps a small non-zero
+# budget so it still gets content (degraded, no DataForSEO). Provisional until
+# real billing wires the plan through.
+_PLAN_BUDGETS_USD = {"free": 2.0, "starter": 5.0, "pro": 20.0, "agency": 50.0}
+_DEFAULT_BUDGET_USD = 20.0
 
 
 def _strip_html(html: str) -> str:
@@ -116,7 +131,7 @@ def _read_stock(product: dict[str, Any]) -> tuple[int | None, str]:
     return qty, "en stock"
 
 
-def _build_prompt(
+def _build_pass1_prompt(
     product_title: str,
     handle: str,
     description: str,
@@ -189,10 +204,136 @@ def _build_prompt(
         f"IMPORTANT: nous sommes en {current_year}. "
         "N'utilise jamais d'années passées dans les titres, exemples ou références. "
         "Toutes les propositions doivent être actuelles et pertinentes pour l'année en cours.\n\n"
+        "ÉTAPE 1/2 — CIBLAGE. Identifie le produit et les cibles de recherche. "
+        "Ne rédige PAS encore de contenu (meta, description, FAQ) : cela viendra à l'étape 2 "
+        "avec des données réelles de marché.\n"
         "Réponds uniquement en JSON valide avec exactement ces clés : "
         "product_summary, target_customer, buying_intents (liste de strings), "
         "seo_keywords (5-8 objets avec query/intent_type/demand_score/competition_score/product_fit_score/reason), "
-        "geo_questions (5-8 objets avec question/answer_angle/content_block_type/confidence), "
+        "geo_questions (5-8 objets avec question/answer_angle/content_block_type/confidence)."
+    )
+
+
+def _crawl_for_handle(handle: str, crawl_findings: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Return crawl findings whose URL points at this product (keyed by URL only)."""
+    if not handle or not crawl_findings:
+        return []
+    needle = f"/products/{handle}"
+    return [
+        f for f in crawl_findings
+        if isinstance(f, dict) and needle in str(f.get("url", ""))
+    ]
+
+
+def _build_pass2_prompt(
+    *,
+    product_title: str,
+    handle: str,
+    niche_summary: str,
+    pass1: dict[str, Any],
+    enriched_keywords: list[dict[str, Any]],
+    serp_intel: dict[str, dict[str, Any]],
+    crawl_findings: list[dict[str, Any]],
+    current_meta_title: str,
+    current_meta_description: str,
+    merchant_label: str = "",
+) -> str:
+    """Build the pass-2 (content) prompt, informed by real market data.
+
+    Each context block is omitted when empty so free mode (no DataForSEO) degrades
+    cleanly to crawl + GSC-enriched keywords only.
+    """
+    today = datetime.now(UTC).strftime("%d/%m/%Y")
+    current_year = datetime.now(UTC).year
+
+    sorted_kws = sorted(
+        [k for k in enriched_keywords if isinstance(k, dict)],
+        key=lambda k: k.get("demand_score", 0),
+        reverse=True,
+    )
+
+    # ── Targeted keywords (real volume/difficulty) ──────────────────────────
+    target_lines: list[str] = []
+    for kw in sorted_kws[:8]:
+        vol = kw.get("search_volume")
+        vol_text = f"{vol}/mois" if vol is not None else "volume n/a"
+        target_lines.append(
+            f'- "{kw.get("query", "")}" — {vol_text}, '
+            f'difficulté {kw.get("competition_score", "?")}/100 '
+            f'({kw.get("difficulty_source", "free_estimated")}), '
+            f'intent {kw.get("intent_type", "?")}'
+        )
+    related_ideas = [str(k.get("query", "")) for k in sorted_kws[8:] if k.get("query")]
+
+    # ── SERP intelligence (PAA, competitor angles, featured snippet) ────────
+    product_keys = [str(k.get("query", "")).strip().lower() for k in sorted_kws if k.get("query")]
+    paa_questions: list[str] = []
+    competitor_lines: list[str] = []
+    featured_snippets: list[str] = []
+    for key in product_keys:
+        intel = serp_intel.get(key)
+        if not intel:
+            continue
+        for q in intel.get("paa", []):
+            if q not in paa_questions:
+                paa_questions.append(q)
+        comps = intel.get("top_competitors", [])[:3]
+        if comps:
+            joined = "; ".join(
+                f'{c.get("domain", "")} — "{c.get("title", "")}"' for c in comps
+            )
+            competitor_lines.append(f'"{key}": {joined}')
+        fs = intel.get("featured_snippet")
+        if fs and fs not in featured_snippets:
+            featured_snippets.append(fs)
+
+    # ── Crawl findings ──────────────────────────────────────────────────────
+    crawl_lines = [
+        f'- {f.get("issue_type", "?")} ({f.get("severity", "?")}): {f.get("detail", "")}'
+        for f in crawl_findings[:8]
+    ]
+
+    merchant_label_text = f"LABEL SEO MARCHAND: {merchant_label}\n" if merchant_label else ""
+
+    parts: list[str] = [
+        f"DATE_ACTUELLE: {today} (année {current_year})",
+        f"NICHE: {niche_summary or 'Non définie'}",
+        f"PRODUIT: {product_title} | handle: {handle}",
+        merchant_label_text.rstrip("\n") if merchant_label_text else "",
+        f"META TITLE ACTUEL: {current_meta_title or 'absent'}",
+        f"META DESCRIPTION ACTUELLE: {current_meta_description or 'absente'}",
+        "",
+        "COMPRÉHENSION (étape 1):",
+        f"  Résumé: {pass1.get('product_summary', '')}",
+        f"  Client cible: {pass1.get('target_customer', '')}",
+        f"  Intentions d'achat: {', '.join(pass1.get('buying_intents', []) or [])}",
+    ]
+
+    if target_lines:
+        parts.append("\nMOTS-CLÉS CIBLES (données réelles):")
+        parts.extend(target_lines)
+    if related_ideas:
+        parts.append("\nAUTRES IDÉES DE MOTS-CLÉS LIÉS: " + ", ".join(related_ideas[:15]))
+    if competitor_lines:
+        parts.append("\nCONCURRENTS SERP (titres/angles réels — différencie-toi, ne copie pas):")
+        parts.extend(competitor_lines)
+    if featured_snippets:
+        parts.append("Featured snippets concurrents: " + " | ".join(featured_snippets[:3]))
+    if paa_questions:
+        parts.append("\nQUESTIONS PAA Google (utilise-les pour proposed_faq ET geo_questions):")
+        parts.extend(f"- {q}" for q in paa_questions[:10])
+    if crawl_lines:
+        parts.append("\nPROBLÈMES TECHNIQUES DÉTECTÉS (crawl):")
+        parts.extend(crawl_lines)
+
+    parts.append(
+        f"\nIMPORTANT: nous sommes en {current_year}. "
+        "N'utilise jamais d'années passées dans les titres, exemples ou références.\n"
+        "ÉTAPE 2/2 — CONTENU. Rédige le contenu en t'appuyant sur les données réelles ci-dessus. "
+        "proposed_faq DOIT couvrir les questions PAA pertinentes ; "
+        "geo_questions doit refléter les intentions réelles. "
+        "Ne jamais inventer de faits : liste-les dans facts_missing.\n"
+        "Réponds uniquement en JSON valide avec exactement ces clés : "
         "proposed_meta_title, proposed_meta_description, proposed_product_title_if_different, "
         "proposed_product_description, proposed_faq (5-8 objets {q, a}), "
         "proposed_geo_answer_block (40-80 mots, factuel), "
@@ -200,6 +341,8 @@ def _build_prompt(
         "recommended_content_actions (liste strings), facts_used (liste strings), "
         "facts_missing (liste strings), confidence (high/medium/low)."
     )
+
+    return "\n".join(p for p in parts if p != "")
 
 
 def _apply_signals_to_keywords(
@@ -506,6 +649,104 @@ def _score_active_products(
     return results
 
 
+def _complete_json(
+    llm_router: Any,
+    prompt: str,
+    keys: tuple[str, ...],
+    fallback: dict[str, Any],
+    product_title: str,
+) -> dict[str, Any]:
+    """Run one LLM completion and merge the parsed `keys` into a copy of `fallback`.
+
+    On any LLM/parse failure returns `fallback` unchanged (logged).
+    """
+    pack = dict(fallback)
+    if llm_router is None:
+        return pack
+    raw = ""
+    try:
+        completion = llm_router.complete(
+            prompt,
+            system=_SYSTEM_PROMPT,
+            max_tokens=4096,
+            temperature=0.3,
+        )
+        raw = completion.text.strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```[a-z]*\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw)
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            for k in keys:
+                if k in parsed:
+                    pack[k] = parsed[k]
+    except json.JSONDecodeError as exc:
+        logger.warning(
+            "JSON parse failed for %r — likely truncated (%d chars): %s | start: %s",
+            product_title, len(raw), exc, raw[:200],
+        )
+    except LLMError as exc:
+        logger.warning("LLM call failed for %r: %s", product_title, exc)
+    except Exception as exc:
+        logger.warning("Unexpected error for %r: %s", product_title, exc)
+    return pack
+
+
+def _extract_product_fields(
+    product: dict[str, Any],
+    opp: dict[str, Any],
+    product_labels: dict[str, str] | None,
+    trend_signals: list[Any],
+) -> dict[str, Any]:
+    """Pull every field both prompts need out of a Shopify product dict."""
+    product_id = str(product.get("id", ""))
+    try:
+        product_title = product.get("title", "")
+        body_html = product.get("body_html") or product.get("description") or ""
+        raw_seo = product.get("seo")
+        seo: dict[str, Any] = raw_seo if isinstance(raw_seo, dict) else {}
+        raw_collections = _coerce_list(product.get("collections"))
+        raw_tags = product.get("tags") or ""
+        variants = _coerce_list(product.get("variants"))
+        first_variant = variants[0] if variants else {}
+        stock_qty, stock_status = _read_stock(product)
+        trend_top, trend_rising = _match_trends(product_title, trend_signals)
+        return {
+            "product_title": product_title,
+            "merchant_label": (product_labels or {}).get(product_id, ""),
+            "handle": product.get("handle", ""),
+            "description": _strip_html(body_html),
+            "current_meta_title": seo.get("title") or product_title,
+            "current_meta_description": seo.get("description") or "",
+            "collections": [
+                c.get("title", "") if isinstance(c, dict) else str(c)
+                for c in raw_collections if c
+            ],
+            "tags": ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags),
+            "price": str(first_variant.get("price", "")) if isinstance(first_variant, dict) else "",
+            "nb_variants": len(variants),
+            "stock_qty": stock_qty,
+            "stock_status": stock_status,
+            "ga4_metrics": opp.get("ga4_metrics", {}),
+            "trend_top": trend_top,
+            "trend_rising": trend_rising,
+            "matched_queries": opp.get("matched_queries", []),
+            "opportunity_score": opp.get("opportunity_score", 0),
+        }
+    except Exception:
+        title = product.get("title", "") if isinstance(product, dict) else ""
+        return {
+            "product_title": title, "merchant_label": "",
+            "handle": product.get("handle", "") if isinstance(product, dict) else "",
+            "description": title, "current_meta_title": title, "current_meta_description": "",
+            "collections": [], "tags": "", "price": "", "nb_variants": 0,
+            "stock_qty": None, "stock_status": "inconnu",
+            "ga4_metrics": {}, "trend_top": [], "trend_rising": [],
+            "matched_queries": [],
+            "opportunity_score": opp.get("opportunity_score", 0) if isinstance(opp, dict) else 0,
+        }
+
+
 def run_market_analysis(
     products: list[dict[str, Any]],
     shop: str,
@@ -517,32 +758,36 @@ def run_market_analysis(
     crawl_findings: list[dict[str, Any]] | None = None,
     max_products: int = 0,
     product_labels: dict[str, str] | None = None,
-    progress_callback: Callable[[int, int, list[dict[str, Any]]], None] | None = None,
+    plan: str | None = None,
+    progress_callback: Callable[..., None] | None = None,
 ) -> dict[str, Any]:
-    """Run full SEO/GEO market analysis for active products.
+    """Run a two-pass SEO/GEO market analysis for active products.
 
-    Sources used: Shopify snapshot, GSC queries, GA4 page metrics (if connected),
-    Google Trends (one global call), stock/inventory data from variants.
-    Read-only: no Shopify writes.
+    Pass 1 (targeting): the LLM produces product understanding + candidate
+    keywords. Those keywords are enriched (GSC + DataForSEO volumes/difficulty),
+    and SERP intelligence (competitor angles + PAA questions) is fetched once for
+    the whole run. Pass 2 (content): the LLM writes the content pack informed by
+    real volumes, competitor angles, PAA questions and crawl findings.
+
+    Sources: Shopify snapshot, GSC queries, GA4 page metrics, Google Trends,
+    stock/inventory, DataForSEO (when enabled), crawl findings. Read-only.
 
     Args:
         max_products: Cap on products to analyse. 0 = no cap (all active products).
-        progress_callback: Called after each product with (done, total, partial_results).
+        plan: Merchant plan, used to resolve the monthly LLM budget. None → default.
+        progress_callback: Called with (done, total, partial_results, phase) where
+            phase is "targeting" (pass 1) or "content" (pass 2).
     """
     active_products = filter_products_by_scope(products, "active")
-
     opportunities = _score_active_products(active_products, gsc_query_rows, ga4_page_rows)
-
     if max_products and max_products > 0:
         opportunities = opportunities[:max_products]
-
     total = len(opportunities)
 
     product_by_id: dict[str, dict[str, Any]] = {
         str(p.get("id", "")): p for p in active_products
     }
 
-    # Global sources tracker
     sources_used: list[str] = ["shopify_snapshot"]
     if gsc_query_rows:
         sources_used.append("gsc")
@@ -550,7 +795,6 @@ def run_market_analysis(
         sources_used.append("ga4")
     if niche_hypothesis:
         sources_used.append("niche_hypothesis")
-
     niche_summary: str = niche_hypothesis.get("primary_niche", "") if niche_hypothesis else ""
 
     # Fetch Google Trends once — use top-5 product titles as seeds
@@ -568,12 +812,7 @@ def run_market_analysis(
     except LLMError:
         llm_router = None
 
-    # ── Provider pipeline ───────────────────────────────────────────────────
-    # Free provider always runs. Paid providers run only when env-activated.
-    free_provider = FreeProvider(
-        gsc_query_rows=gsc_query_rows,
-        trend_signals=trend_signals,
-    )
+    free_provider = FreeProvider(gsc_query_rows=gsc_query_rows, trend_signals=trend_signals)
     dataforseo_provider = DataForSEOProvider()
     google_ads_provider = GoogleAdsKeywordProvider()
     paid_providers = [p for p in (dataforseo_provider, google_ads_provider) if p.available]
@@ -588,134 +827,60 @@ def run_market_analysis(
     if google_ads_provider.available:
         sources_used.append("google_ads")
 
-    product_results: list[dict[str, Any]] = []
-
+    # ── PASS 1: targeting (understanding + candidate keywords) ───────────────
+    pass1_states: list[dict[str, Any]] = []
     for idx, opp in enumerate(opportunities):
-        product_id = opp.get("product_id", "")
-        product = product_by_id.get(product_id)
+        product = product_by_id.get(opp.get("product_id", ""))
         if not product:
             continue
+        fields = _extract_product_fields(product, opp, product_labels, trend_signals)
 
-        try:
-            product_title = product.get("title", "")
-            # Merchant-validated SEO label (bonus context, not a title replacement)
-            merchant_label = (product_labels or {}).get(product_id, "")
-            handle = product.get("handle", "")
-            body_html = product.get("body_html") or product.get("description") or ""
-            description = _strip_html(body_html)
-
-            raw_seo = product.get("seo")
-            seo: dict[str, Any] = raw_seo if isinstance(raw_seo, dict) else {}
-            current_meta_title = seo.get("title") or product_title
-            current_meta_description = seo.get("description") or ""
-
-            raw_collections = _coerce_list(product.get("collections"))
-            collections = [
-                c.get("title", "") if isinstance(c, dict) else str(c)
-                for c in raw_collections
-                if c
-            ]
-
-            raw_tags = product.get("tags") or ""
-            tags = ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags)
-
-            variants = _coerce_list(product.get("variants"))
-            first_variant = variants[0] if variants else {}
-            price = str(first_variant.get("price", "")) if isinstance(first_variant, dict) else ""
-            nb_variants = len(variants)
-
-            stock_qty, stock_status = _read_stock(product)
-            ga4_metrics: dict[str, Any] = opp.get("ga4_metrics", {})
-            trend_top, trend_rising = _match_trends(product_title, trend_signals)
-
-            matched_queries: list[str] = opp.get("matched_queries", [])
-            opportunity_score: int = opp.get("opportunity_score", 0)
-        except Exception:
-            product_title = product.get("title", "") if isinstance(product, dict) else ""
-            handle = product.get("handle", "") if isinstance(product, dict) else ""
-            description = current_meta_title = product_title
-            current_meta_description = collections = tags = price = ""
-            nb_variants = 0
-            stock_qty, stock_status = None, "inconnu"
-            ga4_metrics, trend_top, trend_rising = {}, [], []
-            matched_queries = []
-            opportunity_score = opp.get("opportunity_score", 0) if isinstance(opp, dict) else 0
-
-        prompt = _build_prompt(
-            product_title=product_title,
-            handle=handle,
-            description=description,
-            collections=collections,
-            tags=tags,
-            price=price,
-            nb_variants=nb_variants,
-            current_meta_title=current_meta_title,
-            current_meta_description=current_meta_description,
-            matched_queries=matched_queries,
-            opportunity_score=opportunity_score,
+        prompt = _build_pass1_prompt(
+            product_title=fields["product_title"],
+            handle=fields["handle"],
+            description=fields["description"],
+            collections=fields["collections"],
+            tags=fields["tags"],
+            price=fields["price"],
+            nb_variants=fields["nb_variants"],
+            current_meta_title=fields["current_meta_title"],
+            current_meta_description=fields["current_meta_description"],
+            matched_queries=fields["matched_queries"],
+            opportunity_score=fields["opportunity_score"],
             niche_summary=niche_summary,
-            ga4_metrics=ga4_metrics,
-            trend_top=trend_top,
-            trend_rising=trend_rising,
-            stock_qty=stock_qty,
-            stock_status=stock_status,
-            merchant_label=merchant_label,
+            ga4_metrics=fields["ga4_metrics"],
+            trend_top=fields["trend_top"],
+            trend_rising=fields["trend_rising"],
+            stock_qty=fields["stock_qty"],
+            stock_status=fields["stock_status"],
+            merchant_label=fields["merchant_label"],
         )
+        fallback = _fallback_pack(
+            fields["product_title"], fields["current_meta_title"], fields["current_meta_description"]
+        )
+        pack = _complete_json(llm_router, prompt, _PASS1_KEYS, fallback, fields["product_title"])
 
-        llm_pack: dict[str, Any] = _fallback_pack(product_title, current_meta_title, current_meta_description)
-        if llm_router is not None:
-            raw = ""
-            try:
-                completion = llm_router.complete(
-                    prompt,
-                    system=_SYSTEM_PROMPT,
-                    max_tokens=4096,
-                    temperature=0.3,
-                )
-                raw = completion.text.strip()
-                if raw.startswith("```"):
-                    raw = re.sub(r"^```[a-z]*\n?", "", raw)
-                    raw = re.sub(r"\n?```$", "", raw)
-                parsed = json.loads(raw)
-                if isinstance(parsed, dict):
-                    llm_pack = {k: parsed.get(k, llm_pack.get(k)) for k in _JSON_KEYS}
-            except json.JSONDecodeError as exc:
-                logger.warning(
-                    "JSON parse failed for %r — likely truncated (%d chars): %s | start: %s",
-                    product_title, len(raw), exc, raw[:200],
-                )
-            except LLMError as exc:
-                logger.warning("LLM call failed for %r: %s", product_title, exc)
-            except Exception as exc:
-                logger.warning("Unexpected error for %r: %s", product_title, exc)
-
-        # ── Provider pipeline: free first, then each enabled paid provider ──
-        if llm_pack.get("seo_keywords"):
-            signals = signals_from_llm_keywords(llm_pack["seo_keywords"])
+        # Enrich candidate keywords: free first, then each enabled paid provider
+        if pack.get("seo_keywords"):
+            signals = signals_from_llm_keywords(pack["seo_keywords"])
             signals = free_provider.enrich(signals, shop=shop)
             for paid in paid_providers:
                 signals = paid.enrich(signals, shop=shop)
-            llm_pack["seo_keywords"] = _apply_signals_to_keywords(
-                llm_pack["seo_keywords"], signals
-            )
+            pack["seo_keywords"] = _apply_signals_to_keywords(pack["seo_keywords"], signals)
 
-        product_results.append(_build_product_result(product, opp, llm_pack, shop))
+        pass1_states.append({"product": product, "opp": opp, "fields": fields, "pack": pack})
 
         if progress_callback is not None:
             try:
-                progress_callback(idx + 1, total, list(product_results))
+                partial = [_build_product_result(s["product"], s["opp"], s["pack"], shop) for s in pass1_states]
+                progress_callback(0, total, partial, "targeting")
             except Exception:
                 pass
 
-    total_opportunity_count = sum(
-        len(r.get("seo_keywords", [])) + len(r.get("geo_questions", []))
-        for r in product_results
-    )
-
-    # Collect top-2 keywords per product for SERP (sorted by demand_score desc)
+    # ── Global batch: SERP intelligence, keyword ideas, competitor signals ───
     serp_keywords: list[str] = []
-    for prod in product_results:
-        kws = prod.get("seo_keywords", []) or []
+    for state in pass1_states:
+        kws = state["pack"].get("seo_keywords", []) or []
         top = sorted(
             [k for k in kws if isinstance(k, dict)],
             key=lambda k: k.get("demand_score", 0),
@@ -726,27 +891,21 @@ def run_market_analysis(
             if q and q not in serp_keywords:
                 serp_keywords.append(str(q))
 
-    # Manual competitor signals (always)
-    competitor_signals = build_competitor_signals(shop, keywords=serp_keywords or None)
-    if competitor_signals:
-        sources_used.append("competitors_manual")
-
-    # Real SERP competitors via DataForSEO (when enabled)
+    serp_intel: dict[str, dict[str, Any]] = {}
     if dataforseo_provider.available and serp_keywords:
-        serp_signals = dataforseo_provider.fetch_serp_competitors(serp_keywords)
-        if serp_signals:
-            competitor_signals = list(competitor_signals) + serp_signals
+        serp_intel = dataforseo_provider.fetch_serp_intelligence(serp_keywords)
+        if serp_intel:
             sources_used.append("dataforseo_serp")
 
     # Keyword Ideas — add DataForSEO suggestions to top-5 products by opportunity_score
     if dataforseo_provider.available:
-        top_products = sorted(
-            product_results,
-            key=lambda p: p.get("opportunity_score", 0),
+        top_states = sorted(
+            pass1_states,
+            key=lambda s: s["pack"].get("opportunity_score", s["opp"].get("opportunity_score", 0)),
             reverse=True,
         )[:5]
-        for prod in top_products:
-            kws = prod.get("seo_keywords", []) or []
+        for state in top_states:
+            kws = state["pack"].get("seo_keywords", []) or []
             seeds = [
                 k["query"] for k in sorted(kws, key=lambda k: k.get("demand_score", 0), reverse=True)[:3]
                 if isinstance(k, dict) and k.get("query")
@@ -761,11 +920,17 @@ def run_market_analysis(
                     if i.get("query", "").lower() not in existing
                     and _idea_is_relevant(i.get("query", ""), seeds)
                 ]
-                prod["seo_keywords"] = list(kws) + new_ideas
+                state["pack"]["seo_keywords"] = list(kws) + new_ideas
                 if "dataforseo_keyword_ideas" not in sources_used:
                     sources_used.append("dataforseo_keyword_ideas")
 
-    # Domain competitors — shop-level view of who competes with the merchant on Google
+    competitor_signals = build_competitor_signals(shop, keywords=serp_keywords or None)
+    if competitor_signals:
+        sources_used.append("competitors_manual")
+    if dataforseo_provider.available and serp_keywords:
+        serp_signals = dataforseo_provider.fetch_serp_competitors(serp_keywords)
+        if serp_signals:
+            competitor_signals = list(competitor_signals) + serp_signals
     if dataforseo_provider.available and shop:
         domain_signals = dataforseo_provider.fetch_domain_competitors(shop)
         if domain_signals:
@@ -773,15 +938,44 @@ def run_market_analysis(
             if "dataforseo_domain_competitors" not in sources_used:
                 sources_used.append("dataforseo_domain_competitors")
 
-    # Recount after keyword ideas expansion
+    # ── Budget gate: skip pass 2 (content) when over the monthly LLM budget ──
+    budget_usd = _PLAN_BUDGETS_USD.get(plan or "", _DEFAULT_BUDGET_USD)
+    budget_status = check_budget(shop, budget_usd, days=30)
+    run_pass2 = not budget_status["over_budget"]
+    if not run_pass2 and "budget_skipped_pass2" not in sources_used:
+        sources_used.append("budget_skipped_pass2")
+
+    # ── PASS 2: content (informed by real SERP/PAA/crawl data) ───────────────
+    product_results: list[dict[str, Any]] = []
+    for idx, state in enumerate(pass1_states):
+        fields = state["fields"]
+        pack = state["pack"]
+        if run_pass2:
+            prompt = _build_pass2_prompt(
+                product_title=fields["product_title"],
+                handle=fields["handle"],
+                niche_summary=niche_summary,
+                pass1=pack,
+                enriched_keywords=pack.get("seo_keywords", []) or [],
+                serp_intel=serp_intel,
+                crawl_findings=_crawl_for_handle(fields["handle"], crawl_findings),
+                current_meta_title=fields["current_meta_title"],
+                current_meta_description=fields["current_meta_description"],
+                merchant_label=fields["merchant_label"],
+            )
+            pack = _complete_json(llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"])
+
+        product_results.append(_build_product_result(state["product"], state["opp"], pack, shop))
+        if progress_callback is not None:
+            try:
+                progress_callback(idx + 1, total, list(product_results), "content")
+            except Exception:
+                pass
+
     total_opportunity_count = sum(
         len(r.get("seo_keywords", [])) + len(r.get("geo_questions", []))
         for r in product_results
     )
-
-    # TODO future-autopilot:
-    #   - human validation gate before any Shopify write
-    #   - history of recommendations (before/after compare)
 
     return {
         "shop": shop,
@@ -793,5 +987,5 @@ def run_market_analysis(
         "provider_status": provider_status,
         "competitor_signals": competitor_signals,
         "products": product_results,
+        "budget": budget_status,
     }
-    #   - semi-automated publication of meta title/description/FAQ/blog with rollback

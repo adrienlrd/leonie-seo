@@ -109,6 +109,7 @@ interface ProductResult {
 interface JobState {
   job_id?: string;
   status: "pending" | "running" | "completed" | "failed";
+  phase?: "targeting" | "content";
   progress: number;
   total: number;
   products: ProductResult[];
@@ -1346,6 +1347,13 @@ export default function MarketAnalysisPage() {
 
                 {isRunning && (
                   <BlockStack gap="100">
+                    {job?.phase && (
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {job.phase === "targeting"
+                          ? t(locale, "marketAnalysisPhaseTargeting")
+                          : t(locale, "marketAnalysisPhaseContent")}
+                      </Text>
+                    )}
                     <Text as="p" variant="bodySm" tone="subdued">
                       {job && job.total > 0
                         ? progressLabel(locale, job.progress, job.total)
