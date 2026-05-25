@@ -445,6 +445,21 @@ function progressLabel(locale: Locale, done: number, total: number): string {
     .replace("{total}", String(total));
 }
 
+function highlightKeywords(text: string, keywords: string[]): ReactNode {
+  if (!keywords.length || !text) return <>{text}</>;
+  const sorted = [...keywords].sort((a, b) => b.length - a.length);
+  const escaped = sorted.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const regex = new RegExp(`(${escaped.join("|")})`, "gi");
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? <strong key={i}>{part}</strong> : part,
+      )}
+    </>
+  );
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function DataSourcesCard({
@@ -633,6 +648,7 @@ function ProductCard({
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
   const pack = product.content_test_pack;
+  const kwQueries = product.seo_keywords.map((k) => k.query);
 
   return (
     <Card>
@@ -780,7 +796,7 @@ function ProductCard({
                         {locale === "fr" ? "Actuel" : "Current"} : {pack.current_meta_title}
                       </Text>
                       <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                        <Text as="p" variant="bodySm">{pack.proposed_meta_title}</Text>
+                        <Text as="p" variant="bodySm">{highlightKeywords(pack.proposed_meta_title, kwQueries)}</Text>
                       </Box>
                     </BlockStack>
                   )}
@@ -792,7 +808,7 @@ function ProductCard({
                         {pack.current_meta_description || (locale === "fr" ? "absente" : "missing")}
                       </Text>
                       <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                        <Text as="p" variant="bodySm">{pack.proposed_meta_description}</Text>
+                        <Text as="p" variant="bodySm">{highlightKeywords(pack.proposed_meta_description, kwQueries)}</Text>
                       </Box>
                     </BlockStack>
                   )}
@@ -802,7 +818,7 @@ function ProductCard({
                         {t(locale, "contentTypeProductDescription")}
                       </Text>
                       <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                        <Text as="p" variant="bodySm">{pack.proposed_product_description}</Text>
+                        <Text as="p" variant="bodySm">{highlightKeywords(pack.proposed_product_description, kwQueries)}</Text>
                       </Box>
                     </BlockStack>
                   )}
@@ -812,8 +828,8 @@ function ProductCard({
                       {pack.proposed_faq.map((item, i) => (
                         <Box key={i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
                           <BlockStack gap="100">
-                            <Text as="p" variant="headingXs">{item.q}</Text>
-                            <Text as="p" variant="bodySm">{item.a}</Text>
+                            <Text as="p" variant="headingXs">{highlightKeywords(item.q, kwQueries)}</Text>
+                            <Text as="p" variant="bodySm">{highlightKeywords(item.a, kwQueries)}</Text>
                           </BlockStack>
                         </Box>
                       ))}
@@ -824,14 +840,14 @@ function ProductCard({
                       <Text as="h4" variant="headingXs">
                         {locale === "fr" ? "Idée d'article de blog" : "Blog article idea"}
                       </Text>
-                      <Text as="p" variant="bodySm"><strong>{pack.proposed_blog_title}</strong></Text>
+                      <Text as="p" variant="bodySm"><strong>{highlightKeywords(pack.proposed_blog_title, kwQueries)}</strong></Text>
                       {pack.proposed_blog_intro && (
-                        <Text as="p" variant="bodySm" tone="subdued">{pack.proposed_blog_intro}</Text>
+                        <Text as="p" variant="bodySm" tone="subdued">{highlightKeywords(pack.proposed_blog_intro, kwQueries)}</Text>
                       )}
                       {pack.proposed_blog_outline.length > 0 && (
                         <BlockStack gap="050">
                           {pack.proposed_blog_outline.map((line, i) => (
-                            <Text key={i} as="p" variant="bodySm" tone="subdued">• {line}</Text>
+                            <Text key={i} as="p" variant="bodySm" tone="subdued">• {highlightKeywords(line, kwQueries)}</Text>
                           ))}
                         </BlockStack>
                       )}
