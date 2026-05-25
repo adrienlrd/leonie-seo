@@ -493,9 +493,11 @@ function PaidRecommendedCard({
 
 function CompetitorsCard({
   signals,
+  isLoading,
   locale,
 }: {
   signals: CompetitorSignal[] | undefined;
+  isLoading: boolean;
   locale: Locale;
 }) {
   const items = signals ?? [];
@@ -516,7 +518,9 @@ function CompetitorsCard({
         </InlineStack>
         {items.length === 0 ? (
           <Text as="p" variant="bodySm" tone="subdued">
-            {t(locale, "marketAnalysisCompetitorsNone")}
+            {isLoading
+              ? t(locale, "marketAnalysisCompetitorsLoading")
+              : t(locale, "marketAnalysisCompetitorsNone")}
           </Text>
         ) : (
           <BlockStack gap="100">
@@ -1163,22 +1167,20 @@ export default function MarketAnalysisPage() {
           locale={locale}
         />
 
-        {/* Free-mode limits + paid recommendations — only in analysis step */}
-        {step === "analysis" && (
-          <>
-            <FreeLimitsCard
-              providerStatus={job?.provider_status ?? latestJob?.provider_status}
-              locale={locale}
-            />
-            <PaidRecommendedCard
-              providerStatus={job?.provider_status ?? latestJob?.provider_status}
-              locale={locale}
-            />
-          </>
-        )}
+        {/* Free-mode limits + paid recommendations — only when provider status is known */}
+        {(() => {
+          const ps = job?.provider_status ?? latestJob?.provider_status;
+          return ps !== undefined && step === "analysis" ? (
+            <>
+              <FreeLimitsCard providerStatus={ps} locale={locale} />
+              <PaidRecommendedCard providerStatus={ps} locale={locale} />
+            </>
+          ) : null;
+        })()}
         {(job ?? latestJob) && (
           <CompetitorsCard
             signals={job?.competitor_signals?.length ? job.competitor_signals : latestJob?.competitor_signals}
+            isLoading={job?.status === "running" || job?.status === "pending"}
             locale={locale}
           />
         )}
