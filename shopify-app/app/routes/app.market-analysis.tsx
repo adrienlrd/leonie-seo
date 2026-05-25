@@ -1288,41 +1288,41 @@ export default function MarketAnalysisPage() {
         {/* ── STEP 2: Full analysis ──────────────────────────────────────── */}
         {step === "analysis" && (
           <>
+            {/* Rerun confirmation modal — always mounted so Polaris can animate close
+                before the completed-job block disappears from the tree */}
+            <Modal
+              open={showRerunModal}
+              onClose={() => setShowRerunModal(false)}
+              title={t(locale, "marketAnalysisAnalyzeAllTitle")}
+              primaryAction={{
+                content: locale === "fr" ? "Confirmer" : "Confirm",
+                onAction: () => { setShowRerunModal(false); handleRerun(); },
+              }}
+              secondaryActions={[{
+                content: locale === "fr" ? "Annuler" : "Cancel",
+                onAction: () => setShowRerunModal(false),
+              }]}
+            >
+              <Modal.Section>
+                <Text as="p">{t(locale, "marketAnalysisAnalyzeAllWarning")}</Text>
+              </Modal.Section>
+            </Modal>
+
             {/* Action buttons (re-run / edit identification) */}
             {job?.status === "completed" && (
-              <>
-                <InlineStack gap="300" wrap>
-                  <Button
-                    variant="primary"
-                    onClick={() => setShowRerunModal(true)}
-                    loading={isInProgress}
-                    disabled={isInProgress}
-                  >
-                    {t(locale, "marketAnalysisAnalyzeAll")}
-                  </Button>
-                  <Button variant="plain" onClick={handleEditIdentification} disabled={isInProgress}>
-                    {t(locale, "marketAnalysisEditIdentification")}
-                  </Button>
-                </InlineStack>
-
-                <Modal
-                  open={showRerunModal}
-                  onClose={() => setShowRerunModal(false)}
-                  title={t(locale, "marketAnalysisAnalyzeAllTitle")}
-                  primaryAction={{
-                    content: locale === "fr" ? "Confirmer" : "Confirm",
-                    onAction: () => { setShowRerunModal(false); handleRerun(); },
-                  }}
-                  secondaryActions={[{
-                    content: locale === "fr" ? "Annuler" : "Cancel",
-                    onAction: () => setShowRerunModal(false),
-                  }]}
+              <InlineStack gap="300" wrap>
+                <Button
+                  variant="primary"
+                  onClick={() => setShowRerunModal(true)}
+                  loading={isInProgress}
+                  disabled={isInProgress}
                 >
-                  <Modal.Section>
-                    <Text as="p">{t(locale, "marketAnalysisAnalyzeAllWarning")}</Text>
-                  </Modal.Section>
-                </Modal>
-              </>
+                  {t(locale, "marketAnalysisAnalyzeAll")}
+                </Button>
+                <Button variant="plain" onClick={handleEditIdentification} disabled={isInProgress}>
+                  {t(locale, "marketAnalysisEditIdentification")}
+                </Button>
+              </InlineStack>
             )}
 
             {/* Launch card */}
