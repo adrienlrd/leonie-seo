@@ -27,7 +27,7 @@ import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type KeywordSource = "gsc" | "ga4" | "trends" | "shopify" | "llm_estimated" | "dataforseo" | "google_ads";
+type KeywordSource = "gsc" | "ga4" | "trends" | "shopify" | "llm_estimated" | "dataforseo" | "google_ads" | "parent_estimated";
 type DifficultySource = "free_estimated" | "dataforseo" | "google_ads";
 
 interface SeoKeyword {
@@ -43,6 +43,8 @@ interface SeoKeyword {
   gsc_clicks?: number | null;
   gsc_position?: number | null;
   search_volume?: number | null;
+  search_volume_estimated_ceiling?: number | null;
+  estimated_from_parent?: string | null;
   cpc?: number | null;
   ads_competition?: number | null;
   notes?: string[];
@@ -673,6 +675,9 @@ function KeywordSourceBadge({ source, locale }: { source: KeywordSource | undefi
   if (source === "dataforseo") return <Badge tone="success">{t(locale, "marketAnalysisSourceDataforseo")}</Badge>;
   if (source === "ga4") return <Badge tone="success">{t(locale, "marketAnalysisSourceGa4")}</Badge>;
   if (source === "shopify") return <Badge tone="info">{t(locale, "marketAnalysisSourceShopify")}</Badge>;
+  if (source === "parent_estimated") {
+    return <Badge tone="info">{locale === "fr" ? "Estimé via parent" : "Parent-estimated"}</Badge>;
+  }
   return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlm")}</Badge>;
 }
 
@@ -881,13 +886,13 @@ function ProductCard({
                           <InlineStack gap="100">
                             <Badge
                               tone={
-                                k.data_source === "llm_estimated" || k.data_source === "shopify"
+                                k.data_source === "llm_estimated" || k.data_source === "shopify" || k.data_source === "parent_estimated"
                                   ? undefined
                                   : scoreTone(k.demand_score)
                               }
                             >
                               {`${locale === "fr" ? "Demande" : "Demand"} ${k.demand_score}${
-                                k.data_source === "llm_estimated" || k.data_source === "shopify"
+                                k.data_source === "llm_estimated" || k.data_source === "shopify" || k.data_source === "parent_estimated"
                                   ? " (estimé)"
                                   : ""
                               }`}
@@ -905,6 +910,14 @@ function ProductCard({
                             {t(locale, "marketAnalysisVolume")}:{" "}
                             {k.search_volume != null ? (
                               <strong>{k.search_volume.toLocaleString()}</strong>
+                            ) : k.search_volume_estimated_ceiling != null && k.estimated_from_parent ? (
+                              <>
+                                <strong>≤ {k.search_volume_estimated_ceiling.toLocaleString()}</strong>
+                                <em>
+                                  {" "}
+                                  ({locale === "fr" ? "estimé via" : "estimated via"} « {k.estimated_from_parent} »)
+                                </em>
+                              </>
                             ) : (
                               <em>{t(locale, "marketAnalysisPaidUnavailable")}</em>
                             )}

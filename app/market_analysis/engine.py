@@ -523,6 +523,40 @@ def _build_pass2_prompt(
     return "\n".join(p for p in parts if p != "")
 
 
+def _find_parent_keyword_data(
+    query: str,
+    all_keywords: list[dict[str, Any]],
+    signals_by_keyword: dict[str, Any],
+) -> tuple[int | None, str | None]:
+    """Find the broadest sibling keyword that shares ≥2 content words and has real volume.
+
+    Returns (parent_volume, parent_query). Cheap heuristic — no extra API calls.
+    Useful when DataForSEO has no data for a long-tail variation but does for its parent.
+    """
+    query_words = _content_words(query)
+    if len(query_words) < 2:
+        return None, None
+    best_vol = 0
+    best_query: str | None = None
+    for kw in all_keywords:
+        if not isinstance(kw, dict):
+            continue
+        other_query = str(kw.get("query", "")).strip()
+        if not other_query or other_query.lower() == query.lower():
+            continue
+        other_words = _content_words(other_query)
+        # Parent must share words with our query AND be shorter (broader)
+        if len(other_words & query_words) < 2 or len(other_words) >= len(query_words):
+            continue
+        # Fetch the other keyword's real volume from the signal map
+        sig = signals_by_keyword.get(other_query.lower())
+        vol = sig.get("search_volume") if sig else None
+        if vol and vol > best_vol:
+            best_vol = vol
+            best_query = other_query
+    return (best_vol or None, best_query)
+
+
 def _apply_signals_to_keywords(
     seo_keywords: list[dict[str, Any]],
     signals: list[KeywordSignal],
@@ -554,6 +588,22 @@ def _apply_signals_to_keywords(
             )
             if not has_dfs_data:
                 sig = None
+
+        # Parent-keyword fallback: if this keyword has no real data, look for
+        # a broader keyword in the SAME list that does — its volume becomes
+        # an upper-bound estimate. Cheap (no extra API call) and transparent.
+        if not sig and not merged.get("search_volume"):
+            parent_vol, parent_query = _find_parent_keyword_data(merged.get("query", ""), seo_keywords, by_keyword)
+            if parent_vol is not None and parent_query:
+                merged["search_volume_estimated_ceiling"] = parent_vol
+                merged["estimated_from_parent"] = parent_query
+                # Map the parent volume to a demand score, lowered one bucket to reflect
+                # that the long-tail variation will capture only a fraction of parent traffic.
+                merged["demand_score"] = max(_volume_bucket(parent_vol) - 15, 5)
+                merged["data_source"] = "parent_estimated"
+                merged.setdefault("notes", []).append(
+                    f"Volume estimé ≤ {parent_vol}/mois (extrapolé depuis « {parent_query} »)"
+                )
 
         if sig:
             # Real free signals override LLM estimates when available
