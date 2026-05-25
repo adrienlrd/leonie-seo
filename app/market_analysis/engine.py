@@ -84,14 +84,27 @@ def _coerce_list(value: Any) -> list[Any]:
     return []
 
 
-def _coerce_target_customer(value: Any) -> str:
-    """Flatten target_customer to a plain string — LLM sometimes returns a dict."""
+def _coerce_str(value: Any, fallback: str = "") -> str:
+    """Flatten any LLM scalar field to a plain string — LLM sometimes returns dicts."""
     if isinstance(value, str):
         return value
     if isinstance(value, dict):
         parts = [str(v) for v in value.values() if v]
         return " — ".join(parts)
-    return str(value) if value else ""
+    if value is None:
+        return fallback
+    return str(value)
+
+
+def _coerce_str_list(value: Any) -> list[str]:
+    """Ensure a list of LLM strings contains only plain strings."""
+    if not isinstance(value, list):
+        return []
+    return [_coerce_str(item) for item in value if item]
+
+
+def _coerce_target_customer(value: Any) -> str:
+    return _coerce_str(value)
 
 
 def _fetch_trends_once(top_titles: list[str]) -> list[Any]:
@@ -509,36 +522,36 @@ def _build_product_result(
         "product_title": product_title,
         "product_handle": handle,
         "product_url": f"/products/{handle}",
-        "product_summary": llm_pack.get("product_summary", ""),
-        "target_customer": _coerce_target_customer(llm_pack.get("target_customer", "")),
-        "buying_intents": llm_pack.get("buying_intents", []),
+        "product_summary": _coerce_str(llm_pack.get("product_summary", "")),
+        "target_customer": _coerce_str(llm_pack.get("target_customer", "")),
+        "buying_intents": _coerce_str_list(llm_pack.get("buying_intents", [])),
         "seo_keywords": llm_pack.get("seo_keywords", []),
         "geo_questions": llm_pack.get("geo_questions", []),
         "trend_signals": opportunity.get("trend_signals", []),
         "competitor_signals": opportunity.get("signals", []),
         "content_test_pack": {
             "current_meta_title": current_meta_title,
-            "proposed_meta_title": llm_pack.get("proposed_meta_title", ""),
+            "proposed_meta_title": _coerce_str(llm_pack.get("proposed_meta_title", "")),
             "current_meta_description": current_meta_description,
-            "proposed_meta_description": llm_pack.get("proposed_meta_description", ""),
+            "proposed_meta_description": _coerce_str(llm_pack.get("proposed_meta_description", "")),
             "current_product_title": product_title,
-            "proposed_product_title": llm_pack.get("proposed_product_title_if_different", product_title),
+            "proposed_product_title": _coerce_str(llm_pack.get("proposed_product_title_if_different", product_title)),
             "current_product_description_summary": description_summary,
-            "proposed_product_description": llm_pack.get("proposed_product_description", ""),
+            "proposed_product_description": _coerce_str(llm_pack.get("proposed_product_description", "")),
             "proposed_faq": llm_pack.get("proposed_faq", []),
-            "proposed_geo_answer_block": llm_pack.get("proposed_geo_answer_block", ""),
-            "proposed_blog_title": llm_pack.get("proposed_blog_title", ""),
-            "proposed_blog_outline": llm_pack.get("proposed_blog_outline", []),
-            "proposed_blog_intro": llm_pack.get("proposed_blog_intro", ""),
+            "proposed_geo_answer_block": _coerce_str(llm_pack.get("proposed_geo_answer_block", "")),
+            "proposed_blog_title": _coerce_str(llm_pack.get("proposed_blog_title", "")),
+            "proposed_blog_outline": _coerce_str_list(llm_pack.get("proposed_blog_outline", [])),
+            "proposed_blog_intro": _coerce_str(llm_pack.get("proposed_blog_intro", "")),
             "proposed_comparison_or_buying_guide": "",
             "recommended_internal_links": [],
             "content_risks": [],
-            "facts_used": llm_pack.get("facts_used", []),
-            "facts_missing": llm_pack.get("facts_missing", []),
-            "confidence": llm_pack.get("confidence", "low"),
+            "facts_used": _coerce_str_list(llm_pack.get("facts_used", [])),
+            "facts_missing": _coerce_str_list(llm_pack.get("facts_missing", [])),
+            "confidence": _coerce_str(llm_pack.get("confidence", "low"), "low"),
         },
-        "recommended_content_actions": llm_pack.get("recommended_content_actions", []),
-        "confidence": llm_pack.get("confidence", opportunity.get("confidence", "low")),
+        "recommended_content_actions": _coerce_str_list(llm_pack.get("recommended_content_actions", [])),
+        "confidence": _coerce_str(llm_pack.get("confidence", opportunity.get("confidence", "low")), "low"),
         "opportunity_score": opportunity.get("opportunity_score", 0),
         "sources_used": opportunity.get("sources_used", []),
     }
@@ -883,7 +896,7 @@ def run_market_analysis(
         if progress_callback is not None:
             try:
                 partial = [_build_product_result(s["product"], s["opp"], s["pack"], shop) for s in pass1_states]
-                progress_callback(0, total, partial, "targeting")
+                progress_callback(idx + 1, total, partial, "targeting")
             except Exception:
                 pass
 
