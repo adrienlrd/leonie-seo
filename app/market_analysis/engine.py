@@ -107,6 +107,48 @@ def _coerce_target_customer(value: Any) -> str:
     return _coerce_str(value)
 
 
+def _coerce_seo_keywords(value: Any) -> list[dict[str, Any]]:
+    """Ensure every seo_keyword item has plain-string scalar fields."""
+    if not isinstance(value, list):
+        return []
+    out = []
+    for kw in value:
+        if not isinstance(kw, dict):
+            continue
+        kw = dict(kw)
+        for field in ("query", "intent_type", "reason"):
+            kw[field] = _coerce_str(kw.get(field, ""))
+        out.append(kw)
+    return out
+
+
+def _coerce_geo_questions(value: Any) -> list[dict[str, Any]]:
+    """Ensure every geo_question item has plain-string scalar fields."""
+    if not isinstance(value, list):
+        return []
+    out = []
+    for q in value:
+        if not isinstance(q, dict):
+            continue
+        q = dict(q)
+        for field in ("question", "answer_angle", "content_block_type", "confidence"):
+            q[field] = _coerce_str(q.get(field, ""))
+        out.append(q)
+    return out
+
+
+def _coerce_faq(value: Any) -> list[dict[str, str]]:
+    """Ensure every FAQ item has plain-string q and a fields."""
+    if not isinstance(value, list):
+        return []
+    out = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        out.append({"q": _coerce_str(item.get("q", "")), "a": _coerce_str(item.get("a", ""))})
+    return out
+
+
 def _fetch_trends_once(top_titles: list[str]) -> list[Any]:
     """Call Google Trends once with up to 5 product title seeds. Returns [] on any error."""
     if not top_titles:
@@ -525,8 +567,8 @@ def _build_product_result(
         "product_summary": _coerce_str(llm_pack.get("product_summary", "")),
         "target_customer": _coerce_str(llm_pack.get("target_customer", "")),
         "buying_intents": _coerce_str_list(llm_pack.get("buying_intents", [])),
-        "seo_keywords": llm_pack.get("seo_keywords", []),
-        "geo_questions": llm_pack.get("geo_questions", []),
+        "seo_keywords": _coerce_seo_keywords(llm_pack.get("seo_keywords", [])),
+        "geo_questions": _coerce_geo_questions(llm_pack.get("geo_questions", [])),
         "trend_signals": opportunity.get("trend_signals", []),
         "competitor_signals": opportunity.get("signals", []),
         "content_test_pack": {
@@ -538,7 +580,7 @@ def _build_product_result(
             "proposed_product_title": _coerce_str(llm_pack.get("proposed_product_title_if_different", product_title)),
             "current_product_description_summary": description_summary,
             "proposed_product_description": _coerce_str(llm_pack.get("proposed_product_description", "")),
-            "proposed_faq": llm_pack.get("proposed_faq", []),
+            "proposed_faq": _coerce_faq(llm_pack.get("proposed_faq", [])),
             "proposed_geo_answer_block": _coerce_str(llm_pack.get("proposed_geo_answer_block", "")),
             "proposed_blog_title": _coerce_str(llm_pack.get("proposed_blog_title", "")),
             "proposed_blog_outline": _coerce_str_list(llm_pack.get("proposed_blog_outline", [])),
