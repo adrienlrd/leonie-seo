@@ -85,12 +85,20 @@ def _coerce_list(value: Any) -> list[Any]:
 
 
 def _coerce_str(value: Any, fallback: str = "") -> str:
-    """Flatten any LLM scalar field to a plain string — LLM sometimes returns dicts."""
+    """Recursively flatten any LLM field to a plain string.
+
+    Handles nested dicts and lists so that e.g.
+    {demographics: {age: "25-45", ...}, psychographics: ["Animaux", ...]}
+    becomes "25-45, Tous, France — Animaux, Accessoires" instead of the raw repr.
+    """
     if isinstance(value, str):
         return value
     if isinstance(value, dict):
-        parts = [str(v) for v in value.values() if v]
-        return " — ".join(parts)
+        parts = [_coerce_str(v) for v in value.values() if v is not None]
+        return " — ".join(p for p in parts if p)
+    if isinstance(value, list):
+        parts = [_coerce_str(item) for item in value if item is not None]
+        return ", ".join(p for p in parts if p)
     if value is None:
         return fallback
     return str(value)
@@ -938,7 +946,7 @@ def run_market_analysis(
         if progress_callback is not None:
             try:
                 partial = [_build_product_result(s["product"], s["opp"], s["pack"], shop) for s in pass1_states]
-                progress_callback(idx + 1, total, partial, "targeting")
+                progress_callback(idx + 1, total * 2, partial, "targeting")
             except Exception:
                 pass
 
@@ -1033,7 +1041,7 @@ def run_market_analysis(
         product_results.append(_build_product_result(state["product"], state["opp"], pack, shop))
         if progress_callback is not None:
             try:
-                progress_callback(idx + 1, total, list(product_results), "content")
+                progress_callback(total + idx + 1, total * 2, list(product_results), "content")
             except Exception:
                 pass
 
