@@ -341,11 +341,14 @@ def _build_pass2_prompt(
     current_meta_title: str,
     current_meta_description: str,
     merchant_label: str = "",
+    ga4_metrics: dict[str, Any] | None = None,
 ) -> str:
-    """Build the pass-2 (content) prompt, informed by real market data.
+    """Build the pass-2 (content) prompt with strict per-field rules.
 
-    Each context block is omitted when empty so free mode (no DataForSEO) degrades
-    cleanly to crawl + GSC-enriched keywords only.
+    Each external signal (DataForSEO keywords, GSC performance, GA4 metrics, SERP/PAA,
+    competitor titles, crawl findings) is surfaced and the LLM is bound by mandatory
+    usage rules — the merchant pays for that data, so every field of the content pack
+    must reference it.
     """
     today = datetime.now(UTC).strftime("%d/%m/%Y")
     current_year = datetime.now(UTC).year
@@ -355,18 +358,33 @@ def _build_pass2_prompt(
         key=lambda k: k.get("demand_score", 0),
         reverse=True,
     )
+    top_kws = sorted_kws[:8]
+    top_queries = [str(k.get("query", "")) for k in top_kws[:5] if k.get("query")]
 
-    # ── Targeted keywords (real volume/difficulty) ──────────────────────────
+    # ── Targeted keywords (real volume/difficulty + GSC perf inline) ────────
     target_lines: list[str] = []
-    for kw in sorted_kws[:8]:
+    for idx, kw in enumerate(top_kws, start=1):
         vol = kw.get("search_volume")
         vol_text = f"{vol}/mois" if vol is not None else "volume n/a"
-        target_lines.append(
-            f'- "{kw.get("query", "")}" — {vol_text}, '
+        line = (
+            f'  #{idx} "{kw.get("query", "")}" — {vol_text}, '
             f'difficulté {kw.get("competition_score", "?")}/100 '
             f'({kw.get("difficulty_source", "free_estimated")}), '
             f'intent {kw.get("intent_type", "?")}'
         )
+        # Surface GSC perf for keywords already ranking — the LLM must defend these positions.
+        gsc_impr = kw.get("gsc_impressions")
+        gsc_pos = kw.get("gsc_position")
+        gsc_clicks = kw.get("gsc_clicks")
+        if gsc_impr or gsc_pos is not None:
+            line += (
+                f'\n      └ GSC réel: {gsc_impr or 0} impressions, '
+                f'{gsc_clicks or 0} clics, position moyenne {gsc_pos if gsc_pos is not None else "?"}'
+            )
+        cpc = kw.get("cpc")
+        if cpc:
+            line += f' | CPC AdWords {cpc}€ (valeur commerciale)'
+        target_lines.append(line)
     related_ideas = [str(k.get("query", "")) for k in sorted_kws[8:] if k.get("query")]
 
     # ── SERP intelligence (PAA, competitor angles, featured snippet) ────────
@@ -391,19 +409,35 @@ def _build_pass2_prompt(
         if fs and fs not in featured_snippets:
             featured_snippets.append(fs)
 
+    # ── GA4 page perf (organic traffic + conversions for THIS product page) ──
+    ga4_line = ""
+    if ga4_metrics:
+        sessions = ga4_metrics.get("sessions") or ga4_metrics.get("organic_sessions")
+        conversions = ga4_metrics.get("conversions") or ga4_metrics.get("conversion_count")
+        engagement = ga4_metrics.get("engagement_rate") or ga4_metrics.get("avg_engagement_time")
+        bits: list[str] = []
+        if sessions is not None:
+            bits.append(f"{sessions} sessions organiques (90j)")
+        if conversions is not None:
+            bits.append(f"{conversions} conversions")
+        if engagement is not None:
+            bits.append(f"engagement {engagement}")
+        if bits:
+            ga4_line = "  " + " | ".join(bits)
+
     # ── Crawl findings ──────────────────────────────────────────────────────
     crawl_lines = [
-        f'- {f.get("issue_type", "?")} ({f.get("severity", "?")}): {f.get("detail", "")}'
+        f'  - {f.get("issue_type", "?")} ({f.get("severity", "?")}): {f.get("detail", "")}'
         for f in crawl_findings[:8]
     ]
 
-    merchant_label_text = f"LABEL SEO MARCHAND: {merchant_label}\n" if merchant_label else ""
+    merchant_label_text = f"LABEL SEO MARCHAND: {merchant_label}" if merchant_label else ""
 
     parts: list[str] = [
         f"DATE_ACTUELLE: {today} (année {current_year})",
         f"NICHE: {niche_summary or 'Non définie'}",
         f"PRODUIT: {product_title} | handle: {handle}",
-        merchant_label_text.rstrip("\n") if merchant_label_text else "",
+        merchant_label_text,
         f"META TITLE ACTUEL: {current_meta_title or 'absent'}",
         f"META DESCRIPTION ACTUELLE: {current_meta_description or 'absente'}",
         "",
@@ -414,36 +448,76 @@ def _build_pass2_prompt(
     ]
 
     if target_lines:
-        parts.append("\nMOTS-CLÉS CIBLES (données réelles):")
+        parts.append("\n=== TOP MOTS-CLÉS CIBLES (à utiliser en priorité) ===")
         parts.extend(target_lines)
     if related_ideas:
-        parts.append("\nAUTRES IDÉES DE MOTS-CLÉS LIÉS: " + ", ".join(related_ideas[:15]))
+        parts.append("\nAUTRES MOTS-CLÉS LIÉS (utilise-en au moins 2 dans description/FAQ/blog): "
+                     + ", ".join(related_ideas[:15]))
+    if ga4_line:
+        parts.append("\n=== GA4 PERFORMANCE PAGE PRODUIT (90 derniers jours) ===")
+        parts.append(ga4_line)
     if competitor_lines:
-        parts.append("\nCONCURRENTS SERP (titres/angles réels — différencie-toi, ne copie pas):")
-        parts.extend(competitor_lines)
+        parts.append("\n=== CONCURRENTS SERP (titres réels — différencie-toi, ne copie pas) ===")
+        parts.extend(f"  {c}" for c in competitor_lines)
     if featured_snippets:
-        parts.append("Featured snippets concurrents: " + " | ".join(featured_snippets[:3]))
+        parts.append("Featured snippets concurrents à dépasser: " + " | ".join(featured_snippets[:3]))
     if paa_questions:
-        parts.append("\nQUESTIONS PAA Google (utilise-les pour proposed_faq ET geo_questions):")
-        parts.extend(f"- {q}" for q in paa_questions[:10])
+        parts.append("\n=== QUESTIONS PAA Google (à REPRENDRE dans proposed_faq) ===")
+        parts.extend(f"  - {q}" for q in paa_questions[:10])
     if crawl_lines:
-        parts.append("\nPROBLÈMES TECHNIQUES DÉTECTÉS (crawl):")
+        parts.append("\n=== PROBLÈMES TECHNIQUES DÉTECTÉS (crawl) ===")
         parts.extend(crawl_lines)
 
+    # ── Strict per-field rules — every paid signal above MUST be used ──────
+    top_kw_1 = top_queries[0] if top_queries else "le mot-clé principal"
+    top_kw_list = ", ".join(f'"{q}"' for q in top_queries) if top_queries else "—"
+
     parts.append(
-        f"\nIMPORTANT: nous sommes en {current_year}. "
-        "N'utilise jamais d'années passées dans les titres, exemples ou références.\n"
-        "ÉTAPE 2/2 — CONTENU. Rédige le contenu en t'appuyant sur les données réelles ci-dessus. "
-        "proposed_faq DOIT couvrir les questions PAA pertinentes ; "
-        "geo_questions doit refléter les intentions réelles. "
-        "Ne jamais inventer de faits : liste-les dans facts_missing.\n"
-        "Réponds uniquement en JSON valide avec exactement ces clés : "
-        "proposed_meta_title, proposed_meta_description, proposed_product_title_if_different, "
-        "proposed_product_description, proposed_faq (5-8 objets {q, a}), "
-        "proposed_geo_answer_block (40-80 mots, factuel), "
-        "proposed_blog_title, proposed_blog_outline (liste strings), proposed_blog_intro, "
-        "recommended_content_actions (liste strings), facts_used (liste strings), "
-        "facts_missing (liste strings), confidence (high/medium/low)."
+        f"\n═══════════════════════════════════════════════════════════════════\n"
+        f"ÉTAPE 2/2 — RÈGLES STRICTES PAR CHAMP (RESPECT OBLIGATOIRE)\n"
+        f"═══════════════════════════════════════════════════════════════════\n"
+        f"\nTOP 5 mots-clés à utiliser : {top_kw_list}\n"
+        f"Le merchant paie DataForSEO + GSC + GA4 pour ces données — chaque proposition "
+        f"DOIT s'appuyer dessus, sinon le ROI est nul.\n"
+        f"\n▶ proposed_meta_title (60-70 caractères) :\n"
+        f'   • OBLIGATOIRE : contient exactement le mot-clé #1 ("{top_kw_1}") OU une variation proche.\n'
+        f"   • Différenciant vs CONCURRENTS SERP listés (jamais copier leur formulation).\n"
+        f"\n▶ proposed_meta_description (140-160 caractères) :\n"
+        f"   • OBLIGATOIRE : contient le mot-clé #1 ET au moins 1 autre du top 5.\n"
+        f"   • Bénéfice produit + CTA (livraison, garantie, etc.).\n"
+        f"\n▶ proposed_product_description (200-300 mots, plusieurs paragraphes) :\n"
+        f"   • OBLIGATOIRE : intègre AU MOINS 4 mots-clés différents du top 8 (varie singulier/pluriel/synonymes).\n"
+        f"   • Première phrase contient le mot-clé #1.\n"
+        f"   • Si des concurrents listés existent, mentionne 1 angle qui les surpasse.\n"
+        f"\n▶ proposed_faq (5-8 entrées) :\n"
+        f"   • OBLIGATOIRE : reprend AU MOINS 3 des QUESTIONS PAA Google ci-dessus (reformulation autorisée).\n"
+        f"   • Chaque question contient un mot-clé du top 8.\n"
+        f"   • Réponses 2-4 phrases factuelles ; pas de blabla marketing.\n"
+        f"\n▶ proposed_blog_title :\n"
+        f"   • OBLIGATOIRE : contient un mot-clé longue traîne (4+ mots OU intent informational depuis la liste).\n"
+        f"   • Différent des titres concurrents listés.\n"
+        f"\n▶ proposed_blog_intro (2-3 phrases) :\n"
+        f"   • OBLIGATOIRE : contient au moins 2 mots-clés du top 5.\n"
+        f"\n▶ proposed_blog_outline (5-7 sections H2) :\n"
+        f"   • Chaque H2 couvre soit un mot-clé du top 8 soit une question PAA non utilisée dans la FAQ.\n"
+        f"\n▶ facts_used (CRITIQUE — c'est ta trace d'utilisation) :\n"
+        f"   • Liste, par champ, les mots-clés/PAA effectivement utilisés.\n"
+        f'   • Format : ["meta_title: <kw>", "meta_desc: <kw1>, <kw2>", "description: <kw1>, <kw2>, <kw3>, <kw4>", "faq: <PAA1>, <PAA3>, <kw>", "blog: <kw_longue_traine>"]\n'
+        f"   • Si tu n'as pas pu utiliser un signal payant (GA4, GSC, concurrent), explique-le dans facts_missing.\n"
+        f"\n▶ facts_missing : signaux absents ou inexploitables (ex : 'pas de PAA pour ce mot-clé').\n"
+        f"\n▶ confidence : high (≥80% des règles respectées) | medium (≥50%) | low (<50%).\n"
+        f"\nCONTRAINTES GLOBALES :\n"
+        f"- Nous sommes en {current_year}. JAMAIS d'années passées dans titres ou exemples.\n"
+        f"- N'invente JAMAIS de faits (matériau, dimensions, certifications) — liste-les dans facts_missing.\n"
+        f"- Priorise les mots-clés à fort volume (>500/mois) dans les champs visibles (meta_title, blog_title, début description).\n"
+        f"- Si GSC réel montre un keyword en position 4-20, attaque-le en priorité dans le blog (potentiel quick win).\n"
+        f"\nRéponds UNIQUEMENT en JSON valide avec ces clés exactes : "
+        f"proposed_meta_title, proposed_meta_description, proposed_product_title_if_different, "
+        f"proposed_product_description, proposed_faq (5-8 objets {{q, a}}), "
+        f"proposed_geo_answer_block (40-80 mots, factuel, cite 1 mot-clé), "
+        f"proposed_blog_title, proposed_blog_outline (liste strings), proposed_blog_intro, "
+        f"recommended_content_actions (liste strings), facts_used (liste strings), "
+        f"facts_missing (liste strings), confidence (high/medium/low)."
     )
 
     return "\n".join(p for p in parts if p != "")
@@ -1107,6 +1181,7 @@ def run_market_analysis(
                 current_meta_title=fields["current_meta_title"],
                 current_meta_description=fields["current_meta_description"],
                 merchant_label=fields["merchant_label"],
+                ga4_metrics=fields.get("ga4_metrics"),
             )
             pack = _complete_json(llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192)
 

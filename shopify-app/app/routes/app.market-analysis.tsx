@@ -502,6 +502,13 @@ function keywordIsUsed(keyword: string, proposalWords: string[]): boolean {
   );
 }
 
+const HIGHLIGHT_STYLE = {
+  backgroundColor: "#fff4a3",
+  padding: "0 2px",
+  borderRadius: "2px",
+  fontWeight: 600,
+} as const;
+
 function highlightKeywords(text: string, keywords: string[]): ReactNode {
   if (!keywords.length || !text) return <>{text}</>;
   const sorted = [...keywords].sort((a, b) => b.length - a.length);
@@ -511,7 +518,11 @@ function highlightKeywords(text: string, keywords: string[]): ReactNode {
   return (
     <>
       {parts.map((part, i) =>
-        i % 2 === 1 ? <strong key={i}>{part}</strong> : part,
+        i % 2 === 1 ? (
+          <mark key={i} style={HIGHLIGHT_STYLE}>{part}</mark>
+        ) : (
+          part
+        ),
       )}
     </>
   );
@@ -788,6 +799,23 @@ function ProductCard({
               {`Score ${product.opportunity_score}/100`}
             </Badge>
             <Badge tone={confidenceTone(product.confidence)}>{product.confidence}</Badge>
+            {kwQueries.length > 0 && (
+              <Badge
+                tone={
+                  usedKeywords.size / kwQueries.length >= 0.75
+                    ? "success"
+                    : usedKeywords.size / kwQueries.length >= 0.5
+                    ? "info"
+                    : usedKeywords.size / kwQueries.length >= 0.25
+                    ? "warning"
+                    : "critical"
+                }
+              >
+                {locale === "fr"
+                  ? `${usedKeywords.size}/${kwQueries.length} mots-clés utilisés`
+                  : `${usedKeywords.size}/${kwQueries.length} keywords used`}
+              </Badge>
+            )}
             {isAnalyzing ? (
               <Spinner size="small" />
             ) : (

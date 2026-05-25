@@ -149,8 +149,10 @@ def test_free_mode_runs_pass2_without_serp_block():
 
     assert router.complete.call_count == 2
     pass2_prompt = router.complete.call_args_list[1].args[0]
-    assert "QUESTIONS PAA" not in pass2_prompt
-    assert "CONCURRENTS SERP" not in pass2_prompt
+    # The section headers are absent (no data block), but the rules text
+    # may still mention PAA/competitors as conditional instructions.
+    assert "=== QUESTIONS PAA" not in pass2_prompt
+    assert "=== CONCURRENTS SERP" not in pass2_prompt
     # Content still generated.
     assert result["products"][0]["content_test_pack"]["proposed_meta_title"]
 
