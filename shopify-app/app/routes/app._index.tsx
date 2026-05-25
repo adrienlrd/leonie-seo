@@ -27,6 +27,13 @@ interface SparkPoint {
   value: number;
 }
 
+interface ActiveProduct {
+  id: string;
+  title: string;
+  handle: string;
+  image_url: string | null;
+}
+
 interface PriorityAction {
   action_id: string;
   rank: number;
@@ -88,6 +95,7 @@ interface LoaderData {
   locale: Locale;
   plan: string;
   dashboard: DashboardData | null;
+  activeProducts: ActiveProduct[];
   error: string | null;
 }
 
@@ -102,28 +110,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const plan = (url.searchParams.get("plan") ?? "free") as "free" | "pro" | "agency";
 
+  let activeProducts: ActiveProduct[] = [];
+
   try {
-    const resp = await callBackendForShop(
-      shop,
-      `/api/shops/${shop}/dashboard?plan=${plan}`,
-      { accessToken: session.accessToken }
-    );
-    if (!resp.ok) {
-      // Dashboard failed — likely no snapshot yet. Trigger one in the background.
+    const [dashResp, productsResp] = await Promise.allSettled([
+      callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken }),
+      callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken }),
+    ]);
+
+    // Resolve active products (non-blocking — graceful degradation)
+    if (productsResp.status === "fulfilled" && productsResp.value.ok) {
+      try {
+        activeProducts = (await productsResp.value.json()) as ActiveProduct[];
+      } catch (_parseErr) { /* ignore */ }
+    }
+
+    // Dashboard failed — likely no snapshot yet. Trigger one in the background.
+    if (dashResp.status !== "fulfilled" || !dashResp.value.ok) {
       callBackendForShop(shop, "/api/jobs", {
         accessToken: session.accessToken,
         method: "POST",
         body: JSON.stringify({ queue: "seo_audit" }),
       }).catch(() => {});
+      const errStatus = dashResp.status === "fulfilled" ? dashResp.value.status : 0;
       return json<LoaderData>({
         shop, locale, plan,
         dashboard: null,
-        error: `HTTP ${resp.status}`,
+        activeProducts,
+        error: errStatus ? `HTTP ${errStatus}` : "Network error",
       });
     }
-    const dashboard = (await resp.json()) as DashboardData;
 
-    // Auto-refresh snapshot in the background when stale or missing — fire and forget
+    const dashboard = (await dashResp.value.json()) as DashboardData;
+
+    // Auto-refresh snapshot in the background when stale — fire and forget
     if (dashboard.banners.stale_snapshot) {
       callBackendForShop(shop, "/api/jobs", {
         accessToken: session.accessToken,
@@ -137,11 +157,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirect(localizedPath("/app/onboarding", locale));
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
       dashboard: null,
+      activeProducts,
       error: err instanceof Error ? err.message : "Network error",
     });
   }
@@ -334,6 +355,46 @@ function ActionCard({
   );
 }
 
+function ActiveProductsCard({
+  products,
+  locale,
+}: {
+  products: ActiveProduct[];
+  locale: Locale;
+}) {
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center">
+          <Text as="h2" variant="headingMd">{t(locale, "dashboardActiveProductsTitle")}</Text>
+          {products.length > 0 && <Badge>{String(products.length)}</Badge>}
+        </InlineStack>
+        {products.length === 0 ? (
+          <Text as="p" tone="subdued">{t(locale, "dashboardActiveProductsEmpty")}</Text>
+        ) : (
+          <BlockStack gap="200">
+            {products.map((product) => (
+              <InlineStack key={product.id} align="space-between" blockAlign="center">
+                <BlockStack gap="050">
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">{product.title}</Text>
+                  <Text as="p" variant="bodySm" tone="subdued">/{product.handle}</Text>
+                </BlockStack>
+                <Button
+                  url={localizedPath("/app/market-analysis", locale)}
+                  variant="plain"
+                  size="slim"
+                >
+                  {t(locale, "dashboardActiveProductsAnalyse")}
+                </Button>
+              </InlineStack>
+            ))}
+          </BlockStack>
+        )}
+      </BlockStack>
+    </Card>
+  );
+}
+
 function Zone2({
   data,
   nicheValidated,
@@ -514,7 +575,7 @@ function Zone6({ locale }: { locale: Locale }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { locale, plan, dashboard, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { locale, plan, dashboard, activeProducts, error } = useLoaderData<typeof loader>() as LoaderData;
 
   if (error || !dashboard) {
     return (
@@ -526,7 +587,7 @@ export default function IndexPage() {
     );
   }
 
-  const { banners, zone1, zone2, zone3, zone4, zone5 } = dashboard;
+  const { banners, zone1, zone3, zone4, zone5 } = dashboard;
 
   return (
     <Page title="Léonie SEO">
@@ -554,8 +615,8 @@ export default function IndexPage() {
         {/* Zone 1 — Store health */}
         <Zone1 data={zone1} locale={locale} />
 
-        {/* Zone 2 — Priority actions */}
-        <Zone2 data={zone2} nicheValidated={zone1.niche_validated} locale={locale} />
+        {/* Zone 2 — Active products */}
+        <ActiveProductsCard products={activeProducts} locale={locale} />
 
         {/* Zone 3 — Ongoing optimizations */}
         <Zone3 data={zone3} locale={locale} />
