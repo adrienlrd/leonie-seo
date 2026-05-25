@@ -811,10 +811,9 @@ function ProductCard({
             <Text as="p" variant="bodySm" tone="subdued">/{product.product_handle}</Text>
           </BlockStack>
           <InlineStack gap="200">
-            <Badge tone={scoreTone(product.opportunity_score)}>
-              {`Score ${product.opportunity_score}/100`}
+            <Badge tone={scoreTone(100 - product.opportunity_score)}>
+              {`Potentiel SEO ${100 - product.opportunity_score}/100`}
             </Badge>
-            <Badge tone={confidenceTone(product.confidence)}>{product.confidence}</Badge>
             {kwQueries.length > 0 && (
               <Badge
                 tone={
