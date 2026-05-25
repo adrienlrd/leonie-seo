@@ -724,6 +724,17 @@ function ProductCard({
   const saveFetcher = useFetcher<{ type: string; error: string | null }>();
   const isSaving = saveFetcher.state !== "idle";
 
+  // Re-sync editedPack when the parent delivers a new pack (e.g. polling completes
+  // after the card already mounted with empty data). Skip while editing so we
+  // never wipe out in-progress merchant edits.
+  const packSignature = JSON.stringify(pack);
+  useEffect(() => {
+    if (!editMode) {
+      setEditedPack({ ...pack });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [packSignature]);
+
   useEffect(() => {
     if (saveFetcher.data?.type === "saveProposals" && !saveFetcher.data.error) {
       setEditMode(false);
