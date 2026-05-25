@@ -543,6 +543,18 @@ def _apply_signals_to_keywords(
         merged = dict(kw)
         key = str(merged.get("query", "")).strip().lower()
         sig = by_keyword.get(key)
+        # Skip "empty" DataForSEO signals — when the provider returns the keyword but
+        # with no measurable data, the merchant gets the LLM hallucination labelled
+        # "DataForSEO" which is misleading. Treat as no signal in that case.
+        if sig and sig.get("source") == "dataforseo":
+            has_dfs_data = (
+                sig.get("search_volume") is not None
+                or sig.get("cpc") is not None
+                or sig.get("ads_competition") is not None
+            )
+            if not has_dfs_data:
+                sig = None
+
         if sig:
             # Real free signals override LLM estimates when available
             if sig.get("source") == "gsc":
