@@ -84,6 +84,16 @@ def _coerce_list(value: Any) -> list[Any]:
     return []
 
 
+def _coerce_target_customer(value: Any) -> str:
+    """Flatten target_customer to a plain string — LLM sometimes returns a dict."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        parts = [str(v) for v in value.values() if v]
+        return " — ".join(parts)
+    return str(value) if value else ""
+
+
 def _fetch_trends_once(top_titles: list[str]) -> list[Any]:
     """Call Google Trends once with up to 5 product title seeds. Returns [] on any error."""
     if not top_titles:
@@ -500,7 +510,7 @@ def _build_product_result(
         "product_handle": handle,
         "product_url": f"/products/{handle}",
         "product_summary": llm_pack.get("product_summary", ""),
-        "target_customer": llm_pack.get("target_customer", ""),
+        "target_customer": _coerce_target_customer(llm_pack.get("target_customer", "")),
         "buying_intents": llm_pack.get("buying_intents", []),
         "seo_keywords": llm_pack.get("seo_keywords", []),
         "geo_questions": llm_pack.get("geo_questions", []),

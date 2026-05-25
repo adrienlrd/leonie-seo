@@ -649,7 +649,10 @@ function ProductCard({
         )}
         {product.target_customer && (
           <Text as="p" variant="bodySm" tone="subdued">
-            {locale === "fr" ? "Client cible" : "Target customer"} : {product.target_customer}
+            {locale === "fr" ? "Client cible" : "Target customer"} :{" "}
+            {typeof product.target_customer === "string"
+              ? product.target_customer
+              : Object.values(product.target_customer as Record<string, string>).join(" — ")}
           </Text>
         )}
 
