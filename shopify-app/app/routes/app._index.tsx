@@ -109,6 +109,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       { accessToken: session.accessToken }
     );
     if (!resp.ok) {
+      // Dashboard failed — likely no snapshot yet. Trigger one in the background.
+      callBackendForShop(shop, "/api/jobs", {
+        accessToken: session.accessToken,
+        method: "POST",
+        body: JSON.stringify({ queue: "seo_audit" }),
+      }).catch(() => {});
       return json<LoaderData>({
         shop, locale, plan,
         dashboard: null,
@@ -116,6 +122,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
     }
     const dashboard = (await resp.json()) as DashboardData;
+
+    // Auto-refresh snapshot in the background when stale or missing — fire and forget
+    if (dashboard.banners.stale_snapshot) {
+      callBackendForShop(shop, "/api/jobs", {
+        accessToken: session.accessToken,
+        method: "POST",
+        body: JSON.stringify({ queue: "seo_audit" }),
+      }).catch(() => {});
+    }
 
     // New merchant with no niche analysis → send to guided onboarding
     if (!dashboard.zone1.niche_available) {

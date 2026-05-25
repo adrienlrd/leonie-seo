@@ -288,7 +288,8 @@ def _build_banners(shop: str, snapshot: dict) -> dict:
     pilot_safe = os.getenv("LEONIE_PILOT_SAFE_MODE", "").lower() in {"1", "true", "yes"}
 
     age = _snapshot_age_days(snapshot)
-    stale_snapshot = age is not None and age > 7
+    # Trigger sync when snapshot is missing (age=None) OR older than 7 days
+    stale_snapshot = age is None or age > 7
 
     bulk_in_progress = False
     bulk_current, bulk_total = 0, 0
