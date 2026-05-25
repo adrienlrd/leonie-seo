@@ -1,8 +1,9 @@
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useFetcher, useLoaderData } from "@remix-run/react";
 import {
   Badge,
+  Banner,
   BlockStack,
   Box,
   Card,
@@ -72,6 +73,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   return json<LoaderData>({ shop, jobs });
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const shop = session.shop;
+
+  const resp = await callBackendForShop(shop, `/api/shops/${shop}/jobs`, {
+    accessToken: session.accessToken,
+    method: "DELETE",
+  });
+
+  if (!resp.ok) {
+    return json({ cancelled: 0, error: `HTTP ${resp.status}` });
+  }
+  const data = (await resp.json()) as { cancelled: number };
+  return json({ cancelled: data.cancelled, error: null });
 };
 
 const STATUS_TONE: Record<
@@ -204,6 +221,12 @@ function PreviewDetails({ job }: { job: Job }) {
 
 export default function Jobs() {
   const { jobs } = useLoaderData<typeof loader>();
+  const fetcher = useFetcher<typeof action>();
+
+  const hasActiveJobs = jobs.some((j) => j.status === "pending" || j.status === "running");
+  const cancelResult = fetcher.data;
+  const isCancelling = fetcher.state !== "idle";
+
   const previewJobs = jobs.filter((job) => asBulkPreview(job) !== null);
 
   const resourceName = { singular: "job", plural: "jobs" };
@@ -241,8 +264,35 @@ export default function Jobs() {
   ));
 
   return (
-    <Page title="Jobs SEO" backAction={{ content: "Dashboard", url: "/app" }}>
+    <Page
+      title="Jobs SEO"
+      backAction={{ content: "Dashboard", url: "/app" }}
+      primaryAction={
+        hasActiveJobs
+          ? {
+              content: isCancelling ? "Annulation…" : "Arrêter tous les jobs",
+              destructive: true,
+              loading: isCancelling,
+              onAction: () => fetcher.submit({}, { method: "DELETE" }),
+            }
+          : undefined
+      }
+    >
       <BlockStack gap="400">
+        {cancelResult && !cancelResult.error && (
+          <Banner tone={cancelResult.cancelled > 0 ? "warning" : "info"}>
+            <p>
+              {cancelResult.cancelled > 0
+                ? `${cancelResult.cancelled} job(s) annulé(s). Rechargez la page pour voir le statut mis à jour.`
+                : "Aucun job actif à annuler."}
+            </p>
+          </Banner>
+        )}
+        {cancelResult?.error && (
+          <Banner tone="critical">
+            <p>Erreur lors de l'annulation : {cancelResult.error}</p>
+          </Banner>
+        )}
         <Card>
           {jobs.length === 0 ? (
             <Box padding="400">
