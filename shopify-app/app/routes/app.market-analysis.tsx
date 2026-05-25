@@ -19,7 +19,8 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { useEffect, useRef, useState } from "react";
+import { Component, useEffect, useRef, useState } from "react";
+import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
@@ -375,6 +376,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   return json({ type: "unknown", error: "Unknown intent" });
 };
+
+// ── Error boundary (captures render crash + shows actual message) ─────────────
+
+interface EBState { error: Error | null }
+class RenderErrorBoundary extends Component<{ children: ReactNode }, EBState> {
+  state: EBState = { error: null };
+  static getDerivedStateFromError(error: Error): EBState { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[MarketAnalysis render crash]", error, info.componentStack);
+  }
+  render() {
+    const { error } = this.state;
+    if (!error) return this.props.children;
+    return (
+      <Banner tone="critical" title="Erreur d'affichage — détails pour le support">
+        <Text as="p" variant="bodySm">{error.message}</Text>
+        <Text as="p" variant="bodySm" tone="subdued">
+          {error.stack?.split("\n").slice(0, 4).join(" | ")}
+        </Text>
+      </Banner>
+    );
+  }
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1378,16 +1402,18 @@ export default function MarketAnalysisPage() {
             )}
 
             {/* Product cards */}
-            {job?.products?.map((product) => (
-              <ProductCard
-                key={product.product_id}
-                product={product}
-                locale={locale}
-                isAnalyzing={singleProductId === product.product_id && isSingleRunning}
-                onAnalyze={() => handleAnalyzeSingle(product.product_id)}
-                analyzeDisabled={isSingleRunning || isInProgress}
-              />
-            ))}
+            <RenderErrorBoundary>
+              {job?.products?.map((product) => (
+                <ProductCard
+                  key={product.product_id}
+                  product={product}
+                  locale={locale}
+                  isAnalyzing={singleProductId === product.product_id && isSingleRunning}
+                  onAnalyze={() => handleAnalyzeSingle(product.product_id)}
+                  analyzeDisabled={isSingleRunning || isInProgress}
+                />
+              ))}
+            </RenderErrorBoundary>
 
             {/* Completion banner */}
             {job?.status === "completed" && (
