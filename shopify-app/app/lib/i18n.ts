@@ -421,6 +421,9 @@ const FR: Dictionary = {
   marketAnalysisAnalyzeAllTitle: "Analyser tous les produits ?",
   marketAnalysisAnalyzeAllWarning: "Cela relancera l'analyse de tous vos produits actifs. Les résultats actuels seront remplacés. Cette opération prend 1 à 2 minutes.",
   marketAnalysisAnalyzeOne: "Analyser ce produit",
+  marketAnalysisNewProductsBanner: "{count} produit(s) actif(s) ajouté(s) depuis la dernière analyse :",
+  marketAnalysisNewProductsAnalyze: "Analyser",
+  marketAnalysisRemovedProductsNotice: "Produit(s) inactif(s) automatiquement retirés de l'analyse.",
   // ── V1 hybrid data layer ──────────────────────────────────────────────────
   marketAnalysisDataUsed: "Données utilisées",
   marketAnalysisFreeLimits: "Limites du mode gratuit",
@@ -872,6 +875,9 @@ const EN: Dictionary = {
   marketAnalysisAnalyzeAllTitle: "Analyze all products?",
   marketAnalysisAnalyzeAllWarning: "This will re-run the analysis for all your active products. Current results will be replaced. This takes 1 to 2 minutes.",
   marketAnalysisAnalyzeOne: "Analyze this product",
+  marketAnalysisNewProductsBanner: "{count} active product(s) added since last analysis:",
+  marketAnalysisNewProductsAnalyze: "Analyse",
+  marketAnalysisRemovedProductsNotice: "Inactive product(s) automatically removed from the analysis.",
   // ── V1 hybrid data layer ──────────────────────────────────────────────────
   marketAnalysisDataUsed: "Data sources used",
   marketAnalysisFreeLimits: "Free-mode limits",

@@ -136,6 +136,12 @@ interface JobState {
   product_count?: number;
 }
 
+interface ActiveProduct {
+  id: string;
+  title: string;
+  handle: string;
+}
+
 interface LoaderData {
   locale: Locale;
   shop: string;
@@ -147,13 +153,17 @@ interface LoaderData {
   gscConnected: boolean;
   ga4Connected: boolean;
   activeHandles: string[];
+  /** Products currently active in the snapshot but absent from the latest analysis. */
+  newProducts: ActiveProduct[];
+  /** Product IDs present in the latest analysis but no longer active. */
+  removedProductIds: string[];
 }
 
 // ── Revalidation guard — polling actions must not re-run the loader ───────────
 
 export const shouldRevalidate: ShouldRevalidateFunction = (args) => {
   const intent = args.formData?.get("intent");
-  if (intent === "poll" || intent === "pollIdentify" || intent === "pollSingle" || intent === "saveProposals") {
+  if (intent === "poll" || intent === "pollIdentify" || intent === "pollSingle" || intent === "saveProposals" || intent === "removeProducts") {
     return false;
   }
   return args.defaultShouldRevalidate;
@@ -213,14 +223,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   let activeHandles: string[] = [];
+  let activeProductsFull: ActiveProduct[] = [];
   if (activeProductsResp.status === "fulfilled" && activeProductsResp.value.ok) {
     try {
-      const prods = (await activeProductsResp.value.json()) as { handle: string }[];
+      const prods = (await activeProductsResp.value.json()) as { id: string; title: string; handle: string }[];
       activeHandles = prods.map((p) => p.handle);
+      activeProductsFull = prods.map((p) => ({ id: String(p.id), title: p.title, handle: p.handle }));
     } catch { /* ignore */ }
   }
 
-  return json({ locale, shop: session.shop, latestJob, latestIdentification, gscConnected, ga4Connected, activeHandles });
+  // ── Delta detection ───────────────────────────────────────────────────────
+  let newProducts: ActiveProduct[] = [];
+  let removedProductIds: string[] = [];
+  if (latestJob && activeProductsFull.length > 0) {
+    const analyzedHandles = new Set((latestJob.products ?? []).map((p) => p.product_handle));
+    newProducts = activeProductsFull.filter((p) => !analyzedHandles.has(p.handle));
+
+    const activeHandleSet = new Set(activeHandles);
+    removedProductIds = (latestJob.products ?? [])
+      .filter((p) => !activeHandleSet.has(p.product_handle))
+      .map((p) => p.product_id);
+  }
+
+  return json({ locale, shop: session.shop, latestJob, latestIdentification, gscConnected, ga4Connected, activeHandles, newProducts, removedProductIds });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -419,6 +444,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } catch (err) {
       return json({ type: "saveProposals", error: String(err) });
     }
+  }
+
+  // ── Auto-remove products no longer active in the store ───────────────────
+  if (intent === "removeProducts") {
+    const productIdsRaw = formData.get("productIds") as string;
+    try {
+      const product_ids = JSON.parse(productIdsRaw) as string[];
+      await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/products/remove`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: JSON.stringify({ product_ids }),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+    } catch {
+      // Non-blocking — silent best-effort cleanup
+    }
+    return json({ type: "removeProducts", error: null });
   }
 
   return json({ type: "unknown", error: "Unknown intent" });
@@ -1233,10 +1279,47 @@ function ProductCard({
   );
 }
 
+function NewProductsBanner({
+  products,
+  locale,
+  onAnalyze,
+  isAnalyzing,
+}: {
+  products: ActiveProduct[];
+  locale: Locale;
+  onAnalyze: (productId: string) => void;
+  isAnalyzing: boolean;
+}) {
+  if (products.length === 0) return null;
+  const label = t(locale, "marketAnalysisNewProductsBanner").replace("{count}", String(products.length));
+  return (
+    <Banner tone="info">
+      <BlockStack gap="200">
+        <Text as="p" variant="bodySm">{label}</Text>
+        <BlockStack gap="100">
+          {products.map((p) => (
+            <InlineStack key={p.id} gap="300" blockAlign="center">
+              <Text as="span" variant="bodySm"><strong>{p.title}</strong></Text>
+              <Button
+                size="slim"
+                onClick={() => onAnalyze(p.id)}
+                disabled={isAnalyzing}
+                loading={isAnalyzing}
+              >
+                {t(locale, "marketAnalysisNewProductsAnalyze")}
+              </Button>
+            </InlineStack>
+          ))}
+        </BlockStack>
+      </BlockStack>
+    </Banner>
+  );
+}
+
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function MarketAnalysisPage() {
-  const { locale, latestJob, latestIdentification, gscConnected, ga4Connected, activeHandles } =
+  const { locale, latestJob, latestIdentification, gscConnected, ga4Connected, activeHandles, newProducts, removedProductIds } =
     useLoaderData<LoaderData>();
 
   // ── UI step: "identification" (step 1) or "analysis" (step 2) ────────────
@@ -1269,6 +1352,9 @@ export default function MarketAnalysisPage() {
   // ── Active-only filter ────────────────────────────────────────────────────
   const [showInactive, setShowInactive] = useState(false);
 
+  // ── Delta banner: track analyzed new products to hide their banner entry ──
+  const [analyzedNewIds, setAnalyzedNewIds] = useState<Set<string>>(new Set());
+
   // ── Full re-run confirmation modal ────────────────────────────────────────
   const [showRerunModal, setShowRerunModal] = useState(false);
 
@@ -1285,6 +1371,28 @@ export default function MarketAnalysisPage() {
   const pollFetcher = useFetcher<ActionData>();
   const singleFetcher = useFetcher<ActionData>();
   const pollSingleFetcher = useFetcher<ActionData>();
+  const removeFetcher = useFetcher<ActionData>();
+
+  // ── Auto-remove products that are no longer active in the store ───────────
+  const autoRemovedRef = useRef(false);
+  useEffect(() => {
+    if (autoRemovedRef.current || removedProductIds.length === 0) return;
+    autoRemovedRef.current = true;
+    const fd = new FormData();
+    fd.set("intent", "removeProducts");
+    fd.set("productIds", JSON.stringify(removedProductIds));
+    removeFetcher.submit(fd, { method: "post" });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When auto-remove completes, also filter them out of the live job state
+  useEffect(() => {
+    if (removeFetcher.data?.type === "removeProducts" && removedProductIds.length > 0) {
+      const removedSet = new Set(removedProductIds);
+      setJob((prev) =>
+        prev ? { ...prev, products: prev.products.filter((p) => !removedSet.has(p.product_id)) } : prev,
+      );
+    }
+  }, [removeFetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto-start identification on first visit (no labels, no prior analysis) ──
   const autoStartedRef = useRef(false);
@@ -1399,14 +1507,19 @@ export default function MarketAnalysisPage() {
         if (d.job.status === "completed" && d.job.products && d.job.products.length > 0) {
           const updated = d.job.products[0];
           setJob((prev) => {
-            if (!prev) return prev;
+            if (!prev) {
+              // No prior job — create one so the new product card can be shown
+              return { ...d.job!, status: "completed", products: [updated] };
+            }
             const idx = prev.products.findIndex((p) => p.product_id === updated.product_id);
-            const newProducts =
+            const updatedProducts =
               idx >= 0
                 ? prev.products.map((p, i) => (i === idx ? updated : p))
                 : [...prev.products, updated];
-            return { ...prev, products: newProducts };
+            return { ...prev, products: updatedProducts };
           });
+          // Mark as analyzed so the delta banner hides this product
+          setAnalyzedNewIds((prev) => new Set([...prev, updated.product_id]));
           setSingleProductJobId(null);
           setSingleProductId(null);
           setSingleProductJob(null);
@@ -1742,6 +1855,24 @@ export default function MarketAnalysisPage() {
                 </Button>
               </InlineStack>
             )}
+
+            {/* Delta banner — new products not yet analysed */}
+            {(() => {
+              const pendingNew = newProducts.filter(
+                (p) => !analyzedNewIds.has(p.id) && !(job?.products ?? []).some((jp) => jp.product_id === p.id),
+              );
+              return pendingNew.length > 0 ? (
+                <NewProductsBanner
+                  products={pendingNew}
+                  locale={locale}
+                  onAnalyze={(id) => {
+                    setStep("analysis");
+                    handleAnalyzeSingle(id);
+                  }}
+                  isAnalyzing={isSingleRunning}
+                />
+              ) : null;
+            })()}
 
             {/* Launch card */}
             <Card>

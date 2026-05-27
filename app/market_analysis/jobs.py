@@ -113,6 +113,26 @@ def load_identification_job(shop: str) -> dict[str, Any] | None:
         return None
 
 
+def remove_products_from_analysis(shop: str, product_ids: set[str]) -> int:
+    """Remove products from the persisted analysis by product_id. Returns count removed."""
+    if not product_ids:
+        return 0
+    path = _DATA_DIR / shop / "market_analysis_latest.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 0
+    before = len(data.get("products", []))
+    data["products"] = [
+        p for p in data.get("products", [])
+        if str(p.get("product_id", "")) not in product_ids
+    ]
+    removed = before - len(data["products"])
+    if removed:
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    return removed
+
+
 def patch_product_proposals(shop: str, product_id: str, proposals: dict[str, Any]) -> bool:
     """Update content_test_pack fields for one product in the persisted analysis result.
 

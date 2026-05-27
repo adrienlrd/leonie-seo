@@ -22,6 +22,7 @@ from app.market_analysis.jobs import (
     load_identifications,
     load_latest_result,
     patch_product_proposals,
+    remove_products_from_analysis,
     save_identification_job,
     save_identifications,
     save_latest_result,
@@ -346,6 +347,19 @@ async def patch_market_analysis_proposals(
         patch_product_proposals(ctx.shop, product_id, {"faq_sync": sync_result})
 
     return {"saved": True, "faq_sync": sync_result}
+
+
+@router.post("/shops/{shop}/market-analysis/products/remove")
+async def remove_market_analysis_products(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    body: dict[str, Any],
+) -> dict[str, Any]:
+    """Remove stale products from the persisted analysis (no longer active in the store)."""
+    product_ids = {str(p) for p in body.get("product_ids", []) if p}
+    if not product_ids:
+        return {"removed": 0}
+    removed = remove_products_from_analysis(ctx.shop, product_ids)
+    return {"removed": removed}
 
 
 # ── Competitors (manual entry, used by market analysis) ─────────────────────
