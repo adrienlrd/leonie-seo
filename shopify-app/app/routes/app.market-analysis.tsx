@@ -90,6 +90,12 @@ interface ContentTestPack {
   facts_used: string[];
   facts_missing: string[];
   confidence: string;
+  faq_sync?: {
+    applied: boolean;
+    error: string | null;
+    entry_count: number;
+    applied_at: string | null;
+  } | null;
 }
 
 interface ProductResult {
@@ -1086,7 +1092,21 @@ function ProductCard({
                   {/* ── FAQ ── */}
                   {(editedPack.proposed_faq.length > 0 || editMode) && (
                     <BlockStack gap="100">
-                      <Text as="h4" variant="headingXs">FAQ</Text>
+                      <InlineStack gap="200" blockAlign="center">
+                        <Text as="h4" variant="headingXs">FAQ</Text>
+                        {editedPack.faq_sync?.applied && editedPack.faq_sync.applied_at && (
+                          <Badge tone="success" size="small">
+                            {locale === "fr"
+                              ? `Synchronisée sur Shopify le ${new Date(editedPack.faq_sync.applied_at).toLocaleDateString("fr-FR")}`
+                              : `Synced to Shopify on ${new Date(editedPack.faq_sync.applied_at).toLocaleDateString("en-US")}`}
+                          </Badge>
+                        )}
+                        {editedPack.faq_sync?.applied === false && editedPack.faq_sync.error && (
+                          <Badge tone="attention" size="small">
+                            {locale === "fr" ? "Synchro Shopify en attente" : "Shopify sync pending"}
+                          </Badge>
+                        )}
+                      </InlineStack>
                       {editedPack.proposed_faq.map((item, i) => (
                         <Box key={i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
                           <BlockStack gap="150">
