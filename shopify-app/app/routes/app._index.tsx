@@ -796,8 +796,13 @@ function BusinessProfileSection({
     }
     if (data.type === "pollBusinessAnalysis") {
       setBizJobStatus(data.status);
-      if (data.status === "completed" && data.profile) {
-        setBizDraft(data.profile);
+      if (data.status === "completed") {
+        setBizJobId(null);
+        if (data.profile) {
+          setBizDraft(data.profile);
+        }
+      }
+      if (data.status === "failed" || data.status === "unknown") {
         setBizJobId(null);
       }
     }
@@ -904,7 +909,25 @@ function BusinessProfileSection({
 
   // Draft editing state
   const draft = bizDraft ?? bizProfile;
-  if (!draft) return null;
+  // Safety fallback: if we somehow have no draft and no loading state, show empty state.
+  if (!draft) {
+    return (
+      <Card>
+        <BlockStack gap="300">
+          <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
+          <Text as="p" tone="subdued">{t(locale, "businessProfileSubtitle")}</Text>
+          <InlineStack>
+            <Button onClick={handleAnalyze} variant="primary" size="slim" loading={isAnalyzing}>
+              {t(locale, "businessProfileAnalyze")}
+            </Button>
+          </InlineStack>
+          {bizFetcher.data && "error" in bizFetcher.data && bizFetcher.data.error && (
+            <Banner tone="critical"><p>{bizFetcher.data.error}</p></Banner>
+          )}
+        </BlockStack>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -950,7 +973,7 @@ function BusinessProfileSection({
                   label={locale === "fr" ? "Nom" : "Name"}
                   value={persona.name ?? ""}
                   onChange={(v) => {
-                    const updated = [...draft.target_personas];
+                    const updated = [...(draft.target_personas ?? [])];
                     updated[idx] = { ...updated[idx], name: v };
                     setBizDraft({ ...draft, target_personas: updated });
                   }}
@@ -960,7 +983,7 @@ function BusinessProfileSection({
                   label={locale === "fr" ? "Description" : "Description"}
                   value={persona.description ?? ""}
                   onChange={(v) => {
-                    const updated = [...draft.target_personas];
+                    const updated = [...(draft.target_personas ?? [])];
                     updated[idx] = { ...updated[idx], description: v };
                     setBizDraft({ ...draft, target_personas: updated });
                   }}
@@ -970,7 +993,7 @@ function BusinessProfileSection({
                   label={locale === "fr" ? "Besoin principal" : "Main need"}
                   value={persona.main_need ?? ""}
                   onChange={(v) => {
-                    const updated = [...draft.target_personas];
+                    const updated = [...(draft.target_personas ?? [])];
                     updated[idx] = { ...updated[idx], main_need: v };
                     setBizDraft({ ...draft, target_personas: updated });
                   }}
@@ -980,7 +1003,7 @@ function BusinessProfileSection({
                   label={locale === "fr" ? "Déclencheur d'achat" : "Buying trigger"}
                   value={persona.buying_trigger ?? ""}
                   onChange={(v) => {
-                    const updated = [...draft.target_personas];
+                    const updated = [...(draft.target_personas ?? [])];
                     updated[idx] = { ...updated[idx], buying_trigger: v };
                     setBizDraft({ ...draft, target_personas: updated });
                   }}
