@@ -8,8 +8,8 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
-from app.api.audit import _load_snapshot
 from app.api.deps import ShopContext, get_shop_context
+from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.business_profile.analyzer import analyze_business_profile
 from app.business_profile.jobs import (
     load_business_profile,
@@ -83,13 +83,22 @@ def _run_business_profile_background(
         update_job(job_id, status="failed", error=str(exc))
 
 
+def _load_snapshot_safe(ctx: ShopContext) -> dict[str, Any]:
+    """Load the Shopify snapshot without raising on missing data."""
+    try:
+        result = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+        return result or {}
+    except Exception:
+        return {}
+
+
 @router.post("/shops/{shop}/business-profile/analyze")
 async def start_business_profile_analysis(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
     """Start an async job to analyze the business profile (niche, brand, personas, content style)."""
-    snapshot = _load_snapshot(ctx)
+    snapshot = _load_snapshot_safe(ctx)
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
     niche_hypothesis = get_validated_niche_hypothesis(ctx.shop)
 
