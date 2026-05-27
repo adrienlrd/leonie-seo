@@ -56,7 +56,23 @@
     }
 
     function aboveFooterTarget() {
-      // Best strategy: first sibling AFTER <main> — that's the whole footer band
+      // Strategy 1: find the first section of the OS 2.0 footer group, then
+      // walk up to its wrapper container if that container looks footer-related
+      var firstFooterSection = document.querySelector('.shopify-section-group-footer-group');
+      if (firstFooterSection) {
+        var wrapper = firstFooterSection.parentElement;
+        if (wrapper) {
+          var label = ((wrapper.className || '') + ' ' + (wrapper.id || '')).toLowerCase();
+          if (label.indexOf('footer') !== -1) return wrapper;
+        }
+        return firstFooterSection;
+      }
+      // Strategy 2: explicit footer section group ID (some themes)
+      var group = document.querySelector(
+        '[id^="shopify-section-group-footer"], [id^="shopify-section-footer-group"]'
+      );
+      if (group) return group;
+      // Strategy 3: first sibling AFTER <main>
       var main = document.querySelector('main, [role="main"], #MainContent, .main-content');
       if (main && main.parentNode) {
         var next = main.nextElementSibling;
@@ -65,12 +81,7 @@
         }
         if (next) return next;
       }
-      // Else: Online Store 2.0 footer section group
-      var group = document.querySelector(
-        '[id^="shopify-section-group-footer"], [id^="shopify-section-footer-group"]'
-      );
-      if (group) return group;
-      // Else: <footer>'s outermost shopify-section wrapper
+      // Strategy 4: outermost shopify-section wrapper of <footer>
       var f = document.querySelector('footer, [role="contentinfo"]');
       if (f) return f.closest('[id^="shopify-section-"]') || f;
       return null;
