@@ -44,6 +44,9 @@
     var placement = template.dataset.placement || 'above_footer';
     var content = template.content.cloneNode(true);
 
+    // Avoid duplicate render when the in-section block is also active
+    if (document.querySelector('.leonie-faq')) { template.remove(); return; }
+
     function productSection() {
       return document.querySelector(
         '[id^="shopify-section-main-product"], ' +
@@ -52,22 +55,33 @@
       );
     }
 
-    function footerWrapper() {
+    function aboveFooterTarget() {
+      // Best strategy: first sibling AFTER <main> — that's the whole footer band
+      var main = document.querySelector('main, [role="main"], #MainContent, .main-content');
+      if (main && main.parentNode) {
+        var next = main.nextElementSibling;
+        while (next && (next.tagName === 'SCRIPT' || next.tagName === 'STYLE' || next.tagName === 'NOSCRIPT')) {
+          next = next.nextElementSibling;
+        }
+        if (next) return next;
+      }
+      // Else: Online Store 2.0 footer section group
+      var group = document.querySelector(
+        '[id^="shopify-section-group-footer"], [id^="shopify-section-footer-group"]'
+      );
+      if (group) return group;
+      // Else: <footer>'s outermost shopify-section wrapper
       var f = document.querySelector('footer, [role="contentinfo"]');
-      return f
-        ? (f.closest('[id^="shopify-section-footer"], [id^="shopify-section-"][id*="footer"]') || f)
-        : document.querySelector('[id^="shopify-section-footer"]');
+      if (f) return f.closest('[id^="shopify-section-"]') || f;
+      return null;
     }
 
     var inserted = false;
-    var section, footer;
+    var section, target;
 
-    if (placement === 'in_product') {
-      section = productSection();
-      if (section) { section.appendChild(content); inserted = true; }
-    } else if (placement === 'above_footer') {
-      footer = footerWrapper();
-      if (footer && footer.parentNode) { footer.parentNode.insertBefore(content, footer); inserted = true; }
+    if (placement === 'above_footer') {
+      target = aboveFooterTarget();
+      if (target && target.parentNode) { target.parentNode.insertBefore(content, target); inserted = true; }
     } else { // 'below_product'
       section = productSection();
       if (section && section.parentNode) {
@@ -76,14 +90,10 @@
       }
     }
 
-    // Fallbacks: try the other auto strategies, then main, then body
+    // Fallbacks
     if (!inserted) {
-      footer = footerWrapper();
-      if (footer && footer.parentNode) { footer.parentNode.insertBefore(content, footer); inserted = true; }
-    }
-    if (!inserted) {
-      var main = document.querySelector('main, [role="main"], #MainContent, .main-content');
-      if (main) { main.appendChild(content); inserted = true; }
+      target = aboveFooterTarget();
+      if (target && target.parentNode) { target.parentNode.insertBefore(content, target); inserted = true; }
     }
     if (!inserted) document.body.appendChild(content);
 
@@ -186,10 +196,9 @@
       "id": "placement",
       "label": "Position de la FAQ",
       "options": [
-        { "value": "in_product", "label": "Dans la section produit" },
         { "value": "below_product", "label": "En dessous de la section produit" },
         { "value": "above_footer", "label": "Au-dessus du footer" },
-        { "value": "none", "label": "Aucune (ne pas afficher)" }
+        { "value": "none", "label": "Aucune (gérée par le bloc dans la section produit)" }
       ],
       "default": "above_footer"
     }

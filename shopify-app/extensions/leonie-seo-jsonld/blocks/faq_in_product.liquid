@@ -1,0 +1,128 @@
+{%- comment -%}
+  Léonie SEO — FAQ in-product block
+  Drag-and-drop block to place INSIDE the product section, like the buy
+  button. Reads the same `leonie.faq` metafield as the App Embed.
+  Use this block OR the App Embed, not both (the App Embed auto-disables
+  itself when this block is rendered).
+{%- endcomment -%}
+
+{%- if product and product.metafields.leonie.faq -%}
+{%- assign faq_entries = product.metafields.leonie.faq.value -%}
+{%- if faq_entries.size > 0 -%}
+
+<section class="leonie-faq" aria-labelledby="leonie-faq-heading-{{ block.id }}">
+  <h2 id="leonie-faq-heading-{{ block.id }}" class="leonie-faq__heading">
+    {{ block.settings.heading | default: 'Questions fréquentes' }}
+  </h2>
+  <div class="leonie-faq__list">
+    {%- for entry in faq_entries -%}
+      {%- assign question = entry.q | default: entry.question -%}
+      {%- assign answer = entry.a | default: entry.answer -%}
+      {%- if question != blank and answer != blank -%}
+        <details class="leonie-faq__item">
+          <summary class="leonie-faq__question">
+            <span>{{ question }}</span>
+            <svg class="leonie-faq__icon" aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">
+              <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </summary>
+          <div class="leonie-faq__answer">{{ answer }}</div>
+        </details>
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+</section>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {%- for entry in faq_entries -%}
+      {%- assign q = entry.q | default: entry.question -%}
+      {%- assign a = entry.a | default: entry.answer -%}
+      {%- if q != blank and a != blank -%}
+      {
+        "@type": "Question",
+        "name": {{ q | json }},
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": {{ a | json }}
+        }
+      }{% unless forloop.last %},{% endunless %}
+      {%- endif -%}
+    {%- endfor -%}
+  ]
+}
+</script>
+
+{%- style -%}
+.leonie-faq {
+  margin: 2rem 0;
+  font-family: inherit;
+  color: inherit;
+  max-width: 760px;
+}
+.leonie-faq__heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 1.25rem;
+  letter-spacing: -0.01em;
+}
+.leonie-faq__list {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+.leonie-faq__item {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.leonie-faq__question {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 0;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+  list-style: none;
+  line-height: 1.4;
+}
+.leonie-faq__question::-webkit-details-marker { display: none; }
+.leonie-faq__question::marker { content: ''; }
+.leonie-faq__question:hover { opacity: 0.75; }
+.leonie-faq__icon {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  opacity: 0.6;
+}
+.leonie-faq__item[open] .leonie-faq__icon { transform: rotate(180deg); }
+.leonie-faq__answer {
+  padding: 0 0 1rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+@media (prefers-color-scheme: dark) {
+  .leonie-faq__list,
+  .leonie-faq__item { border-color: rgba(255, 255, 255, 0.12); }
+}
+{%- endstyle -%}
+
+{%- endif -%}
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "FAQ produit (Léonie)",
+  "target": "section",
+  "templates": ["product"],
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Titre du bloc FAQ",
+      "default": "Questions fréquentes"
+    }
+  ]
+}
+{% endschema %}
