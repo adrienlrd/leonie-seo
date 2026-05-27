@@ -1252,33 +1252,40 @@ function ProductCard({
                     )
                   )}
                   {!editMode && (editedPack.content_quality?.skipped_surfaces?.length ?? 0) > 0 && (
-                    <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-warning">
+                    <InlineStack gap="200" blockAlign="center" wrap>
+                      <Badge tone="warning">!</Badge>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {locale === "fr" ? "Non généré automatiquement faute de preuve ou d'intention suffisante : " : "Not generated automatically because supporting evidence or intent is insufficient: "}
+                        {editedPack.content_quality?.skipped_surfaces?.map((surface) => surfaceLabel(surface, locale)).join(", ")}.
+                      </Text>
+                    </InlineStack>
+                  )}
+                  {!editMode && enrichmentQuestions.length > 0 && (
+                    <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
                       <BlockStack gap="200">
                         <InlineStack gap="200" blockAlign="center" wrap>
-                          <Badge tone="warning">!</Badge>
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            {locale === "fr" ? "Non généré automatiquement faute de preuve ou d'intention suffisante : " : "Not generated automatically because supporting evidence or intent is insufficient: "}
-                            {editedPack.content_quality?.skipped_surfaces?.map((surface) => surfaceLabel(surface, locale)).join(", ")}.
+                          <Text as="p" variant="bodySm" fontWeight="semibold">
+                            {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
                           </Text>
-                          {enrichmentQuestions.length > 0 && (
-                            <Button
-                              size="slim"
-                              variant="plain"
-                              onClick={() => setShowEnrichmentQuestions((open) => !open)}
-                            >
-                              {locale === "fr" ? "Compléter pour générer" : "Complete to generate"}
-                            </Button>
-                          )}
+                          <Button
+                            size="slim"
+                            variant="plain"
+                            onClick={() => setShowEnrichmentQuestions((open) => !open)}
+                          >
+                            {showEnrichmentQuestions
+                              ? (locale === "fr" ? "Réduire" : "Collapse")
+                              : (locale === "fr" ? "Compléter" : "Complete")}
+                          </Button>
                         </InlineStack>
                         <Collapsible
                           id={`enrichment-${product.product_id}`}
                           open={showEnrichmentQuestions}
                         >
                           <BlockStack gap="300">
-                            <Text as="p" variant="bodySm">
+                            <Text as="p" variant="bodySm" tone="subdued">
                               {locale === "fr"
-                                ? "Répondez seulement avec des informations exactes. Les questions reprennent la cible SEO retenue pour créer une FAQ ou un article utile aux recherches et aux assistants IA."
-                                : "Answer only with accurate information. Questions use the selected SEO target to create useful FAQ or support content for search and AI assistants."}
+                                ? "Répondez seulement avec des informations exactes. Vos réponses sont injectées dans le prompt pour produire un contenu plus précis et ancré dans votre produit."
+                                : "Answer only with accurate information. Your answers are injected into the prompt to produce more precise, product-grounded content."}
                             </Text>
                             {enrichmentQuestions.map((question) => (
                               <TextField

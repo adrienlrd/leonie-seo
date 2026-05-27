@@ -1097,14 +1097,12 @@ def _build_enrichment_questions(
     missing_facts: list[dict[str, Any]],
     surface_plan: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Create short merchant questions that can ground optional SEO/GEO content."""
-    skipped = {
-        surface
-        for surface in ("faq", "geo_answer", "blog")
-        if not _enabled_surface(surface_plan, surface)
-    }
-    if not skipped:
-        return []
+    """Create merchant questions that improve content quality.
+
+    Always returns the 2 editorial questions (benefit + selection guide) so every
+    product card offers a way to enrich the analysis.  Up to 2 additional fact-based
+    questions are prepended when specific facts are genuinely missing.
+    """
     primary_query = str(keywords[0].get("query", "")).strip() if keywords else ""
     if not primary_query:
         return []
@@ -1182,27 +1180,26 @@ def _build_enrichment_questions(
         )
         if len(questions) == 2:
             break
-    if "blog" in skipped:
-        questions.extend(
-            [
-                {
-                    "key": "use_cases",
-                    "question": f"Quel bénéfice concret « {primary_query} » apporte-t-il à vos clients, et quel problème résout-il ?",
-                    "placeholder": "Ex. tient chaud aux petits chiens frileux en hiver, évite les frissons après le bain.",
-                    "why_it_matters": "Fournit l'angle éditorial central pour un article ou une FAQ qui accroche.",
-                    "target_keyword": primary_query,
-                    "unlocks_surfaces": ["faq", "blog"],
-                },
-                {
-                    "key": "selection_criteria",
-                    "question": f"Comment un client non-expert devrait-il choisir entre plusieurs « {primary_query} » ?",
-                    "placeholder": "Ex. selon la race, le poids, la météo ou le niveau d'activité.",
-                    "why_it_matters": "Structure un guide d'achat naturellement optimisé pour les requêtes de comparaison.",
-                    "target_keyword": primary_query,
-                    "unlocks_surfaces": ["blog"],
-                },
-            ]
-        )
+    questions.extend(
+        [
+            {
+                "key": "use_cases",
+                "question": f"Quel bénéfice concret « {primary_query} » apporte-t-il à vos clients, et quel problème résout-il ?",
+                "placeholder": "Ex. tient chaud aux petits chiens frileux en hiver, évite les frissons après le bain.",
+                "why_it_matters": "Fournit l'angle éditorial central pour un article ou une FAQ qui accroche.",
+                "target_keyword": primary_query,
+                "unlocks_surfaces": ["faq", "blog"],
+            },
+            {
+                "key": "selection_criteria",
+                "question": f"Comment un client non-expert devrait-il choisir entre plusieurs « {primary_query} » ?",
+                "placeholder": "Ex. selon la race, le poids, la météo ou le niveau d'activité.",
+                "why_it_matters": "Structure un guide d'achat naturellement optimisé pour les requêtes de comparaison.",
+                "target_keyword": primary_query,
+                "unlocks_surfaces": ["blog"],
+            },
+        ]
+    )
     return questions[:4]
 
 
