@@ -66,16 +66,26 @@
       if (insertAt(customEl, content, position)) inserted = true;
     }
 
-    // 2) Auto: insert just before the footer (most reliable across themes)
+    // 2) Auto: insert right after the product section (preferred placement)
     if (!inserted) {
-      var footer = document.querySelector(
-        'footer, [role="contentinfo"], .footer, #footer, .site-footer, ' +
-        '[id^="shopify-section-footer"], [id^="shopify-section-sections--"][id*="footer"]'
+      var productSection = document.querySelector(
+        '[id^="shopify-section-main-product"], ' +
+        '[id^="shopify-section-template--"][id*="product"], ' +
+        '#MainProduct, .product-section, section.product, [data-section-type="product"]'
       );
-      if (insertAt(footer, content, 'before')) inserted = true;
+      if (insertAt(productSection, content, 'after')) inserted = true;
     }
 
-    // 3) Fallback: end of main content
+    // 3) Auto: insert BEFORE the full footer section wrapper (not just <footer>)
+    if (!inserted) {
+      var footerEl = document.querySelector('footer, [role="contentinfo"]');
+      var footerWrap = footerEl
+        ? (footerEl.closest('[id^="shopify-section-footer"], [id^="shopify-section-"][id*="footer"]') || footerEl)
+        : document.querySelector('[id^="shopify-section-footer"]');
+      if (insertAt(footerWrap, content, 'before')) inserted = true;
+    }
+
+    // 4) Fallback: end of main content
     if (!inserted) {
       var main = document.querySelector('main, [role="main"], #MainContent, .main-content');
       if (main) {
@@ -84,7 +94,7 @@
       }
     }
 
-    // 4) Last resort
+    // 5) Last resort
     if (!inserted) document.body.appendChild(content);
 
     template.remove();
