@@ -458,6 +458,20 @@ const FR: Dictionary = {
   marketAnalysisCompetitorsTitle: "Concurrents (analyse marché)",
   marketAnalysisCompetitorsSubtitle: "Ajoutez les domaines que vous considérez comme concurrents. Ils seront utilisés par la page Analyse marché.",
   marketAnalysisCompetitorsSaved: "Concurrents enregistrés",
+  businessProfileTitle: "Profil entreprise & niche",
+  businessProfileSubtitle: "Fondation de votre stratégie de contenu SEO et blog.",
+  businessProfileAnalyze: "Analyser mon entreprise",
+  businessProfileAnalyzing: "Analyse en cours…",
+  businessProfileDraft: "Voici ce que l'IA a compris. Ajustez si besoin puis validez.",
+  businessProfileValidate: "Valider le profil",
+  businessProfileRegenerate: "Regénérer l'analyse",
+  businessProfileNicheSummary: "Résumé de niche",
+  businessProfileBrandVoice: "Ton de marque",
+  businessProfilePersonas: "Personas clients",
+  businessProfileContentStyle: "Style de contenu",
+  businessProfileKeyThemes: "Thèmes éditoriaux",
+  businessProfileInsights: "Observations concurrents",
+  businessProfileValidated: "Profil validé",
 };
 
 const EN: Dictionary = {
@@ -916,6 +930,20 @@ const EN: Dictionary = {
   marketAnalysisCompetitorsTitle: "Competitors (market analysis)",
   marketAnalysisCompetitorsSubtitle: "Add the domains you consider competitors. They are used by the Market analysis page.",
   marketAnalysisCompetitorsSaved: "Competitors saved",
+  businessProfileTitle: "Business & niche profile",
+  businessProfileSubtitle: "Foundation for your SEO and blog content strategy.",
+  businessProfileAnalyze: "Analyse my business",
+  businessProfileAnalyzing: "Analysing…",
+  businessProfileDraft: "Here's what the AI understood. Adjust if needed then validate.",
+  businessProfileValidate: "Validate profile",
+  businessProfileRegenerate: "Regenerate analysis",
+  businessProfileNicheSummary: "Niche summary",
+  businessProfileBrandVoice: "Brand voice",
+  businessProfilePersonas: "Customer personas",
+  businessProfileContentStyle: "Content style",
+  businessProfileKeyThemes: "Editorial themes",
+  businessProfileInsights: "Competitor insights",
+  businessProfileValidated: "Profile validated",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };

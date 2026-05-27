@@ -57,6 +57,7 @@ from app.api.alerts import router as alerts_router  # noqa: E402
 from app.api.hreflang import router as hreflang_router  # noqa: E402
 from app.api.help import router as help_router  # noqa: E402
 from app.api.market_analysis import router as market_analysis_router  # noqa: E402
+from app.api.business_profile import router as business_profile_router  # noqa: E402
 from app.api.shops import router as shops_router  # noqa: E402
 from app.api.suggestions import router as suggestions_router  # noqa: E402
 from app.billing.router import (  # noqa: E402
@@ -152,6 +153,7 @@ app.include_router(audit_router)
 app.include_router(opportunities_router)
 app.include_router(priorities_router)
 app.include_router(market_analysis_router)
+app.include_router(business_profile_router)
 app.include_router(content_actions_router)
 app.include_router(safe_apply_router)
 app.include_router(ai_visibility_router)

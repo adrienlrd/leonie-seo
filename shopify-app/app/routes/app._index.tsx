@@ -15,6 +15,7 @@ import {
   ProgressBar,
   Spinner,
   Text,
+  TextField,
   Tooltip,
 } from "@shopify/polaris";
 import { useEffect, useRef, useState } from "react";
@@ -93,6 +94,38 @@ interface DashboardData {
   generated_at: string;
 }
 
+// ── Business profile types ────────────────────────────────────────────────────
+
+interface BusinessPersona {
+  name: string;
+  description: string;
+  main_need: string;
+  buying_trigger: string;
+}
+
+interface ContentStyle {
+  tone: string;
+  typical_article_length: string;
+  h2_structure: string[];
+  vocabulary_to_use: string[];
+  vocabulary_to_avoid: string[];
+  hook_patterns: string[];
+}
+
+interface BusinessProfile {
+  niche_summary: string;
+  brand_name: string;
+  brand_voice: string;
+  target_personas: BusinessPersona[];
+  content_style: ContentStyle;
+  key_themes: string[];
+  seasonal_patterns: Array<{ period: string; theme: string; intensity: string }>;
+  competitor_insights: string[];
+  internal_link_priorities: string[];
+  generated_at: string;
+  status: "draft" | "validated" | "error";
+}
+
 interface LoaderData {
   shop: string;
   locale: Locale;
@@ -100,6 +133,7 @@ interface LoaderData {
   dashboard: DashboardData | null;
   activeProducts: ActiveProduct[];
   auditJobId: string | null;
+  businessProfile: BusinessProfile | null;
   error: string | null;
 }
 
@@ -134,16 +168,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let activeProducts: ActiveProduct[] = [];
   let auditJobId: string | null = null;
+  let businessProfile: BusinessProfile | null = null;
 
   try {
-    const [dashResp, productsResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken }),
+      callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken }),
     ]);
 
     if (productsResp.status === "fulfilled" && productsResp.value.ok) {
       try {
         activeProducts = (await productsResp.value.json()) as ActiveProduct[];
+      } catch (_parseErr) { /* ignore */ }
+    }
+
+    if (bizProfileResp.status === "fulfilled" && bizProfileResp.value.ok) {
+      try {
+        businessProfile = (await bizProfileResp.value.json()) as BusinessProfile;
       } catch (_parseErr) { /* ignore */ }
     }
 
@@ -155,6 +197,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         dashboard: null,
         activeProducts,
         auditJobId,
+        businessProfile,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
       });
     }
@@ -169,13 +212,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirect(localizedPath("/app/onboarding", locale));
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, auditJobId, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, auditJobId, businessProfile, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
       dashboard: null,
       activeProducts,
       auditJobId,
+      businessProfile,
       error: err instanceof Error ? err.message : "Network error",
     });
   }
@@ -211,6 +255,64 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  if (intent === "startBusinessAnalysis") {
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/business-profile/analyze`,
+        { accessToken: session.accessToken, method: "POST" },
+      );
+      if (!resp.ok) {
+        const txt = await resp.text();
+        return json({ type: "startBusinessAnalysis", jobId: null, error: `HTTP ${resp.status}: ${txt}` });
+      }
+      const data = (await resp.json()) as { job_id: string };
+      return json({ type: "startBusinessAnalysis", jobId: data.job_id, error: null });
+    } catch (err) {
+      return json({ type: "startBusinessAnalysis", jobId: null, error: String(err) });
+    }
+  }
+
+  if (intent === "pollBusinessAnalysis") {
+    const bizJobId = formData.get("bizJobId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/business-profile/job/${bizJobId}`,
+        { accessToken: session.accessToken },
+      );
+      if (!resp.ok) return json({ type: "pollBusinessAnalysis", status: "unknown", profile: null, error: `HTTP ${resp.status}` });
+      const job = (await resp.json()) as { status: string; profile?: BusinessProfile | null };
+      return json({ type: "pollBusinessAnalysis", status: job.status, profile: job.profile ?? null, error: null });
+    } catch (err) {
+      return json({ type: "pollBusinessAnalysis", status: "unknown", profile: null, error: String(err) });
+    }
+  }
+
+  if (intent === "saveBusinessProfile") {
+    const profileJson = formData.get("profileJson") as string;
+    try {
+      const profileData = JSON.parse(profileJson) as BusinessProfile;
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/business-profile`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: JSON.stringify(profileData),
+        },
+      );
+      if (!resp.ok) {
+        const txt = await resp.text();
+        return json({ type: "saveBusinessProfile", profile: null, error: `HTTP ${resp.status}: ${txt}` });
+      }
+      const saved = (await resp.json()) as BusinessProfile;
+      return json({ type: "saveBusinessProfile", profile: saved, error: null });
+    } catch (err) {
+      return json({ type: "saveBusinessProfile", profile: null, error: String(err) });
+    }
+  }
+
   // Default — poll a known audit job.
   const jobId = formData.get("jobId") as string;
   try {
@@ -235,7 +337,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (formData?.get("jobId")) return false;
-  if (formData?.get("intent") === "refresh") return false;
+  if (formData?.get("bizJobId")) return false;
+  const intent = formData?.get("intent");
+  if (intent === "refresh") return false;
+  if (intent === "startBusinessAnalysis") return false;
+  if (intent === "pollBusinessAnalysis") return false;
+  if (intent === "saveBusinessProfile") return false;
   return true;
 };
 
@@ -657,10 +764,309 @@ function Zone6({ locale }: { locale: Locale }) {
   );
 }
 
+// ── Business Profile Section ──────────────────────────────────────────────────
+
+type BizActionData =
+  | { type: "startBusinessAnalysis"; jobId: string | null; error: string | null }
+  | { type: "pollBusinessAnalysis"; status: string; profile: BusinessProfile | null; error: string | null }
+  | { type: "saveBusinessProfile"; profile: BusinessProfile | null; error: string | null };
+
+function BusinessProfileSection({
+  initialProfile,
+  locale,
+}: {
+  initialProfile: BusinessProfile | null;
+  locale: Locale;
+}) {
+  const bizFetcher = useFetcher<BizActionData>();
+  const [bizJobId, setBizJobId] = useState<string | null>(null);
+  const [bizJobStatus, setBizJobStatus] = useState<string | null>(null);
+  const [bizProfile, setBizProfile] = useState<BusinessProfile | null>(initialProfile);
+  const [bizDraft, setBizDraft] = useState<BusinessProfile | null>(null);
+  const bizStatusRef = useRef<string | null>(null);
+  bizStatusRef.current = bizJobStatus;
+
+  // Handle action responses
+  useEffect(() => {
+    if (!bizFetcher.data) return;
+    const data = bizFetcher.data;
+    if (data.type === "startBusinessAnalysis" && data.jobId) {
+      setBizJobId(data.jobId);
+      setBizJobStatus(null);
+    }
+    if (data.type === "pollBusinessAnalysis") {
+      setBizJobStatus(data.status);
+      if (data.status === "completed" && data.profile) {
+        setBizDraft(data.profile);
+        setBizJobId(null);
+      }
+    }
+    if (data.type === "saveBusinessProfile" && data.profile) {
+      setBizProfile(data.profile);
+      setBizDraft(null);
+    }
+  }, [bizFetcher.data]);
+
+  // Poll while a job is running
+  useEffect(() => {
+    if (!bizJobId) return;
+    const poll = () => {
+      const s = bizStatusRef.current;
+      if (s === "completed" || s === "failed") return;
+      const fd = new FormData();
+      fd.set("intent", "pollBusinessAnalysis");
+      fd.set("bizJobId", bizJobId);
+      bizFetcher.submit(fd, { method: "post" });
+    };
+    poll();
+    const id = setInterval(poll, 5_000);
+    return () => clearInterval(id);
+  }, [bizJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAnalyze = () => {
+    const fd = new FormData();
+    fd.set("intent", "startBusinessAnalysis");
+    bizFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleValidate = () => {
+    if (!bizDraft) return;
+    const fd = new FormData();
+    fd.set("intent", "saveBusinessProfile");
+    fd.set("profileJson", JSON.stringify(bizDraft));
+    bizFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleRegenerate = () => {
+    setBizProfile(null);
+    setBizDraft(null);
+    handleAnalyze();
+  };
+
+  const isAnalyzing =
+    bizFetcher.state !== "idle" ||
+    (bizJobId !== null && bizJobStatus !== "completed" && bizJobStatus !== "failed");
+
+  // Validated state
+  if (bizProfile && bizProfile.status === "validated" && !bizDraft) {
+    return (
+      <Card>
+        <BlockStack gap="300">
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
+            <InlineStack gap="200" blockAlign="center">
+              <Badge tone="success">{t(locale, "businessProfileValidated")}</Badge>
+              <Button onClick={handleRegenerate} size="slim" variant="plain" loading={isAnalyzing}>
+                {t(locale, "businessProfileRegenerate")}
+              </Button>
+            </InlineStack>
+          </InlineStack>
+          <Text as="p" tone="subdued" variant="bodySm">{bizProfile.niche_summary}</Text>
+        </BlockStack>
+      </Card>
+    );
+  }
+
+  // Empty state — no profile yet
+  if (!bizProfile && !bizDraft && !bizJobId) {
+    return (
+      <Card>
+        <BlockStack gap="300">
+          <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
+          <Text as="p" tone="subdued">{t(locale, "businessProfileSubtitle")}</Text>
+          <InlineStack>
+            <Button onClick={handleAnalyze} variant="primary" size="slim" loading={isAnalyzing}>
+              {t(locale, "businessProfileAnalyze")}
+            </Button>
+          </InlineStack>
+          {bizFetcher.data && "error" in bizFetcher.data && bizFetcher.data.error && (
+            <Banner tone="critical"><p>{bizFetcher.data.error}</p></Banner>
+          )}
+        </BlockStack>
+      </Card>
+    );
+  }
+
+  // Loading/polling state
+  if (isAnalyzing && !bizDraft) {
+    return (
+      <Card>
+        <BlockStack gap="300">
+          <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
+          <InlineStack gap="200" blockAlign="center">
+            <Spinner size="small" />
+            <Text as="p" tone="subdued">{t(locale, "businessProfileAnalyzing")}</Text>
+          </InlineStack>
+        </BlockStack>
+      </Card>
+    );
+  }
+
+  // Draft editing state
+  const draft = bizDraft ?? bizProfile;
+  if (!draft) return null;
+
+  return (
+    <Card>
+      <BlockStack gap="400">
+        <InlineStack align="space-between" blockAlign="center">
+          <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
+          {draft.status === "validated" && (
+            <Badge tone="success">{t(locale, "businessProfileValidated")}</Badge>
+          )}
+        </InlineStack>
+        <Banner tone="info"><p>{t(locale, "businessProfileDraft")}</p></Banner>
+
+        <BlockStack gap="200">
+          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfileNicheSummary")}</Text>
+          <TextField
+            label=""
+            labelHidden
+            value={draft.niche_summary ?? ""}
+            onChange={(v) => setBizDraft({ ...draft, niche_summary: v })}
+            multiline={3}
+            autoComplete="off"
+          />
+        </BlockStack>
+
+        <BlockStack gap="200">
+          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfileBrandVoice")}</Text>
+          <TextField
+            label=""
+            labelHidden
+            value={draft.brand_voice ?? ""}
+            onChange={(v) => setBizDraft({ ...draft, brand_voice: v })}
+            multiline={3}
+            autoComplete="off"
+          />
+        </BlockStack>
+
+        <BlockStack gap="200">
+          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfilePersonas")}</Text>
+          {(draft.target_personas ?? []).map((persona, idx) => (
+            <Box key={idx} background="bg-surface-secondary" padding="300" borderRadius="200">
+              <BlockStack gap="200">
+                <TextField
+                  label={locale === "fr" ? "Nom" : "Name"}
+                  value={persona.name ?? ""}
+                  onChange={(v) => {
+                    const updated = [...draft.target_personas];
+                    updated[idx] = { ...updated[idx], name: v };
+                    setBizDraft({ ...draft, target_personas: updated });
+                  }}
+                  autoComplete="off"
+                />
+                <TextField
+                  label={locale === "fr" ? "Description" : "Description"}
+                  value={persona.description ?? ""}
+                  onChange={(v) => {
+                    const updated = [...draft.target_personas];
+                    updated[idx] = { ...updated[idx], description: v };
+                    setBizDraft({ ...draft, target_personas: updated });
+                  }}
+                  autoComplete="off"
+                />
+                <TextField
+                  label={locale === "fr" ? "Besoin principal" : "Main need"}
+                  value={persona.main_need ?? ""}
+                  onChange={(v) => {
+                    const updated = [...draft.target_personas];
+                    updated[idx] = { ...updated[idx], main_need: v };
+                    setBizDraft({ ...draft, target_personas: updated });
+                  }}
+                  autoComplete="off"
+                />
+                <TextField
+                  label={locale === "fr" ? "Déclencheur d'achat" : "Buying trigger"}
+                  value={persona.buying_trigger ?? ""}
+                  onChange={(v) => {
+                    const updated = [...draft.target_personas];
+                    updated[idx] = { ...updated[idx], buying_trigger: v };
+                    setBizDraft({ ...draft, target_personas: updated });
+                  }}
+                  autoComplete="off"
+                />
+              </BlockStack>
+            </Box>
+          ))}
+        </BlockStack>
+
+        <BlockStack gap="200">
+          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfileContentStyle")}</Text>
+          <TextField
+            label={locale === "fr" ? "Ton" : "Tone"}
+            value={draft.content_style?.tone ?? ""}
+            onChange={(v) => setBizDraft({ ...draft, content_style: { ...draft.content_style, tone: v } })}
+            autoComplete="off"
+          />
+          <TextField
+            label={locale === "fr" ? "Structure H2 (une par ligne)" : "H2 structure (one per line)"}
+            value={(draft.content_style?.h2_structure ?? []).join("\n")}
+            onChange={(v) => setBizDraft({
+              ...draft,
+              content_style: { ...draft.content_style, h2_structure: v.split("\n") },
+            })}
+            multiline={4}
+            autoComplete="off"
+          />
+          <TextField
+            label={locale === "fr" ? "Formules accrocheuses (une par ligne)" : "Hook patterns (one per line)"}
+            value={(draft.content_style?.hook_patterns ?? []).join("\n")}
+            onChange={(v) => setBizDraft({
+              ...draft,
+              content_style: { ...draft.content_style, hook_patterns: v.split("\n") },
+            })}
+            multiline={3}
+            autoComplete="off"
+          />
+        </BlockStack>
+
+        <BlockStack gap="200">
+          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfileKeyThemes")}</Text>
+          <TextField
+            label=""
+            labelHidden
+            value={(draft.key_themes ?? []).join("\n")}
+            onChange={(v) => setBizDraft({ ...draft, key_themes: v.split("\n") })}
+            multiline={4}
+            helpText={locale === "fr" ? "Un thème par ligne" : "One theme per line"}
+            autoComplete="off"
+          />
+        </BlockStack>
+
+        <BlockStack gap="200">
+          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfileInsights")}</Text>
+          <TextField
+            label=""
+            labelHidden
+            value={(draft.competitor_insights ?? []).join("\n")}
+            onChange={(v) => setBizDraft({ ...draft, competitor_insights: v.split("\n") })}
+            multiline={4}
+            helpText={locale === "fr" ? "Une observation par ligne" : "One insight per line"}
+            autoComplete="off"
+          />
+        </BlockStack>
+
+        <InlineStack gap="200">
+          <Button onClick={handleValidate} variant="primary" size="slim" loading={bizFetcher.state !== "idle"}>
+            {t(locale, "businessProfileValidate")}
+          </Button>
+          <Button onClick={handleRegenerate} size="slim" loading={isAnalyzing}>
+            {t(locale, "businessProfileRegenerate")}
+          </Button>
+        </InlineStack>
+        {bizFetcher.data && "error" in bizFetcher.data && bizFetcher.data.error && (
+          <Banner tone="critical"><p>{bizFetcher.data.error}</p></Banner>
+        )}
+      </BlockStack>
+    </Card>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { locale, plan, dashboard, activeProducts, auditJobId, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { locale, plan, dashboard, activeProducts, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
 
   // ── Audit job polling ─────────────────────────────────────────────────────
   type PollData = { type?: string; status?: string; resultStatus?: string | null; error?: string | null };
@@ -827,6 +1233,9 @@ export default function IndexPage() {
 
         {/* Zone 1 — Store health */}
         <Zone1 data={zone1} locale={locale} />
+
+        {/* Business profile — niche, brand, personas, content style */}
+        <BusinessProfileSection initialProfile={businessProfile} locale={locale} />
 
         {/* Zone 2 — Active products */}
         <ActiveProductsCard products={activeProducts} locale={locale} />
