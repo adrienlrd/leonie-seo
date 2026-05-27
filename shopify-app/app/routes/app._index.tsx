@@ -673,6 +673,10 @@ export default function IndexPage() {
   const [activeJobId, setActiveJobId] = useState<string | null>(auditJobId);
   const [auditStatus, setAuditStatus] = useState<string | null>(null);
   const [resultStatus, setResultStatus] = useState<string | null>(null);
+  // True only when the merchant clicked the Refresh button — guards the
+  // post-completion reload so background audits triggered by the loader do
+  // not trigger a reload loop.
+  const [manualRefresh, setManualRefresh] = useState(false);
   const auditStatusRef = useRef<string | null>(null);
   auditStatusRef.current = auditStatus;
 
@@ -689,6 +693,7 @@ export default function IndexPage() {
       setActiveJobId(refreshFetcher.data.jobId);
       setAuditStatus(null);
       setResultStatus(null);
+      setManualRefresh(true);
     }
   }, [refreshFetcher.data]);
 
@@ -716,12 +721,15 @@ export default function IndexPage() {
   }, [auditFetcher.data]);
 
   useEffect(() => {
-    if (auditStatus === "completed") {
-      setAuditProgress(100);
-      const id = setTimeout(() => window.location.reload(), 1_200);
-      return () => clearTimeout(id);
-    }
-  }, [auditStatus]);
+    if (auditStatus !== "completed") return;
+    setAuditProgress(100);
+    // Only reload when the audit was triggered by the merchant's Refresh
+    // click. Background audits launched by the loader must not trigger a
+    // reload — that would re-fire the loader and create an audit/reload loop.
+    if (!manualRefresh) return;
+    const id = setTimeout(() => window.location.reload(), 1_200);
+    return () => clearTimeout(id);
+  }, [auditStatus, manualRefresh]);
 
   const auditRunning =
     activeJobId !== null && auditStatus !== "completed" && auditStatus !== "failed";
@@ -779,7 +787,7 @@ export default function IndexPage() {
             </BlockStack>
           </Banner>
         )}
-        {auditStatus === "completed" && (
+        {auditStatus === "completed" && manualRefresh && (
           <Banner tone="success">
             <Text as="p">
               {resultStatus === "skipped_fresh"
