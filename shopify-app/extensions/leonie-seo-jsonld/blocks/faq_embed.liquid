@@ -1,7 +1,7 @@
 {%- comment -%}
   Léonie SEO — FAQ embed (App Embed Block)
-  Auto-injected on product pages. Renders the FAQ stored in the
-  `leonie.faq` metafield + FAQPage JSON-LD for rich snippets.
+  Auto-injected on product pages, just before the footer by default.
+  Renders the FAQ stored in the `leonie.faq` metafield + FAQPage JSON-LD.
   Activate via Theme Editor → App embeds.
 {%- endcomment -%}
 
@@ -9,7 +9,11 @@
 {%- assign faq_entries = product.metafields.leonie.faq.value -%}
 {%- if faq_entries.size > 0 -%}
 
-<template id="leonie-faq-template" data-target="{{ block.settings.insertion_selector | default: 'main' | escape }}">
+<template
+  id="leonie-faq-template"
+  data-selector="{{ block.settings.insertion_selector | default: '' | escape }}"
+  data-position="{{ block.settings.insertion_position | default: 'before' | escape }}"
+>
   <section class="leonie-faq" aria-labelledby="leonie-faq-heading">
     <h2 id="leonie-faq-heading" class="leonie-faq__heading">
       {{ block.settings.heading | default: 'Questions fréquentes' }}
@@ -38,11 +42,51 @@
   (function () {
     var template = document.getElementById('leonie-faq-template');
     if (!template) return;
-    var selector = template.dataset.target || 'main';
-    var target = document.querySelector(selector)
-      || document.querySelector('main')
-      || document.body;
-    target.appendChild(template.content.cloneNode(true));
+
+    var customSelector = template.dataset.selector;
+    var position = template.dataset.position || 'before';
+    var content = template.content.cloneNode(true);
+    var inserted = false;
+
+    function insertAt(el, frag, pos) {
+      if (!el || !el.parentNode) return false;
+      if (pos === 'after') {
+        el.parentNode.insertBefore(frag, el.nextSibling);
+      } else if (pos === 'append') {
+        el.appendChild(frag);
+      } else {
+        el.parentNode.insertBefore(frag, el);
+      }
+      return true;
+    }
+
+    // 1) Custom CSS selector (merchant-defined) takes priority
+    if (customSelector) {
+      var customEl = document.querySelector(customSelector);
+      if (insertAt(customEl, content, position)) inserted = true;
+    }
+
+    // 2) Auto: insert just before the footer (most reliable across themes)
+    if (!inserted) {
+      var footer = document.querySelector(
+        'footer, [role="contentinfo"], .footer, #footer, .site-footer, ' +
+        '[id^="shopify-section-footer"], [id^="shopify-section-sections--"][id*="footer"]'
+      );
+      if (insertAt(footer, content, 'before')) inserted = true;
+    }
+
+    // 3) Fallback: end of main content
+    if (!inserted) {
+      var main = document.querySelector('main, [role="main"], #MainContent, .main-content');
+      if (main) {
+        main.appendChild(content);
+        inserted = true;
+      }
+    }
+
+    // 4) Last resort
+    if (!inserted) document.body.appendChild(content);
+
     template.remove();
   })();
 </script>
@@ -138,11 +182,29 @@
       "default": "Questions fréquentes"
     },
     {
+      "type": "header",
+      "content": "Emplacement"
+    },
+    {
+      "type": "paragraph",
+      "content": "Par défaut, la FAQ apparaît automatiquement juste au-dessus du footer. Pour la placer ailleurs, indiquez un sélecteur CSS d'un élément de votre thème (ex : .product-recommendations)."
+    },
+    {
       "type": "text",
       "id": "insertion_selector",
-      "label": "Sélecteur CSS d'insertion",
-      "info": "Le bloc FAQ sera inséré à la fin de cet élément. Par défaut: 'main' (avant le footer).",
-      "default": "main"
+      "label": "Sélecteur CSS personnalisé",
+      "info": "Laissez vide pour le placement automatique avant le footer."
+    },
+    {
+      "type": "select",
+      "id": "insertion_position",
+      "label": "Position par rapport à ce sélecteur",
+      "options": [
+        { "value": "before", "label": "Avant l'élément" },
+        { "value": "after", "label": "Après l'élément" },
+        { "value": "append", "label": "À l'intérieur (en bas)" }
+      ],
+      "default": "before"
     }
   ]
 }
