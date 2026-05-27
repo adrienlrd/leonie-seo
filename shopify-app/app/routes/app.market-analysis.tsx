@@ -89,6 +89,15 @@ interface ContentQuality {
   skipped_surfaces?: string[];
 }
 
+interface EnrichmentQuestion {
+  key: string;
+  question: string;
+  placeholder: string;
+  why_it_matters: string;
+  target_keyword: string;
+  unlocks_surfaces: string[];
+}
+
 interface ContentTestPack {
   current_meta_title: string;
   proposed_meta_title: string;
@@ -107,6 +116,7 @@ interface ContentTestPack {
   facts_missing: string[];
   confidence: string;
   content_quality?: ContentQuality;
+  enrichment_questions?: EnrichmentQuestion[];
   faq_sync?: {
     applied: boolean;
     error: string | null;
@@ -401,12 +411,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   // ── Single-product analysis ────────────────────────────────────────────────
-  if (intent === "startSingle") {
+  if (intent === "startSingle" || intent === "saveFactsAndStartSingle") {
     const productId = formData.get("productId") as string;
     try {
+      if (intent === "saveFactsAndStartSingle") {
+        const answers = JSON.parse(formData.get("answers") as string) as Record<string, string>;
+        const saveResp = await callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/market-analysis/facts/${encodeURIComponent(productId)}`,
+          {
+            accessToken: session.accessToken,
+            method: "POST",
+            body: JSON.stringify({ answers }),
+            signal: AbortSignal.timeout(10_000),
+          },
+        );
+        if (!saveResp.ok) {
+          const err = await saveResp.text();
+          return json({ type: "startSingle", jobId: null, productId, error: `Erreur ${saveResp.status}: ${err}` });
+        }
+      }
       const resp = await callBackendForShop(
         session.shop,
-        `/api/shops/${session.shop}/market-analysis/jobs?product_ids=${encodeURIComponent(productId)}`,
+        `/api/shops/${session.shop}/market-analysis/jobs?product_ids=${encodeURIComponent(productId)}${intent === "saveFactsAndStartSingle" ? "&persist_product_result=true" : ""}`,
         { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(30_000) },
       );
       if (!resp.ok) {
@@ -595,6 +622,7 @@ function qualityIssueLabel(issue: string, locale: Locale): string {
     description_missing_primary_target: ["Cible principale absente de la description", "Primary target missing from description"],
     description_has_insufficient_target_coverage: ["Description trop peu alignée aux cibles", "Description has insufficient target coverage"],
     faq_missing_available_paa_question: ["FAQ non alignée aux questions SERP disponibles", "FAQ does not cover available SERP questions"],
+    faq_missing_primary_target: ["FAQ non alignée au mot-clé principal", "FAQ does not cover the primary target"],
     missing_geo_answer_block: ["Bloc de réponse GEO manquant", "GEO answer block is missing"],
     missing_recommended_product_description: ["Description recommandée mais non générée", "Recommended description was not generated"],
     product_description_too_generic: ["Description trop courte ou générique pour être publiée automatiquement", "Description is too short or generic for automated publishing"],
@@ -603,6 +631,7 @@ function qualityIssueLabel(issue: string, locale: Locale): string {
     unjustified_faq_surface: ["FAQ générée sans question ou preuve suffisante", "FAQ generated without sufficient question or factual evidence"],
     unjustified_geo_answer_surface: ["Réponse GEO générée sans faits suffisants", "GEO answer generated without enough supporting facts"],
     missing_recommended_blog_support: ["Contenu support recommandé mais non généré", "Recommended support content was not generated"],
+    blog_missing_primary_target: ["Article support non aligné au mot-clé principal", "Support article does not cover the primary target"],
     unjustified_blog_surface: ["Article proposé sans intention informationnelle ou faits suffisants", "Blog suggested without sufficient informational intent or facts"],
     missing_claim_evidence_ledger: ["Aucune preuve structurée pour les affirmations générées", "No structured evidence for generated claims"],
     unverified_claim_reference: ["Une affirmation cite une preuve absente des données Shopify", "A claim references evidence absent from Shopify data"],
@@ -849,12 +878,14 @@ function ProductCard({
   locale,
   isAnalyzing,
   onAnalyze,
+  onEnrichAndAnalyze,
   analyzeDisabled,
 }: {
   product: ProductResult;
   locale: Locale;
   isAnalyzing: boolean;
   onAnalyze: () => void;
+  onEnrichAndAnalyze: (answers: Record<string, string>) => void;
   analyzeDisabled: boolean;
 }) {
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -871,6 +902,8 @@ function ProductCard({
   // ── Proposal edit mode ──────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
   const [editedPack, setEditedPack] = useState<ContentTestPack>({ ...pack });
+  const [showEnrichmentQuestions, setShowEnrichmentQuestions] = useState(false);
+  const [enrichmentAnswers, setEnrichmentAnswers] = useState<Record<string, string>>({});
   const saveFetcher = useFetcher<{ type: string; error: string | null }>();
   const isSaving = saveFetcher.state !== "idle";
 
@@ -881,6 +914,8 @@ function ProductCard({
   useEffect(() => {
     if (!editMode) {
       setEditedPack({ ...pack });
+      setShowEnrichmentQuestions(false);
+      setEnrichmentAnswers({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packSignature]);
@@ -946,6 +981,10 @@ function ProductCard({
     [...coverageByKeyword.entries()]
       .filter(([, fields]) => fields.length > 0)
       .map(([query]) => query),
+  );
+  const enrichmentQuestions = editedPack.enrichment_questions ?? [];
+  const canSubmitEnrichment = enrichmentQuestions.some(
+    (question) => (enrichmentAnswers[question.key] ?? "").trim().length > 0,
   );
 
   return (
@@ -1213,10 +1252,69 @@ function ProductCard({
                     )
                   )}
                   {!editMode && (editedPack.content_quality?.skipped_surfaces?.length ?? 0) > 0 && (
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {locale === "fr" ? "Non généré automatiquement faute de preuve ou d'intention suffisante : " : "Not generated automatically because supporting evidence or intent is insufficient: "}
-                      {editedPack.content_quality?.skipped_surfaces?.map((surface) => surfaceLabel(surface, locale)).join(", ")}.
-                    </Text>
+                    <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-warning">
+                      <BlockStack gap="200">
+                        <InlineStack gap="200" blockAlign="center" wrap>
+                          <Badge tone="warning">!</Badge>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {locale === "fr" ? "Non généré automatiquement faute de preuve ou d'intention suffisante : " : "Not generated automatically because supporting evidence or intent is insufficient: "}
+                            {editedPack.content_quality?.skipped_surfaces?.map((surface) => surfaceLabel(surface, locale)).join(", ")}.
+                          </Text>
+                          {enrichmentQuestions.length > 0 && (
+                            <Button
+                              size="slim"
+                              variant="plain"
+                              onClick={() => setShowEnrichmentQuestions((open) => !open)}
+                            >
+                              {locale === "fr" ? "Compléter pour générer" : "Complete to generate"}
+                            </Button>
+                          )}
+                        </InlineStack>
+                        <Collapsible
+                          id={`enrichment-${product.product_id}`}
+                          open={showEnrichmentQuestions}
+                        >
+                          <BlockStack gap="300">
+                            <Text as="p" variant="bodySm">
+                              {locale === "fr"
+                                ? "Répondez seulement avec des informations exactes. Les questions reprennent la cible SEO retenue pour créer une FAQ ou un article utile aux recherches et aux assistants IA."
+                                : "Answer only with accurate information. Questions use the selected SEO target to create useful FAQ or support content for search and AI assistants."}
+                            </Text>
+                            {enrichmentQuestions.map((question) => (
+                              <TextField
+                                key={question.key}
+                                label={question.question}
+                                helpText={question.why_it_matters}
+                                placeholder={question.placeholder}
+                                value={enrichmentAnswers[question.key] ?? ""}
+                                onChange={(value) => setEnrichmentAnswers((answers) => ({
+                                  ...answers,
+                                  [question.key]: value,
+                                }))}
+                                autoComplete="off"
+                                multiline={2}
+                              />
+                            ))}
+                            <InlineStack gap="200">
+                              <Button
+                                variant="primary"
+                                loading={isAnalyzing}
+                                disabled={!canSubmitEnrichment || analyzeDisabled}
+                                onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
+                              >
+                                {locale === "fr" ? "Enregistrer et générer" : "Save and generate"}
+                              </Button>
+                              <Button
+                                variant="plain"
+                                onClick={() => setShowEnrichmentQuestions(false)}
+                              >
+                                {locale === "fr" ? "Fermer" : "Close"}
+                              </Button>
+                            </InlineStack>
+                          </BlockStack>
+                        </Collapsible>
+                      </BlockStack>
+                    </Box>
                   )}
                   {!editMode && (editedPack.content_quality?.advisories?.length ?? 0) > 0 && (
                     <Text as="p" variant="bodySm" tone="subdued">
@@ -1840,6 +1938,17 @@ export default function MarketAnalysisPage() {
     singleFetcher.submit(fd, { method: "post" });
   };
 
+  const handleEnrichAndAnalyze = (productId: string, answers: Record<string, string>) => {
+    setSingleProductJobId(null);
+    setSingleProductId(productId);
+    setSingleProductJob(null);
+    const fd = new FormData();
+    fd.set("intent", "saveFactsAndStartSingle");
+    fd.set("productId", productId);
+    fd.set("answers", JSON.stringify(answers));
+    singleFetcher.submit(fd, { method: "post" });
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Page
@@ -2112,6 +2221,7 @@ export default function MarketAnalysisPage() {
                         locale={locale}
                         isAnalyzing={singleProductId === product.product_id && isSingleRunning}
                         onAnalyze={() => handleAnalyzeSingle(product.product_id)}
+                        onEnrichAndAnalyze={(answers) => handleEnrichAndAnalyze(product.product_id, answers)}
                         analyzeDisabled={isSingleRunning || isInProgress}
                       />
                     ))}

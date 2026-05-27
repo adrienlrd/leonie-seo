@@ -66,23 +66,40 @@ _JSON_KEYS = _PASS1_KEYS + _PASS2_KEYS
 _PLAN_BUDGETS_USD = {"free": 2.0, "starter": 5.0, "pro": 20.0, "agency": 50.0}
 _DEFAULT_BUDGET_USD = 20.0
 
-_INFORMATIVE_FACT_KEYS = frozenset({
-    "description",
-    "product_type",
-    "price",
-    "materials",
-    "certifications",
-    "origins",
-    "targets",
-    "properties",
-    "warranty",
-    "delivery",
-    "returns",
-    "care",
-    "dimensions",
-    "compatibility",
-})
+_INFORMATIVE_FACT_KEYS = frozenset(
+    {
+        "description",
+        "product_type",
+        "price",
+        "materials",
+        "certifications",
+        "origins",
+        "targets",
+        "properties",
+        "warranty",
+        "delivery",
+        "returns",
+        "care",
+        "dimensions",
+        "compatibility",
+        "size_recommendation",
+        "use_cases",
+        "selection_criteria",
+    }
+)
 _NARRATIVE_FACT_KEYS = _INFORMATIVE_FACT_KEYS - {"description", "price"}
+_MERCHANT_FACT_LABELS = {
+    "materials": "Materials",
+    "origins": "Manufacturing origin",
+    "certifications": "Certifications",
+    "warranty": "Warranty",
+    "care": "Care instructions",
+    "dimensions": "Dimensions",
+    "compatibility": "Compatibility",
+    "size_recommendation": "Size recommendation",
+    "use_cases": "Confirmed use cases",
+    "selection_criteria": "Selection criteria",
+}
 
 _CLAIM_PATTERNS: tuple[tuple[str, str], ...] = (
     ("materials", r"\b(coton|nylon|cuir|acier|inox|bois|silicone|bambou|polyester)\b"),
@@ -95,7 +112,10 @@ _CLAIM_PATTERNS: tuple[tuple[str, str], ...] = (
     ("dimensions", r"\b\d+(?:[.,]\d+)?\s?(?:cm|mm|ml|l|kg|g)\b"),
     ("compatibility", r"\b(compatible|adapt[ée]\s+[àa]|convient\s+[àa])\b"),
     ("performance", r"\b(silencieu(?:x|se)|ultra[- ]?silencieu(?:x|se)|anti[- ]?fuite)\b"),
-    ("sustainability", r"\b([ée]cologique|[ée]co[- ]?responsable|durable|recycl[ée]?|biod[ée]gradable)\b"),
+    (
+        "sustainability",
+        r"\b([ée]cologique|[ée]co[- ]?responsable|durable|recycl[ée]?|biod[ée]gradable)\b",
+    ),
 )
 
 
@@ -216,6 +236,7 @@ def _fetch_trends_once(top_titles: list[str]) -> list[Any]:
         return []
     try:
         from app.niche.signals.trends import fetch_related_queries  # noqa: PLC0415
+
         return fetch_related_queries(top_titles[:5], geo="FR", timeframe="today 12-m")
     except Exception as exc:
         logger.debug("Google Trends unavailable: %s", exc)
@@ -293,11 +314,7 @@ def _build_pass1_prompt(
             f"{revenue}€ revenus, taux conv. {conv_rate:.1%}"
         )
 
-    stock_text = (
-        f"{stock_qty} unités ({stock_status})"
-        if stock_qty is not None
-        else stock_status
-    )
+    stock_text = f"{stock_qty} unités ({stock_status})" if stock_qty is not None else stock_status
 
     trend_text = ""
     if trend_top:
@@ -307,9 +324,7 @@ def _build_pass1_prompt(
     if not trend_text:
         trend_text = "aucune donnée Trends disponible"
 
-    merchant_label_text = (
-        f"LABEL SEO MARCHAND: {merchant_label}\n" if merchant_label else ""
-    )
+    merchant_label_text = f"LABEL SEO MARCHAND: {merchant_label}\n" if merchant_label else ""
 
     return (
         f"DATE_ACTUELLE: {today} (année {current_year})\n"
@@ -340,15 +355,14 @@ def _build_pass1_prompt(
     )
 
 
-def _crawl_for_handle(handle: str, crawl_findings: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+def _crawl_for_handle(
+    handle: str, crawl_findings: list[dict[str, Any]] | None
+) -> list[dict[str, Any]]:
     """Return crawl findings whose URL points at this product (keyed by URL only)."""
     if not handle or not crawl_findings:
         return []
     needle = f"/products/{handle}"
-    return [
-        f for f in crawl_findings
-        if isinstance(f, dict) and needle in str(f.get("url", ""))
-    ]
+    return [f for f in crawl_findings if isinstance(f, dict) and needle in str(f.get("url", ""))]
 
 
 def _build_pass2_retry_prompt(
@@ -367,15 +381,22 @@ def _build_pass2_retry_prompt(
     """
     today = datetime.now(UTC).strftime("%d/%m/%Y")
     kw_str = ", ".join(f'"{q}"' for q in keywords) if keywords else "non disponible"
-    facts_text = "; ".join(
-        f"{fact.get('key')}: {_coerce_str(fact.get('value', ''))[:100]}"
-        for fact in (confirmed_facts or [])
-        if isinstance(fact, dict) and fact.get("key")
-    ) or "aucun fait confirmé"
-    enabled_surfaces = ", ".join(
-        name for name, decision in (surface_plan or {}).items()
-        if isinstance(decision, dict) and decision.get("generate")
-    ) or "metadata uniquement"
+    facts_text = (
+        "; ".join(
+            f"{fact.get('key')}: {_coerce_str(fact.get('value', ''))[:100]}"
+            for fact in (confirmed_facts or [])
+            if isinstance(fact, dict) and fact.get("key")
+        )
+        or "aucun fait confirmé"
+    )
+    enabled_surfaces = (
+        ", ".join(
+            name
+            for name, decision in (surface_plan or {}).items()
+            if isinstance(decision, dict) and decision.get("generate")
+        )
+        or "metadata uniquement"
+    )
     return (
         f"DATE: {today}\n"
         f"NICHE: {niche_summary or 'Non définie'}\n"
@@ -444,10 +465,10 @@ def _build_pass2_prompt(
         vol_text = f"{vol}/mois" if vol is not None else "volume n/a"
         line = (
             f'  #{idx} "{kw.get("query", "")}" [{kw.get("target_role", "supporting")}] '
-            f'— priorité {kw.get("priority_score", "?")}/100, {vol_text}, '
-            f'difficulté {kw.get("competition_score", "?")}/100 '
-            f'({kw.get("difficulty_source", "free_estimated")}), '
-            f'intent {kw.get("intent_type", "?")}'
+            f"— priorité {kw.get('priority_score', '?')}/100, {vol_text}, "
+            f"difficulté {kw.get('competition_score', '?')}/100 "
+            f"({kw.get('difficulty_source', 'free_estimated')}), "
+            f"intent {kw.get('intent_type', '?')}"
         )
         # Surface GSC perf for keywords already ranking — the LLM must defend these positions.
         gsc_impr = kw.get("gsc_impressions")
@@ -455,12 +476,12 @@ def _build_pass2_prompt(
         gsc_clicks = kw.get("gsc_clicks")
         if gsc_impr or gsc_pos is not None:
             line += (
-                f'\n      └ GSC réel: {gsc_impr or 0} impressions, '
-                f'{gsc_clicks or 0} clics, position moyenne {gsc_pos if gsc_pos is not None else "?"}'
+                f"\n      └ GSC réel: {gsc_impr or 0} impressions, "
+                f"{gsc_clicks or 0} clics, position moyenne {gsc_pos if gsc_pos is not None else '?'}"
             )
         cpc = kw.get("cpc")
         if cpc:
-            line += f' | CPC AdWords {cpc}€ (valeur commerciale)'
+            line += f" | CPC AdWords {cpc}€ (valeur commerciale)"
         if kw.get("serp_evidence"):
             line += " | SERP/PAA vérifié"
         target_lines.append(line)
@@ -480,9 +501,7 @@ def _build_pass2_prompt(
                 paa_questions.append(q)
         comps = intel.get("top_competitors", [])[:3]
         if comps:
-            joined = "; ".join(
-                f'{c.get("domain", "")} — "{c.get("title", "")}"' for c in comps
-            )
+            joined = "; ".join(f'{c.get("domain", "")} — "{c.get("title", "")}"' for c in comps)
             competitor_lines.append(f'"{key}": {joined}')
         fs = intel.get("featured_snippet")
         if fs and fs not in featured_snippets:
@@ -506,7 +525,7 @@ def _build_pass2_prompt(
 
     # ── Crawl findings ──────────────────────────────────────────────────────
     crawl_lines = [
-        f'  - {f.get("issue_type", "?")} ({f.get("severity", "?")}): {f.get("detail", "")}'
+        f"  - {f.get('issue_type', '?')} ({f.get('severity', '?')}): {f.get('detail', '')}"
         for f in crawl_findings[:8]
     ]
     fact_lines = [
@@ -547,8 +566,10 @@ def _build_pass2_prompt(
         parts.append("\n=== TOP MOTS-CLÉS CIBLES (à utiliser en priorité) ===")
         parts.extend(target_lines)
     if related_ideas:
-        parts.append("\nAUTRES MOTS-CLÉS LIÉS (utilise-en au moins 2 dans description/FAQ/blog): "
-                     + ", ".join(related_ideas[:15]))
+        parts.append(
+            "\nAUTRES MOTS-CLÉS LIÉS (utilise-en au moins 2 dans description/FAQ/blog): "
+            + ", ".join(related_ideas[:15])
+        )
     if ga4_line:
         parts.append("\n=== GA4 PERFORMANCE PAGE PRODUIT (90 derniers jours) ===")
         parts.append(ga4_line)
@@ -556,7 +577,10 @@ def _build_pass2_prompt(
         parts.append("\n=== CONCURRENTS SERP (titres réels — différencie-toi, ne copie pas) ===")
         parts.extend(f"  {c}" for c in competitor_lines)
     if featured_snippets:
-        parts.append("Extraits SERP observés à utiliser seulement comme contexte: " + " | ".join(featured_snippets[:3]))
+        parts.append(
+            "Extraits SERP observés à utiliser seulement comme contexte: "
+            + " | ".join(featured_snippets[:3])
+        )
     if paa_questions:
         parts.append("\n=== QUESTIONS PAA Google (à REPRENDRE dans proposed_faq) ===")
         parts.extend(f"  - {q}" for q in paa_questions[:10])
@@ -564,7 +588,9 @@ def _build_pass2_prompt(
         parts.append("\n=== PROBLÈMES TECHNIQUES DÉTECTÉS (crawl) ===")
         parts.extend(crawl_lines)
     parts.append("\n=== FAITS PRODUIT CONFIRMÉS — SEULE SOURCE AUTORISÉE POUR LES AFFIRMATIONS ===")
-    parts.extend(fact_lines or ["  - aucun fait produit confirmé : ne génère aucun contenu factuel"])
+    parts.extend(
+        fact_lines or ["  - aucun fait produit confirmé : ne génère aucun contenu factuel"]
+    )
     if missing_fact_lines:
         parts.append("\nFAITS MANQUANTS — NE PAS LES AFFIRMER :")
         parts.extend(missing_fact_lines)
@@ -578,7 +604,9 @@ def _build_pass2_prompt(
     # ── Domain-level competitors (DataForSEO Competitors Domain) ────────────
     if domain_competitors:
         parts.append("\n=== CONCURRENTS DE DOMAINE PRIORITAIRES (DataForSEO) ===")
-        parts.append("Ces sites se positionnent sur les mêmes mots-clés que la boutique. Utilise-les pour différencier.")
+        parts.append(
+            "Ces sites se positionnent sur les mêmes mots-clés que la boutique. Utilise-les pour différencier."
+        )
         for comp in domain_competitors[:10]:
             domain = comp.get("domain", "")
             angle = comp.get("content_angle", "")
@@ -661,18 +689,43 @@ def _build_pass2_prompt(
     return "\n".join(p for p in parts if p != "")
 
 
-_GENERIC_DOMAINS = frozenset({
-    "amazon.fr", "amazon.com", "amazon.co.uk", "amazon.de", "amazon.es", "amazon.it",
-    "ebay.fr", "ebay.com", "ebay.co.uk",
-    "fnac.com", "cdiscount.com", "rakuten.fr", "aliexpress.com", "wish.com",
-    "wikipedia.org", "fr.wikipedia.org", "en.wikipedia.org",
-    "youtube.com", "youtu.be",
-    "facebook.com", "instagram.com", "pinterest.com", "tiktok.com", "twitter.com",
-    "reddit.com",
-    "google.com", "google.fr",
-    "leboncoin.fr", "vinted.fr",
-    "manomano.fr", "boulanger.com", "darty.com", "ldlc.com",
-})
+_GENERIC_DOMAINS = frozenset(
+    {
+        "amazon.fr",
+        "amazon.com",
+        "amazon.co.uk",
+        "amazon.de",
+        "amazon.es",
+        "amazon.it",
+        "ebay.fr",
+        "ebay.com",
+        "ebay.co.uk",
+        "fnac.com",
+        "cdiscount.com",
+        "rakuten.fr",
+        "aliexpress.com",
+        "wish.com",
+        "wikipedia.org",
+        "fr.wikipedia.org",
+        "en.wikipedia.org",
+        "youtube.com",
+        "youtu.be",
+        "facebook.com",
+        "instagram.com",
+        "pinterest.com",
+        "tiktok.com",
+        "twitter.com",
+        "reddit.com",
+        "google.com",
+        "google.fr",
+        "leboncoin.fr",
+        "vinted.fr",
+        "manomano.fr",
+        "boulanger.com",
+        "darty.com",
+        "ldlc.com",
+    }
+)
 
 
 def _filter_domain_competitors(
@@ -682,7 +735,8 @@ def _filter_domain_competitors(
 ) -> list[dict[str, Any]]:
     """Remove generic marketplaces and keep the top `limit` by estimated_strength."""
     filtered = [
-        s for s in signals
+        s
+        for s in signals
         if s.get("detected_from") == "paid_provider"
         and str(s.get("domain", "")).strip().lower() not in _GENERIC_DOMAINS
     ]
@@ -759,7 +813,9 @@ def _apply_signals_to_keywords(
         # a broader keyword in the SAME list that does — its volume becomes
         # an upper-bound estimate. Cheap (no extra API call) and transparent.
         if not sig and not merged.get("search_volume"):
-            parent_vol, parent_query = _find_parent_keyword_data(merged.get("query", ""), seo_keywords, by_keyword)
+            parent_vol, parent_query = _find_parent_keyword_data(
+                merged.get("query", ""), seo_keywords, by_keyword
+            )
             if parent_vol is not None and parent_query:
                 merged["search_volume_estimated_ceiling"] = parent_vol
                 merged["estimated_from_parent"] = parent_query
@@ -776,17 +832,23 @@ def _apply_signals_to_keywords(
             if sig.get("source") == "gsc":
                 impressions = sig.get("impressions") or 0
                 merged["demand_score"] = _impressions_bucket(int(impressions))
-                merged["competition_score"] = int(sig.get("difficulty_score", merged.get("competition_score", 50)))
+                merged["competition_score"] = int(
+                    sig.get("difficulty_score", merged.get("competition_score", 50))
+                )
                 merged["gsc_impressions"] = sig.get("impressions")
                 merged["gsc_clicks"] = sig.get("clicks")
                 merged["gsc_position"] = sig.get("avg_position")
             # Paid-provider overrides (DataForSEO) — replace estimates with real volume/CPC
             if sig.get("source") == "dataforseo" and sig.get("search_volume") is not None:
                 merged["demand_score"] = _volume_bucket(int(sig["search_volume"]))
-                merged["competition_score"] = int(sig.get("difficulty_score", merged.get("competition_score", 50)))
+                merged["competition_score"] = int(
+                    sig.get("difficulty_score", merged.get("competition_score", 50))
+                )
             merged["data_source"] = sig.get("source", "llm_estimated")
             merged["difficulty_source"] = sig.get("difficulty_source", "free_estimated")
-            merged["search_volume"] = sig.get("search_volume")  # None in free mode — UI shows "missing"
+            merged["search_volume"] = sig.get(
+                "search_volume"
+            )  # None in free mode — UI shows "missing"
             merged["cpc"] = sig.get("cpc")
             merged["ads_competition"] = sig.get("ads_competition")
             merged["confidence"] = sig.get("confidence", "low")
@@ -811,7 +873,8 @@ _FR_STOP_WORDS = frozenset(
 def _content_words(text: str) -> frozenset[str]:
     """Extract meaningful lowercase words (≥3 chars, non-stop) from a keyword string."""
     return frozenset(
-        w for w in re.findall(r"[a-zàâäéèêëîïôùûüç]+", text.lower())
+        w
+        for w in re.findall(r"[a-zàâäéèêëîïôùûüç]+", text.lower())
         if len(w) >= 3 and w not in _FR_STOP_WORDS
     )
 
@@ -819,7 +882,8 @@ def _content_words(text: str) -> frozenset[str]:
 def _content_word_count(text: str) -> int:
     """Count meaningful words while preserving repetitions for length checks."""
     return sum(
-        1 for word in re.findall(r"[a-zàâäéèêëîïôùûüç]+", text.lower())
+        1
+        for word in re.findall(r"[a-zàâäéèêëîïôùûüç]+", text.lower())
         if len(word) >= 3 and word not in _FR_STOP_WORDS
     )
 
@@ -936,6 +1000,13 @@ def _build_surface_plan(
         for fact in confirmed_facts
         if isinstance(fact, dict) and fact.get("confidence") == "confirmed"
     }
+    merchant_confirmed_keys = {
+        str(fact.get("key", ""))
+        for fact in confirmed_facts
+        if isinstance(fact, dict)
+        and fact.get("confidence") == "confirmed"
+        and fact.get("source") == "merchant_confirmation"
+    }
     description_fact = next(
         (
             _coerce_str(fact.get("value", ""))
@@ -947,39 +1018,173 @@ def _build_surface_plan(
         "",
     )
     has_primary_target = bool(keywords and keywords[0].get("query"))
-    has_informative_fact = bool(confirmed_keys & _NARRATIVE_FACT_KEYS) or _content_word_count(description_fact) >= 12
+    has_informative_fact = (
+        bool(confirmed_keys & _NARRATIVE_FACT_KEYS) or _content_word_count(description_fact) >= 12
+    )
     has_paa = any(keyword.get("paa_questions") for keyword in keywords[:5])
     has_informational_target = any(
-        str(keyword.get("intent_type", "")).lower() in {"informational", "informationnel", "question"}
+        str(keyword.get("intent_type", "")).lower()
+        in {"informational", "informationnel", "question"}
         for keyword in keywords[:5]
     )
+    has_merchant_faq_basis = bool(merchant_confirmed_keys) and has_primary_target
+    has_merchant_support_topic = bool(merchant_confirmed_keys & {"use_cases", "selection_criteria"})
 
     return {
         "metadata": {
             "generate": has_primary_target,
-            "reason": "primary_target_available" if has_primary_target else "missing_primary_target",
+            "reason": "primary_target_available"
+            if has_primary_target
+            else "missing_primary_target",
         },
         "product_description": {
             "generate": has_primary_target and has_informative_fact,
-            "reason": "verified_product_facts_available" if has_informative_fact else "insufficient_verified_product_facts",
+            "reason": "verified_product_facts_available"
+            if has_informative_fact
+            else "insufficient_verified_product_facts",
         },
         "faq": {
-            "generate": has_paa and has_informative_fact,
-            "reason": "verified_paa_and_product_facts_available" if has_paa and has_informative_fact else "insufficient_question_or_fact_evidence",
+            "generate": has_informative_fact and (has_paa or has_merchant_faq_basis),
+            "reason": (
+                "verified_paa_and_product_facts_available"
+                if has_paa and has_informative_fact
+                else "merchant_confirmed_faq_basis_available"
+                if has_informative_fact and has_merchant_faq_basis
+                else "insufficient_question_or_fact_evidence"
+            ),
         },
         "geo_answer": {
             "generate": has_primary_target and has_informative_fact,
-            "reason": "verified_product_facts_available" if has_informative_fact else "insufficient_verified_product_facts",
+            "reason": "verified_product_facts_available"
+            if has_informative_fact
+            else "insufficient_verified_product_facts",
         },
         "blog": {
-            "generate": has_informative_fact and (has_paa or has_informational_target),
+            "generate": has_informative_fact
+            and (has_paa or has_informational_target or has_merchant_support_topic),
             "reason": (
                 "informational_demand_and_verified_facts_available"
                 if has_informative_fact and (has_paa or has_informational_target)
+                else "merchant_confirmed_support_topic_available"
+                if has_informative_fact and has_merchant_support_topic
                 else "insufficient_informational_evidence"
             ),
         },
     }
+
+
+def _build_enrichment_questions(
+    keywords: list[dict[str, Any]],
+    missing_facts: list[dict[str, Any]],
+    surface_plan: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Create short merchant questions that can ground optional SEO/GEO content."""
+    skipped = {
+        surface
+        for surface in ("faq", "geo_answer", "blog")
+        if not _enabled_surface(surface_plan, surface)
+    }
+    if not skipped:
+        return []
+    primary_query = str(keywords[0].get("query", "")).strip() if keywords else ""
+    if not primary_query:
+        return []
+    paa_question = next(
+        (
+            str(question).strip()
+            for keyword in keywords[:5]
+            for question in keyword.get("paa_questions", [])
+            if str(question).strip()
+        ),
+        "",
+    )
+    available_missing = {
+        str(fact.get("key", "")) for fact in missing_facts if isinstance(fact, dict)
+    }
+    templates = {
+        "warranty": (
+            f"Quelle garantie pouvez-vous confirmer pour « {primary_query} » ?",
+            "Ex. garantie 2 ans, avec les conditions exactes.",
+        ),
+        "compatibility": (
+            f"Avec quels usages ou équipements « {primary_query} » est-il compatible ?",
+            "Ex. formats, modèles ou profils compatibles.",
+        ),
+        "dimensions": (
+            f"Quelles dimensions exactes peut-on indiquer pour « {primary_query} » ?",
+            "Ex. hauteur, largeur et capacité vérifiées.",
+        ),
+        "care": (
+            f"Quel entretien exact recommandez-vous pour « {primary_query} » ?",
+            "Ex. étapes de nettoyage et fréquence confirmées.",
+        ),
+        "materials": (
+            f"Quels matériaux composent réellement « {primary_query} » ?",
+            "Ex. acier inoxydable, coton bio ou silicone.",
+        ),
+        "origins": (
+            f"Quelle origine de fabrication pouvez-vous prouver pour « {primary_query} » ?",
+            "Ex. fabriqué en France, seulement si confirmé.",
+        ),
+        "certifications": (
+            f"Quelle certification vérifiée concerne « {primary_query} » ?",
+            "Ex. nom exact du label et périmètre concerné.",
+        ),
+        "size_recommendation": (
+            f"Comment choisir la bonne taille de « {primary_query} » ?",
+            "Ex. mesure à prendre et correspondance confirmée.",
+        ),
+    }
+    questions: list[dict[str, Any]] = []
+    for key in (
+        "warranty",
+        "compatibility",
+        "dimensions",
+        "care",
+        "materials",
+        "origins",
+        "certifications",
+        "size_recommendation",
+    ):
+        if key not in available_missing:
+            continue
+        question, placeholder = templates[key]
+        questions.append(
+            {
+                "key": key,
+                "question": question,
+                "placeholder": placeholder,
+                "why_it_matters": (
+                    f"Permet une réponse factuelle liée à « {paa_question or primary_query} »."
+                ),
+                "target_keyword": primary_query,
+                "unlocks_surfaces": ["faq", "geo_answer"],
+            }
+        )
+        if len(questions) == 2:
+            break
+    if "blog" in skipped:
+        questions.extend(
+            [
+                {
+                    "key": "use_cases",
+                    "question": f"Dans quel besoin précis un client recherche-t-il « {primary_query} » ?",
+                    "placeholder": "Ex. problème résolu, contexte d'utilisation et client concerné.",
+                    "why_it_matters": "Définit un angle utile pour une FAQ et un article support ciblés.",
+                    "target_keyword": primary_query,
+                    "unlocks_surfaces": ["faq", "blog"],
+                },
+                {
+                    "key": "selection_criteria",
+                    "question": f"Quels critères factuels aident à choisir « {primary_query} » ?",
+                    "placeholder": "Ex. capacité, taille, usage ou entretien, uniquement si vérifié.",
+                    "why_it_matters": "Fournit le plan d'un article comparatif utile sans inventer de promesse.",
+                    "target_keyword": primary_query,
+                    "unlocks_surfaces": ["blog"],
+                },
+            ]
+        )
+    return questions[:4]
 
 
 def _forbidden_phrases_from_niche(niche_hypothesis: dict[str, Any] | None) -> list[str]:
@@ -1024,17 +1229,19 @@ def _build_evidence_ledger(
         if not fact_keys or any(fact_key not in fact_map for fact_key in fact_keys):
             invalid_claims.append(str(claim.get("claim", "")))
             continue
-        ledger.append({
-            "claim": claim["claim"],
-            "facts": [
-                {
-                    "key": fact_key,
-                    "value": fact_map[fact_key].get("value"),
-                    "source": fact_map[fact_key].get("source"),
-                }
-                for fact_key in fact_keys
-            ],
-        })
+        ledger.append(
+            {
+                "claim": claim["claim"],
+                "facts": [
+                    {
+                        "key": fact_key,
+                        "value": fact_map[fact_key].get("value"),
+                        "source": fact_map[fact_key].get("source"),
+                    }
+                    for fact_key in fact_keys
+                ],
+            }
+        )
     return ledger, invalid_claims
 
 
@@ -1095,10 +1302,13 @@ def _build_content_quality(
     forbidden_phrases: list[str] | None = None,
 ) -> dict[str, Any]:
     """Validate whether a generated SEO/GEO pack is eligible for auto-publish."""
-    facts = confirmed_facts if confirmed_facts is not None else list(pack.get("confirmed_facts") or [])
+    facts = (
+        confirmed_facts if confirmed_facts is not None else list(pack.get("confirmed_facts") or [])
+    )
     plan = surface_plan if surface_plan is not None else dict(pack.get("surface_plan") or {})
     targets = [
-        keyword for keyword in (pack.get("seo_keywords") or [])[:5]
+        keyword
+        for keyword in (pack.get("seo_keywords") or [])[:5]
         if isinstance(keyword, dict) and keyword.get("query")
     ]
     fields = {
@@ -1123,15 +1333,17 @@ def _build_content_quality(
     coverage: list[dict[str, Any]] = []
     for target in targets:
         query = str(target["query"])
-        coverage.append({
-            "query": query,
-            "target_role": target.get("target_role", "supporting"),
-            "fields": [
-                field_name
-                for field_name, field_text in fields.items()
-                if _keyword_is_covered(query, field_text)
-            ],
-        })
+        coverage.append(
+            {
+                "query": query,
+                "target_role": target.get("target_role", "supporting"),
+                "fields": [
+                    field_name
+                    for field_name, field_text in fields.items()
+                    if _keyword_is_covered(query, field_text)
+                ],
+            }
+        )
 
     issues: list[str] = []
     advisories: list[str] = []
@@ -1143,7 +1355,9 @@ def _build_content_quality(
             issues.append("meta_title_missing_primary_target")
         if not _keyword_is_covered(primary_query, fields["meta_description"]):
             issues.append("meta_description_missing_primary_target")
-        if _enabled_surface(plan, "product_description") and not _keyword_is_covered(primary_query, fields["description"]):
+        if _enabled_surface(plan, "product_description") and not _keyword_is_covered(
+            primary_query, fields["description"]
+        ):
             issues.append("description_missing_primary_target")
 
     if _enabled_surface(plan, "product_description"):
@@ -1155,14 +1369,13 @@ def _build_content_quality(
         issues.append("unjustified_product_description_surface")
 
     paa_questions = [
-        question
-        for target in targets
-        for question in target.get("paa_questions", [])
-        if question
+        question for target in targets for question in target.get("paa_questions", []) if question
     ]
     if _enabled_surface(plan, "faq"):
         if not fields["faq"]:
             issues.append("missing_recommended_faq")
+        elif primary_query and not _keyword_is_covered(primary_query, fields["faq"]):
+            issues.append("faq_missing_primary_target")
         elif paa_questions and not any(
             _keyword_is_covered(question, fields["faq"]) for question in paa_questions
         ):
@@ -1175,6 +1388,13 @@ def _build_content_quality(
         issues.append("unjustified_geo_answer_surface")
     if _enabled_surface(plan, "blog") and not fields["blog"]:
         issues.append("missing_recommended_blog_support")
+    if (
+        _enabled_surface(plan, "blog")
+        and fields["blog"]
+        and primary_query
+        and not _keyword_is_covered(primary_query, fields["blog"])
+    ):
+        issues.append("blog_missing_primary_target")
     if not _enabled_surface(plan, "blog") and fields["blog"]:
         issues.append("unjustified_blog_surface")
 
@@ -1187,11 +1407,7 @@ def _build_content_quality(
         issues.append("missing_claim_evidence_ledger")
     if invalid_claims:
         issues.append("unverified_claim_reference")
-    ledger_fact_keys = {
-        str(fact["key"])
-        for entry in evidence_ledger
-        for fact in entry["facts"]
-    }
+    ledger_fact_keys = {str(fact["key"]) for entry in evidence_ledger for fact in entry["facts"]}
     factual_surfaces_enabled = any(
         _enabled_surface(plan, surface)
         for surface in ("product_description", "faq", "geo_answer", "blog")
@@ -1204,9 +1420,8 @@ def _build_content_quality(
         ),
         "",
     )
-    has_narrative_evidence = (
-        bool(ledger_fact_keys & _NARRATIVE_FACT_KEYS)
-        or ("description" in ledger_fact_keys and _content_word_count(supported_description) >= 12)
+    has_narrative_evidence = bool(ledger_fact_keys & _NARRATIVE_FACT_KEYS) or (
+        "description" in ledger_fact_keys and _content_word_count(supported_description) >= 12
     )
     if factual_surfaces_enabled and not has_narrative_evidence:
         issues.append("missing_informative_confirmed_fact")
@@ -1245,7 +1460,8 @@ def _build_content_quality(
         "unsupported_claim_categories": unsupported_claims,
         "surface_plan": plan,
         "skipped_surfaces": [
-            surface for surface in ("product_description", "faq", "geo_answer", "blog")
+            surface
+            for surface in ("product_description", "faq", "geo_answer", "blog")
             if not _enabled_surface(plan, surface)
         ],
     }
@@ -1283,7 +1499,8 @@ def _apply_catalog_content_conflicts(
             continue
 
         primary_keywords = [
-            keyword for keyword in result.get("seo_keywords", [])
+            keyword
+            for keyword in result.get("seo_keywords", [])
             if isinstance(keyword, dict) and keyword.get("target_role") == "primary"
         ]
         if primary_keywords:
@@ -1360,7 +1577,9 @@ def _volume_bucket(volume: int) -> int:
     return 10
 
 
-def _fallback_pack(product_title: str, current_meta_title: str, current_meta_description: str) -> dict[str, Any]:
+def _fallback_pack(
+    product_title: str, current_meta_title: str, current_meta_description: str
+) -> dict[str, Any]:
     # proposed_* fields are intentionally empty: using current Shopify values here would
     # make truncated/failed LLM responses look like successful proposals in the UI.
     return {
@@ -1399,7 +1618,12 @@ def _build_product_result(
     seo: dict[str, Any] = raw_seo if isinstance(raw_seo, dict) else {}
     current_meta_title = seo.get("title") or product_title
     current_meta_description = seo.get("description") or ""
-    body_html = product.get("body_html") or product.get("descriptionHtml") or product.get("description") or ""
+    body_html = (
+        product.get("body_html")
+        or product.get("descriptionHtml")
+        or product.get("description")
+        or ""
+    )
     description_summary = _strip_html(body_html)[:200]
 
     return {
@@ -1420,9 +1644,13 @@ def _build_product_result(
             "current_meta_description": current_meta_description,
             "proposed_meta_description": _coerce_str(llm_pack.get("proposed_meta_description", "")),
             "current_product_title": product_title,
-            "proposed_product_title": _coerce_str(llm_pack.get("proposed_product_title_if_different", product_title)),
+            "proposed_product_title": _coerce_str(
+                llm_pack.get("proposed_product_title_if_different", product_title)
+            ),
             "current_product_description_summary": description_summary,
-            "proposed_product_description": _coerce_str(llm_pack.get("proposed_product_description", "")),
+            "proposed_product_description": _coerce_str(
+                llm_pack.get("proposed_product_description", "")
+            ),
             "proposed_faq": _coerce_faq(llm_pack.get("proposed_faq", [])),
             "proposed_geo_answer_block": _coerce_str(llm_pack.get("proposed_geo_answer_block", "")),
             "proposed_blog_title": _coerce_str(llm_pack.get("proposed_blog_title", "")),
@@ -1436,11 +1664,16 @@ def _build_product_result(
             "claims_used": _coerce_claims(llm_pack.get("claims_used", [])),
             "confirmed_facts": llm_pack.get("confirmed_facts", []),
             "surface_plan": llm_pack.get("surface_plan", {}),
+            "enrichment_questions": llm_pack.get("enrichment_questions", []),
             "confidence": _coerce_str(llm_pack.get("confidence", "low"), "low"),
             "content_quality": llm_pack.get("content_quality", {}),
         },
-        "recommended_content_actions": _coerce_str_list(llm_pack.get("recommended_content_actions", [])),
-        "confidence": _coerce_str(llm_pack.get("confidence", opportunity.get("confidence", "low")), "low"),
+        "recommended_content_actions": _coerce_str_list(
+            llm_pack.get("recommended_content_actions", [])
+        ),
+        "confidence": _coerce_str(
+            llm_pack.get("confidence", opportunity.get("confidence", "low")), "low"
+        ),
         "opportunity_score": opportunity.get("opportunity_score", 0),
         "sources_used": opportunity.get("sources_used", []),
     }
@@ -1465,7 +1698,12 @@ def _score_active_products(
         try:
             score = 0
             title = str(product.get("title") or "").lower()
-            body = str(product.get("body_html") or product.get("descriptionHtml") or product.get("description") or "")
+            body = str(
+                product.get("body_html")
+                or product.get("descriptionHtml")
+                or product.get("description")
+                or ""
+            )
             seo = product.get("seo") if isinstance(product.get("seo"), dict) else {}
             seo_title = str(seo.get("title", ""))
             seo_desc = str(seo.get("description", ""))
@@ -1549,15 +1787,17 @@ def _score_active_products(
         if ga4_row:
             src.append("ga4")
 
-        results.append({
-            "product_id": product_id,
-            "opportunity_score": min(score, 100),
-            "confidence": "high" if score >= 60 else "medium" if score >= 35 else "low",
-            "signals": [],
-            "matched_queries": matched,
-            "ga4_metrics": ga4_row,
-            "sources_used": src,
-        })
+        results.append(
+            {
+                "product_id": product_id,
+                "opportunity_score": min(score, 100),
+                "confidence": "high" if score >= 60 else "medium" if score >= 35 else "low",
+                "signals": [],
+                "matched_queries": matched,
+                "ga4_metrics": ga4_row,
+                "sources_used": src,
+            }
+        )
     return results
 
 
@@ -1596,17 +1836,28 @@ def _complete_json(
             if missing:
                 logger.warning(
                     "Pass2 partial for %r — present=%s missing=%s (raw_len=%d)",
-                    product_title, present, missing, len(raw),
+                    product_title,
+                    present,
+                    missing,
+                    len(raw),
                 )
             for k in keys:
                 if k in parsed:
                     pack[k] = parsed[k]
         else:
-            logger.warning("Pass2 non-dict response for %r: type=%s raw[:100]=%s", product_title, type(parsed).__name__, raw[:100])
+            logger.warning(
+                "Pass2 non-dict response for %r: type=%s raw[:100]=%s",
+                product_title,
+                type(parsed).__name__,
+                raw[:100],
+            )
     except json.JSONDecodeError as exc:
         logger.warning(
             "JSON parse failed for %r — likely truncated (%d chars): %s | raw[:300]=%s",
-            product_title, len(raw), exc, raw[:300],
+            product_title,
+            len(raw),
+            exc,
+            raw[:300],
         )
     except LLMError as exc:
         logger.warning("LLM call failed for %r: %s", product_title, exc)
@@ -1620,12 +1871,18 @@ def _extract_product_fields(
     opp: dict[str, Any],
     product_labels: dict[str, str] | None,
     trend_signals: list[Any],
+    merchant_facts: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Pull every field both prompts need out of a Shopify product dict."""
     product_id = str(product.get("id", ""))
     try:
         product_title = product.get("title", "")
-        body_html = product.get("body_html") or product.get("descriptionHtml") or product.get("description") or ""
+        body_html = (
+            product.get("body_html")
+            or product.get("descriptionHtml")
+            or product.get("description")
+            or ""
+        )
         raw_seo = product.get("seo")
         seo: dict[str, Any] = raw_seo if isinstance(raw_seo, dict) else {}
         raw_collections = _coerce_list(product.get("collections"))
@@ -1635,6 +1892,16 @@ def _extract_product_fields(
         stock_qty, stock_status = _read_stock(product)
         trend_top, trend_rising = _match_trends(product_title, trend_signals)
         facts_analysis = analyze_product_facts(product)
+        confirmed_facts = _merge_merchant_confirmed_facts(
+            facts_analysis.get("confirmed_facts", []),
+            merchant_facts,
+        )
+        confirmed_keys = {fact.get("key") for fact in confirmed_facts}
+        missing_facts = [
+            fact
+            for fact in facts_analysis.get("missing_facts", [])
+            if fact.get("key") not in confirmed_keys
+        ]
         return {
             "product_title": product_title,
             "merchant_label": (product_labels or {}).get(product_id, ""),
@@ -1643,8 +1910,7 @@ def _extract_product_fields(
             "current_meta_title": seo.get("title") or product_title,
             "current_meta_description": seo.get("description") or "",
             "collections": [
-                c.get("title", "") if isinstance(c, dict) else str(c)
-                for c in raw_collections if c
+                c.get("title", "") if isinstance(c, dict) else str(c) for c in raw_collections if c
             ],
             "tags": ", ".join(raw_tags) if isinstance(raw_tags, list) else str(raw_tags),
             "price": str(first_variant.get("price", "")) if isinstance(first_variant, dict) else "",
@@ -1656,8 +1922,8 @@ def _extract_product_fields(
             "trend_rising": trend_rising,
             "matched_queries": opp.get("matched_queries", []),
             "opportunity_score": opp.get("opportunity_score", 0),
-            "confirmed_facts": facts_analysis.get("confirmed_facts", []),
-            "missing_facts": facts_analysis.get("missing_facts", []),
+            "confirmed_facts": confirmed_facts,
+            "missing_facts": missing_facts,
             "fact_completeness_score": facts_analysis.get("completeness_score", 0.0),
             "source_product_text": " ".join(
                 value
@@ -1665,7 +1931,10 @@ def _extract_product_fields(
                     product_title,
                     _strip_html(body_html),
                     str(raw_tags),
-                    " ".join(c.get("title", "") if isinstance(c, dict) else str(c) for c in raw_collections),
+                    " ".join(
+                        c.get("title", "") if isinstance(c, dict) else str(c)
+                        for c in raw_collections
+                    ),
                 ]
                 if value
             ),
@@ -1673,12 +1942,21 @@ def _extract_product_fields(
     except Exception:
         title = product.get("title", "") if isinstance(product, dict) else ""
         return {
-            "product_title": title, "merchant_label": "",
+            "product_title": title,
+            "merchant_label": "",
             "handle": product.get("handle", "") if isinstance(product, dict) else "",
-            "description": title, "current_meta_title": title, "current_meta_description": "",
-            "collections": [], "tags": "", "price": "", "nb_variants": 0,
-            "stock_qty": None, "stock_status": "inconnu",
-            "ga4_metrics": {}, "trend_top": [], "trend_rising": [],
+            "description": title,
+            "current_meta_title": title,
+            "current_meta_description": "",
+            "collections": [],
+            "tags": "",
+            "price": "",
+            "nb_variants": 0,
+            "stock_qty": None,
+            "stock_status": "inconnu",
+            "ga4_metrics": {},
+            "trend_top": [],
+            "trend_rising": [],
             "matched_queries": [],
             "opportunity_score": opp.get("opportunity_score", 0) if isinstance(opp, dict) else 0,
             "confirmed_facts": [],
@@ -1686,6 +1964,36 @@ def _extract_product_fields(
             "fact_completeness_score": 0.0,
             "source_product_text": title,
         }
+
+
+def _merge_merchant_confirmed_facts(
+    extracted_facts: list[dict[str, Any]],
+    merchant_facts: dict[str, str] | None,
+) -> list[dict[str, Any]]:
+    """Merge explicitly confirmed merchant answers into extracted Shopify facts."""
+    accepted = {
+        key: value.strip()[:500]
+        for key, value in (merchant_facts or {}).items()
+        if key in _MERCHANT_FACT_LABELS and isinstance(value, str) and value.strip()
+    }
+    if not accepted:
+        return list(extracted_facts)
+    facts = [
+        fact
+        for fact in extracted_facts
+        if isinstance(fact, dict) and fact.get("key") not in accepted
+    ]
+    for key, value in accepted.items():
+        facts.append(
+            {
+                "key": key,
+                "label": _MERCHANT_FACT_LABELS[key],
+                "value": value,
+                "source": "merchant_confirmation",
+                "confidence": "confirmed",
+            }
+        )
+    return facts
 
 
 def run_market_analysis(
@@ -1700,6 +2008,7 @@ def run_market_analysis(
     max_products: int = 0,
     product_labels: dict[str, str] | None = None,
     plan: str | None = None,
+    merchant_facts_by_product: dict[str, dict[str, str]] | None = None,
     progress_callback: Callable[..., None] | None = None,
 ) -> dict[str, Any]:
     """Run a two-pass SEO/GEO market analysis for active products.
@@ -1725,9 +2034,7 @@ def run_market_analysis(
         opportunities = opportunities[:max_products]
     total = len(opportunities)
 
-    product_by_id: dict[str, dict[str, Any]] = {
-        str(p.get("id", "")): p for p in active_products
-    }
+    product_by_id: dict[str, dict[str, Any]] = {str(p.get("id", "")): p for p in active_products}
 
     sources_used: list[str] = ["shopify_snapshot"]
     if gsc_query_rows:
@@ -1775,7 +2082,13 @@ def run_market_analysis(
         product = product_by_id.get(opp.get("product_id", ""))
         if not product:
             continue
-        fields = _extract_product_fields(product, opp, product_labels, trend_signals)
+        fields = _extract_product_fields(
+            product,
+            opp,
+            product_labels,
+            trend_signals,
+            (merchant_facts_by_product or {}).get(str(product.get("id", ""))),
+        )
 
         prompt = _build_pass1_prompt(
             product_title=fields["product_title"],
@@ -1798,7 +2111,9 @@ def run_market_analysis(
             merchant_label=fields["merchant_label"],
         )
         fallback = _fallback_pack(
-            fields["product_title"], fields["current_meta_title"], fields["current_meta_description"]
+            fields["product_title"],
+            fields["current_meta_title"],
+            fields["current_meta_description"],
         )
         pack = _complete_json(llm_router, prompt, _PASS1_KEYS, fallback, fields["product_title"])
         pack["confirmed_facts"] = fields["confirmed_facts"]
@@ -1815,7 +2130,10 @@ def run_market_analysis(
 
         if progress_callback is not None:
             try:
-                partial = [_build_product_result(s["product"], s["opp"], s["pack"], shop) for s in pass1_states]
+                partial = [
+                    _build_product_result(s["product"], s["opp"], s["pack"], shop)
+                    for s in pass1_states
+                ]
                 progress_callback(idx + 1, total, partial, "targeting")
             except Exception:
                 pass
@@ -1832,7 +2150,8 @@ def run_market_analysis(
         for state in top_states:
             kws = state["pack"].get("seo_keywords", []) or []
             seeds = [
-                k["query"] for k in sorted(kws, key=lambda k: k.get("demand_score", 0), reverse=True)[:3]
+                k["query"]
+                for k in sorted(kws, key=lambda k: k.get("demand_score", 0), reverse=True)[:3]
                 if isinstance(k, dict) and k.get("query")
             ]
             if not seeds:
@@ -1841,12 +2160,17 @@ def run_market_analysis(
             if ideas:
                 existing = {k.get("query", "").lower() for k in kws if isinstance(k, dict)}
                 fields = state["fields"]
-                product_text = " ".join(filter(None, [
-                    fields.get("product_title", ""),
-                    fields.get("handle", "").replace("-", " "),
-                    str(fields.get("tags", "")),
-                    " ".join(fields.get("collections", [])),
-                ]))
+                product_text = " ".join(
+                    filter(
+                        None,
+                        [
+                            fields.get("product_title", ""),
+                            fields.get("handle", "").replace("-", " "),
+                            str(fields.get("tags", "")),
+                            " ".join(fields.get("collections", [])),
+                        ],
+                    )
+                )
                 product_words = _content_words(product_text)
                 new_ideas = [
                     {**i, "product_fit_score": _score_idea_fit(i.get("query", ""), product_words)}
@@ -1881,6 +2205,11 @@ def run_market_analysis(
         state["pack"]["surface_plan"] = _build_surface_plan(
             state["pack"].get("seo_keywords", []) or [],
             state["fields"].get("confirmed_facts", []),
+        )
+        state["pack"]["enrichment_questions"] = _build_enrichment_questions(
+            state["pack"].get("seo_keywords", []) or [],
+            state["fields"].get("missing_facts", []),
+            state["pack"]["surface_plan"],
         )
 
     competitor_signals = build_competitor_signals(shop, keywords=serp_keywords or None)
@@ -1932,7 +2261,9 @@ def run_market_analysis(
                 surface_plan=pack.get("surface_plan", {}),
                 forbidden_phrases=forbidden_phrases,
             )
-            pack = _complete_json(llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192)
+            pack = _complete_json(
+                llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192
+            )
 
             # Retry once when the essential content fields are missing — the LLM sometimes
             # returns a valid but incomplete JSON (e.g. only meta fields, no description/FAQ).
@@ -1948,7 +2279,8 @@ def run_market_analysis(
                     product_title=fields["product_title"],
                     niche_summary=niche_summary,
                     keywords=[
-                        kw["query"] for kw in (pack.get("seo_keywords") or [])[:6]
+                        kw["query"]
+                        for kw in (pack.get("seo_keywords") or [])[:6]
                         if isinstance(kw, dict) and kw.get("query")
                     ],
                     current_meta_title=fields["current_meta_title"],
@@ -1956,7 +2288,14 @@ def run_market_analysis(
                     confirmed_facts=fields.get("confirmed_facts", []),
                     surface_plan=pack.get("surface_plan", {}),
                 )
-                pack = _complete_json(llm_router, retry_prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=4096)
+                pack = _complete_json(
+                    llm_router,
+                    retry_prompt,
+                    _PASS2_KEYS,
+                    pack,
+                    fields["product_title"],
+                    max_tokens=4096,
+                )
 
         pack["content_quality"] = _build_content_quality(
             pack,
@@ -1975,8 +2314,7 @@ def run_market_analysis(
     _apply_catalog_content_conflicts(product_results, active_products)
 
     total_opportunity_count = sum(
-        len(r.get("seo_keywords", [])) + len(r.get("geo_questions", []))
-        for r in product_results
+        len(r.get("seo_keywords", [])) + len(r.get("geo_questions", [])) for r in product_results
     )
 
     return {

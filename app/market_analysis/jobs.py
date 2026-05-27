@@ -92,6 +92,46 @@ def load_identifications(shop: str) -> dict[str, str]:
         return {}
 
 
+def save_merchant_facts(shop: str, product_id: str, facts: dict[str, str]) -> dict[str, str]:
+    """Persist merchant-confirmed product facts used for grounded content generation."""
+    stored = load_merchant_facts(shop)
+    cleaned = {
+        str(key): str(value).strip()[:500] for key, value in facts.items() if str(value).strip()
+    }
+    merged = {**stored.get(product_id, {}), **cleaned}
+    stored[product_id] = merged
+    try:
+        shop_dir = _DATA_DIR / shop
+        shop_dir.mkdir(parents=True, exist_ok=True)
+        (shop_dir / "market_analysis_merchant_facts.json").write_text(
+            json.dumps(stored, ensure_ascii=False), encoding="utf-8"
+        )
+    except OSError as exc:
+        logger.error("Failed to save merchant facts for %s: %s", shop, exc)
+    return merged
+
+
+def load_merchant_facts(shop: str) -> dict[str, dict[str, str]]:
+    """Load merchant-confirmed facts, excluding malformed persisted entries."""
+    path = _DATA_DIR / shop / "market_analysis_merchant_facts.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    stored: dict[str, dict[str, str]] = {}
+    for product_id, product_facts in raw.items():
+        if not isinstance(product_facts, dict):
+            continue
+        stored[str(product_id)] = {
+            str(key): str(value).strip()[:500]
+            for key, value in product_facts.items()
+            if isinstance(value, str) and value.strip()
+        }
+    return stored
+
+
 def save_identification_job(shop: str, data: dict[str, Any]) -> None:
     """Persist the latest AI identification job result to disk."""
     try:
@@ -124,8 +164,7 @@ def remove_products_from_analysis(shop: str, product_ids: set[str]) -> int:
         return 0
     before = len(data.get("products", []))
     data["products"] = [
-        p for p in data.get("products", [])
-        if str(p.get("product_id", "")) not in product_ids
+        p for p in data.get("products", []) if str(p.get("product_id", "")) not in product_ids
     ]
     removed = before - len(data["products"])
     if removed:
@@ -151,4 +190,37 @@ def patch_product_proposals(shop: str, product_id: str, proposals: dict[str, Any
             product["content_test_pack"].update(proposals)
             path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
             return True
+    return False
+
+
+def replace_product_analysis(
+    shop: str,
+    product_result: dict[str, Any],
+    analyzed_at: str | None = None,
+) -> bool:
+    """Replace one persisted product analysis after a fact-enriched regeneration."""
+    path = _DATA_DIR / shop / "market_analysis_latest.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    product_id = str(product_result.get("product_id", ""))
+    products = data.get("products", [])
+    if not isinstance(products, list):
+        return False
+    for index, product in enumerate(products):
+        if str(product.get("product_id", "")) != product_id:
+            continue
+        products[index] = product_result
+        if analyzed_at:
+            data["analyzed_at"] = analyzed_at
+        data["analyzed_product_count"] = len(products)
+        data["total_opportunity_count"] = sum(
+            len(item.get("seo_keywords", [])) + len(item.get("geo_questions", []))
+            for item in products
+            if isinstance(item, dict)
+        )
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        return True
     return False

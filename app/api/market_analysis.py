@@ -20,11 +20,14 @@ from app.market_analysis.jobs import (
     load_identification_job,
     load_identifications,
     load_latest_result,
+    load_merchant_facts,
     patch_product_proposals,
     remove_products_from_analysis,
+    replace_product_analysis,
     save_identification_job,
     save_identifications,
     save_latest_result,
+    save_merchant_facts,
     update_job,
 )
 from app.market_analysis.providers.dataforseo_provider import DataForSEOProvider
@@ -35,6 +38,20 @@ from app.snapshot.scope import filter_products_by_scope
 router = APIRouter(prefix="/api", tags=["market_analysis"])
 
 _DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_MERCHANT_FACT_KEYS = frozenset(
+    {
+        "materials",
+        "origins",
+        "certifications",
+        "warranty",
+        "care",
+        "dimensions",
+        "compatibility",
+        "size_recommendation",
+        "use_cases",
+        "selection_criteria",
+    }
+)
 
 
 def _load_gsc_query_rows(shop: str) -> list[dict[str, Any]]:
@@ -52,12 +69,14 @@ def _load_gsc_query_rows(shop: str) -> list[dict[str, Any]]:
                     continue
                 keys = row.get("keys")
                 query = row.get("query") or (keys[0] if isinstance(keys, list) and keys else "")
-                normalised.append({
-                    "query": query,
-                    "impressions": row.get("impressions", 0),
-                    "clicks": row.get("clicks", 0),
-                    "position": row.get("position", row.get("avg_position", 0)),
-                })
+                normalised.append(
+                    {
+                        "query": query,
+                        "impressions": row.get("impressions", 0),
+                        "clicks": row.get("clicks", 0),
+                        "position": row.get("position", row.get("avg_position", 0)),
+                    }
+                )
             return normalised
         except (json.JSONDecodeError, OSError, KeyError, IndexError):
             continue
@@ -114,6 +133,8 @@ def _run_analysis_background(
     identifications: dict[str, str] | None = None,
     persist: bool = True,
     plan: str | None = None,
+    merchant_facts_by_product: dict[str, dict[str, str]] | None = None,
+    persist_product_results: bool = False,
 ) -> None:
     """Background task: runs the full analysis and updates the job store incrementally."""
 
@@ -129,8 +150,7 @@ def _run_analysis_background(
             products=list(partial),
             analyzed_product_count=done,
             total_opportunity_count=sum(
-                len(r.get("seo_keywords", [])) + len(r.get("geo_questions", []))
-                for r in partial
+                len(r.get("seo_keywords", [])) + len(r.get("geo_questions", [])) for r in partial
             ),
         )
 
@@ -143,7 +163,13 @@ def _run_analysis_background(
             "google_ads": GoogleAdsKeywordProvider().available,
         }
         active_count = len(filter_products_by_scope(products, "active"))
-        update_job(job_id, status="running", total=active_count, progress=0, provider_status=early_provider_status)
+        update_job(
+            job_id,
+            status="running",
+            total=active_count,
+            progress=0,
+            provider_status=early_provider_status,
+        )
 
         result = run_market_analysis(
             products,
@@ -156,6 +182,7 @@ def _run_analysis_background(
             max_products=0,
             product_labels=identifications or None,
             plan=plan,
+            merchant_facts_by_product=merchant_facts_by_product,
             progress_callback=_on_progress,
         )
         completed_data: dict[str, Any] = {
@@ -176,6 +203,9 @@ def _run_analysis_background(
         }
         if persist:
             save_latest_result(shop_domain, completed_data)
+        elif persist_product_results:
+            for product_result in result["products"]:
+                replace_product_analysis(shop_domain, product_result, result["analyzed_at"])
         update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
     except Exception as exc:
         update_job(job_id, status="failed", error=str(exc))
@@ -229,12 +259,34 @@ async def save_market_analysis_identifications(
     return {"saved": len(identifications)}
 
 
+@router.post("/shops/{shop}/market-analysis/facts/{product_id:path}")
+async def save_market_analysis_facts(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    product_id: str,
+    body: dict[str, Any],
+) -> dict[str, Any]:
+    """Save confirmed merchant answers for generation only, without a Shopify write."""
+    raw_answers = body.get("answers")
+    if not isinstance(raw_answers, dict):
+        raise HTTPException(status_code=400, detail="answers must be an object")
+    answers = {
+        str(key): str(value).strip()[:500]
+        for key, value in raw_answers.items()
+        if key in _MERCHANT_FACT_KEYS and isinstance(value, str) and value.strip()
+    }
+    if not answers:
+        raise HTTPException(status_code=400, detail="At least one supported answer is required")
+    saved = save_merchant_facts(ctx.shop, product_id, answers)
+    return {"saved": len(answers), "facts": saved, "shopify_write": False}
+
+
 @router.post("/shops/{shop}/market-analysis/jobs")
 async def start_market_analysis_job(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     background_tasks: BackgroundTasks,
     product_ids: list[str] | None = Query(default=None),
     plan: str | None = Query(default=None),
+    persist_product_result: bool = Query(default=False),
 ) -> dict[str, Any]:
     """Start an async market analysis job. Uses saved identifications if available."""
     snapshot = _load_snapshot(ctx)
@@ -261,6 +313,7 @@ async def start_market_analysis_job(
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
     ga4_page_rows = _load_ga4_page_rows(ctx.shop)
     identifications = load_identifications(ctx.shop)  # {} if none saved yet
+    merchant_facts = load_merchant_facts(ctx.shop)
 
     job_id = create_job(ctx.shop)
 
@@ -277,6 +330,8 @@ async def start_market_analysis_job(
         identifications or None,
         persist,
         plan,
+        merchant_facts or None,
+        persist_product_result,
     )
 
     age = _snapshot_age_days(snapshot)
@@ -330,7 +385,9 @@ async def patch_market_analysis_proposals(
         }
     found = patch_product_proposals(ctx.shop, product_id, proposals)
     if not found:
-        raise HTTPException(status_code=404, detail=f"Product {product_id} not found in latest analysis")
+        raise HTTPException(
+            status_code=404, detail=f"Product {product_id} not found in latest analysis"
+        )
 
     return {"saved": True, "faq_sync": None}
 
@@ -397,6 +454,7 @@ async def run_market_analysis_endpoint(
             pass
 
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
+    merchant_facts = load_merchant_facts(ctx.shop)
 
     try:
         result = run_market_analysis(
@@ -408,6 +466,7 @@ async def run_market_analysis_endpoint(
             crawl_findings=crawl_findings or None,
             max_products=max_products,
             plan=plan,
+            merchant_facts_by_product=merchant_facts or None,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erreur analyse marché : {exc}") from exc

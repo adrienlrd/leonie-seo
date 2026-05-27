@@ -13,41 +13,55 @@ from app.market_analysis import engine
 
 _SHOP = "test.myshopify.com"
 
-_PASS1_JSON = json.dumps({
-    "product_summary": "Fontaine à eau pour chat, 2 litres, filtre charbon.",
-    "target_customer": "Propriétaires de chats exigeants.",
-    "buying_intents": ["hydratation", "silence"],
-    "seo_keywords": [
-        {
-            "query": "fontaine à chat",
-            "intent_type": "commercial",
-            "demand_score": 50,
-            "competition_score": 40,
-            "product_fit_score": 90,
-            "reason": "produit principal",
-        }
-    ],
-    "geo_questions": [
-        {"question": "Comment ça marche ?", "answer_angle": "filtration", "content_block_type": "faq", "confidence": "high"}
-    ],
-})
+_PASS1_JSON = json.dumps(
+    {
+        "product_summary": "Fontaine à eau pour chat, 2 litres, filtre charbon.",
+        "target_customer": "Propriétaires de chats exigeants.",
+        "buying_intents": ["hydratation", "silence"],
+        "seo_keywords": [
+            {
+                "query": "fontaine à chat",
+                "intent_type": "commercial",
+                "demand_score": 50,
+                "competition_score": 40,
+                "product_fit_score": 90,
+                "reason": "produit principal",
+            }
+        ],
+        "geo_questions": [
+            {
+                "question": "Comment ça marche ?",
+                "answer_angle": "filtration",
+                "content_block_type": "faq",
+                "confidence": "high",
+            }
+        ],
+    }
+)
 
-_PASS2_JSON = json.dumps({
-    "proposed_meta_title": "Fontaine à chat silencieuse 2L — eau filtrée en continu",
-    "proposed_meta_description": "Hydratez votre chat avec une eau toujours fraîche et filtrée.",
-    "proposed_product_title_if_different": "Fontaine à chat 2L",
-    "proposed_product_description": "Une fontaine silencieuse qui oxygène l'eau.",
-    "proposed_faq": [{"q": "Comment nettoyer la fontaine à chat ?", "a": "Démontez et rincez chaque semaine."}],
-    "proposed_geo_answer_block": "La fontaine à chat oxygène l'eau en continu pour encourager l'hydratation.",
-    "proposed_blog_title": "Pourquoi votre chat boit-il peu ?",
-    "proposed_blog_outline": ["Hydratation", "Solutions"],
-    "proposed_blog_intro": "Les chats boivent peu...",
-    "recommended_content_actions": ["Ajouter une FAQ"],
-    "facts_used": ["2 litres"],
-    "facts_missing": ["matériau exact"],
-    "claims_used": [{"claim": "Contenance 2L", "fact_keys": ["description"]}],
-    "confidence": "high",
-})
+_PASS2_JSON = json.dumps(
+    {
+        "proposed_meta_title": "Fontaine à chat silencieuse 2L — eau filtrée en continu",
+        "proposed_meta_description": "Hydratez votre chat avec une eau toujours fraîche et filtrée.",
+        "proposed_product_title_if_different": "Fontaine à chat 2L",
+        "proposed_product_description": "Une fontaine silencieuse qui oxygène l'eau.",
+        "proposed_faq": [
+            {
+                "q": "Comment nettoyer la fontaine à chat ?",
+                "a": "Démontez et rincez chaque semaine.",
+            }
+        ],
+        "proposed_geo_answer_block": "La fontaine à chat oxygène l'eau en continu pour encourager l'hydratation.",
+        "proposed_blog_title": "Pourquoi votre chat boit-il peu ?",
+        "proposed_blog_outline": ["Hydratation", "Solutions"],
+        "proposed_blog_intro": "Les chats boivent peu...",
+        "recommended_content_actions": ["Ajouter une FAQ"],
+        "facts_used": ["2 litres"],
+        "facts_missing": ["matériau exact"],
+        "claims_used": [{"claim": "Contenance 2L", "fact_keys": ["description"]}],
+        "confidence": "high",
+    }
+)
 
 
 class _FakeDataForSEO:
@@ -68,7 +82,12 @@ class _FakeDataForSEO:
             keywords[0].strip().lower(): {
                 "paa": ["Comment nettoyer une fontaine à chat ?"],
                 "top_competitors": [
-                    {"domain": "concurrent.fr", "title": "Fontaine à chat silencieuse", "url": "https://c.fr", "rank": 1}
+                    {
+                        "domain": "concurrent.fr",
+                        "title": "Fontaine à chat silencieuse",
+                        "url": "https://c.fr",
+                        "rank": 1,
+                    }
                 ],
                 "featured_snippet": "Une fontaine à chat oxygène l'eau.",
             }
@@ -93,20 +112,22 @@ class _FakeDataForSEOWithWinningIdea(_FakeDataForSEO):
         self.requested_serp_keywords = []
 
     def fetch_keyword_ideas(self, seeds, *, limit=15):  # noqa: ARG002
-        return [{
-            "query": "fontaine chat silencieuse",
-            "intent_type": "commercial",
-            "demand_score": 95,
-            "competition_score": 15,
-            "product_fit_score": 0,
-            "reason": "suggestion à haut potentiel",
-            "data_source": "dataforseo",
-            "difficulty_source": "dataforseo",
-            "search_volume": 5000,
-            "cpc": 1.25,
-            "ads_competition": 0.2,
-            "notes": [],
-        }]
+        return [
+            {
+                "query": "fontaine chat silencieuse",
+                "intent_type": "commercial",
+                "demand_score": 95,
+                "competition_score": 15,
+                "product_fit_score": 0,
+                "reason": "suggestion à haut potentiel",
+                "data_source": "dataforseo",
+                "difficulty_source": "dataforseo",
+                "search_volume": 5000,
+                "cpc": 1.25,
+                "ads_competition": 0.2,
+                "notes": [],
+            }
+        ]
 
     def fetch_serp_intelligence(self, keywords):
         self.requested_serp_keywords = list(keywords)
@@ -143,8 +164,14 @@ def _router(*texts):
 
 
 def _run(router, *, dataforseo, over_budget=False, crawl_findings=None):
-    budget = {"over_budget": over_budget, "budget_usd": 20.0, "spent_usd": 0.0,
-              "remaining_usd": 20.0, "usage_pct": 0.0, "alert": None}
+    budget = {
+        "over_budget": over_budget,
+        "budget_usd": 20.0,
+        "spent_usd": 0.0,
+        "remaining_usd": 20.0,
+        "usage_pct": 0.0,
+        "alert": None,
+    }
     with (
         patch.object(engine, "get_router", return_value=router),
         patch.object(engine, "check_budget", return_value=budget),
@@ -152,17 +179,24 @@ def _run(router, *, dataforseo, over_budget=False, crawl_findings=None):
         patch.object(engine, "DataForSEOProvider", return_value=dataforseo),
     ):
         return engine.run_market_analysis(
-            [_product()], _SHOP, {}, [],
+            [_product()],
+            _SHOP,
+            {},
+            [],
             crawl_findings=crawl_findings,
         )
 
 
 def test_two_pass_feeds_serp_paa_volume_crawl_into_pass2_prompt():
     router = _router(_PASS1_JSON, _PASS2_JSON)
-    crawl = [{
-        "url": "https://test.myshopify.com/products/fontaine-chat",
-        "issue_type": "missing_canonical", "severity": "low", "detail": "Canonical absent",
-    }]
+    crawl = [
+        {
+            "url": "https://test.myshopify.com/products/fontaine-chat",
+            "issue_type": "missing_canonical",
+            "severity": "low",
+            "detail": "Canonical absent",
+        }
+    ]
     result = _run(router, dataforseo=_FakeDataForSEO(), crawl_findings=crawl)
 
     assert router.complete.call_count == 2
@@ -265,12 +299,14 @@ def test_content_quality_is_publish_ready_when_targets_and_evidence_are_covered(
 
     quality = engine._build_content_quality(
         pack,
-        confirmed_facts=[{
-            "key": "description",
-            "value": description,
-            "source": "shopify_snapshot",
-            "confidence": "confirmed",
-        }],
+        confirmed_facts=[
+            {
+                "key": "description",
+                "value": description,
+                "source": "shopify_snapshot",
+                "confidence": "confirmed",
+            }
+        ],
         source_product_text=description,
         surface_plan={
             "metadata": {"generate": True},
@@ -301,12 +337,14 @@ def test_content_quality_is_blocked_when_primary_target_is_missing_from_meta_tit
 
     quality = engine._build_content_quality(
         pack,
-        confirmed_facts=[{
-            "key": "description",
-            "value": "Produit pour chat.",
-            "source": "shopify_snapshot",
-            "confidence": "confirmed",
-        }],
+        confirmed_facts=[
+            {
+                "key": "description",
+                "value": "Produit pour chat.",
+                "source": "shopify_snapshot",
+                "confidence": "confirmed",
+            }
+        ],
         surface_plan={
             "metadata": {"generate": True},
             "product_description": {"generate": True},
@@ -341,12 +379,14 @@ def test_content_quality_blocks_unverified_product_claim() -> None:
 
     quality = engine._build_content_quality(
         pack,
-        confirmed_facts=[{
-            "key": "description",
-            "value": "Fontaine pour chat.",
-            "source": "shopify_snapshot",
-            "confidence": "confirmed",
-        }],
+        confirmed_facts=[
+            {
+                "key": "description",
+                "value": "Fontaine pour chat.",
+                "source": "shopify_snapshot",
+                "confidence": "confirmed",
+            }
+        ],
         source_product_text="Fontaine pour chat.",
         surface_plan={
             "metadata": {"generate": True},
@@ -363,12 +403,14 @@ def test_content_quality_blocks_unverified_product_claim() -> None:
 
 
 def test_surface_plan_skips_optional_content_without_verified_value() -> None:
-    keywords = [{
-        "query": "bol chat",
-        "target_role": "primary",
-        "intent_type": "commercial",
-        "paa_questions": ["Quel bol choisir pour un chat ?"],
-    }]
+    keywords = [
+        {
+            "query": "bol chat",
+            "target_role": "primary",
+            "intent_type": "commercial",
+            "paa_questions": ["Quel bol choisir pour un chat ?"],
+        }
+    ]
 
     plan = engine._build_surface_plan(keywords, [])
 
@@ -380,18 +422,22 @@ def test_surface_plan_skips_optional_content_without_verified_value() -> None:
 
 
 def test_surface_plan_does_not_treat_thin_existing_description_as_publishable_evidence() -> None:
-    keywords = [{
-        "query": "fontaine chat",
-        "target_role": "primary",
-        "intent_type": "informational",
-        "paa_questions": ["Comment choisir une fontaine chat ?"],
-    }]
-    facts = [{
-        "key": "description",
-        "value": "Fontaine 2L.",
-        "source": "shopify_snapshot",
-        "confidence": "confirmed",
-    }]
+    keywords = [
+        {
+            "query": "fontaine chat",
+            "target_role": "primary",
+            "intent_type": "informational",
+            "paa_questions": ["Comment choisir une fontaine chat ?"],
+        }
+    ]
+    facts = [
+        {
+            "key": "description",
+            "value": "Fontaine 2L.",
+            "source": "shopify_snapshot",
+            "confidence": "confirmed",
+        }
+    ]
 
     plan = engine._build_surface_plan(keywords, facts)
 
@@ -400,6 +446,54 @@ def test_surface_plan_does_not_treat_thin_existing_description_as_publishable_ev
     assert plan["faq"]["generate"] is False
     assert plan["geo_answer"]["generate"] is False
     assert plan["blog"]["generate"] is False
+
+
+def test_enrichment_questions_reuse_primary_keyword_for_missing_warranty_and_article() -> None:
+    keywords = [
+        {
+            "query": "fontaine chat silencieuse",
+            "target_role": "primary",
+            "intent_type": "commercial",
+            "paa_questions": [],
+        }
+    ]
+    plan = engine._build_surface_plan(keywords, [])
+
+    questions = engine._build_enrichment_questions(
+        keywords,
+        [{"key": "warranty", "label": "Warranty"}],
+        plan,
+    )
+
+    assert questions[0]["key"] == "warranty"
+    assert "fontaine chat silencieuse" in questions[0]["question"]
+    assert any(question["key"] == "selection_criteria" for question in questions)
+    assert all(question["target_keyword"] == "fontaine chat silencieuse" for question in questions)
+
+
+def test_merchant_answers_unlock_keyword_grounded_optional_content() -> None:
+    keywords = [
+        {
+            "query": "fontaine chat",
+            "target_role": "primary",
+            "intent_type": "commercial",
+            "paa_questions": [],
+        }
+    ]
+    facts = engine._merge_merchant_confirmed_facts(
+        [],
+        {
+            "warranty": "Garantie de 2 ans.",
+            "use_cases": "Pour maintenir un point d'eau disponible au quotidien.",
+        },
+    )
+
+    plan = engine._build_surface_plan(keywords, facts)
+
+    assert {fact["source"] for fact in facts} == {"merchant_confirmation"}
+    assert plan["faq"]["generate"] is True
+    assert plan["geo_answer"]["generate"] is True
+    assert plan["blog"]["generate"] is True
 
 
 def test_catalog_conflict_blocks_lower_priority_duplicate_target() -> None:
