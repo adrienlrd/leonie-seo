@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import traceback
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -19,6 +21,8 @@ from app.business_profile.jobs import (
 )
 from app.market_analysis.jobs import create_job, get_job, update_job
 from app.niche.understanding import get_validated_niche_hypothesis
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["business_profile"])
 
@@ -80,7 +84,9 @@ def _run_business_profile_background(
         update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
         save_business_profile_job(shop, completed_data)
     except Exception as exc:
-        update_job(job_id, status="failed", error=str(exc))
+        tb = traceback.format_exc()
+        logger.error("Business profile job %s failed:\n%s", job_id, tb)
+        update_job(job_id, status="failed", error=f"{type(exc).__name__}: {exc}\n{tb}")
 
 
 def _load_snapshot_safe(ctx: ShopContext) -> dict[str, Any]:
