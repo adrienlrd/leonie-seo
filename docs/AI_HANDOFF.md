@@ -10,6 +10,20 @@
 
 ## Last completed task
 
+- **Date:** 2026-05-27
+- **Agent:** Codex (GPT-5)
+- **Goal:** Améliorer l'algorithme de création de contenu Analyse marché pour préparer les modes de publication manuel/automatique tout en conservant l'édition marchande.
+- **Summary:** Le moteur classe désormais les keywords finaux après enrichissement et ajout des idées DataForSEO, attribue des rôles `primary` / `secondary` / `supporting`, puis collecte SERP/PAA sur les cibles réellement retenues. Le pack de contenu reçoit un gate déterministe `content_quality.publish_ready` couvrant meta title, meta description, description, FAQ/PAA, bloc GEO, trace de preuves et confiance. Le prompt interdit les bénéfices et angles concurrents non confirmés. L'UI conserve `Modifier`, affiche cibles, score, preuve SERP/PAA, couverture par champ et gate de publication, puis invalide le gate après édition. La synchronisation FAQ Shopify implicite a été supprimée lors de l'analyse et de la sauvegarde : aucun push n'a lieu sans une future politique de publication explicite.
+- **Files created:** `tests/test_api/test_market_analysis.py`.
+- **Files modified:** `app/api/market_analysis.py`, `app/market_analysis/engine.py`, `shopify-app/app/routes/app.market-analysis.tsx`, `tests/market_analysis/test_two_pass_engine.py`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** (1) Ne pas implémenter un mode `automatic` partiel limité à la FAQ ; le futur mode devra publier toutes les surfaces via une couche unique et vérifier `content_quality.publish_ready`. (2) Conserver le bouton `Modifier`, mais toute édition rend la proposition non éligible à publication automatique jusqu'à revalidation. (3) Utiliser le score `0.45 x demand + 0.20 x (100 - competition) + 0.35 x product_fit`, avec un léger bonus de preuve réelle.
+- **Validations run:** `ruff check app/market_analysis/engine.py app/api/market_analysis.py tests/market_analysis/test_two_pass_engine.py tests/test_api/test_market_analysis.py` ✅ ; `pytest tests/market_analysis tests/test_api/test_market_analysis.py tests/apply/test_apply_faq.py` **19 passed** ✅ ; `cd shopify-app && npm run typecheck` ✅ ; `cd shopify-app && npm run build` ✅ ; `git diff --check` ✅.
+- **Validations skipped:** La vérification visuelle de la route locale via le navigateur intégré a été tentée, mais bloquée avant rendu par `net::ERR_BLOCKED_BY_CLIENT`. `ruff check .` a été tenté mais échoue sur des violations préexistantes dans `tests/market_analysis/test_jobs.py`, non modifié dans cette tâche.
+- **Open issues:** Le sélecteur de mode `manual` / `automatic` et la publication complète meta/description/FAQ/article ne sont pas encore implémentés. L'incrément actuel expose le gate nécessaire et supprime l'écriture implicite FAQ. Une édition marchande invalide le gate ; une action de revalidation devra être branchée au workflow de publication.
+- **Next recommended action:** Implémenter un réglage marchand `publication_mode` (`manual` / `automatic`) et une couche d'application unique : en `manual`, préparer le push ; en `automatic`, publier uniquement les packs `content_quality.publish_ready`, avec snapshot/rollback pour chaque champ.
+
+## Previous completed task
+
 - **Date:** 2026-05-25
 - **Agent:** Claude Code (claude-opus-4-7)
 - **Goal:** Analyse marché — pipeline LLM à 2 passes pour alimenter les propositions de contenu avec les données réelles (volumes DataForSEO, concurrents SERP, questions PAA, crawl).

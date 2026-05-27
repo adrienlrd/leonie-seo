@@ -83,6 +83,42 @@ class _FakeDataForSEO:
         return []
 
 
+class _FakeDataForSEOWithWinningIdea(_FakeDataForSEO):
+    """Provider returning an idea that should become the selected primary target."""
+
+    requested_serp_keywords: list[str]
+
+    def __init__(self) -> None:
+        self.requested_serp_keywords = []
+
+    def fetch_keyword_ideas(self, seeds, *, limit=15):  # noqa: ARG002
+        return [{
+            "query": "fontaine chat silencieuse",
+            "intent_type": "commercial",
+            "demand_score": 95,
+            "competition_score": 15,
+            "product_fit_score": 0,
+            "reason": "suggestion à haut potentiel",
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+            "search_volume": 5000,
+            "cpc": 1.25,
+            "ads_competition": 0.2,
+            "notes": [],
+        }]
+
+    def fetch_serp_intelligence(self, keywords):
+        self.requested_serp_keywords = list(keywords)
+        return {
+            keyword.lower(): {
+                "paa": [f"Comment choisir une {keyword} ?"],
+                "top_competitors": [],
+                "featured_snippet": None,
+            }
+            for keyword in keywords
+        }
+
+
 def _product():
     return {
         "id": "gid://shopify/Product/1",
@@ -169,3 +205,70 @@ def test_over_budget_skips_pass2_keeps_keywords():
     assert product["seo_keywords"]  # targeting survived
     # Content pack falls back to current meta title, no generated description.
     assert product["content_test_pack"]["proposed_product_description"] == ""
+
+
+def test_keyword_idea_is_serp_checked_when_it_becomes_primary_target():
+    provider = _FakeDataForSEOWithWinningIdea()
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+
+    result = _run(router, dataforseo=provider)
+
+    product = result["products"][0]
+    primary = product["seo_keywords"][0]
+    assert primary["query"] == "fontaine chat silencieuse"
+    assert primary["target_rank"] == 1
+    assert primary["target_role"] == "primary"
+    assert primary["serp_evidence"] is True
+    assert provider.requested_serp_keywords[0] == "fontaine chat silencieuse"
+
+    pass2_prompt = router.complete.call_args_list[1].args[0]
+    assert '"fontaine chat silencieuse" [primary]' in pass2_prompt
+    assert "SERP/PAA vérifié" in pass2_prompt
+
+
+def test_content_quality_is_publish_ready_when_targets_and_evidence_are_covered():
+    pack = {
+        "seo_keywords": [
+            {
+                "query": "fontaine chat",
+                "target_role": "primary",
+                "paa_questions": ["Comment nettoyer une fontaine chat ?"],
+            },
+            {"query": "eau filtrée chat", "target_role": "secondary", "paa_questions": []},
+        ],
+        "proposed_meta_title": "Fontaine chat silencieuse avec eau filtrée",
+        "proposed_meta_description": "Fontaine chat pour une eau filtrée au quotidien, conçue pour accompagner votre animal.",
+        "proposed_product_description": "Cette fontaine chat propose une eau filtrée chat dans un format pratique.",
+        "proposed_faq": [
+            {"q": "Comment nettoyer une fontaine chat ?", "a": "Rincez chaque élément amovible."},
+        ],
+        "proposed_geo_answer_block": "Une fontaine chat diffuse une eau filtrée lorsque ce fait est confirmé.",
+        "proposed_blog_title": "",
+        "proposed_blog_intro": "",
+        "proposed_blog_outline": [],
+        "facts_used": ["description: fontaine chat, eau filtrée chat"],
+        "confidence": "high",
+    }
+
+    quality = engine._build_content_quality(pack)
+
+    assert quality["publish_ready"] is True
+    assert quality["issues"] == []
+
+
+def test_content_quality_is_blocked_when_primary_target_is_missing_from_meta_title():
+    pack = {
+        "seo_keywords": [{"query": "fontaine chat", "target_role": "primary", "paa_questions": []}],
+        "proposed_meta_title": "Eau fraîche au quotidien",
+        "proposed_meta_description": "Découvrez notre fontaine chat pour garder de l'eau fraîche au quotidien.",
+        "proposed_product_description": "Cette fontaine chat accompagne le quotidien de votre animal.",
+        "proposed_faq": [],
+        "proposed_geo_answer_block": "La fontaine chat répond au besoin d'hydratation décrit.",
+        "facts_used": ["meta_description: fontaine chat"],
+        "confidence": "high",
+    }
+
+    quality = engine._build_content_quality(pack)
+
+    assert quality["publish_ready"] is False
+    assert "meta_title_missing_primary_target" in quality["issues"]

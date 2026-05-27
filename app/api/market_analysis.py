@@ -1,4 +1,4 @@
-"""Market analysis API — async job-based SEO/GEO analysis per active product (read-only)."""
+"""Market analysis API — async job-based SEO/GEO analysis per active product."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_days
 from app.api.deps import ShopContext, get_shop_context
-from app.apply.apply_faq import apply_faq_to_shopify
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.market_analysis.competitors import load_competitors, save_competitors
 from app.market_analysis.engine import run_market_analysis
@@ -175,17 +174,6 @@ def _run_analysis_background(
             "total": result["analyzed_product_count"],
             "error": None,
         }
-        # Auto-sync each product's FAQ to Shopify (leonie.faq metafield) so the
-        # storefront block can render it. Failures are recorded per product and do
-        # not block the job completion.
-        for product in completed_data["products"]:
-            pack = product.get("content_test_pack") or {}
-            faq = pack.get("proposed_faq") or []
-            if faq:
-                sync = apply_faq_to_shopify(shop_domain, str(product.get("product_id", "")), faq)
-                pack["faq_sync"] = sync
-                product["content_test_pack"] = pack
-
         if persist:
             save_latest_result(shop_domain, completed_data)
         update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
@@ -324,7 +312,7 @@ async def patch_market_analysis_proposals(
     product_id: str,
     body: dict[str, Any],
 ) -> dict[str, Any]:
-    """Update editable proposal fields for one product in the persisted analysis result."""
+    """Update editable proposal fields without writing them to Shopify."""
     allowed_keys = {
         "proposed_meta_title",
         "proposed_meta_description",
@@ -335,18 +323,16 @@ async def patch_market_analysis_proposals(
         "proposed_blog_outline",
     }
     proposals = {k: v for k, v in body.items() if k in allowed_keys}
+    if proposals:
+        proposals["content_quality"] = {
+            "publish_ready": False,
+            "issues": ["merchant_edit_requires_revalidation"],
+        }
     found = patch_product_proposals(ctx.shop, product_id, proposals)
     if not found:
         raise HTTPException(status_code=404, detail=f"Product {product_id} not found in latest analysis")
 
-    # If the merchant edited the FAQ, push it to Shopify so the storefront block
-    # stays in sync with the proposal shown in the app.
-    sync_result = None
-    if "proposed_faq" in proposals:
-        sync_result = apply_faq_to_shopify(ctx.shop, product_id, proposals["proposed_faq"] or [])
-        patch_product_proposals(ctx.shop, product_id, {"faq_sync": sync_result})
-
-    return {"saved": True, "faq_sync": sync_result}
+    return {"saved": True, "faq_sync": None}
 
 
 @router.post("/shops/{shop}/market-analysis/products/remove")

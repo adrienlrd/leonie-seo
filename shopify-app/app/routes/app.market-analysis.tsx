@@ -48,6 +48,12 @@ interface SeoKeyword {
   cpc?: number | null;
   ads_competition?: number | null;
   notes?: string[];
+  priority_score?: number;
+  target_rank?: number;
+  target_role?: "primary" | "secondary" | "supporting";
+  serp_evidence?: boolean;
+  paa_questions?: string[];
+  serp_competitor_count?: number;
 }
 
 interface CompetitorSignal {
@@ -73,6 +79,13 @@ interface GeoQuestion {
   confidence: string;
 }
 
+interface ContentQuality {
+  publish_ready: boolean;
+  issues: string[];
+  covered_target_count?: number;
+  target_count?: number;
+}
+
 interface ContentTestPack {
   current_meta_title: string;
   proposed_meta_title: string;
@@ -90,6 +103,7 @@ interface ContentTestPack {
   facts_used: string[];
   facts_missing: string[];
   confidence: string;
+  content_quality?: ContentQuality;
   faq_sync?: {
     applied: boolean;
     error: string | null;
@@ -556,6 +570,37 @@ function keywordIsUsed(keyword: string, proposalWords: string[]): boolean {
   );
 }
 
+function keywordCoverage(keyword: string, pack: ContentTestPack): string[] {
+  const fields: Array<[string, string]> = [
+    ["Meta title", pack.proposed_meta_title],
+    ["Meta description", pack.proposed_meta_description],
+    ["Description", pack.proposed_product_description],
+    ["FAQ", pack.proposed_faq.map((item) => `${item.q} ${item.a}`).join(" ")],
+    ["GEO", pack.proposed_geo_answer_block],
+    ["Blog", [pack.proposed_blog_title, pack.proposed_blog_intro, ...pack.proposed_blog_outline].join(" ")],
+  ];
+  return fields
+    .filter(([, text]) => keywordIsUsed(keyword, contentWords(text)))
+    .map(([label]) => label);
+}
+
+function qualityIssueLabel(issue: string, locale: Locale): string {
+  const labels: Record<string, [string, string]> = {
+    missing_primary_keyword_target: ["Aucune cible principale fiable", "No reliable primary target"],
+    meta_title_missing_primary_target: ["Cible principale absente du meta title", "Primary target missing from meta title"],
+    meta_description_missing_primary_target: ["Cible principale absente de la meta description", "Primary target missing from meta description"],
+    description_missing_primary_target: ["Cible principale absente de la description", "Primary target missing from description"],
+    description_has_insufficient_target_coverage: ["Description trop peu alignée aux cibles", "Description has insufficient target coverage"],
+    faq_missing_available_paa_question: ["FAQ non alignée aux questions SERP disponibles", "FAQ does not cover available SERP questions"],
+    missing_geo_answer_block: ["Bloc de réponse GEO manquant", "GEO answer block is missing"],
+    missing_evidence_trace: ["Trace des preuves utilisées manquante", "Evidence trace is missing"],
+    low_generation_confidence: ["Confiance de génération insuffisante", "Generation confidence is too low"],
+    merchant_edit_requires_revalidation: ["Contenu modifié : nouvelle validation requise", "Edited content requires revalidation"],
+  };
+  const label = labels[issue];
+  return label ? label[locale === "fr" ? 0 : 1] : issue;
+}
+
 const HIGHLIGHT_STYLE = {
   backgroundColor: "#fff4a3",
   padding: "0 2px",
@@ -773,7 +818,13 @@ function ProductCard({
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
   const pack = product.content_test_pack;
-  const kwQueries = product.seo_keywords.map((k) => k.query);
+  const selectedTargets = product.seo_keywords
+    .filter((keyword) => (keyword.target_rank ?? 999) <= 5)
+    .slice(0, 5);
+  const coverageTargets = selectedTargets.length > 0
+    ? selectedTargets
+    : product.seo_keywords.slice(0, 5);
+  const kwQueries = coverageTargets.map((keyword) => keyword.query);
 
   // ── Proposal edit mode ──────────────────────────────────────────────────
   const [editMode, setEditMode] = useState(false);
@@ -794,6 +845,13 @@ function ProductCard({
 
   useEffect(() => {
     if (saveFetcher.data?.type === "saveProposals" && !saveFetcher.data.error) {
+      setEditedPack((previous) => ({
+        ...previous,
+        content_quality: {
+          publish_ready: false,
+          issues: ["merchant_edit_requires_revalidation"],
+        },
+      }));
       setEditMode(false);
     }
   }, [saveFetcher.data]);
@@ -836,22 +894,16 @@ function ProductCard({
     );
   };
 
-  const proposalText = [
-    editedPack.proposed_meta_title,
-    editedPack.proposed_meta_description,
-    editedPack.proposed_product_description,
-    ...editedPack.proposed_faq.map((item) => `${item.q} ${item.a}`),
-    editedPack.proposed_blog_title,
-    editedPack.proposed_blog_intro,
-    ...editedPack.proposed_blog_outline,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const proposalWords = contentWords(proposalText);
-
+  const coverageByKeyword = new Map(
+    coverageTargets.map((keyword) => [
+      keyword.query.toLowerCase(),
+      keywordCoverage(keyword.query, editedPack),
+    ]),
+  );
   const usedKeywords = new Set(
-    kwQueries.filter((q) => keywordIsUsed(q, proposalWords)),
+    [...coverageByKeyword.entries()]
+      .filter(([, fields]) => fields.length > 0)
+      .map(([query]) => query),
   );
 
   return (
@@ -866,21 +918,21 @@ function ProductCard({
             <Badge tone={scoreTone(100 - product.opportunity_score)}>
               {`Potentiel SEO ${100 - product.opportunity_score}/100`}
             </Badge>
-            {kwQueries.length > 0 && (
+            {coverageTargets.length > 0 && (
               <Badge
                 tone={
-                  usedKeywords.size / kwQueries.length >= 0.75
+                  usedKeywords.size / coverageTargets.length >= 0.75
                     ? "success"
-                    : usedKeywords.size / kwQueries.length >= 0.5
+                    : usedKeywords.size / coverageTargets.length >= 0.5
                     ? "info"
-                    : usedKeywords.size / kwQueries.length >= 0.25
+                    : usedKeywords.size / coverageTargets.length >= 0.25
                     ? "warning"
                     : "critical"
                 }
               >
                 {locale === "fr"
-                  ? `${usedKeywords.size}/${kwQueries.length} mots-clés utilisés`
-                  : `${usedKeywords.size}/${kwQueries.length} keywords used`}
+                  ? `${usedKeywords.size}/${coverageTargets.length} cibles couvertes`
+                  : `${usedKeywords.size}/${coverageTargets.length} targets covered`}
               </Badge>
             )}
             {isAnalyzing ? (
@@ -927,14 +979,26 @@ function ProductCard({
                           <InlineStack gap="200" blockAlign="center" wrap>
                             <Text as="span" variant="bodyMd"><strong>{k.query}</strong></Text>
                             <Badge>{k.intent_type || "—"}</Badge>
+                            {(k.target_role === "primary" || k.target_role === "secondary") && (
+                              <Badge tone={k.target_role === "primary" ? "success" : "info"}>
+                                {k.target_role === "primary"
+                                  ? (locale === "fr" ? "Cible principale" : "Primary target")
+                                  : (locale === "fr" ? "Cible secondaire" : "Secondary target")}
+                              </Badge>
+                            )}
                             <KeywordSourceBadge source={k.data_source} locale={locale} />
                             {usedKeywords.has(k.query.toLowerCase()) && (
                               <Badge tone="success">
-                                {locale === "fr" ? "✓ utilisé" : "✓ used"}
+                                {locale === "fr" ? "Couvert" : "Covered"}
                               </Badge>
                             )}
                           </InlineStack>
                           <InlineStack gap="100">
+                            {k.priority_score != null && (
+                              <Badge tone={scoreTone(k.priority_score)}>
+                                {`${locale === "fr" ? "Priorité" : "Priority"} ${k.priority_score}`}
+                              </Badge>
+                            )}
                             <Badge
                               tone={
                                 k.data_source === "llm_estimated" || k.data_source === "shopify" || k.data_source === "parent_estimated"
@@ -986,7 +1050,18 @@ function ProductCard({
                               GSC: <strong>{k.gsc_impressions}</strong> impr., pos {k.gsc_position}
                             </Text>
                           )}
+                          {k.serp_evidence && (
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {locale === "fr" ? "SERP/PAA vérifié" : "SERP/PAA checked"}
+                            </Text>
+                          )}
                         </InlineStack>
+                        {(coverageByKeyword.get(k.query.toLowerCase())?.length ?? 0) > 0 && (
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {locale === "fr" ? "Présent dans : " : "Present in: "}
+                            {coverageByKeyword.get(k.query.toLowerCase())!.join(", ")}
+                          </Text>
+                        )}
                         {k.notes && k.notes.length > 0 && (
                           <Text as="p" variant="bodySm" tone="subdued">
                             {k.notes.join(" · ")}
@@ -1058,6 +1133,33 @@ function ProductCard({
                     <Banner tone="critical">
                       <Text as="p" variant="bodySm">{saveFetcher.data.error}</Text>
                     </Banner>
+                  )}
+
+                  {!editMode && editedPack.content_quality && (
+                    editedPack.content_quality.publish_ready ? (
+                      <Banner tone="success">
+                        <Text as="p" variant="bodySm">
+                          {locale === "fr"
+                            ? "Validation SEO/GEO réussie : cette proposition est éligible à une publication automatisée."
+                            : "SEO/GEO validation passed: this proposal is eligible for automated publishing."}
+                        </Text>
+                      </Banner>
+                    ) : (
+                      <Banner tone="warning">
+                        <BlockStack gap="050">
+                          <Text as="p" variant="bodySm">
+                            {locale === "fr"
+                              ? "À corriger avant toute publication automatique :"
+                              : "Fix before any automated publishing:"}
+                          </Text>
+                          {editedPack.content_quality.issues.map((issue) => (
+                            <Text key={issue} as="p" variant="bodySm">
+                              • {qualityIssueLabel(issue, locale)}
+                            </Text>
+                          ))}
+                        </BlockStack>
+                      </Banner>
+                    )
                   )}
 
                   {/* ── Meta title ── */}

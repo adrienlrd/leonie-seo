@@ -356,8 +356,10 @@ def _build_pass2_prompt(
 
     sorted_kws = sorted(
         [k for k in enriched_keywords if isinstance(k, dict)],
-        key=lambda k: k.get("demand_score", 0),
-        reverse=True,
+        key=lambda k: (
+            int(k.get("target_rank", 999) or 999),
+            -float(k.get("priority_score", k.get("demand_score", 0)) or 0),
+        ),
     )
     top_kws = sorted_kws[:8]
     top_queries = [str(k.get("query", "")) for k in top_kws[:5] if k.get("query")]
@@ -368,7 +370,8 @@ def _build_pass2_prompt(
         vol = kw.get("search_volume")
         vol_text = f"{vol}/mois" if vol is not None else "volume n/a"
         line = (
-            f'  #{idx} "{kw.get("query", "")}" — {vol_text}, '
+            f'  #{idx} "{kw.get("query", "")}" [{kw.get("target_role", "supporting")}] '
+            f'— priorité {kw.get("priority_score", "?")}/100, {vol_text}, '
             f'difficulté {kw.get("competition_score", "?")}/100 '
             f'({kw.get("difficulty_source", "free_estimated")}), '
             f'intent {kw.get("intent_type", "?")}'
@@ -385,6 +388,8 @@ def _build_pass2_prompt(
         cpc = kw.get("cpc")
         if cpc:
             line += f' | CPC AdWords {cpc}€ (valeur commerciale)'
+        if kw.get("serp_evidence"):
+            line += " | SERP/PAA vérifié"
         target_lines.append(line)
     related_ideas = [str(k.get("query", "")) for k in sorted_kws[8:] if k.get("query")]
 
@@ -488,22 +493,23 @@ def _build_pass2_prompt(
         f"ÉTAPE 2/2 — RÈGLES STRICTES PAR CHAMP (RESPECT OBLIGATOIRE)\n"
         f"═══════════════════════════════════════════════════════════════════\n"
         f"\nTOP 5 mots-clés à utiliser : {top_kw_list}\n"
-        f"Le merchant paie DataForSEO + GSC + GA4 pour ces données — chaque proposition "
-        f"DOIT s'appuyer dessus, sinon le ROI est nul.\n"
-        f"\n▶ proposed_meta_title (60-70 caractères) :\n"
+        f"Les cibles sont classées selon demande, concurrence, adéquation produit et niveau de preuve. "
+        f"Utilise uniquement les signaux fournis et n'invente jamais un bénéfice.\n"
+        f"\n▶ proposed_meta_title (45-60 caractères) :\n"
         f'   • OBLIGATOIRE : contient exactement le mot-clé #1 ("{top_kw_1}") OU une variation proche.\n'
         f"   • Différenciant vs CONCURRENTS SERP listés (jamais copier leur formulation).\n"
-        f"\n▶ proposed_meta_description (140-160 caractères) :\n"
+        f"\n▶ proposed_meta_description (120-160 caractères) :\n"
         f"   • OBLIGATOIRE : contient le mot-clé #1 ET au moins 1 autre du top 5.\n"
-        f"   • Bénéfice produit + CTA (livraison, garantie, etc.).\n"
-        f"   • Si des CONCURRENTS DE DOMAINE sont listés, l'angle doit être distinct du leur.\n"
+        f"   • Bénéfice produit ou CTA seulement s'il est confirmé par les données produit fournies.\n"
+        f"   • Si des concurrents sont listés, adopte une formulation propre sans prétendre couvrir un manque non vérifié.\n"
         f"\n▶ proposed_product_description (200-300 mots, plusieurs paragraphes) :\n"
         f"   • OBLIGATOIRE : intègre AU MOINS 4 mots-clés différents du top 8 (varie singulier/pluriel/synonymes).\n"
         f"   • Première phrase contient le mot-clé #1.\n"
-        f"   • Si des CONCURRENTS DE DOMAINE sont listés, mentionne explicitement 1 angle que ces concurrents ne couvrent pas.\n"
+        f"   • Explique seulement les caractéristiques et usages confirmés dans le contexte produit.\n"
         f"\n▶ proposed_faq (5-8 entrées) :\n"
-        f"   • OBLIGATOIRE : reprend AU MOINS 3 des QUESTIONS PAA Google ci-dessus (reformulation autorisée).\n"
-        f"   • Chaque question contient un mot-clé du top 8.\n"
+        f"   • Si des QUESTIONS PAA Google sont présentes : reprends les plus pertinentes (reformulation autorisée).\n"
+        f"   • Sinon : réponds aux intentions utiles du produit sans inventer une question issue de Google.\n"
+        f"   • Utilise les mots-clés naturellement, sans répétition forcée dans chaque question.\n"
         f"   • Réponses 2-4 phrases factuelles ; pas de blabla marketing.\n"
         f"\n▶ proposed_blog_title :\n"
         f"   • OBLIGATOIRE : contient un mot-clé longue traîne (4+ mots OU intent informational depuis la liste).\n"
@@ -512,7 +518,7 @@ def _build_pass2_prompt(
         f"   • OBLIGATOIRE : contient au moins 2 mots-clés du top 5.\n"
         f"\n▶ proposed_blog_outline (5-7 sections H2) :\n"
         f"   • Chaque H2 couvre soit un mot-clé du top 8 soit une question PAA non utilisée dans la FAQ.\n"
-        f"   • Si des CONCURRENTS DE DOMAINE sont présents, inclure 1 H2 sur un angle qu'ils sous-exploitent.\n"
+        f"   • Si des concurrents sont présents, différencie le cadrage sans affirmer ce qu'ils ne traitent pas.\n"
         f"\n▶ recommended_content_actions :\n"
         f"   • Si des CONCURRENTS DE DOMAINE sont listés, recommande au moins 1 action comparative\n"
         f"     (ex. : 'Créer un guide comparatif vs [domaine_concurrent]', 'Ajouter un tableau comparatif',\n"
@@ -691,7 +697,7 @@ _FR_STOP_WORDS = frozenset(
 def _content_words(text: str) -> frozenset[str]:
     """Extract meaningful lowercase words (≥3 chars, non-stop) from a keyword string."""
     return frozenset(
-        w for w in text.lower().split()
+        w for w in re.findall(r"[a-zàâäéèêëîïôùûüç]+", text.lower())
         if len(w) >= 3 and w not in _FR_STOP_WORDS
     )
 
@@ -726,6 +732,176 @@ def _score_idea_fit(idea_query: str, product_words: frozenset[str]) -> int:
     if overlap >= 1:
         return 60
     return 50
+
+
+def _keyword_priority_score(keyword: dict[str, Any]) -> int:
+    """Score a keyword target using demand, competition and product relevance.
+
+    Evidence raises confidence slightly without allowing a low-fit keyword to
+    become the primary target only because a paid provider returned volume.
+    """
+    demand = max(0.0, min(100.0, float(keyword.get("demand_score", 0) or 0)))
+    competition = max(0.0, min(100.0, float(keyword.get("competition_score", 50) or 50)))
+    product_fit = max(0.0, min(100.0, float(keyword.get("product_fit_score", 0) or 0)))
+    score = 0.45 * demand + 0.20 * (100.0 - competition) + 0.35 * product_fit
+
+    source = str(keyword.get("data_source", "llm_estimated"))
+    if source == "gsc":
+        score += 5.0
+    elif source in {"dataforseo", "google_ads"}:
+        score += 3.0
+    return max(0, min(100, round(score)))
+
+
+def _assign_keyword_targets(keywords: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rank final keyword targets and attach their intended content role."""
+    ranked: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for keyword in keywords:
+        if not isinstance(keyword, dict):
+            continue
+        query = str(keyword.get("query", "")).strip()
+        normalized_query = query.lower()
+        if not normalized_query or normalized_query in seen:
+            continue
+        seen.add(normalized_query)
+        candidate = dict(keyword)
+        candidate["priority_score"] = _keyword_priority_score(candidate)
+        ranked.append(candidate)
+
+    ranked.sort(
+        key=lambda keyword: (
+            -int(keyword.get("priority_score", 0)),
+            -int(keyword.get("product_fit_score", 0) or 0),
+            -int(keyword.get("demand_score", 0) or 0),
+        )
+    )
+    for index, keyword in enumerate(ranked, start=1):
+        keyword["target_rank"] = index
+        if index == 1:
+            keyword["target_role"] = "primary"
+        elif index <= 5:
+            keyword["target_role"] = "secondary"
+        else:
+            keyword["target_role"] = "supporting"
+    return ranked
+
+
+def _attach_serp_evidence(
+    keywords: list[dict[str, Any]],
+    serp_intel: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Attach SERP/PAA evidence gathered for the selected targets."""
+    enriched: list[dict[str, Any]] = []
+    for keyword in keywords:
+        candidate = dict(keyword)
+        key = str(candidate.get("query", "")).strip().lower()
+        intel = serp_intel.get(key)
+        candidate["serp_evidence"] = bool(intel)
+        candidate["paa_questions"] = list((intel or {}).get("paa", []))
+        candidate["serp_competitor_count"] = len((intel or {}).get("top_competitors", []))
+        enriched.append(candidate)
+    return enriched
+
+
+def _keyword_is_covered(query: str, text: str) -> bool:
+    """Return whether a content field covers all meaningful terms of a query."""
+    query_words = _content_words(query)
+    text_words = _content_words(text)
+    if not query_words:
+        return False
+    for query_word in query_words:
+        if not any(
+            text_word == query_word
+            or text_word == f"{query_word}s"
+            or text_word == f"{query_word}x"
+            or query_word == f"{text_word}s"
+            or query_word == f"{text_word}x"
+            for text_word in text_words
+        ):
+            return False
+    return True
+
+
+def _build_content_quality(pack: dict[str, Any]) -> dict[str, Any]:
+    """Validate whether a generated SEO/GEO pack is eligible for auto-publish."""
+    targets = [
+        keyword for keyword in (pack.get("seo_keywords") or [])[:5]
+        if isinstance(keyword, dict) and keyword.get("query")
+    ]
+    fields = {
+        "meta_title": _coerce_str(pack.get("proposed_meta_title", "")),
+        "meta_description": _coerce_str(pack.get("proposed_meta_description", "")),
+        "description": _coerce_str(pack.get("proposed_product_description", "")),
+        "faq": " ".join(
+            f"{item.get('q', '')} {item.get('a', '')}"
+            for item in _coerce_faq(pack.get("proposed_faq", []))
+        ),
+        "geo": _coerce_str(pack.get("proposed_geo_answer_block", "")),
+        "blog": " ".join(
+            [
+                _coerce_str(pack.get("proposed_blog_title", "")),
+                _coerce_str(pack.get("proposed_blog_intro", "")),
+                *_coerce_str_list(pack.get("proposed_blog_outline", [])),
+            ]
+        ),
+    }
+    coverage: list[dict[str, Any]] = []
+    for target in targets:
+        query = str(target["query"])
+        coverage.append({
+            "query": query,
+            "target_role": target.get("target_role", "supporting"),
+            "fields": [
+                field_name
+                for field_name, field_text in fields.items()
+                if _keyword_is_covered(query, field_text)
+            ],
+        })
+
+    issues: list[str] = []
+    primary_query = str(targets[0]["query"]) if targets else ""
+    if not primary_query:
+        issues.append("missing_primary_keyword_target")
+    else:
+        if not _keyword_is_covered(primary_query, fields["meta_title"]):
+            issues.append("meta_title_missing_primary_target")
+        if not _keyword_is_covered(primary_query, fields["meta_description"]):
+            issues.append("meta_description_missing_primary_target")
+        if not _keyword_is_covered(primary_query, fields["description"]):
+            issues.append("description_missing_primary_target")
+
+    required_description_targets = min(2, len(targets))
+    description_target_count = sum(
+        1 for target in targets if _keyword_is_covered(str(target["query"]), fields["description"])
+    )
+    if description_target_count < required_description_targets:
+        issues.append("description_has_insufficient_target_coverage")
+
+    paa_questions = [
+        question
+        for target in targets
+        for question in target.get("paa_questions", [])
+        if question
+    ]
+    if paa_questions and not any(
+        _keyword_is_covered(question, fields["faq"]) for question in paa_questions
+    ):
+        issues.append("faq_missing_available_paa_question")
+    if not fields["geo"]:
+        issues.append("missing_geo_answer_block")
+    if not _coerce_str_list(pack.get("facts_used", [])):
+        issues.append("missing_evidence_trace")
+    if _coerce_str(pack.get("confidence", "low"), "low") == "low":
+        issues.append("low_generation_confidence")
+
+    return {
+        "publish_ready": not issues,
+        "issues": issues,
+        "covered_target_count": sum(1 for item in coverage if item["fields"]),
+        "target_count": len(targets),
+        "keyword_coverage": coverage,
+    }
 
 
 def _impressions_bucket(impressions: int) -> int:
@@ -833,6 +1009,7 @@ def _build_product_result(
             "facts_used": _coerce_str_list(llm_pack.get("facts_used", [])),
             "facts_missing": _coerce_str_list(llm_pack.get("facts_missing", [])),
             "confidence": _coerce_str(llm_pack.get("confidence", "low"), "low"),
+            "content_quality": llm_pack.get("content_quality", {}),
         },
         "recommended_content_actions": _coerce_str_list(llm_pack.get("recommended_content_actions", [])),
         "confidence": _coerce_str(llm_pack.get("confidence", opportunity.get("confidence", "low")), "low"),
@@ -1195,27 +1372,9 @@ def run_market_analysis(
             except Exception:
                 pass
 
-    # ── Global batch: SERP intelligence, keyword ideas, competitor signals ───
-    serp_keywords: list[str] = []
-    for state in pass1_states:
-        kws = state["pack"].get("seo_keywords", []) or []
-        top = sorted(
-            [k for k in kws if isinstance(k, dict)],
-            key=lambda k: k.get("demand_score", 0),
-            reverse=True,
-        )[:2]
-        for k in top:
-            q = k.get("query")
-            if q and q not in serp_keywords:
-                serp_keywords.append(str(q))
-
-    serp_intel: dict[str, dict[str, Any]] = {}
-    if dataforseo_provider.available and serp_keywords:
-        serp_intel = dataforseo_provider.fetch_serp_intelligence(serp_keywords)
-        if serp_intel:
-            sources_used.append("dataforseo_serp")
-
-    # Keyword Ideas — add DataForSEO suggestions to top-5 products by opportunity_score
+    # ── Global batch: ideas first, then select the final SERP targets ─────────
+    # An idea must be part of the final ranked set before we pay for SERP/PAA
+    # evidence; otherwise content may target an idea never checked in the SERP.
     if dataforseo_provider.available:
         top_states = sorted(
             pass1_states,
@@ -1250,6 +1409,27 @@ def run_market_analysis(
                 state["pack"]["seo_keywords"] = list(kws) + new_ideas
                 if "dataforseo_keyword_ideas" not in sources_used:
                     sources_used.append("dataforseo_keyword_ideas")
+
+    serp_keywords: list[str] = []
+    for state in pass1_states:
+        ranked = _assign_keyword_targets(state["pack"].get("seo_keywords", []) or [])
+        state["pack"]["seo_keywords"] = ranked
+        for keyword in ranked[:2]:
+            query = str(keyword.get("query", "")).strip()
+            if query and query not in serp_keywords:
+                serp_keywords.append(query)
+
+    serp_intel: dict[str, dict[str, Any]] = {}
+    if dataforseo_provider.available and serp_keywords:
+        serp_intel = dataforseo_provider.fetch_serp_intelligence(serp_keywords)
+        if serp_intel:
+            sources_used.append("dataforseo_serp")
+
+    for state in pass1_states:
+        state["pack"]["seo_keywords"] = _attach_serp_evidence(
+            state["pack"].get("seo_keywords", []) or [],
+            serp_intel,
+        )
 
     competitor_signals = build_competitor_signals(shop, keywords=serp_keywords or None)
     if competitor_signals:
@@ -1318,6 +1498,7 @@ def run_market_analysis(
                 )
                 pack = _complete_json(llm_router, retry_prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=4096)
 
+        pack["content_quality"] = _build_content_quality(pack)
         product_results.append(_build_product_result(state["product"], state["opp"], pack, shop))
         if progress_callback is not None:
             try:
