@@ -402,7 +402,9 @@ def test_content_quality_blocks_unverified_product_claim() -> None:
     assert "performance" in quality["unsupported_claim_categories"]
 
 
-def test_surface_plan_skips_optional_content_without_verified_value() -> None:
+def test_surface_plan_skips_facts_surfaces_without_verified_value_but_allows_blog_with_paa() -> None:
+    # No confirmed facts → product_description/faq/geo blocked.
+    # PAA present → blog allowed (blog does not require confirmed facts).
     keywords = [
         {
             "query": "bol chat",
@@ -418,10 +420,12 @@ def test_surface_plan_skips_optional_content_without_verified_value() -> None:
     assert plan["product_description"]["generate"] is False
     assert plan["faq"]["generate"] is False
     assert plan["geo_answer"]["generate"] is False
-    assert plan["blog"]["generate"] is False
+    assert plan["blog"]["generate"] is True
 
 
-def test_surface_plan_does_not_treat_thin_existing_description_as_publishable_evidence() -> None:
+def test_surface_plan_does_not_treat_thin_description_as_evidence_for_fact_surfaces() -> None:
+    # Thin description (< 12 words, no NER facts) → product_description/faq/geo blocked.
+    # Informational intent + PAA → blog still allowed.
     keywords = [
         {
             "query": "fontaine chat",
@@ -445,7 +449,7 @@ def test_surface_plan_does_not_treat_thin_existing_description_as_publishable_ev
     assert plan["product_description"]["generate"] is False
     assert plan["faq"]["generate"] is False
     assert plan["geo_answer"]["generate"] is False
-    assert plan["blog"]["generate"] is False
+    assert plan["blog"]["generate"] is True
 
 
 def test_enrichment_questions_reuse_primary_keyword_for_missing_warranty_and_article() -> None:

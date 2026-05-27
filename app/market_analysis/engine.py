@@ -348,6 +348,11 @@ def _build_pass1_prompt(
         "ÉTAPE 1/2 — CIBLAGE. Identifie le produit et les cibles de recherche. "
         "Ne rédige PAS encore de contenu (meta, description, FAQ) : cela viendra à l'étape 2 "
         "avec des données réelles de marché.\n"
+        "RÈGLE MOTS-CLÉS : priorité absolue aux requêtes mid-tail (2-4 mots) avec volume réel en France. "
+        "Les 2-3 premiers seo_keywords doivent être mid-tail (ex. 'croquettes chat senior', 'fontaine eau chat'). "
+        "Les longues traînes (5+ mots) sont autorisées uniquement en fin de liste comme support FAQ/GEO "
+        "(ex. 'comment choisir fontaine eau chat', 'quelle croquette chaton 2 mois'). "
+        "Ne génère jamais de requête ultra-spécifique impossible à trouver dans Google Ads France.\n"
         "Réponds uniquement en JSON valide avec exactement ces clés : "
         "product_summary, target_customer, buying_intents (liste de strings), "
         "seo_keywords (5-8 objets avec query/intent_type/demand_score/competition_score/product_fit_score/reason), "
@@ -1024,7 +1029,17 @@ def _build_surface_plan(
     has_paa = any(keyword.get("paa_questions") for keyword in keywords[:5])
     has_informational_target = any(
         str(keyword.get("intent_type", "")).lower()
-        in {"informational", "informationnel", "question"}
+        in {
+            "informational",
+            "informationnel",
+            "informatif",
+            "informative",
+            "question",
+            "how-to",
+            "navigationnel",
+            "navigational",
+            "information",
+        }
         for keyword in keywords[:5]
     )
     has_merchant_faq_basis = bool(merchant_confirmed_keys) and has_primary_target
@@ -1060,13 +1075,17 @@ def _build_surface_plan(
             else "insufficient_verified_product_facts",
         },
         "blog": {
-            "generate": has_informative_fact
-            and (has_paa or has_informational_target or has_merchant_support_topic),
+            "generate": has_primary_target
+            and (has_paa or has_informational_target or has_merchant_support_topic or has_informative_fact),
             "reason": (
                 "informational_demand_and_verified_facts_available"
                 if has_informative_fact and (has_paa or has_informational_target)
+                else "informational_demand_available"
+                if has_paa or has_informational_target
                 else "merchant_confirmed_support_topic_available"
-                if has_informative_fact and has_merchant_support_topic
+                if has_merchant_support_topic
+                else "verified_product_facts_available"
+                if has_informative_fact
                 else "insufficient_informational_evidence"
             ),
         },
@@ -2142,12 +2161,7 @@ def run_market_analysis(
     # An idea must be part of the final ranked set before we pay for SERP/PAA
     # evidence; otherwise content may target an idea never checked in the SERP.
     if dataforseo_provider.available:
-        top_states = sorted(
-            pass1_states,
-            key=lambda s: s["pack"].get("opportunity_score", s["opp"].get("opportunity_score", 0)),
-            reverse=True,
-        )[:5]
-        for state in top_states:
+        for state in pass1_states:
             kws = state["pack"].get("seo_keywords", []) or []
             seeds = [
                 k["query"]
