@@ -21,90 +21,99 @@ console = Console()
 
 _ENDPOINT_TMPL = "https://{domain}/admin/api/2025-01/graphql.json"
 
-_PRODUCTS_QUERY = """
-query GetProducts($cursor: String) {
-  products(first: 50, after: $cursor) {
-    pageInfo { hasNextPage endCursor }
-    edges {
-      node {
+# Pagination size — Shopify GraphQL caps connection arguments at 250.
+# Increasing from 50 → 250 divides round-trips by 5.
+_PAGE_SIZE = 250
+
+# Max consecutive 429s before giving up on the request.
+_MAX_THROTTLE_RETRIES = 3
+
+_PRODUCTS_QUERY = f"""
+query GetProducts($cursor: String) {{
+  products(first: {_PAGE_SIZE}, after: $cursor) {{
+    pageInfo {{ hasNextPage endCursor }}
+    edges {{
+      node {{
         id title handle status publishedAt onlineStoreUrl
         description
-        seo { title description }
-        images(first: 10) {
-          edges { node { id url altText } }
-        }
-        collections(first: 5) {
-          edges { node { title } }
-        }
-        variants(first: 1) {
-          edges { node { price } }
-        }
-      }
-    }
-  }
-}
+        seo {{ title description }}
+        images(first: 10) {{
+          edges {{ node {{ id url altText }} }}
+        }}
+        collections(first: 5) {{
+          edges {{ node {{ title }} }}
+        }}
+        variants(first: 1) {{
+          edges {{ node {{ price }} }}
+        }}
+      }}
+    }}
+  }}
+}}
 """
 
-_COLLECTIONS_QUERY = """
-query GetCollections($cursor: String) {
-  collections(first: 50, after: $cursor) {
-    pageInfo { hasNextPage endCursor }
-    edges {
-      node {
+_COLLECTIONS_QUERY = f"""
+query GetCollections($cursor: String) {{
+  collections(first: {_PAGE_SIZE}, after: $cursor) {{
+    pageInfo {{ hasNextPage endCursor }}
+    edges {{
+      node {{
         id title handle
-        seo { title description }
-      }
-    }
-  }
-}
+        seo {{ title description }}
+      }}
+    }}
+  }}
+}}
 """
 
-_PAGES_QUERY = """
-query GetPages($cursor: String) {
-  pages(first: 50, after: $cursor) {
-    pageInfo { hasNextPage endCursor }
-    edges {
-      node {
+_PAGES_QUERY = f"""
+query GetPages($cursor: String) {{
+  pages(first: {_PAGE_SIZE}, after: $cursor) {{
+    pageInfo {{ hasNextPage endCursor }}
+    edges {{
+      node {{
         id title handle body
-        seo { title description }
+        seo {{ title description }}
         onlineStoreUrl
-      }
-    }
-  }
-}
+      }}
+    }}
+  }}
+}}
 """
 
-_BLOGS_QUERY = """
-query GetBlogs($cursor: String) {
-  blogs(first: 50, after: $cursor) {
-    pageInfo { hasNextPage endCursor }
-    edges {
-      node {
+# Note: nested articles(first: {_PAGE_SIZE}) silently truncates blogs with more
+# articles. Acceptable trade-off — content pages are only consumed by /crawl/l3.
+_BLOGS_QUERY = f"""
+query GetBlogs($cursor: String) {{
+  blogs(first: {_PAGE_SIZE}, after: $cursor) {{
+    pageInfo {{ hasNextPage endCursor }}
+    edges {{
+      node {{
         id title handle
-        articles(first: 50) {
-          edges {
-            node {
+        articles(first: {_PAGE_SIZE}) {{
+          edges {{
+            node {{
               id title handle body
-              seo { title description }
+              seo {{ title description }}
               onlineStoreUrl
-            }
-          }
-        }
-      }
-    }
-  }
-}
+            }}
+          }}
+        }}
+      }}
+    }}
+  }}
+}}
 """
 
-_URL_REDIRECTS_QUERY = """
-query GetUrlRedirects($cursor: String) {
-  urlRedirects(first: 50, after: $cursor) {
-    pageInfo { hasNextPage endCursor }
-    edges {
-      node { id path target }
-    }
-  }
-}
+_URL_REDIRECTS_QUERY = f"""
+query GetUrlRedirects($cursor: String) {{
+  urlRedirects(first: {_PAGE_SIZE}, after: $cursor) {{
+    pageInfo {{ hasNextPage endCursor }}
+    edges {{
+      node {{ id path target }}
+    }}
+  }}
+}}
 """
 
 _SHOP_METADATA_QUERY = """
@@ -134,37 +143,42 @@ def graphql_request(
     endpoint: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Execute a single GraphQL request against Shopify Admin API."""
+    """Execute a single GraphQL request against Shopify Admin API.
+
+    Bounded retry on 429 (up to ``_MAX_THROTTLE_RETRIES``) — replaces the prior
+    recursive implementation which could spin forever on persistent throttling.
+    """
     if endpoint is None or headers is None:
         endpoint, headers = _get_client()
 
-    response = requests.post(
-        endpoint,
-        headers=headers,
-        json={"query": query, "variables": variables or {}},
-        timeout=30,
-    )
-
-    if response.status_code == 429:
-        retry_after = int(response.headers.get("Retry-After", 10))
-        console.print(f"[yellow]Rate limit — waiting {retry_after}s[/yellow]")
+    payload = {"query": query, "variables": variables or {}}
+    for attempt in range(_MAX_THROTTLE_RETRIES + 1):
+        response = requests.post(endpoint, headers=headers, json=payload, timeout=30)
+        if response.status_code != 429:
+            response.raise_for_status()
+            return response.json()
+        if attempt == _MAX_THROTTLE_RETRIES:
+            response.raise_for_status()
+        retry_after = int(response.headers.get("Retry-After", 5))
+        console.print(f"[yellow]Rate limit — waiting {retry_after}s (attempt {attempt + 1})[/yellow]")
         time.sleep(retry_after)
-        return graphql_request(query, variables, endpoint, headers)
-
-    response.raise_for_status()
-    return response.json()
+    raise RuntimeError("unreachable")  # for type-checkers
 
 
 def _check_throttle(data: dict[str, Any]) -> None:
+    """Pause briefly if the GraphQL bucket is near empty.
+
+    Shopify restores 50 points/s on a 1000-point bucket. We only pause when we
+    are close to exhaustion to avoid throttling the entire crawl needlessly.
+    """
     available = (
         data.get("extensions", {})
         .get("cost", {})
         .get("throttleStatus", {})
         .get("currentlyAvailable", 1000)
     )
-    if available < 100:
-        console.print("[yellow]Throttle < 100 — waiting 2s[/yellow]")
-        time.sleep(2)
+    if available < 50:
+        time.sleep(1)
 
 
 def fetch_products(

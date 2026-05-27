@@ -110,7 +110,11 @@ async function _fireAudit(shop: string, accessToken: string): Promise<string | n
     const r = await callBackendForShop(shop, "/api/jobs", {
       accessToken,
       method: "POST",
-      body: JSON.stringify({ queue: "seo_audit", payload: { products_only: true }, max_retries: 1 }),
+      body: JSON.stringify({
+        queue: "seo_audit",
+        payload: { include_content_pages: false },
+        max_retries: 1,
+      }),
     });
     if (!r.ok) return null;
     const d = (await r.json()) as { job_id: string };
@@ -177,28 +181,61 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-// ── Action (audit job polling) ────────────────────────────────────────────────
+// ── Action (refresh + audit job polling) ──────────────────────────────────────
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
+  const intent = formData.get("intent") as string | null;
+
+  // Manual refresh — fire a forced seo_audit and return the new job ID.
+  if (intent === "refresh") {
+    try {
+      const resp = await callBackendForShop(session.shop, "/api/jobs", {
+        accessToken: session.accessToken,
+        method: "POST",
+        body: JSON.stringify({
+          queue: "seo_audit",
+          payload: { include_content_pages: false, force: true },
+          max_retries: 1,
+        }),
+      });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        return json({ type: "refresh", jobId: null, error: `HTTP ${resp.status}: ${txt}` });
+      }
+      const data = (await resp.json()) as { job_id: string };
+      return json({ type: "refresh", jobId: data.job_id, error: null });
+    } catch (err) {
+      return json({ type: "refresh", jobId: null, error: String(err) });
+    }
+  }
+
+  // Default — poll a known audit job.
   const jobId = formData.get("jobId") as string;
   try {
     const resp = await callBackendForShop(session.shop, `/api/jobs/${jobId}`, {
       accessToken: session.accessToken,
     });
-    if (!resp.ok) return json({ status: "unknown", error: `HTTP ${resp.status}` });
-    const job = (await resp.json()) as { status: string };
-    return json({ status: job.status, error: null });
+    if (!resp.ok) return json({ type: "poll", status: "unknown", error: `HTTP ${resp.status}` });
+    const job = (await resp.json()) as { status: string; result?: { status?: string } };
+    return json({
+      type: "poll",
+      status: job.status,
+      // Surface "skipped_fresh" so the UI can show a distinct message.
+      resultStatus: job.result?.status ?? null,
+      error: null,
+    });
   } catch (err) {
-    return json({ status: "unknown", error: String(err) });
+    return json({ type: "poll", status: "unknown", error: String(err) });
   }
 };
 
-// ── Revalidation guard — polling must not re-run the loader ──────────────────
+// ── Revalidation guard — polling and refresh must not re-run the loader ─────
 
 export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (formData?.get("jobId")) return false;
+  if (formData?.get("intent") === "refresh") return false;
   return true;
 };
 
@@ -238,11 +275,15 @@ function DashboardHeader({
   plan,
   budget,
   locale,
+  onRefresh,
+  isRefreshing,
 }: {
   shop: string;
   plan: string;
   budget: DashboardData["llm_budget"];
   locale: Locale;
+  onRefresh: () => void;
+  isRefreshing: boolean;
 }) {
   const planTone = plan === "agency" ? "success" : plan === "pro" ? "info" : undefined;
   return (
@@ -252,23 +293,33 @@ function DashboardHeader({
           <Text as="p" variant="bodyMd" fontWeight="semibold">{shop}</Text>
           <Badge tone={planTone}>{plan.charAt(0).toUpperCase() + plan.slice(1)}</Badge>
         </InlineStack>
-        <Tooltip content={t(locale, "dashboardHeaderLLMBudget")}>
-          <BlockStack gap="050">
-            <Text as="p" variant="bodySm" tone="subdued">
-              {t(locale, "dashboardHeaderLLMBudget")}
-            </Text>
-            <InlineStack gap="100" blockAlign="center">
-              <Text as="p" variant="bodyMd">
-                {budget.used_usd.toFixed(2)} $ / {budget.limit_usd.toFixed(0)} $
+        <InlineStack gap="300" blockAlign="center">
+          <Tooltip content={t(locale, "dashboardHeaderLLMBudget")}>
+            <BlockStack gap="050">
+              <Text as="p" variant="bodySm" tone="subdued">
+                {t(locale, "dashboardHeaderLLMBudget")}
               </Text>
-              <ProgressBar
-                progress={Math.min(budget.pct, 100)}
-                tone={budget.pct >= 80 ? "critical" : "highlight"}
-                size="small"
-              />
-            </InlineStack>
-          </BlockStack>
-        </Tooltip>
+              <InlineStack gap="100" blockAlign="center">
+                <Text as="p" variant="bodyMd">
+                  {budget.used_usd.toFixed(2)} $ / {budget.limit_usd.toFixed(0)} $
+                </Text>
+                <ProgressBar
+                  progress={Math.min(budget.pct, 100)}
+                  tone={budget.pct >= 80 ? "critical" : "highlight"}
+                  size="small"
+                />
+              </InlineStack>
+            </BlockStack>
+          </Tooltip>
+          <Button
+            onClick={onRefresh}
+            loading={isRefreshing}
+            disabled={isRefreshing}
+            size="slim"
+          >
+            {t(locale, "dashboardRefresh")}
+          </Button>
+        </InlineStack>
       </InlineStack>
     </Card>
   );
@@ -612,42 +663,69 @@ export default function IndexPage() {
   const { locale, plan, dashboard, activeProducts, auditJobId, error } = useLoaderData<typeof loader>() as LoaderData;
 
   // ── Audit job polling ─────────────────────────────────────────────────────
-  const auditFetcher = useFetcher<{ status: string; error: string | null }>();
+  type PollData = { type?: string; status?: string; resultStatus?: string | null; error?: string | null };
+  type RefreshData = { type: "refresh"; jobId: string | null; error: string | null };
+
+  const auditFetcher = useFetcher<PollData>();
+  const refreshFetcher = useFetcher<RefreshData>();
+
+  // Active jobId: starts with loader value, can be overridden by manual refresh.
+  const [activeJobId, setActiveJobId] = useState<string | null>(auditJobId);
   const [auditStatus, setAuditStatus] = useState<string | null>(null);
+  const [resultStatus, setResultStatus] = useState<string | null>(null);
   const auditStatusRef = useRef<string | null>(null);
   auditStatusRef.current = auditStatus;
 
-  // Progress bar: animates linearly from 5 → 90% over 40s, jumps to 100 on done.
+  // Progress bar — linear ramp up to 90% over the expected crawl window,
+  // then snaps to 100% when the job actually completes.
+  // Window calibrated for the optimized job (pagination 250 + parallel fetch).
+  const PROGRESS_WINDOW_MS = 15_000;
   const [auditProgress, setAuditProgress] = useState(5);
   const auditStartRef = useRef<number>(0);
 
+  // Capture the jobId returned by the manual refresh action.
   useEffect(() => {
-    if (!auditJobId) return;
+    if (refreshFetcher.data?.type === "refresh" && refreshFetcher.data.jobId) {
+      setActiveJobId(refreshFetcher.data.jobId);
+      setAuditStatus(null);
+      setResultStatus(null);
+    }
+  }, [refreshFetcher.data]);
+
+  useEffect(() => {
+    if (!activeJobId) return;
     const poll = () => {
       const s = auditStatusRef.current;
       if (s === "completed" || s === "failed") return;
       const fd = new FormData();
-      fd.set("jobId", auditJobId);
+      fd.set("jobId", activeJobId);
       auditFetcher.submit(fd, { method: "post" });
     };
     poll();
-    const id = setInterval(poll, 3_000);
+    const id = setInterval(poll, 2_000);
     return () => clearInterval(id);
-  }, [auditJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeJobId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (auditFetcher.data?.status) setAuditStatus(auditFetcher.data.status);
+    if (auditFetcher.data?.status) {
+      setAuditStatus(auditFetcher.data.status);
+      if (auditFetcher.data.resultStatus !== undefined) {
+        setResultStatus(auditFetcher.data.resultStatus ?? null);
+      }
+    }
   }, [auditFetcher.data]);
 
   useEffect(() => {
     if (auditStatus === "completed") {
       setAuditProgress(100);
-      const id = setTimeout(() => window.location.reload(), 1_500);
+      const id = setTimeout(() => window.location.reload(), 1_200);
       return () => clearTimeout(id);
     }
   }, [auditStatus]);
 
-  const auditRunning = auditJobId !== null && auditStatus !== "completed" && auditStatus !== "failed";
+  const auditRunning =
+    activeJobId !== null && auditStatus !== "completed" && auditStatus !== "failed";
+  const isRefreshing = refreshFetcher.state !== "idle" || auditRunning;
 
   // Animate progress while the audit runs.
   useEffect(() => {
@@ -656,11 +734,18 @@ export default function IndexPage() {
     setAuditProgress(5);
     const tick = setInterval(() => {
       const elapsed = Date.now() - auditStartRef.current;
-      // Linear 5 → 90 over 40 s, capped at 90 until job completes.
-      setAuditProgress(Math.min(Math.round(5 + (elapsed / 40_000) * 85), 90));
-    }, 500);
+      setAuditProgress(
+        Math.min(Math.round(5 + (elapsed / PROGRESS_WINDOW_MS) * 85), 90),
+      );
+    }, 400);
     return () => clearInterval(tick);
   }, [auditRunning]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRefresh = () => {
+    const fd = new FormData();
+    fd.set("intent", "refresh");
+    refreshFetcher.submit(fd, { method: "post" });
+  };
 
   if (error || !dashboard) {
     return (
@@ -687,11 +772,7 @@ export default function IndexPage() {
           <Banner tone="info">
             <BlockStack gap="150">
               <InlineStack gap="200" blockAlign="center" align="space-between">
-                <Text as="p">
-                  {locale === "fr"
-                    ? "Synchronisation de votre catalogue en cours…"
-                    : "Syncing your catalog…"}
-                </Text>
+                <Text as="p">{t(locale, "dashboardRefreshing")}</Text>
                 <Text as="p" variant="bodySm" tone="subdued">{auditProgress}%</Text>
               </InlineStack>
               <ProgressBar progress={auditProgress} size="small" tone="highlight" />
@@ -701,10 +782,15 @@ export default function IndexPage() {
         {auditStatus === "completed" && (
           <Banner tone="success">
             <Text as="p">
-              {locale === "fr"
-                ? "Catalogue synchronisé — rechargement en cours…"
-                : "Catalog synced — reloading…"}
+              {resultStatus === "skipped_fresh"
+                ? t(locale, "dashboardRefreshSkippedFresh")
+                : t(locale, "dashboardRefreshed")}
             </Text>
+          </Banner>
+        )}
+        {refreshFetcher.data?.type === "refresh" && refreshFetcher.data.error && (
+          <Banner tone="critical">
+            <Text as="p">{refreshFetcher.data.error}</Text>
           </Banner>
         )}
         {!auditRunning && auditStatus !== "completed" && banners.stale_snapshot && (
@@ -720,6 +806,16 @@ export default function IndexPage() {
             </p>
           </Banner>
         )}
+
+        {/* Header — shop, plan, LLM budget + refresh button */}
+        <DashboardHeader
+          shop={dashboard.shop}
+          plan={dashboard.plan}
+          budget={dashboard.llm_budget}
+          locale={locale}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+        />
 
         {/* Zone 1 — Store health */}
         <Zone1 data={zone1} locale={locale} />

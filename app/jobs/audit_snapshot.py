@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -15,11 +18,16 @@ from scripts.audit.crawl_shopify import (
     fetch_pages,
     fetch_products,
     fetch_shop_metadata,
-    fetch_url_redirects,
 )
+
+logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).parents[2]
 _RAW_DIR = _PROJECT_ROOT / "data" / "raw"
+
+# A snapshot younger than this is considered fresh enough to skip the crawl
+# unless `force=True` is passed (e.g. by the manual Refresh button).
+_FRESH_SNAPSHOT_SECONDS = 300  # 5 minutes
 
 
 def _timestamp() -> str:
@@ -42,20 +50,28 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
+def _snapshot_path(shop: str, root: Path | None = None) -> Path:
+    return (root or _RAW_DIR) / shop / "shopify_snapshot.json"
+
+
+def _snapshot_age_seconds(path: Path) -> float | None:
+    if not path.exists():
+        return None
+    return time.time() - path.stat().st_mtime
+
+
 def _store_snapshot_rows(
     shop: str,
     products: list[dict[str, Any]],
     collections: list[dict[str, Any]],
     pages: list[dict[str, Any]] | None = None,
     articles: list[dict[str, Any]] | None = None,
-    redirects: list[dict[str, Any]] | None = None,
     db_path: Path | None = None,
 ) -> None:
     now = datetime.now(UTC).isoformat()
     path = db_path if db_path is not None else DB_PATH
     pages = pages or []
     articles = articles or []
-    redirects = redirects or []
     rows = [
         (shop, now, "product", product["id"], json.dumps(product, ensure_ascii=False))
         for product in products
@@ -68,9 +84,6 @@ def _store_snapshot_rows(
     ] + [
         (shop, now, "article", article["id"], json.dumps(article, ensure_ascii=False))
         for article in articles
-    ] + [
-        (shop, now, "url_redirect", redirect["id"], json.dumps(redirect, ensure_ascii=False))
-        for redirect in redirects
     ]
 
     if not rows:
@@ -88,12 +101,14 @@ def _store_snapshot_rows(
             )
 
 
-def crawl_shopify_catalog_for_job(
+async def crawl_shopify_catalog_for_job(
     shop: str,
     access_token: str,
     db_path: Path | None = None,
     raw_dir: Path | None = None,
-    products_only: bool = False,
+    include_content_pages: bool = False,
+    force: bool = False,
+    **_legacy_kwargs: Any,
 ) -> dict[str, Any]:
     """Run a read-only Shopify catalog crawl and persist a tenant snapshot.
 
@@ -102,36 +117,91 @@ def crawl_shopify_catalog_for_job(
         access_token: Shopify Admin API access token from the embedded session.
         db_path: Optional SQLite override for tests.
         raw_dir: Optional raw-data directory override for tests.
-        products_only: When True, skip pages/articles/redirects and reuse the
-            existing snapshot for those fields. Much faster — use for background
-            auto-refresh triggered on app open.
+        include_content_pages: When True, also crawl CMS pages + blog articles.
+            Default False — these are only consumed by ``/crawl/l3`` and are
+            skipped on the fast refresh path to keep the job under 30 s.
+        force: Bypass the freshness check and always re-crawl.
 
     Returns:
         Summary containing product/collection counts and snapshot paths.
+        When the existing snapshot is fresh and ``force`` is False, returns
+        ``status="skipped_fresh"`` without contacting Shopify.
+
+    Notes:
+        ``url_redirects`` is no longer fetched — the field was unused in the
+        codebase. ``include_content_pages=True`` re-enables the heavier crawl
+        for technical audits.
+
+        Legacy keyword ``products_only`` is accepted for backward compatibility
+        (``products_only=True`` == ``include_content_pages=False``).
     """
+    # Backward-compat: translate the old `products_only` flag.
+    if "products_only" in _legacy_kwargs:
+        include_content_pages = not bool(_legacy_kwargs["products_only"])
+
+    root = raw_dir or _RAW_DIR
+    shop_dir = root / shop
+    latest_path = shop_dir / "shopify_snapshot.json"
+
+    # ── Freshness short-circuit ───────────────────────────────────────────
+    age = _snapshot_age_seconds(latest_path)
+    if not force and age is not None and age < _FRESH_SNAPSHOT_SECONDS:
+        try:
+            existing = json.loads(latest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing = {}
+        logger.info("Snapshot for %s is fresh (%.0fs old) — skipping crawl", shop, age)
+        return {
+            "status": "skipped_fresh",
+            "shop": shop,
+            "snapshot_age_seconds": int(age),
+            "products": len(existing.get("products", [])),
+            "collections": len(existing.get("collections", [])),
+            "pages": len(existing.get("pages", [])),
+            "articles": len(existing.get("articles", [])),
+            "snapshot_path": str(latest_path),
+        }
+
     endpoint = _admin_endpoint(shop)
     headers = _admin_headers(access_token)
-    products = fetch_products(endpoint=endpoint, headers=headers)
-    collections = fetch_collections(endpoint=endpoint, headers=headers)
-    shop_metadata = fetch_shop_metadata(endpoint=endpoint, headers=headers)
 
-    if products_only:
-        # Reuse existing pages/articles/redirects from the last full snapshot.
-        root = raw_dir or _RAW_DIR
-        existing_path = root / shop / "shopify_snapshot.json"
+    # ── Parallel fetch of the 3 always-on resources ───────────────────────
+    fetchers = [
+        asyncio.to_thread(fetch_products, endpoint=endpoint, headers=headers),
+        asyncio.to_thread(fetch_collections, endpoint=endpoint, headers=headers),
+        asyncio.to_thread(fetch_shop_metadata, endpoint=endpoint, headers=headers),
+    ]
+    if include_content_pages:
+        fetchers.extend([
+            asyncio.to_thread(fetch_pages, endpoint=endpoint, headers=headers),
+            asyncio.to_thread(fetch_articles, endpoint=endpoint, headers=headers),
+        ])
+
+    started = time.perf_counter()
+    results = await asyncio.gather(*fetchers)
+    elapsed = time.perf_counter() - started
+    logger.info(
+        "Shopify crawl for %s done in %.2fs (content_pages=%s)",
+        shop, elapsed, include_content_pages,
+    )
+
+    products: list[dict[str, Any]] = results[0]
+    collections: list[dict[str, Any]] = results[1]
+    shop_metadata: dict[str, Any] = results[2]
+
+    if include_content_pages:
+        pages: list[dict[str, Any]] = results[3]
+        articles: list[dict[str, Any]] = results[4]
+    else:
+        # Reuse existing pages/articles from the last full snapshot.
         existing: dict[str, Any] = {}
-        if existing_path.exists():
+        if latest_path.exists():
             try:
-                existing = json.loads(existing_path.read_text(encoding="utf-8"))
+                existing = json.loads(latest_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 pass
         pages = existing.get("pages", [])
         articles = existing.get("articles", [])
-        redirects = existing.get("redirects", [])
-    else:
-        pages = fetch_pages(endpoint=endpoint, headers=headers)
-        articles = fetch_articles(endpoint=endpoint, headers=headers)
-        redirects = fetch_url_redirects(endpoint=endpoint, headers=headers)
 
     payload = {
         "shop": shop_metadata,
@@ -139,38 +209,35 @@ def crawl_shopify_catalog_for_job(
         "collections": collections,
         "pages": pages,
         "articles": articles,
-        "redirects": redirects,
+        # `redirects` kept as empty list for snapshot shape stability; no consumers read it.
+        "redirects": [],
     }
     timestamp = _timestamp()
-    root = raw_dir or _RAW_DIR
-    shop_dir = root / shop
-    latest_path = shop_dir / "shopify_snapshot.json"
     timestamped_path = shop_dir / f"snapshot_{timestamp}.json"
 
     _write_json(latest_path, payload)
-    # Skip timestamped history copy for fast auto-refresh — only write for full audits.
-    if not products_only:
+    # Skip timestamped history copy on the fast refresh path — only write for full audits.
+    if include_content_pages:
         _write_json(timestamped_path, payload)
-    # Only persist the rows that were actually fetched; reused pages/articles/redirects
+    # Only persist the rows that were actually fetched; reused pages/articles
     # are already in the DB from the previous full snapshot.
     _store_snapshot_rows(
         shop,
         products,
         collections,
-        pages=pages if not products_only else [],
-        articles=articles if not products_only else [],
-        redirects=redirects if not products_only else [],
+        pages=pages if include_content_pages else [],
+        articles=articles if include_content_pages else [],
         db_path=db_path,
     )
 
     return {
         "status": "completed",
         "shop": shop,
+        "elapsed_seconds": round(elapsed, 2),
         "products": len(products),
         "collections": len(collections),
         "pages": len(pages),
         "articles": len(articles),
-        "redirects": len(redirects),
         "snapshot_path": str(latest_path),
-        "timestamped_snapshot_path": str(timestamped_path),
+        "timestamped_snapshot_path": str(timestamped_path) if include_content_pages else None,
     }

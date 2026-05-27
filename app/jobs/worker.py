@@ -15,7 +15,14 @@ from app.llm.provider import LLMError
 logger = logging.getLogger(__name__)
 
 _DEFAULT_POLL_INTERVAL = 5.0  # seconds between polls when queue is empty
-_DEFAULT_TIMEOUT = 600  # seconds per job before it is marked failed
+_DEFAULT_TIMEOUT = 600  # seconds per job before it is marked failed (global ceiling)
+# Tighter per-queue ceilings — surface blockages on jobs that should be fast.
+# Anything not listed falls back to _DEFAULT_TIMEOUT.
+_QUEUE_TIMEOUTS: dict[str, int] = {
+    "seo_audit": 90,
+    "gsc_import": 120,
+    "pagespeed_import": 180,
+}
 
 
 def _retry_delay(retries: int) -> int:
@@ -94,20 +101,22 @@ class JobWorker:
             )
             return
 
+        effective_timeout = _QUEUE_TIMEOUTS.get(queue, self.timeout)
         logger.info(
-            "Processing job %s (queue=%s shop=%s attempt=%d)", job_id, queue, shop, retries + 1
+            "Processing job %s (queue=%s shop=%s attempt=%d timeout=%ds)",
+            job_id, queue, shop, retries + 1, effective_timeout,
         )
         try:
             result = await asyncio.wait_for(
                 handler(job["payload"], shop),
-                timeout=self.timeout,
+                timeout=effective_timeout,
             )
             update_job(job_id, status="completed", result=result, db_path=self._db_path)
             logger.info("Job %s completed", job_id)
 
         except TimeoutError:
-            logger.warning("Job %s timed out after %ds", job_id, self.timeout)
-            self._handle_failure(job_id, retries, max_retries, f"timed out after {self.timeout}s")
+            logger.warning("Job %s timed out after %ds", job_id, effective_timeout)
+            self._handle_failure(job_id, retries, max_retries, f"timed out after {effective_timeout}s")
 
         except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error, LLMError) as exc:
             logger.warning("Job %s failed: %s", job_id, exc)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 
@@ -9,7 +10,67 @@ from app.db import init_db
 from app.jobs.audit_snapshot import crawl_shopify_catalog_for_job
 
 
-def test_crawl_shopify_catalog_for_job_writes_tenant_snapshot(tmp_path, monkeypatch):
+def _run(coro):
+    return asyncio.run(coro)
+
+
+def test_default_skips_content_pages_and_redirects(tmp_path, monkeypatch):
+    db = tmp_path / "history.db"
+    raw_dir = tmp_path / "raw"
+    init_db(db)
+
+    fetched: list[str] = []
+
+    def _track(name, value):
+        def _fn(**_kw):
+            fetched.append(name)
+            return value
+        return _fn
+
+    monkeypatch.setattr(
+        "app.jobs.audit_snapshot.fetch_products",
+        _track("products", [{"id": "gid://shopify/Product/1", "title": "Harnais chien"}]),
+    )
+    monkeypatch.setattr(
+        "app.jobs.audit_snapshot.fetch_collections",
+        _track("collections", [{"id": "gid://shopify/Collection/1", "title": "Chiens"}]),
+    )
+    monkeypatch.setattr(
+        "app.jobs.audit_snapshot.fetch_shop_metadata",
+        _track("shop", {"myshopifyDomain": "store.myshopify.com"}),
+    )
+    monkeypatch.setattr(
+        "app.jobs.audit_snapshot.fetch_pages",
+        _track("pages", [{"id": "x"}]),
+    )
+    monkeypatch.setattr(
+        "app.jobs.audit_snapshot.fetch_articles",
+        _track("articles", [{"id": "y"}]),
+    )
+
+    result = _run(
+        crawl_shopify_catalog_for_job(
+            "store.myshopify.com",
+            "shpat_token",
+            db_path=db,
+            raw_dir=raw_dir,
+        )
+    )
+
+    # Fast path: only products + collections + shop metadata fetched.
+    assert sorted(fetched) == ["collections", "products", "shop"]
+    assert result["status"] == "completed"
+    assert result["products"] == 1
+    assert result["collections"] == 1
+    assert result["pages"] == 0
+    assert result["articles"] == 0
+
+    # No timestamped history copy on the fast path.
+    timestamped = list((raw_dir / "store.myshopify.com").glob("snapshot_*.json"))
+    assert timestamped == []
+
+
+def test_include_content_pages_fetches_pages_and_articles(tmp_path, monkeypatch):
     db = tmp_path / "history.db"
     raw_dir = tmp_path / "raw"
     init_db(db)
@@ -17,51 +78,50 @@ def test_crawl_shopify_catalog_for_job_writes_tenant_snapshot(tmp_path, monkeypa
     products = [{"id": "gid://shopify/Product/1", "title": "Harnais chien"}]
     collections = [{"id": "gid://shopify/Collection/1", "title": "Chiens"}]
     pages = [{"id": "gid://shopify/Page/1", "title": "About", "handle": "about"}]
-    articles = [{"id": "gid://shopify/Article/1", "title": "Guide", "handle": "guide", "blog_handle": "news"}]
-    redirects = [{"id": "gid://shopify/UrlRedirect/1", "path": "/old", "target": "/new"}]
+    articles = [{"id": "gid://shopify/Article/1", "title": "Guide", "handle": "guide"}]
     monkeypatch.setattr("app.jobs.audit_snapshot.fetch_products", lambda **kw: products)
     monkeypatch.setattr("app.jobs.audit_snapshot.fetch_collections", lambda **kw: collections)
     monkeypatch.setattr("app.jobs.audit_snapshot.fetch_pages", lambda **kw: pages)
     monkeypatch.setattr("app.jobs.audit_snapshot.fetch_articles", lambda **kw: articles)
-    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_url_redirects", lambda **kw: redirects)
-    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_shop_metadata", lambda **kw: {"myshopifyDomain": "store.myshopify.com"})
-
-    result = crawl_shopify_catalog_for_job(
-        "store.myshopify.com",
-        "shpat_token",
-        db_path=db,
-        raw_dir=raw_dir,
+    monkeypatch.setattr(
+        "app.jobs.audit_snapshot.fetch_shop_metadata",
+        lambda **kw: {"myshopifyDomain": "store.myshopify.com"},
     )
 
-    latest = raw_dir / "store.myshopify.com" / "shopify_snapshot.json"
-    timestamped = list((raw_dir / "store.myshopify.com").glob("snapshot_*.json"))
+    result = _run(
+        crawl_shopify_catalog_for_job(
+            "store.myshopify.com",
+            "shpat_token",
+            db_path=db,
+            raw_dir=raw_dir,
+            include_content_pages=True,
+        )
+    )
+
     assert result["products"] == 1
-    assert result["collections"] == 1
     assert result["pages"] == 1
     assert result["articles"] == 1
-    assert result["redirects"] == 1
-    assert latest.exists()
-    assert len(timestamped) == 1
+    assert result["timestamped_snapshot_path"] is not None
+
+    latest = raw_dir / "store.myshopify.com" / "shopify_snapshot.json"
     payload = json.loads(latest.read_text())
     assert payload["products"] == products
     assert payload["pages"] == pages
     assert payload["articles"] == articles
-    assert payload["redirects"] == redirects
+    # url_redirects is no longer fetched
+    assert payload["redirects"] == []
+
+    timestamped = list((raw_dir / "store.myshopify.com").glob("snapshot_*.json"))
+    assert len(timestamped) == 1
 
     with sqlite3.connect(db) as conn:
         rows = conn.execute(
-            "SELECT shop, resource_type, resource_id FROM snapshots ORDER BY resource_type"
+            "SELECT resource_type FROM snapshots ORDER BY resource_type"
         ).fetchall()
-    assert rows == [
-        ("store.myshopify.com", "article", "gid://shopify/Article/1"),
-        ("store.myshopify.com", "collection", "gid://shopify/Collection/1"),
-        ("store.myshopify.com", "page", "gid://shopify/Page/1"),
-        ("store.myshopify.com", "product", "gid://shopify/Product/1"),
-        ("store.myshopify.com", "url_redirect", "gid://shopify/UrlRedirect/1"),
-    ]
+    assert [r[0] for r in rows] == ["article", "collection", "page", "product"]
 
 
-def test_crawl_shopify_catalog_for_job_uses_passed_shop_and_token(monkeypatch, tmp_path):
+def test_passes_shop_and_token_to_endpoint(monkeypatch, tmp_path):
     calls: list[tuple[str, str]] = []
 
     def _fetch_products(endpoint, headers):
@@ -70,16 +130,110 @@ def test_crawl_shopify_catalog_for_job_uses_passed_shop_and_token(monkeypatch, t
 
     monkeypatch.setattr("app.jobs.audit_snapshot.fetch_products", _fetch_products)
     monkeypatch.setattr("app.jobs.audit_snapshot.fetch_collections", lambda **kw: [])
-    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_pages", lambda **kw: [])
-    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_articles", lambda **kw: [])
-    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_url_redirects", lambda **kw: [])
     monkeypatch.setattr("app.jobs.audit_snapshot.fetch_shop_metadata", lambda **kw: {})
 
-    crawl_shopify_catalog_for_job(
-        "store.myshopify.com",
-        "shpat_real",
-        db_path=tmp_path / "history.db",
-        raw_dir=tmp_path / "raw",
+    _run(
+        crawl_shopify_catalog_for_job(
+            "store.myshopify.com",
+            "shpat_real",
+            db_path=tmp_path / "history.db",
+            raw_dir=tmp_path / "raw",
+        )
     )
 
     assert calls == [("https://store.myshopify.com/admin/api/2025-01/graphql.json", "shpat_real")]
+
+
+def test_fresh_snapshot_skips_crawl(tmp_path, monkeypatch):
+    """A snapshot less than 5 min old should short-circuit without hitting Shopify."""
+    raw_dir = tmp_path / "raw"
+    shop_dir = raw_dir / "store.myshopify.com"
+    shop_dir.mkdir(parents=True)
+    (shop_dir / "shopify_snapshot.json").write_text(
+        json.dumps({"products": [{"id": "x"}], "collections": [], "pages": [], "articles": []}),
+        encoding="utf-8",
+    )
+
+    called = False
+
+    def _should_not_be_called(**_kw):
+        nonlocal called
+        called = True
+        return []
+
+    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_products", _should_not_be_called)
+    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_collections", _should_not_be_called)
+    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_shop_metadata", _should_not_be_called)
+
+    result = _run(
+        crawl_shopify_catalog_for_job(
+            "store.myshopify.com",
+            "shpat_token",
+            db_path=tmp_path / "history.db",
+            raw_dir=raw_dir,
+        )
+    )
+
+    assert result["status"] == "skipped_fresh"
+    assert result["products"] == 1
+    assert called is False
+
+
+def test_force_bypasses_freshness_check(tmp_path, monkeypatch):
+    raw_dir = tmp_path / "raw"
+    shop_dir = raw_dir / "store.myshopify.com"
+    shop_dir.mkdir(parents=True)
+    (shop_dir / "shopify_snapshot.json").write_text(
+        json.dumps({"products": [], "collections": [], "pages": [], "articles": []}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_products", lambda **kw: [{"id": "new"}])
+    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_collections", lambda **kw: [])
+    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_shop_metadata", lambda **kw: {})
+
+    init_db(tmp_path / "history.db")
+    result = _run(
+        crawl_shopify_catalog_for_job(
+            "store.myshopify.com",
+            "shpat_token",
+            db_path=tmp_path / "history.db",
+            raw_dir=raw_dir,
+            force=True,
+        )
+    )
+
+    assert result["status"] == "completed"
+    assert result["products"] == 1
+
+
+def test_legacy_products_only_kwarg_still_accepted(tmp_path, monkeypatch):
+    """products_only=True (legacy) ≡ include_content_pages=False."""
+    fetched: list[str] = []
+
+    monkeypatch.setattr(
+        "app.jobs.audit_snapshot.fetch_products",
+        lambda **_kw: (fetched.append("products") or []),
+    )
+    monkeypatch.setattr(
+        "app.jobs.audit_snapshot.fetch_collections",
+        lambda **_kw: (fetched.append("collections") or []),
+    )
+    monkeypatch.setattr(
+        "app.jobs.audit_snapshot.fetch_shop_metadata",
+        lambda **_kw: (fetched.append("shop") or {}),
+    )
+
+    init_db(tmp_path / "history.db")
+    result = _run(
+        crawl_shopify_catalog_for_job(
+            "store.myshopify.com",
+            "shpat_token",
+            db_path=tmp_path / "history.db",
+            raw_dir=tmp_path / "raw",
+            products_only=True,
+        )
+    )
+
+    assert sorted(fetched) == ["collections", "products", "shop"]
+    assert result["status"] == "completed"

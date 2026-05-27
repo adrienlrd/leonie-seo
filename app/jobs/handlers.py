@@ -41,11 +41,13 @@ async def handle_seo_audit(payload: dict, shop: str | None) -> dict:
     """Run a read-only Shopify catalog crawl for a shop.
 
     Expected payload keys:
-        shop (str): Shopify shop domain
-        access_token (str): Shopify Admin API token from the embedded app session
+        access_token (str, optional): Shopify Admin API token; falls back to
+            the stored OAuth token if absent.
+        include_content_pages (bool, default False): also crawl CMS pages and
+            blog articles (slower — only needed for ``/crawl/l3``).
+        force (bool, default False): bypass the snapshot freshness check.
+        products_only (bool, legacy): inverse alias for ``include_content_pages``.
     """
-    import asyncio
-
     from app.jobs.audit_snapshot import crawl_shopify_catalog_for_job
 
     if not shop:
@@ -60,9 +62,19 @@ async def handle_seo_audit(payload: dict, shop: str | None) -> dict:
     if not access_token:
         raise ValueError("access_token is required for seo_audit")
 
-    products_only = bool(payload.get("products_only", False))
-    return await asyncio.to_thread(
-        crawl_shopify_catalog_for_job, shop, access_token, products_only=products_only
+    if "include_content_pages" in payload:
+        include_content_pages = bool(payload["include_content_pages"])
+    elif "products_only" in payload:
+        include_content_pages = not bool(payload["products_only"])
+    else:
+        include_content_pages = False
+
+    force = bool(payload.get("force", False))
+    return await crawl_shopify_catalog_for_job(
+        shop,
+        access_token,
+        include_content_pages=include_content_pages,
+        force=force,
     )
 
 

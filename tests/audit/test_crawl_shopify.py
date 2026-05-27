@@ -127,9 +127,10 @@ def test_products_query_requests_publication_fields_when_fetching_products() -> 
 
 
 def test_crawl_l3_queries_include_extended_snapshot_resources() -> None:
-    assert "pages(first: 50" in _PAGES_QUERY
-    assert "articles(first: 50" in _BLOGS_QUERY
-    assert "urlRedirects(first: 50" in _URL_REDIRECTS_QUERY
+    # Pagination is set to 250 (Shopify's connection cap) to minimise round-trips.
+    assert "pages(first: 250" in _PAGES_QUERY
+    assert "articles(first: 250" in _BLOGS_QUERY
+    assert "urlRedirects(first: 250" in _URL_REDIRECTS_QUERY
 
 
 def test_fetch_products_paginates(mocker):
