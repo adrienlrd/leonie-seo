@@ -282,8 +282,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         { accessToken: session.accessToken },
       );
       if (!resp.ok) return json({ type: "pollBusinessAnalysis", status: "unknown", profile: null, error: `HTTP ${resp.status}` });
-      const job = (await resp.json()) as { status: string; profile?: BusinessProfile | null };
-      return json({ type: "pollBusinessAnalysis", status: job.status, profile: job.profile ?? null, error: null });
+      const job = (await resp.json()) as { status: string; profile?: BusinessProfile | null; error?: string | null };
+      const jobError = (job.status === "failed" || job.status === "unknown") ? (job.error ?? "Analyse échouée") : null;
+      return json({ type: "pollBusinessAnalysis", status: job.status, profile: job.profile ?? null, error: jobError });
     } catch (err) {
       return json({ type: "pollBusinessAnalysis", status: "unknown", profile: null, error: String(err) });
     }
@@ -783,6 +784,7 @@ function BusinessProfileSection({
   const [bizJobStatus, setBizJobStatus] = useState<string | null>(null);
   const [bizProfile, setBizProfile] = useState<BusinessProfile | null>(initialProfile);
   const [bizDraft, setBizDraft] = useState<BusinessProfile | null>(null);
+  const [bizError, setBizError] = useState<string | null>(null);
   const bizStatusRef = useRef<string | null>(null);
   bizStatusRef.current = bizJobStatus;
 
@@ -793,17 +795,25 @@ function BusinessProfileSection({
     if (data.type === "startBusinessAnalysis" && data.jobId) {
       setBizJobId(data.jobId);
       setBizJobStatus(null);
+      setBizError(null);
+    }
+    if (data.type === "startBusinessAnalysis" && data.error) {
+      setBizError(data.error);
     }
     if (data.type === "pollBusinessAnalysis") {
       setBizJobStatus(data.status);
       if (data.status === "completed") {
         setBizJobId(null);
-        if (data.profile) {
+        if (data.profile && data.profile.status !== "error") {
           setBizDraft(data.profile);
+        } else if (data.profile?.status === "error") {
+          setBizJobId(null);
+          setBizError((data.profile as { error?: string }).error ?? "L'analyse IA a échoué");
         }
       }
       if (data.status === "failed" || data.status === "unknown") {
         setBizJobId(null);
+        if (data.error) setBizError(data.error);
       }
     }
     if (data.type === "saveBusinessProfile" && data.profile) {
@@ -829,6 +839,7 @@ function BusinessProfileSection({
   }, [bizJobId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAnalyze = () => {
+    setBizError(null);
     const fd = new FormData();
     fd.set("intent", "startBusinessAnalysis");
     bizFetcher.submit(fd, { method: "post" });
@@ -878,15 +889,18 @@ function BusinessProfileSection({
       <Card>
         <BlockStack gap="300">
           <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
-          <Text as="p" tone="subdued">{t(locale, "businessProfileSubtitle")}</Text>
+          {bizError ? (
+            <Banner tone="critical">
+              <p>{bizError}</p>
+            </Banner>
+          ) : (
+            <Text as="p" tone="subdued">{t(locale, "businessProfileSubtitle")}</Text>
+          )}
           <InlineStack>
             <Button onClick={handleAnalyze} variant="primary" size="slim" loading={isAnalyzing}>
-              {t(locale, "businessProfileAnalyze")}
+              {bizError ? t(locale, "businessProfileRegenerate") : t(locale, "businessProfileAnalyze")}
             </Button>
           </InlineStack>
-          {bizFetcher.data && "error" in bizFetcher.data && bizFetcher.data.error && (
-            <Banner tone="critical"><p>{bizFetcher.data.error}</p></Banner>
-          )}
         </BlockStack>
       </Card>
     );
@@ -915,15 +929,16 @@ function BusinessProfileSection({
       <Card>
         <BlockStack gap="300">
           <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
-          <Text as="p" tone="subdued">{t(locale, "businessProfileSubtitle")}</Text>
+          {bizError ? (
+            <Banner tone="critical"><p>{bizError}</p></Banner>
+          ) : (
+            <Text as="p" tone="subdued">{t(locale, "businessProfileSubtitle")}</Text>
+          )}
           <InlineStack>
             <Button onClick={handleAnalyze} variant="primary" size="slim" loading={isAnalyzing}>
-              {t(locale, "businessProfileAnalyze")}
+              {bizError ? t(locale, "businessProfileRegenerate") : t(locale, "businessProfileAnalyze")}
             </Button>
           </InlineStack>
-          {bizFetcher.data && "error" in bizFetcher.data && bizFetcher.data.error && (
-            <Banner tone="critical"><p>{bizFetcher.data.error}</p></Banner>
-          )}
         </BlockStack>
       </Card>
     );
