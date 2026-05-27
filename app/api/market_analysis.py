@@ -317,7 +317,7 @@ async def get_latest_market_analysis(
     return result
 
 
-@router.patch("/shops/{shop}/market-analysis/proposals/{product_id}")
+@router.patch("/shops/{shop}/market-analysis/proposals/{product_id:path}")
 async def patch_market_analysis_proposals(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     product_id: str,
