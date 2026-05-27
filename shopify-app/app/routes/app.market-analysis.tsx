@@ -98,6 +98,14 @@ interface EnrichmentQuestion {
   unlocks_surfaces: string[];
 }
 
+interface ConfirmedFact {
+  key: string;
+  label: string;
+  value: string | string[];
+  source: string;
+  confidence: string;
+}
+
 interface ContentTestPack {
   current_meta_title: string;
   proposed_meta_title: string;
@@ -115,6 +123,7 @@ interface ContentTestPack {
   facts_used: string[];
   facts_missing: string[];
   confidence: string;
+  confirmed_facts?: ConfirmedFact[];
   content_quality?: ContentQuality;
   enrichment_questions?: EnrichmentQuestion[];
   faq_sync?: {
@@ -873,6 +882,18 @@ function SummaryCard({ job, locale }: { job: JobState; locale: Locale }) {
   );
 }
 
+function merchantAnswersFromPack(pack: ContentTestPack): Record<string, string> {
+  const answers: Record<string, string> = {};
+  for (const fact of (pack.confirmed_facts ?? [])) {
+    if (fact.source === "merchant_confirmation" && fact.key) {
+      answers[fact.key] = Array.isArray(fact.value)
+        ? fact.value.join(", ")
+        : String(fact.value ?? "");
+    }
+  }
+  return answers;
+}
+
 function ProductCard({
   product,
   locale,
@@ -903,7 +924,9 @@ function ProductCard({
   const [editMode, setEditMode] = useState(false);
   const [editedPack, setEditedPack] = useState<ContentTestPack>({ ...pack });
   const [showEnrichmentQuestions, setShowEnrichmentQuestions] = useState(false);
-  const [enrichmentAnswers, setEnrichmentAnswers] = useState<Record<string, string>>({});
+  const [enrichmentAnswers, setEnrichmentAnswers] = useState<Record<string, string>>(
+    () => merchantAnswersFromPack(pack),
+  );
   const saveFetcher = useFetcher<{ type: string; error: string | null }>();
   const isSaving = saveFetcher.state !== "idle";
 
@@ -915,7 +938,7 @@ function ProductCard({
     if (!editMode) {
       setEditedPack({ ...pack });
       setShowEnrichmentQuestions(false);
-      setEnrichmentAnswers({});
+      setEnrichmentAnswers(merchantAnswersFromPack(pack));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packSignature]);
