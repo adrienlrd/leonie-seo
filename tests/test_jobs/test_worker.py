@@ -157,7 +157,7 @@ def test_seo_audit_handler_uses_stored_access_token(monkeypatch):
     )
     monkeypatch.setattr(
         "app.jobs.audit_snapshot.crawl_shopify_catalog_for_job",
-        lambda shop, access_token: calls.append((shop, access_token)) or {"products": 1},
+        lambda shop, access_token, **kwargs: calls.append((shop, access_token)) or {"products": 1},
     )
 
     result = asyncio.run(handle_seo_audit({}, "store.myshopify.com"))
