@@ -1126,8 +1126,8 @@ def _build_enrichment_questions(
             "Ex. garantie 2 ans, avec les conditions exactes.",
         ),
         "compatibility": (
-            f"Avec quels usages ou équipements « {primary_query} » est-il compatible ?",
-            "Ex. formats, modèles ou profils compatibles.",
+            f"Dans quel contexte ou usage principal « {primary_query} » est-il conçu ?",
+            "Ex. en hiver pour les petits chiens frileux, en promenade par temps frais.",
         ),
         "dimensions": (
             f"Quelles dimensions exactes peut-on indiquer pour « {primary_query} » ?",
@@ -1150,8 +1150,8 @@ def _build_enrichment_questions(
             "Ex. nom exact du label et périmètre concerné.",
         ),
         "size_recommendation": (
-            f"Comment choisir la bonne taille de « {primary_query} » ?",
-            "Ex. mesure à prendre et correspondance confirmée.",
+            f"Comment choisir la bonne taille de « {primary_query} » pour son animal ?",
+            "Ex. mesure à prendre (tour de poitrine, longueur dos) et correspondance taille confirmée.",
         ),
     }
     questions: list[dict[str, Any]] = []
@@ -1187,17 +1187,17 @@ def _build_enrichment_questions(
             [
                 {
                     "key": "use_cases",
-                    "question": f"Dans quel besoin précis un client recherche-t-il « {primary_query} » ?",
-                    "placeholder": "Ex. problème résolu, contexte d'utilisation et client concerné.",
-                    "why_it_matters": "Définit un angle utile pour une FAQ et un article support ciblés.",
+                    "question": f"Quel bénéfice concret « {primary_query} » apporte-t-il à vos clients, et quel problème résout-il ?",
+                    "placeholder": "Ex. tient chaud aux petits chiens frileux en hiver, évite les frissons après le bain.",
+                    "why_it_matters": "Fournit l'angle éditorial central pour un article ou une FAQ qui accroche.",
                     "target_keyword": primary_query,
                     "unlocks_surfaces": ["faq", "blog"],
                 },
                 {
                     "key": "selection_criteria",
-                    "question": f"Quels critères factuels aident à choisir « {primary_query} » ?",
-                    "placeholder": "Ex. capacité, taille, usage ou entretien, uniquement si vérifié.",
-                    "why_it_matters": "Fournit le plan d'un article comparatif utile sans inventer de promesse.",
+                    "question": f"Comment un client non-expert devrait-il choisir entre plusieurs « {primary_query} » ?",
+                    "placeholder": "Ex. selon la race, le poids, la météo ou le niveau d'activité.",
+                    "why_it_matters": "Structure un guide d'achat naturellement optimisé pour les requêtes de comparaison.",
                     "target_keyword": primary_query,
                     "unlocks_surfaces": ["blog"],
                 },
