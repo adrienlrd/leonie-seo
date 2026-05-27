@@ -1,19 +1,17 @@
 {%- comment -%}
   Léonie SEO — FAQ embed (App Embed Block)
-  Auto-injected on product pages, just before the footer by default.
+  Auto-injected on product pages at the position chosen by the merchant.
   Renders the FAQ stored in the `leonie.faq` metafield + FAQPage JSON-LD.
   Activate via Theme Editor → App embeds.
 {%- endcomment -%}
 
-{%- if template contains 'product' and product and product.metafields.leonie.faq -%}
+{%- assign placement = block.settings.placement | default: 'below_product' -%}
+
+{%- if placement != 'none' and template contains 'product' and product and product.metafields.leonie.faq -%}
 {%- assign faq_entries = product.metafields.leonie.faq.value -%}
 {%- if faq_entries.size > 0 -%}
 
-<template
-  id="leonie-faq-template"
-  data-selector="{{ block.settings.insertion_selector | default: '' | escape }}"
-  data-position="{{ block.settings.insertion_position | default: 'before' | escape }}"
->
+<template id="leonie-faq-template" data-placement="{{ placement | escape }}">
   <section class="leonie-faq" aria-labelledby="leonie-faq-heading">
     <h2 id="leonie-faq-heading" class="leonie-faq__heading">
       {{ block.settings.heading | default: 'Questions fréquentes' }}
@@ -43,58 +41,50 @@
     var template = document.getElementById('leonie-faq-template');
     if (!template) return;
 
-    var customSelector = template.dataset.selector;
-    var position = template.dataset.position || 'before';
+    var placement = template.dataset.placement || 'below_product';
     var content = template.content.cloneNode(true);
-    var inserted = false;
 
-    function insertAt(el, frag, pos) {
-      if (!el || !el.parentNode) return false;
-      if (pos === 'after') {
-        el.parentNode.insertBefore(frag, el.nextSibling);
-      } else if (pos === 'append') {
-        el.appendChild(frag);
-      } else {
-        el.parentNode.insertBefore(frag, el);
-      }
-      return true;
-    }
-
-    // 1) Custom CSS selector (merchant-defined) takes priority
-    if (customSelector) {
-      var customEl = document.querySelector(customSelector);
-      if (insertAt(customEl, content, position)) inserted = true;
-    }
-
-    // 2) Auto: insert right after the product section (preferred placement)
-    if (!inserted) {
-      var productSection = document.querySelector(
+    function productSection() {
+      return document.querySelector(
         '[id^="shopify-section-main-product"], ' +
         '[id^="shopify-section-template--"][id*="product"], ' +
         '#MainProduct, .product-section, section.product, [data-section-type="product"]'
       );
-      if (insertAt(productSection, content, 'after')) inserted = true;
     }
 
-    // 3) Auto: insert BEFORE the full footer section wrapper (not just <footer>)
-    if (!inserted) {
-      var footerEl = document.querySelector('footer, [role="contentinfo"]');
-      var footerWrap = footerEl
-        ? (footerEl.closest('[id^="shopify-section-footer"], [id^="shopify-section-"][id*="footer"]') || footerEl)
+    function footerWrapper() {
+      var f = document.querySelector('footer, [role="contentinfo"]');
+      return f
+        ? (f.closest('[id^="shopify-section-footer"], [id^="shopify-section-"][id*="footer"]') || f)
         : document.querySelector('[id^="shopify-section-footer"]');
-      if (insertAt(footerWrap, content, 'before')) inserted = true;
     }
 
-    // 4) Fallback: end of main content
-    if (!inserted) {
-      var main = document.querySelector('main, [role="main"], #MainContent, .main-content');
-      if (main) {
-        main.appendChild(content);
+    var inserted = false;
+    var section, footer;
+
+    if (placement === 'in_product') {
+      section = productSection();
+      if (section) { section.appendChild(content); inserted = true; }
+    } else if (placement === 'above_footer') {
+      footer = footerWrapper();
+      if (footer && footer.parentNode) { footer.parentNode.insertBefore(content, footer); inserted = true; }
+    } else { // 'below_product' (default)
+      section = productSection();
+      if (section && section.parentNode) {
+        section.parentNode.insertBefore(content, section.nextSibling);
         inserted = true;
       }
     }
 
-    // 5) Last resort
+    // Fallbacks: try the other auto strategies, then main, then body
+    if (!inserted) {
+      footer = footerWrapper();
+      if (footer && footer.parentNode) { footer.parentNode.insertBefore(content, footer); inserted = true; }
+    }
+    if (!inserted) {
+      var main = document.querySelector('main, [role="main"], #MainContent, .main-content');
+      if (main) { main.appendChild(content); inserted = true; }
+    }
     if (!inserted) document.body.appendChild(content);
 
     template.remove();
@@ -192,29 +182,16 @@
       "default": "Questions fréquentes"
     },
     {
-      "type": "header",
-      "content": "Emplacement"
-    },
-    {
-      "type": "paragraph",
-      "content": "Par défaut, la FAQ apparaît automatiquement juste au-dessus du footer. Pour la placer ailleurs, indiquez un sélecteur CSS d'un élément de votre thème (ex : .product-recommendations)."
-    },
-    {
-      "type": "text",
-      "id": "insertion_selector",
-      "label": "Sélecteur CSS personnalisé",
-      "info": "Laissez vide pour le placement automatique avant le footer."
-    },
-    {
       "type": "select",
-      "id": "insertion_position",
-      "label": "Position par rapport à ce sélecteur",
+      "id": "placement",
+      "label": "Position de la FAQ",
       "options": [
-        { "value": "before", "label": "Avant l'élément" },
-        { "value": "after", "label": "Après l'élément" },
-        { "value": "append", "label": "À l'intérieur (en bas)" }
+        { "value": "in_product", "label": "Dans la section produit" },
+        { "value": "below_product", "label": "En dessous de la section produit" },
+        { "value": "above_footer", "label": "Au-dessus du footer" },
+        { "value": "none", "label": "Aucune (ne pas afficher)" }
       ],
-      "default": "before"
+      "default": "below_product"
     }
   ]
 }
