@@ -5,7 +5,7 @@
   Activate via Theme Editor → App embeds.
 {%- endcomment -%}
 
-{%- assign placement = block.settings.placement | default: 'below_product' -%}
+{%- assign placement = block.settings.placement | default: 'above_footer' -%}
 
 {%- if placement != 'none' and template contains 'product' and product and product.metafields.leonie.faq -%}
 {%- assign faq_entries = product.metafields.leonie.faq.value -%}
@@ -41,7 +41,7 @@
     var template = document.getElementById('leonie-faq-template');
     if (!template) return;
 
-    var placement = template.dataset.placement || 'below_product';
+    var placement = template.dataset.placement || 'above_footer';
     var content = template.content.cloneNode(true);
 
     function productSection() {
@@ -68,7 +68,7 @@
     } else if (placement === 'above_footer') {
       footer = footerWrapper();
       if (footer && footer.parentNode) { footer.parentNode.insertBefore(content, footer); inserted = true; }
-    } else { // 'below_product' (default)
+    } else { // 'below_product'
       section = productSection();
       if (section && section.parentNode) {
         section.parentNode.insertBefore(content, section.nextSibling);
@@ -191,7 +191,7 @@
         { "value": "above_footer", "label": "Au-dessus du footer" },
         { "value": "none", "label": "Aucune (ne pas afficher)" }
       ],
-      "default": "below_product"
+      "default": "above_footer"
     }
   ]
 }
