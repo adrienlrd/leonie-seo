@@ -82,8 +82,11 @@ interface GeoQuestion {
 interface ContentQuality {
   publish_ready: boolean;
   issues: string[];
+  advisories?: string[];
   covered_target_count?: number;
   target_count?: number;
+  evidence_ledger?: { claim: string; facts: { key: string; source: string }[] }[];
+  skipped_surfaces?: string[];
 }
 
 interface ContentTestPack {
@@ -593,7 +596,26 @@ function qualityIssueLabel(issue: string, locale: Locale): string {
     description_has_insufficient_target_coverage: ["Description trop peu alignée aux cibles", "Description has insufficient target coverage"],
     faq_missing_available_paa_question: ["FAQ non alignée aux questions SERP disponibles", "FAQ does not cover available SERP questions"],
     missing_geo_answer_block: ["Bloc de réponse GEO manquant", "GEO answer block is missing"],
-    missing_evidence_trace: ["Trace des preuves utilisées manquante", "Evidence trace is missing"],
+    missing_recommended_product_description: ["Description recommandée mais non générée", "Recommended description was not generated"],
+    product_description_too_generic: ["Description trop courte ou générique pour être publiée automatiquement", "Description is too short or generic for automated publishing"],
+    unjustified_product_description_surface: ["Description générée sans faits suffisants", "Description generated without enough supporting facts"],
+    missing_recommended_faq: ["FAQ justifiée mais non générée", "Supported FAQ was not generated"],
+    unjustified_faq_surface: ["FAQ générée sans question ou preuve suffisante", "FAQ generated without sufficient question or factual evidence"],
+    unjustified_geo_answer_surface: ["Réponse GEO générée sans faits suffisants", "GEO answer generated without enough supporting facts"],
+    missing_recommended_blog_support: ["Contenu support recommandé mais non généré", "Recommended support content was not generated"],
+    unjustified_blog_surface: ["Article proposé sans intention informationnelle ou faits suffisants", "Blog suggested without sufficient informational intent or facts"],
+    missing_claim_evidence_ledger: ["Aucune preuve structurée pour les affirmations générées", "No structured evidence for generated claims"],
+    unverified_claim_reference: ["Une affirmation cite une preuve absente des données Shopify", "A claim references evidence absent from Shopify data"],
+    missing_informative_confirmed_fact: ["Aucun fait produit informatif confirmé pour publier ce texte", "No informative confirmed product fact supports publishing this text"],
+    unsupported_product_claims: ["La proposition contient une promesse produit non prouvée", "Proposal contains an unsupported product claim"],
+    keyword_stuffing_risk: ["Répétition excessive de la cible principale", "Primary target appears too repetitively"],
+    forbidden_promise_detected: ["La proposition reprend une formulation interdite", "Proposal contains a forbidden promise"],
+    primary_target_cannibalization_risk: ["Une autre page prioritaire cible déjà cette requête", "Another higher-priority page already targets this query"],
+    duplicate_existing_meta_title: ["Meta title identique à une autre fiche existante", "Meta title duplicates another existing page"],
+    duplicate_existing_meta_description: ["Meta description identique à une autre fiche existante", "Meta description duplicates another existing page"],
+    duplicate_proposed_meta_title: ["Meta title identique dans plusieurs propositions", "Meta title duplicates another proposal"],
+    duplicate_proposed_meta_description: ["Meta description identique dans plusieurs propositions", "Meta description duplicates another proposal"],
+    near_duplicate_product_description: ["Description trop proche d'une autre proposition", "Description is too similar to another proposal"],
     low_generation_confidence: ["Confiance de génération insuffisante", "Generation confidence is too low"],
     merchant_edit_requires_revalidation: ["Contenu modifié : nouvelle validation requise", "Edited content requires revalidation"],
   };
@@ -625,6 +647,26 @@ function highlightKeywords(text: string, keywords: string[]): ReactNode {
       )}
     </>
   );
+}
+
+function surfaceLabel(surface: string, locale: Locale): string {
+  const labels: Record<string, [string, string]> = {
+    product_description: ["description produit", "product description"],
+    faq: ["FAQ", "FAQ"],
+    geo_answer: ["réponse GEO", "GEO answer"],
+    blog: ["article support", "support article"],
+  };
+  const label = labels[surface];
+  return label ? label[locale === "fr" ? 0 : 1] : surface;
+}
+
+function qualityAdvisoryLabel(advisory: string, locale: Locale): string {
+  const labels: Record<string, [string, string]> = {
+    meta_title_length_outside_guideline: ["Longueur du meta title à surveiller", "Review meta title length"],
+    meta_description_length_outside_guideline: ["Longueur de la meta description à surveiller", "Review meta description length"],
+  };
+  const label = labels[advisory];
+  return label ? label[locale === "fr" ? 0 : 1] : advisory;
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -1138,11 +1180,20 @@ function ProductCard({
                   {!editMode && editedPack.content_quality && (
                     editedPack.content_quality.publish_ready ? (
                       <Banner tone="success">
-                        <Text as="p" variant="bodySm">
-                          {locale === "fr"
-                            ? "Validation SEO/GEO réussie : cette proposition est éligible à une publication automatisée."
-                            : "SEO/GEO validation passed: this proposal is eligible for automated publishing."}
-                        </Text>
+                        <BlockStack gap="050">
+                          <Text as="p" variant="bodySm">
+                            {locale === "fr"
+                              ? "Validation SEO/GEO réussie : cette proposition est éligible à une publication automatisée."
+                              : "SEO/GEO validation passed: this proposal is eligible for automated publishing."}
+                          </Text>
+                          {(editedPack.content_quality.evidence_ledger?.length ?? 0) > 0 && (
+                            <Text as="p" variant="bodySm">
+                              {locale === "fr"
+                                ? `${editedPack.content_quality.evidence_ledger?.length} affirmation(s) reliée(s) à des faits Shopify confirmés.`
+                                : `${editedPack.content_quality.evidence_ledger?.length} claim(s) linked to confirmed Shopify facts.`}
+                            </Text>
+                          )}
+                        </BlockStack>
                       </Banner>
                     ) : (
                       <Banner tone="warning">
@@ -1160,6 +1211,18 @@ function ProductCard({
                         </BlockStack>
                       </Banner>
                     )
+                  )}
+                  {!editMode && (editedPack.content_quality?.skipped_surfaces?.length ?? 0) > 0 && (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {locale === "fr" ? "Non généré automatiquement faute de preuve ou d'intention suffisante : " : "Not generated automatically because supporting evidence or intent is insufficient: "}
+                      {editedPack.content_quality?.skipped_surfaces?.map((surface) => surfaceLabel(surface, locale)).join(", ")}.
+                    </Text>
+                  )}
+                  {!editMode && (editedPack.content_quality?.advisories?.length ?? 0) > 0 && (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {locale === "fr" ? "À surveiller : " : "Review: "}
+                      {editedPack.content_quality?.advisories?.map((advisory) => qualityAdvisoryLabel(advisory, locale)).join(", ")}.
+                    </Text>
                   )}
 
                   {/* ── Meta title ── */}

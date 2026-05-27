@@ -45,6 +45,7 @@ _PASS2_JSON = json.dumps({
     "recommended_content_actions": ["Ajouter une FAQ"],
     "facts_used": ["2 litres"],
     "facts_missing": ["matériau exact"],
+    "claims_used": [{"claim": "Contenance 2L", "fact_keys": ["description"]}],
     "confidence": "high",
 })
 
@@ -170,6 +171,9 @@ def test_two_pass_feeds_serp_paa_volume_crawl_into_pass2_prompt():
     assert "1200/mois" in pass2_prompt  # real volume
     assert "concurrent.fr" in pass2_prompt  # SERP competitor angle
     assert "missing_canonical" in pass2_prompt  # crawl finding
+    assert "FAITS PRODUIT CONFIRMÉS" in pass2_prompt
+    assert "claims_used" in pass2_prompt
+    assert "absent chez" not in pass2_prompt
 
     pack = result["products"][0]["content_test_pack"]
     assert pack["proposed_meta_title"].startswith("Fontaine à chat silencieuse")
@@ -227,6 +231,14 @@ def test_keyword_idea_is_serp_checked_when_it_becomes_primary_target():
 
 
 def test_content_quality_is_publish_ready_when_targets_and_evidence_are_covered():
+    description = (
+        "Cette fontaine chat fournit une eau filtrée chat grâce à son réservoir documenté. "
+        "Son format permet de placer le point d'eau dans la maison et de suivre facilement "
+        "le remplissage. La fiche produit confirme la filtration et la capacité indiquée, "
+        "afin de décrire clairement son utilisation quotidienne sans ajouter de promesse. "
+        "Le réservoir rassemble l'eau dans un point dédié ; cette présentation décrit son "
+        "placement, son remplissage et le rôle indiqué de filtration sans allégation supplémentaire."
+    )
     pack = {
         "seo_keywords": [
             {
@@ -236,9 +248,9 @@ def test_content_quality_is_publish_ready_when_targets_and_evidence_are_covered(
             },
             {"query": "eau filtrée chat", "target_role": "secondary", "paa_questions": []},
         ],
-        "proposed_meta_title": "Fontaine chat silencieuse avec eau filtrée",
+        "proposed_meta_title": "Fontaine chat avec eau filtrée au quotidien",
         "proposed_meta_description": "Fontaine chat pour une eau filtrée au quotidien, conçue pour accompagner votre animal.",
-        "proposed_product_description": "Cette fontaine chat propose une eau filtrée chat dans un format pratique.",
+        "proposed_product_description": description,
         "proposed_faq": [
             {"q": "Comment nettoyer une fontaine chat ?", "a": "Rincez chaque élément amovible."},
         ],
@@ -247,13 +259,31 @@ def test_content_quality_is_publish_ready_when_targets_and_evidence_are_covered(
         "proposed_blog_intro": "",
         "proposed_blog_outline": [],
         "facts_used": ["description: fontaine chat, eau filtrée chat"],
+        "claims_used": [{"claim": "Eau filtrée", "fact_keys": ["description"]}],
         "confidence": "high",
     }
 
-    quality = engine._build_content_quality(pack)
+    quality = engine._build_content_quality(
+        pack,
+        confirmed_facts=[{
+            "key": "description",
+            "value": description,
+            "source": "shopify_snapshot",
+            "confidence": "confirmed",
+        }],
+        source_product_text=description,
+        surface_plan={
+            "metadata": {"generate": True},
+            "product_description": {"generate": True},
+            "faq": {"generate": True},
+            "geo_answer": {"generate": True},
+            "blog": {"generate": False},
+        },
+    )
 
     assert quality["publish_ready"] is True
     assert quality["issues"] == []
+    assert len(quality["evidence_ledger"]) == 1
 
 
 def test_content_quality_is_blocked_when_primary_target_is_missing_from_meta_title():
@@ -265,10 +295,143 @@ def test_content_quality_is_blocked_when_primary_target_is_missing_from_meta_tit
         "proposed_faq": [],
         "proposed_geo_answer_block": "La fontaine chat répond au besoin d'hydratation décrit.",
         "facts_used": ["meta_description: fontaine chat"],
+        "claims_used": [{"claim": "Produit pour chat", "fact_keys": ["description"]}],
         "confidence": "high",
     }
 
-    quality = engine._build_content_quality(pack)
+    quality = engine._build_content_quality(
+        pack,
+        confirmed_facts=[{
+            "key": "description",
+            "value": "Produit pour chat.",
+            "source": "shopify_snapshot",
+            "confidence": "confirmed",
+        }],
+        surface_plan={
+            "metadata": {"generate": True},
+            "product_description": {"generate": True},
+            "faq": {"generate": False},
+            "geo_answer": {"generate": True},
+            "blog": {"generate": False},
+        },
+    )
 
     assert quality["publish_ready"] is False
     assert "meta_title_missing_primary_target" in quality["issues"]
+
+
+def test_content_quality_blocks_unverified_product_claim() -> None:
+    pack = {
+        "seo_keywords": [{"query": "fontaine chat", "target_role": "primary", "paa_questions": []}],
+        "proposed_meta_title": "Fontaine chat pour le quotidien",
+        "proposed_meta_description": "Fontaine chat pratique pour aménager un point d'eau à la maison.",
+        "proposed_product_description": (
+            "Cette fontaine chat ultra-silencieuse accompagne votre animal au quotidien avec un "
+            "format adapté à son espace. Sa conception facilite le positionnement du point d'eau "
+            "et son utilisation dans la maison, tout en décrivant clairement le produit présenté."
+        ),
+        "proposed_faq": [],
+        "proposed_geo_answer_block": "Cette fontaine chat est proposée comme point d'eau pour la maison.",
+        "proposed_blog_title": "",
+        "proposed_blog_intro": "",
+        "proposed_blog_outline": [],
+        "claims_used": [{"claim": "Produit pour chat", "fact_keys": ["description"]}],
+        "confidence": "high",
+    }
+
+    quality = engine._build_content_quality(
+        pack,
+        confirmed_facts=[{
+            "key": "description",
+            "value": "Fontaine pour chat.",
+            "source": "shopify_snapshot",
+            "confidence": "confirmed",
+        }],
+        source_product_text="Fontaine pour chat.",
+        surface_plan={
+            "metadata": {"generate": True},
+            "product_description": {"generate": True},
+            "faq": {"generate": False},
+            "geo_answer": {"generate": True},
+            "blog": {"generate": False},
+        },
+    )
+
+    assert quality["publish_ready"] is False
+    assert "unsupported_product_claims" in quality["issues"]
+    assert "performance" in quality["unsupported_claim_categories"]
+
+
+def test_surface_plan_skips_optional_content_without_verified_value() -> None:
+    keywords = [{
+        "query": "bol chat",
+        "target_role": "primary",
+        "intent_type": "commercial",
+        "paa_questions": ["Quel bol choisir pour un chat ?"],
+    }]
+
+    plan = engine._build_surface_plan(keywords, [])
+
+    assert plan["metadata"]["generate"] is True
+    assert plan["product_description"]["generate"] is False
+    assert plan["faq"]["generate"] is False
+    assert plan["geo_answer"]["generate"] is False
+    assert plan["blog"]["generate"] is False
+
+
+def test_surface_plan_does_not_treat_thin_existing_description_as_publishable_evidence() -> None:
+    keywords = [{
+        "query": "fontaine chat",
+        "target_role": "primary",
+        "intent_type": "informational",
+        "paa_questions": ["Comment choisir une fontaine chat ?"],
+    }]
+    facts = [{
+        "key": "description",
+        "value": "Fontaine 2L.",
+        "source": "shopify_snapshot",
+        "confidence": "confirmed",
+    }]
+
+    plan = engine._build_surface_plan(keywords, facts)
+
+    assert plan["metadata"]["generate"] is True
+    assert plan["product_description"]["generate"] is False
+    assert plan["faq"]["generate"] is False
+    assert plan["geo_answer"]["generate"] is False
+    assert plan["blog"]["generate"] is False
+
+
+def test_catalog_conflict_blocks_lower_priority_duplicate_target() -> None:
+    first_quality = {"publish_ready": True, "issues": []}
+    second_quality = {"publish_ready": True, "issues": []}
+    results = [
+        {
+            "product_id": "gid://shopify/Product/1",
+            "opportunity_score": 80,
+            "seo_keywords": [{"query": "fontaine chat", "target_role": "primary"}],
+            "content_test_pack": {
+                "proposed_meta_title": "Fontaine chat premium",
+                "proposed_meta_description": "Premier contenu original.",
+                "proposed_product_description": "",
+                "content_quality": first_quality,
+            },
+        },
+        {
+            "product_id": "gid://shopify/Product/2",
+            "opportunity_score": 50,
+            "seo_keywords": [{"query": "fontaine chat", "target_role": "primary"}],
+            "content_test_pack": {
+                "proposed_meta_title": "Fontaine chat standard",
+                "proposed_meta_description": "Second contenu original.",
+                "proposed_product_description": "",
+                "content_quality": second_quality,
+            },
+        },
+    ]
+
+    engine._apply_catalog_content_conflicts(results, [])
+
+    assert first_quality["publish_ready"] is True
+    assert second_quality["publish_ready"] is False
+    assert "primary_target_cannibalization_risk" in second_quality["issues"]

@@ -9,6 +9,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from app.geo.facts import analyze_product_facts
 from app.llm import LLMError, get_router
 from app.market_analysis.competitors import build_competitor_signals
 from app.market_analysis.providers.dataforseo_provider import DataForSEOProvider
@@ -52,6 +53,7 @@ _PASS2_KEYS = (
     "recommended_content_actions",
     "facts_used",
     "facts_missing",
+    "claims_used",
     "confidence",
 )
 
@@ -63,6 +65,38 @@ _JSON_KEYS = _PASS1_KEYS + _PASS2_KEYS
 # real billing wires the plan through.
 _PLAN_BUDGETS_USD = {"free": 2.0, "starter": 5.0, "pro": 20.0, "agency": 50.0}
 _DEFAULT_BUDGET_USD = 20.0
+
+_INFORMATIVE_FACT_KEYS = frozenset({
+    "description",
+    "product_type",
+    "price",
+    "materials",
+    "certifications",
+    "origins",
+    "targets",
+    "properties",
+    "warranty",
+    "delivery",
+    "returns",
+    "care",
+    "dimensions",
+    "compatibility",
+})
+_NARRATIVE_FACT_KEYS = _INFORMATIVE_FACT_KEYS - {"description", "price"}
+
+_CLAIM_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("materials", r"\b(coton|nylon|cuir|acier|inox|bois|silicone|bambou|polyester)\b"),
+    ("origins", r"\b(fabriqu[ée]?\s+en|made\s+in|origine|france|europ[ée]en)\b"),
+    ("certifications", r"\b(certifi[ée]?|bio|organic|fsc|oeko|gots)\b"),
+    ("warranty", r"\b(garantie|garanti|warranty|satisfait\s+ou\s+rembours)\b"),
+    ("delivery", r"\b(livraison|exp[ée]dition|delivery|shipping)\b"),
+    ("returns", r"\b(retours?|remboursement|refund|returns?)\b"),
+    ("care", r"\b(lavable|nettoyage|entretien|washable|cleaning)\b"),
+    ("dimensions", r"\b\d+(?:[.,]\d+)?\s?(?:cm|mm|ml|l|kg|g)\b"),
+    ("compatibility", r"\b(compatible|adapt[ée]\s+[àa]|convient\s+[àa])\b"),
+    ("performance", r"\b(silencieu(?:x|se)|ultra[- ]?silencieu(?:x|se)|anti[- ]?fuite)\b"),
+    ("sustainability", r"\b([ée]cologique|[ée]co[- ]?responsable|durable|recycl[ée]?|biod[ée]gradable)\b"),
+)
 
 
 def _strip_html(html: str) -> str:
@@ -155,6 +189,25 @@ def _coerce_faq(value: Any) -> list[dict[str, str]]:
             continue
         out.append({"q": _coerce_str(item.get("q", "")), "a": _coerce_str(item.get("a", ""))})
     return out
+
+
+def _coerce_claims(value: Any) -> list[dict[str, Any]]:
+    """Normalize generated claims and their supporting confirmed fact keys."""
+    if not isinstance(value, list):
+        return []
+    claims: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        claim = _coerce_str(item.get("claim", "")).strip()
+        fact_keys = [
+            fact_key.strip()
+            for fact_key in _coerce_str_list(item.get("fact_keys", []))
+            if fact_key.strip()
+        ]
+        if claim:
+            claims.append({"claim": claim, "fact_keys": fact_keys})
+    return claims
 
 
 def _fetch_trends_once(top_titles: list[str]) -> list[Any]:
@@ -305,6 +358,8 @@ def _build_pass2_retry_prompt(
     keywords: list[str],
     current_meta_title: str,
     current_meta_description: str,
+    confirmed_facts: list[dict[str, Any]] | None = None,
+    surface_plan: dict[str, Any] | None = None,
 ) -> str:
     """Simplified fallback prompt for Pass 2 when the main prompt returns incomplete JSON.
 
@@ -312,6 +367,15 @@ def _build_pass2_retry_prompt(
     """
     today = datetime.now(UTC).strftime("%d/%m/%Y")
     kw_str = ", ".join(f'"{q}"' for q in keywords) if keywords else "non disponible"
+    facts_text = "; ".join(
+        f"{fact.get('key')}: {_coerce_str(fact.get('value', ''))[:100]}"
+        for fact in (confirmed_facts or [])
+        if isinstance(fact, dict) and fact.get("key")
+    ) or "aucun fait confirmé"
+    enabled_surfaces = ", ".join(
+        name for name, decision in (surface_plan or {}).items()
+        if isinstance(decision, dict) and decision.get("generate")
+    ) or "metadata uniquement"
     return (
         f"DATE: {today}\n"
         f"NICHE: {niche_summary or 'Non définie'}\n"
@@ -319,13 +383,18 @@ def _build_pass2_retry_prompt(
         f"META TITLE ACTUEL: {current_meta_title or 'absent'}\n"
         f"META DESCRIPTION ACTUELLE: {current_meta_description or 'absente'}\n"
         f"MOTS-CLÉS SEO CIBLES: {kw_str}\n\n"
+        f"FAITS SHOPIFY AUTORISÉS: {facts_text}\n"
+        f"SURFACES AUTORISÉES: {enabled_surfaces}\n"
+        "N'utilise aucune affirmation produit qui ne soit soutenue par un fait autorisé. "
+        "Retourne une valeur vide pour chaque surface non autorisée.\n\n"
         "Génère en JSON valide UNIQUEMENT ces clés (ne rien omettre) :\n"
         "proposed_meta_title (≤70 car.), proposed_meta_description (≤160 car.), "
         "proposed_product_title_if_different, proposed_product_description (2-3 phrases), "
         "proposed_faq (3 objets {q, a}), proposed_geo_answer_block (1 phrase), "
         "proposed_blog_title, proposed_blog_outline (3 strings), proposed_blog_intro (1 phrase), "
         "recommended_content_actions (2 strings), facts_used (2 strings), "
-        "facts_missing (1 string), confidence (high/medium/low)."
+        "facts_missing (1 string), claims_used (liste d'objets {claim, fact_keys}), "
+        "confidence (high/medium/low)."
     )
 
 
@@ -343,6 +412,10 @@ def _build_pass2_prompt(
     merchant_label: str = "",
     ga4_metrics: dict[str, Any] | None = None,
     domain_competitors: list[dict[str, Any]] | None = None,
+    confirmed_facts: list[dict[str, Any]] | None = None,
+    missing_facts: list[dict[str, Any]] | None = None,
+    surface_plan: dict[str, Any] | None = None,
+    forbidden_phrases: list[str] | None = None,
 ) -> str:
     """Build the pass-2 (content) prompt with strict per-field rules.
 
@@ -436,6 +509,23 @@ def _build_pass2_prompt(
         f'  - {f.get("issue_type", "?")} ({f.get("severity", "?")}): {f.get("detail", "")}'
         for f in crawl_findings[:8]
     ]
+    fact_lines = [
+        f"  - {fact.get('key')}: {_coerce_str(fact.get('value', ''))[:180]} "
+        f"[source={fact.get('source', 'shopify_snapshot')}]"
+        for fact in (confirmed_facts or [])
+        if isinstance(fact, dict) and fact.get("key")
+    ]
+    missing_fact_lines = [
+        f"  - {fact.get('key')}: {fact.get('label', '')}"
+        for fact in (missing_facts or [])
+        if isinstance(fact, dict) and fact.get("key")
+    ]
+    surface_lines = [
+        f"  - {surface}: {'GÉNÉRER' if decision.get('generate') else 'NE PAS GÉNÉRER'} "
+        f"({decision.get('reason', '')})"
+        for surface, decision in (surface_plan or {}).items()
+        if isinstance(decision, dict)
+    ]
 
     merchant_label_text = f"LABEL SEO MARCHAND: {merchant_label}" if merchant_label else ""
 
@@ -466,13 +556,24 @@ def _build_pass2_prompt(
         parts.append("\n=== CONCURRENTS SERP (titres réels — différencie-toi, ne copie pas) ===")
         parts.extend(f"  {c}" for c in competitor_lines)
     if featured_snippets:
-        parts.append("Featured snippets concurrents à dépasser: " + " | ".join(featured_snippets[:3]))
+        parts.append("Extraits SERP observés à utiliser seulement comme contexte: " + " | ".join(featured_snippets[:3]))
     if paa_questions:
         parts.append("\n=== QUESTIONS PAA Google (à REPRENDRE dans proposed_faq) ===")
         parts.extend(f"  - {q}" for q in paa_questions[:10])
     if crawl_lines:
         parts.append("\n=== PROBLÈMES TECHNIQUES DÉTECTÉS (crawl) ===")
         parts.extend(crawl_lines)
+    parts.append("\n=== FAITS PRODUIT CONFIRMÉS — SEULE SOURCE AUTORISÉE POUR LES AFFIRMATIONS ===")
+    parts.extend(fact_lines or ["  - aucun fait produit confirmé : ne génère aucun contenu factuel"])
+    if missing_fact_lines:
+        parts.append("\nFAITS MANQUANTS — NE PAS LES AFFIRMER :")
+        parts.extend(missing_fact_lines)
+    if surface_lines:
+        parts.append("\n=== PLAN DES SURFACES À PRODUIRE ===")
+        parts.extend(surface_lines)
+    if forbidden_phrases:
+        parts.append("\n=== FORMULATIONS INTERDITES ===")
+        parts.extend(f"  - {phrase}" for phrase in forbidden_phrases)
 
     # ── Domain-level competitors (DataForSEO Competitors Domain) ────────────
     if domain_competitors:
@@ -494,54 +595,67 @@ def _build_pass2_prompt(
         f"═══════════════════════════════════════════════════════════════════\n"
         f"\nTOP 5 mots-clés à utiliser : {top_kw_list}\n"
         f"Les cibles sont classées selon demande, concurrence, adéquation produit et niveau de preuve. "
-        f"Utilise uniquement les signaux fournis et n'invente jamais un bénéfice.\n"
+        f"Les mots-clés guident l'intention, jamais des affirmations. "
+        f"Utilise uniquement les faits confirmés pour parler du produit.\n"
         f"\n▶ proposed_meta_title (45-60 caractères) :\n"
-        f'   • OBLIGATOIRE : contient exactement le mot-clé #1 ("{top_kw_1}") OU une variation proche.\n'
+        f'   • Contient naturellement le mot-clé #1 ("{top_kw_1}") OU une variation proche.\n'
         f"   • Différenciant vs CONCURRENTS SERP listés (jamais copier leur formulation).\n"
         f"\n▶ proposed_meta_description (120-160 caractères) :\n"
-        f"   • OBLIGATOIRE : contient le mot-clé #1 ET au moins 1 autre du top 5.\n"
+        f"   • Contient naturellement le mot-clé #1 ; ajoute une cible secondaire seulement si la phrase reste utile et lisible.\n"
         f"   • Bénéfice produit ou CTA seulement s'il est confirmé par les données produit fournies.\n"
         f"   • Si des concurrents sont listés, adopte une formulation propre sans prétendre couvrir un manque non vérifié.\n"
         f"\n▶ proposed_product_description (200-300 mots, plusieurs paragraphes) :\n"
-        f"   • OBLIGATOIRE : intègre AU MOINS 4 mots-clés différents du top 8 (varie singulier/pluriel/synonymes).\n"
-        f"   • Première phrase contient le mot-clé #1.\n"
+        f"   • Si la surface est marquée NE PAS GÉNÉRER, retourne une chaîne vide.\n"
+        f"   • Couvre l'intention principale puis des sujets secondaires uniquement lorsqu'ils apportent une information vérifiée.\n"
+        f"   • Première phrase peut contenir le mot-clé #1 si cela reste naturel.\n"
         f"   • Explique seulement les caractéristiques et usages confirmés dans le contexte produit.\n"
         f"\n▶ proposed_faq (5-8 entrées) :\n"
+        f"   • Si la surface est marquée NE PAS GÉNÉRER, retourne une liste vide.\n"
         f"   • Si des QUESTIONS PAA Google sont présentes : reprends les plus pertinentes (reformulation autorisée).\n"
         f"   • Sinon : réponds aux intentions utiles du produit sans inventer une question issue de Google.\n"
         f"   • Utilise les mots-clés naturellement, sans répétition forcée dans chaque question.\n"
         f"   • Réponses 2-4 phrases factuelles ; pas de blabla marketing.\n"
+        f"\n▶ proposed_geo_answer_block :\n"
+        f"   • Si la surface est marquée NE PAS GÉNÉRER, retourne une chaîne vide.\n"
+        f"   • Fournit une réponse courte uniquement à partir des faits confirmés.\n"
         f"\n▶ proposed_blog_title :\n"
-        f"   • OBLIGATOIRE : contient un mot-clé longue traîne (4+ mots OU intent informational depuis la liste).\n"
+        f"   • Si la surface blog est marquée NE PAS GÉNÉRER, retourne title/intro vides et outline vide.\n"
+        f"   • S'il est généré, contient un mot-clé longue traîne ou un intent informationnel depuis la liste.\n"
         f"   • Différent des titres concurrents SERP ET des domaines concurrents listés.\n"
         f"\n▶ proposed_blog_intro (2-3 phrases) :\n"
-        f"   • OBLIGATOIRE : contient au moins 2 mots-clés du top 5.\n"
+        f"   • Seulement si le blog est généré : introduit naturellement l'intention ciblée.\n"
         f"\n▶ proposed_blog_outline (5-7 sections H2) :\n"
-        f"   • Chaque H2 couvre soit un mot-clé du top 8 soit une question PAA non utilisée dans la FAQ.\n"
+        f"   • Seulement si le blog est généré : chaque H2 couvre une intention ou question pertinente.\n"
         f"   • Si des concurrents sont présents, différencie le cadrage sans affirmer ce qu'ils ne traitent pas.\n"
         f"\n▶ recommended_content_actions :\n"
-        f"   • Si des CONCURRENTS DE DOMAINE sont listés, recommande au moins 1 action comparative\n"
-        f"     (ex. : 'Créer un guide comparatif vs [domaine_concurrent]', 'Ajouter un tableau comparatif',\n"
-        f"     'Rédiger une collection thématique absente chez [concurrent]').\n"
+        f"   • Si des CONCURRENTS DE DOMAINE sont listés, propose au plus une analyse comparative fondée sur les titres observés ;\n"
+        f"     n'affirme jamais qu'un sujet est absent ou qu'un produit est supérieur sans preuve fournie.\n"
         f"\n▶ facts_used (CRITIQUE — c'est ta trace d'utilisation) :\n"
         f"   • Liste, par champ, les mots-clés/PAA/concurrents effectivement utilisés.\n"
-        f'   • Format : ["meta_title: <kw>", "meta_desc: <kw1>, <kw2>", "description: <kw1>…<kw4>, concurrent: <domaine>", "faq: <PAA1>, <PAA3>, <kw>", "blog: <kw_longue_traine>", "actions: <domaine_concurrent>"]\n'
+        f'   • Format : ["meta_title: <kw>", "meta_desc: <kw>", "description: <kw/utilité>", "faq: <PAA>", "blog: <intent>", "actions: <observation>"]\n'
         f"   • Si tu n'as pas pu utiliser un signal payant (GA4, GSC, concurrent), explique-le dans facts_missing.\n"
+        f"\n▶ claims_used (OBLIGATOIRE pour tout texte généré) :\n"
+        f'   • Liste chaque affirmation vérifiable au format {{"claim": "...", "fact_keys": ["description", "materials"]}}.\n'
+        f"   • `fact_keys` ne peut contenir que des clés listées dans FAITS PRODUIT CONFIRMÉS.\n"
+        f"   • Si une affirmation n'a aucune preuve confirmée, retire-la du texte et ajoute le manque dans facts_missing.\n"
         f"\n▶ facts_missing : signaux absents ou inexploitables (ex : 'pas de PAA pour ce mot-clé', 'concurrents domaine absents').\n"
         f"\n▶ confidence : high (≥80% des règles respectées) | medium (≥50%) | low (<50%).\n"
         f"\nCONTRAINTES GLOBALES :\n"
         f"- Nous sommes en {current_year}. JAMAIS d'années passées dans titres ou exemples.\n"
         f"- N'invente JAMAIS de faits (matériau, dimensions, certifications) — liste-les dans facts_missing.\n"
-        f"- Priorise les mots-clés à fort volume (>500/mois) dans les champs visibles (meta_title, blog_title, début description).\n"
-        f"- Si GSC réel montre un keyword en position 4-20, attaque-le en priorité dans le blog (potentiel quick win).\n"
-        f"- Si des CONCURRENTS DE DOMAINE sont listés : différencie chaque champ (meta, description, blog) de leurs formulations.\n"
+        f"- Ne reprends aucune formulation listée dans FORMULATIONS INTERDITES.\n"
+        f"- N'ajoute jamais un champ uniquement pour répéter un mot-clé : un contenu générique doit rester vide.\n"
+        f"- Priorise les mots-clés à fort volume (>500/mois) dans les champs visibles seulement si l'intention correspond au produit.\n"
+        f"- Si GSC réel montre un keyword en position 4-20 et que le blog est autorisé, traite cette intention en priorité.\n"
+        f"- Si des CONCURRENTS DE DOMAINE sont listés : différencie uniquement les champs autorisés de leurs formulations.\n"
         f"\nRéponds UNIQUEMENT en JSON valide avec ces clés exactes : "
         f"proposed_meta_title, proposed_meta_description, proposed_product_title_if_different, "
         f"proposed_product_description, proposed_faq (5-8 objets {{q, a}}), "
         f"proposed_geo_answer_block (40-80 mots, factuel, cite 1 mot-clé), "
         f"proposed_blog_title, proposed_blog_outline (liste strings), proposed_blog_intro, "
         f"recommended_content_actions (liste strings), facts_used (liste strings), "
-        f"facts_missing (liste strings), confidence (high/medium/low)."
+        f"facts_missing (liste strings), claims_used (liste d'objets {{claim, fact_keys}}), "
+        f"confidence (high/medium/low)."
     )
 
     return "\n".join(p for p in parts if p != "")
@@ -702,6 +816,14 @@ def _content_words(text: str) -> frozenset[str]:
     )
 
 
+def _content_word_count(text: str) -> int:
+    """Count meaningful words while preserving repetitions for length checks."""
+    return sum(
+        1 for word in re.findall(r"[a-zàâäéèêëîïôùûüç]+", text.lower())
+        if len(word) >= 3 and word not in _FR_STOP_WORDS
+    )
+
+
 def _idea_is_relevant(idea_query: str, seed_queries: list[str], min_overlap: int = 2) -> bool:
     """Return True if the idea shares ≥min_overlap content words with any seed keyword.
 
@@ -804,6 +926,147 @@ def _attach_serp_evidence(
     return enriched
 
 
+def _build_surface_plan(
+    keywords: list[dict[str, Any]],
+    confirmed_facts: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Decide which content surfaces can add reliable user value."""
+    confirmed_keys = {
+        str(fact.get("key", ""))
+        for fact in confirmed_facts
+        if isinstance(fact, dict) and fact.get("confidence") == "confirmed"
+    }
+    description_fact = next(
+        (
+            _coerce_str(fact.get("value", ""))
+            for fact in confirmed_facts
+            if isinstance(fact, dict)
+            and fact.get("key") == "description"
+            and fact.get("confidence") == "confirmed"
+        ),
+        "",
+    )
+    has_primary_target = bool(keywords and keywords[0].get("query"))
+    has_informative_fact = bool(confirmed_keys & _NARRATIVE_FACT_KEYS) or _content_word_count(description_fact) >= 12
+    has_paa = any(keyword.get("paa_questions") for keyword in keywords[:5])
+    has_informational_target = any(
+        str(keyword.get("intent_type", "")).lower() in {"informational", "informationnel", "question"}
+        for keyword in keywords[:5]
+    )
+
+    return {
+        "metadata": {
+            "generate": has_primary_target,
+            "reason": "primary_target_available" if has_primary_target else "missing_primary_target",
+        },
+        "product_description": {
+            "generate": has_primary_target and has_informative_fact,
+            "reason": "verified_product_facts_available" if has_informative_fact else "insufficient_verified_product_facts",
+        },
+        "faq": {
+            "generate": has_paa and has_informative_fact,
+            "reason": "verified_paa_and_product_facts_available" if has_paa and has_informative_fact else "insufficient_question_or_fact_evidence",
+        },
+        "geo_answer": {
+            "generate": has_primary_target and has_informative_fact,
+            "reason": "verified_product_facts_available" if has_informative_fact else "insufficient_verified_product_facts",
+        },
+        "blog": {
+            "generate": has_informative_fact and (has_paa or has_informational_target),
+            "reason": (
+                "informational_demand_and_verified_facts_available"
+                if has_informative_fact and (has_paa or has_informational_target)
+                else "insufficient_informational_evidence"
+            ),
+        },
+    }
+
+
+def _forbidden_phrases_from_niche(niche_hypothesis: dict[str, Any] | None) -> list[str]:
+    """Return merchant-defined phrases and promises the generator must avoid."""
+    if not niche_hypothesis:
+        return []
+    phrases: list[str] = []
+    for value in niche_hypothesis.get("forbidden_promises", []):
+        phrase = _coerce_str(value.get("promise", "") if isinstance(value, dict) else value).strip()
+        if phrase and phrase not in phrases:
+            phrases.append(phrase)
+    brand_voice = niche_hypothesis.get("brand_voice", {})
+    if isinstance(brand_voice, dict):
+        for value in brand_voice.get("do_not_say", []):
+            phrase = _coerce_str(value).strip()
+            if phrase and phrase not in phrases:
+                phrases.append(phrase)
+    return phrases
+
+
+def _enabled_surface(surface_plan: dict[str, Any], surface: str, default: bool = True) -> bool:
+    decision = surface_plan.get(surface)
+    if not isinstance(decision, dict):
+        return default
+    return bool(decision.get("generate"))
+
+
+def _build_evidence_ledger(
+    claims: list[dict[str, Any]],
+    confirmed_facts: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Resolve LLM-declared claims against deterministic Shopify facts."""
+    fact_map = {
+        str(fact.get("key", "")): fact
+        for fact in confirmed_facts
+        if isinstance(fact, dict) and fact.get("confidence") == "confirmed"
+    }
+    ledger: list[dict[str, Any]] = []
+    invalid_claims: list[str] = []
+    for claim in claims:
+        fact_keys = claim.get("fact_keys", [])
+        if not fact_keys or any(fact_key not in fact_map for fact_key in fact_keys):
+            invalid_claims.append(str(claim.get("claim", "")))
+            continue
+        ledger.append({
+            "claim": claim["claim"],
+            "facts": [
+                {
+                    "key": fact_key,
+                    "value": fact_map[fact_key].get("value"),
+                    "source": fact_map[fact_key].get("source"),
+                }
+                for fact_key in fact_keys
+            ],
+        })
+    return ledger, invalid_claims
+
+
+def _detect_unsupported_claim_categories(
+    generated_text: str,
+    source_text: str,
+    confirmed_facts: list[dict[str, Any]],
+) -> list[str]:
+    """Flag sensitive generated claims absent from the source product record."""
+    confirmed_keys = {
+        str(fact.get("key", ""))
+        for fact in confirmed_facts
+        if isinstance(fact, dict) and fact.get("confidence") == "confirmed"
+    }
+    unsupported: list[str] = []
+    for category, pattern in _CLAIM_PATTERNS:
+        if not re.search(pattern, generated_text, flags=re.IGNORECASE):
+            continue
+        supported_by_source = bool(re.search(pattern, source_text, flags=re.IGNORECASE))
+        if category not in confirmed_keys and not supported_by_source:
+            unsupported.append(category)
+    return unsupported
+
+
+def _add_quality_issue(quality: dict[str, Any], issue: str) -> None:
+    """Append a blocking quality issue and revoke publication eligibility."""
+    issues = quality.setdefault("issues", [])
+    if issue not in issues:
+        issues.append(issue)
+    quality["publish_ready"] = False
+
+
 def _keyword_is_covered(query: str, text: str) -> bool:
     """Return whether a content field covers all meaningful terms of a query."""
     query_words = _content_words(query)
@@ -823,8 +1086,17 @@ def _keyword_is_covered(query: str, text: str) -> bool:
     return True
 
 
-def _build_content_quality(pack: dict[str, Any]) -> dict[str, Any]:
+def _build_content_quality(
+    pack: dict[str, Any],
+    *,
+    confirmed_facts: list[dict[str, Any]] | None = None,
+    source_product_text: str = "",
+    surface_plan: dict[str, Any] | None = None,
+    forbidden_phrases: list[str] | None = None,
+) -> dict[str, Any]:
     """Validate whether a generated SEO/GEO pack is eligible for auto-publish."""
+    facts = confirmed_facts if confirmed_facts is not None else list(pack.get("confirmed_facts") or [])
+    plan = surface_plan if surface_plan is not None else dict(pack.get("surface_plan") or {})
     targets = [
         keyword for keyword in (pack.get("seo_keywords") or [])[:5]
         if isinstance(keyword, dict) and keyword.get("query")
@@ -844,8 +1116,10 @@ def _build_content_quality(pack: dict[str, Any]) -> dict[str, Any]:
                 _coerce_str(pack.get("proposed_blog_intro", "")),
                 *_coerce_str_list(pack.get("proposed_blog_outline", [])),
             ]
-        ),
+        ).strip(),
     }
+    claims = _coerce_claims(pack.get("claims_used", []))
+    evidence_ledger, invalid_claims = _build_evidence_ledger(claims, facts)
     coverage: list[dict[str, Any]] = []
     for target in targets:
         query = str(target["query"])
@@ -860,6 +1134,7 @@ def _build_content_quality(pack: dict[str, Any]) -> dict[str, Any]:
         })
 
     issues: list[str] = []
+    advisories: list[str] = []
     primary_query = str(targets[0]["query"]) if targets else ""
     if not primary_query:
         issues.append("missing_primary_keyword_target")
@@ -868,15 +1143,16 @@ def _build_content_quality(pack: dict[str, Any]) -> dict[str, Any]:
             issues.append("meta_title_missing_primary_target")
         if not _keyword_is_covered(primary_query, fields["meta_description"]):
             issues.append("meta_description_missing_primary_target")
-        if not _keyword_is_covered(primary_query, fields["description"]):
+        if _enabled_surface(plan, "product_description") and not _keyword_is_covered(primary_query, fields["description"]):
             issues.append("description_missing_primary_target")
 
-    required_description_targets = min(2, len(targets))
-    description_target_count = sum(
-        1 for target in targets if _keyword_is_covered(str(target["query"]), fields["description"])
-    )
-    if description_target_count < required_description_targets:
-        issues.append("description_has_insufficient_target_coverage")
+    if _enabled_surface(plan, "product_description"):
+        if not fields["description"]:
+            issues.append("missing_recommended_product_description")
+        elif _content_word_count(fields["description"]) < 35:
+            issues.append("product_description_too_generic")
+    elif fields["description"]:
+        issues.append("unjustified_product_description_surface")
 
     paa_questions = [
         question
@@ -884,24 +1160,172 @@ def _build_content_quality(pack: dict[str, Any]) -> dict[str, Any]:
         for question in target.get("paa_questions", [])
         if question
     ]
-    if paa_questions and not any(
-        _keyword_is_covered(question, fields["faq"]) for question in paa_questions
-    ):
-        issues.append("faq_missing_available_paa_question")
-    if not fields["geo"]:
+    if _enabled_surface(plan, "faq"):
+        if not fields["faq"]:
+            issues.append("missing_recommended_faq")
+        elif paa_questions and not any(
+            _keyword_is_covered(question, fields["faq"]) for question in paa_questions
+        ):
+            issues.append("faq_missing_available_paa_question")
+    elif fields["faq"]:
+        issues.append("unjustified_faq_surface")
+    if _enabled_surface(plan, "geo_answer") and not fields["geo"]:
         issues.append("missing_geo_answer_block")
-    if not _coerce_str_list(pack.get("facts_used", [])):
-        issues.append("missing_evidence_trace")
+    if not _enabled_surface(plan, "geo_answer") and fields["geo"]:
+        issues.append("unjustified_geo_answer_surface")
+    if _enabled_surface(plan, "blog") and not fields["blog"]:
+        issues.append("missing_recommended_blog_support")
+    if not _enabled_surface(plan, "blog") and fields["blog"]:
+        issues.append("unjustified_blog_surface")
+
+    generated_factual_text = " ".join(
+        fields[field_name]
+        for field_name in ("meta_title", "meta_description", "description", "faq", "geo", "blog")
+        if fields[field_name]
+    )
+    if generated_factual_text and not claims:
+        issues.append("missing_claim_evidence_ledger")
+    if invalid_claims:
+        issues.append("unverified_claim_reference")
+    ledger_fact_keys = {
+        str(fact["key"])
+        for entry in evidence_ledger
+        for fact in entry["facts"]
+    }
+    factual_surfaces_enabled = any(
+        _enabled_surface(plan, surface)
+        for surface in ("product_description", "faq", "geo_answer", "blog")
+    )
+    supported_description = next(
+        (
+            _coerce_str(fact.get("value", ""))
+            for fact in facts
+            if isinstance(fact, dict) and fact.get("key") == "description"
+        ),
+        "",
+    )
+    has_narrative_evidence = (
+        bool(ledger_fact_keys & _NARRATIVE_FACT_KEYS)
+        or ("description" in ledger_fact_keys and _content_word_count(supported_description) >= 12)
+    )
+    if factual_surfaces_enabled and not has_narrative_evidence:
+        issues.append("missing_informative_confirmed_fact")
+
+    unsupported_claims = _detect_unsupported_claim_categories(
+        generated_factual_text,
+        source_product_text,
+        facts,
+    )
+    if unsupported_claims:
+        issues.append("unsupported_product_claims")
+    if primary_query and fields["description"].lower().count(primary_query.lower()) > 3:
+        issues.append("keyword_stuffing_risk")
+    if any(
+        phrase.strip().casefold() in generated_factual_text.casefold()
+        for phrase in (forbidden_phrases or [])
+        if phrase.strip()
+    ):
+        issues.append("forbidden_promise_detected")
+    if fields["meta_title"] and not 30 <= len(fields["meta_title"]) <= 65:
+        advisories.append("meta_title_length_outside_guideline")
+    if fields["meta_description"] and not 70 <= len(fields["meta_description"]) <= 165:
+        advisories.append("meta_description_length_outside_guideline")
     if _coerce_str(pack.get("confidence", "low"), "low") == "low":
         issues.append("low_generation_confidence")
 
     return {
         "publish_ready": not issues,
         "issues": issues,
+        "advisories": advisories,
         "covered_target_count": sum(1 for item in coverage if item["fields"]),
         "target_count": len(targets),
         "keyword_coverage": coverage,
+        "evidence_ledger": evidence_ledger,
+        "invalid_claims": invalid_claims,
+        "unsupported_claim_categories": unsupported_claims,
+        "surface_plan": plan,
+        "skipped_surfaces": [
+            surface for surface in ("product_description", "faq", "geo_answer", "blog")
+            if not _enabled_surface(plan, surface)
+        ],
     }
+
+
+def _apply_catalog_content_conflicts(
+    product_results: list[dict[str, Any]],
+    active_products: list[dict[str, Any]],
+) -> None:
+    """Block auto-publication for duplicated proposals and competing primary targets."""
+    seen_proposed: dict[tuple[str, str], str] = {}
+    existing_metadata: dict[tuple[str, str], str] = {}
+    for product in active_products:
+        product_id = str(product.get("id", ""))
+        seo = product.get("seo") if isinstance(product.get("seo"), dict) else {}
+        for field_name, value in (
+            ("meta_title", seo.get("title")),
+            ("meta_description", seo.get("description")),
+        ):
+            normalized = _coerce_str(value).strip().casefold()
+            if normalized:
+                existing_metadata[(field_name, normalized)] = product_id
+
+    primary_owner: dict[str, str] = {}
+    sorted_results = sorted(
+        product_results,
+        key=lambda result: int(result.get("opportunity_score", 0) or 0),
+        reverse=True,
+    )
+    for result in sorted_results:
+        product_id = str(result.get("product_id", ""))
+        pack = result.get("content_test_pack", {})
+        quality = pack.get("content_quality")
+        if not isinstance(quality, dict):
+            continue
+
+        primary_keywords = [
+            keyword for keyword in result.get("seo_keywords", [])
+            if isinstance(keyword, dict) and keyword.get("target_role") == "primary"
+        ]
+        if primary_keywords:
+            primary_query = str(primary_keywords[0].get("query", "")).strip().casefold()
+            if primary_query in primary_owner and primary_owner[primary_query] != product_id:
+                _add_quality_issue(quality, "primary_target_cannibalization_risk")
+            else:
+                primary_owner[primary_query] = product_id
+
+        for field_name, value in (
+            ("meta_title", pack.get("proposed_meta_title")),
+            ("meta_description", pack.get("proposed_meta_description")),
+        ):
+            normalized = _coerce_str(value).strip().casefold()
+            if not normalized:
+                continue
+            existing_owner = existing_metadata.get((field_name, normalized))
+            if existing_owner and existing_owner != product_id:
+                _add_quality_issue(quality, f"duplicate_existing_{field_name}")
+            proposed_key = (field_name, normalized)
+            proposed_owner = seen_proposed.get(proposed_key)
+            if proposed_owner and proposed_owner != product_id:
+                _add_quality_issue(quality, f"duplicate_proposed_{field_name}")
+            else:
+                seen_proposed[proposed_key] = product_id
+
+    seen_descriptions: list[tuple[str, frozenset[str]]] = []
+    for result in sorted_results:
+        product_id = str(result.get("product_id", ""))
+        pack = result.get("content_test_pack", {})
+        quality = pack.get("content_quality")
+        if not isinstance(quality, dict):
+            continue
+        words = _content_words(_coerce_str(pack.get("proposed_product_description", "")))
+        if len(words) < 15:
+            continue
+        for existing_id, existing_words in seen_descriptions:
+            overlap = len(words & existing_words) / max(len(words | existing_words), 1)
+            if product_id != existing_id and overlap >= 0.8:
+                _add_quality_issue(quality, "near_duplicate_product_description")
+                break
+        seen_descriptions.append((product_id, words))
 
 
 def _impressions_bucket(impressions: int) -> int:
@@ -957,6 +1381,7 @@ def _fallback_pack(product_title: str, current_meta_title: str, current_meta_des
         "recommended_content_actions": [],
         "facts_used": [],
         "facts_missing": [],
+        "claims_used": [],
         "confidence": "low",
     }
 
@@ -974,7 +1399,7 @@ def _build_product_result(
     seo: dict[str, Any] = raw_seo if isinstance(raw_seo, dict) else {}
     current_meta_title = seo.get("title") or product_title
     current_meta_description = seo.get("description") or ""
-    body_html = product.get("body_html") or product.get("description") or ""
+    body_html = product.get("body_html") or product.get("descriptionHtml") or product.get("description") or ""
     description_summary = _strip_html(body_html)[:200]
 
     return {
@@ -1008,6 +1433,9 @@ def _build_product_result(
             "content_risks": [],
             "facts_used": _coerce_str_list(llm_pack.get("facts_used", [])),
             "facts_missing": _coerce_str_list(llm_pack.get("facts_missing", [])),
+            "claims_used": _coerce_claims(llm_pack.get("claims_used", [])),
+            "confirmed_facts": llm_pack.get("confirmed_facts", []),
+            "surface_plan": llm_pack.get("surface_plan", {}),
             "confidence": _coerce_str(llm_pack.get("confidence", "low"), "low"),
             "content_quality": llm_pack.get("content_quality", {}),
         },
@@ -1037,7 +1465,7 @@ def _score_active_products(
         try:
             score = 0
             title = str(product.get("title") or "").lower()
-            body = str(product.get("body_html") or product.get("description") or "")
+            body = str(product.get("body_html") or product.get("descriptionHtml") or product.get("description") or "")
             seo = product.get("seo") if isinstance(product.get("seo"), dict) else {}
             seo_title = str(seo.get("title", ""))
             seo_desc = str(seo.get("description", ""))
@@ -1197,7 +1625,7 @@ def _extract_product_fields(
     product_id = str(product.get("id", ""))
     try:
         product_title = product.get("title", "")
-        body_html = product.get("body_html") or product.get("description") or ""
+        body_html = product.get("body_html") or product.get("descriptionHtml") or product.get("description") or ""
         raw_seo = product.get("seo")
         seo: dict[str, Any] = raw_seo if isinstance(raw_seo, dict) else {}
         raw_collections = _coerce_list(product.get("collections"))
@@ -1206,6 +1634,7 @@ def _extract_product_fields(
         first_variant = variants[0] if variants else {}
         stock_qty, stock_status = _read_stock(product)
         trend_top, trend_rising = _match_trends(product_title, trend_signals)
+        facts_analysis = analyze_product_facts(product)
         return {
             "product_title": product_title,
             "merchant_label": (product_labels or {}).get(product_id, ""),
@@ -1227,6 +1656,19 @@ def _extract_product_fields(
             "trend_rising": trend_rising,
             "matched_queries": opp.get("matched_queries", []),
             "opportunity_score": opp.get("opportunity_score", 0),
+            "confirmed_facts": facts_analysis.get("confirmed_facts", []),
+            "missing_facts": facts_analysis.get("missing_facts", []),
+            "fact_completeness_score": facts_analysis.get("completeness_score", 0.0),
+            "source_product_text": " ".join(
+                value
+                for value in [
+                    product_title,
+                    _strip_html(body_html),
+                    str(raw_tags),
+                    " ".join(c.get("title", "") if isinstance(c, dict) else str(c) for c in raw_collections),
+                ]
+                if value
+            ),
         }
     except Exception:
         title = product.get("title", "") if isinstance(product, dict) else ""
@@ -1239,6 +1681,10 @@ def _extract_product_fields(
             "ga4_metrics": {}, "trend_top": [], "trend_rising": [],
             "matched_queries": [],
             "opportunity_score": opp.get("opportunity_score", 0) if isinstance(opp, dict) else 0,
+            "confirmed_facts": [],
+            "missing_facts": [],
+            "fact_completeness_score": 0.0,
+            "source_product_text": title,
         }
 
 
@@ -1291,6 +1737,7 @@ def run_market_analysis(
     if niche_hypothesis:
         sources_used.append("niche_hypothesis")
     niche_summary: str = niche_hypothesis.get("primary_niche", "") if niche_hypothesis else ""
+    forbidden_phrases = _forbidden_phrases_from_niche(niche_hypothesis)
 
     # Fetch Google Trends once — use top-5 product titles as seeds
     top_titles = [
@@ -1354,6 +1801,7 @@ def run_market_analysis(
             fields["product_title"], fields["current_meta_title"], fields["current_meta_description"]
         )
         pack = _complete_json(llm_router, prompt, _PASS1_KEYS, fallback, fields["product_title"])
+        pack["confirmed_facts"] = fields["confirmed_facts"]
 
         # Enrich candidate keywords: free first, then each enabled paid provider
         if pack.get("seo_keywords"):
@@ -1430,6 +1878,10 @@ def run_market_analysis(
             state["pack"].get("seo_keywords", []) or [],
             serp_intel,
         )
+        state["pack"]["surface_plan"] = _build_surface_plan(
+            state["pack"].get("seo_keywords", []) or [],
+            state["fields"].get("confirmed_facts", []),
+        )
 
     competitor_signals = build_competitor_signals(shop, keywords=serp_keywords or None)
     if competitor_signals:
@@ -1475,12 +1927,18 @@ def run_market_analysis(
                 merchant_label=fields["merchant_label"],
                 ga4_metrics=fields.get("ga4_metrics"),
                 domain_competitors=domain_competitor_signals or None,
+                confirmed_facts=fields.get("confirmed_facts", []),
+                missing_facts=fields.get("missing_facts", []),
+                surface_plan=pack.get("surface_plan", {}),
+                forbidden_phrases=forbidden_phrases,
             )
             pack = _complete_json(llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192)
 
             # Retry once when the essential content fields are missing — the LLM sometimes
             # returns a valid but incomplete JSON (e.g. only meta fields, no description/FAQ).
-            _essential = ("proposed_meta_title", "proposed_meta_description", "proposed_product_description")
+            _essential = ["proposed_meta_title", "proposed_meta_description"]
+            if _enabled_surface(pack.get("surface_plan", {}), "product_description"):
+                _essential.append("proposed_product_description")
             if not all(pack.get(k) for k in _essential):
                 logger.warning(
                     "Pass 2 missing essential fields for %r, retrying with simplified prompt",
@@ -1495,16 +1953,26 @@ def run_market_analysis(
                     ],
                     current_meta_title=fields["current_meta_title"],
                     current_meta_description=fields["current_meta_description"],
+                    confirmed_facts=fields.get("confirmed_facts", []),
+                    surface_plan=pack.get("surface_plan", {}),
                 )
                 pack = _complete_json(llm_router, retry_prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=4096)
 
-        pack["content_quality"] = _build_content_quality(pack)
+        pack["content_quality"] = _build_content_quality(
+            pack,
+            confirmed_facts=fields.get("confirmed_facts", []),
+            source_product_text=fields.get("source_product_text", ""),
+            surface_plan=pack.get("surface_plan", {}),
+            forbidden_phrases=forbidden_phrases,
+        )
         product_results.append(_build_product_result(state["product"], state["opp"], pack, shop))
         if progress_callback is not None:
             try:
                 progress_callback(idx + 1, total, list(product_results), "content")
             except Exception:
                 pass
+
+    _apply_catalog_content_conflicts(product_results, active_products)
 
     total_opportunity_count = sum(
         len(r.get("seo_keywords", [])) + len(r.get("geo_questions", []))
