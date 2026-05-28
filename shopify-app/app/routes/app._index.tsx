@@ -614,8 +614,16 @@ function ActiveProductsCard({
                   <BlockStack gap="050">
                     <InlineStack gap="150" blockAlign="center">
                       <Text as="p" variant="bodyMd" fontWeight="semibold">{product.title}</Text>
-                      {gscConnected && !product.gsc_visible && (
-                        <Badge tone="warning">Google</Badge>
+                      {gscConnected && (
+                        product.gsc_visible ? (
+                          <Tooltip content={t(locale, "dashboardGscVisibleTooltip")}>
+                            <Badge tone="success">{t(locale, "dashboardGscVisible")}</Badge>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip content={t(locale, "dashboardGscInvisibleTooltip")}>
+                            <Badge tone="warning">{t(locale, "dashboardGscInvisible")}</Badge>
+                          </Tooltip>
+                        )
                       )}
                     </InlineStack>
                     <Text as="p" variant="bodySm" tone="subdued">/{product.handle}</Text>
