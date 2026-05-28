@@ -12,6 +12,20 @@
 
 - **Date:** 2026-05-28
 - **Agent:** Codex (GPT-5)
+- **Goal:** Restaurer le parcours complet d'identification produits avant l'analyse produits depuis le dashboard d'accueil.
+- **Summary:** Les boutons `Analyse complète` et `Analyse produits` de l'accueil ne lancent plus directement le job d'analyse produits. Ils démarrent maintenant par `/market-analysis/identify`, pollent ce job, sauvegardent les labels d'identification dans `/market-analysis/identifications`, puis lancent seulement ensuite `/market-analysis/jobs`. Cela aligne le dashboard sur le flux fiable d'Analyse marché et évite que les propositions de contenu partent d'une compréhension produit plus pauvre avant l'enrichissement Google/DataForSEO.
+- **Files created:** Aucun.
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/lib/i18n.ts`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** (1) Garder les trois boutons distincts sur l'accueil, mais faire passer `Analyse complète` et `Analyse produits` par l'étape d'identification produits. (2) Ne pas ajouter un job composite backend pour cet incrément : l'orchestration Remix réutilise les endpoints existants et éprouvés. (3) Ajouter des statuts UI séparés pour distinguer l'analyse profil, l'identification produits et l'analyse produits.
+- **Validations run:** `cd shopify-app && npm run typecheck` ✅ ; `cd shopify-app && npm run build` ✅ ; `git diff --check` ✅.
+- **Validations skipped:** Tests Python non lancés car le changement est limité à l'orchestration Remix du dashboard et aux libellés i18n frontend.
+- **Open issues:** Le mode `Analyse complète` auto-sauvegarde toujours le profil généré avant l'analyse produits ; pour une correction manuelle avant validation, le bouton `Analyse profil` reste le chemin à utiliser. Un futur assistant "première analyse" pourrait afficher explicitement l'étape de vérification avant de lancer l'analyse produits.
+- **Next recommended action:** Relancer une `Analyse complète` sur boutique pilote et comparer les propositions Analyse marché avec le flux manuel `Analyse marché` pour confirmer que les produits identifiés, mots-clés, PAA et signaux DataForSEO sont de nouveau cohérents.
+
+## Previous completed task
+
+- **Date:** 2026-05-28
+- **Agent:** Codex (GPT-5)
 - **Goal:** Ajouter trois actions explicites sur l'accueil : analyse complète, analyse profil et analyse produits.
 - **Summary:** L'accueil dispose maintenant d'un panneau `Analyses` avec trois boutons distincts. `Analyse complète` lance l'analyse Profil entreprise, sauvegarde le profil généré comme profil validé pour que le contexte soit immédiatement utilisable, puis lance l'analyse de tous les produits. `Analyse profil` conserve le comportement séparé : génération d'un profil brouillon affiché dans le bloc Profil entreprise pour vérification/validation. `Analyse produits` lance uniquement l'analyse globale des produits avec le profil actuellement validé. Le panneau affiche les états de progression et les résultats sans recharger la page.
 - **Files created:** Aucun.

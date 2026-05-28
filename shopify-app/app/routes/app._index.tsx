@@ -63,6 +63,8 @@ import { qualityWarningText, type ProductResult } from "../lib/marketAnalysisSha
 interface MarketJobState {
   status: "pending" | "running" | "completed" | "failed";
   products: ProductResult[];
+  labels?: Record<string, string>;
+  product_titles?: Record<string, string>;
   progress?: number;
   total?: number;
   analyzed_product_count?: number;
@@ -391,7 +393,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           type: "pollFullBusinessAnalysis",
           status: "unknown",
           profile: null,
-          productJobId: null,
+          identifyJobId: null,
           error: `HTTP ${resp.status}`,
         });
       }
@@ -409,7 +411,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           type: "pollFullBusinessAnalysis",
           status: job.status,
           profile: job.profile ?? null,
-          productJobId: null,
+          identifyJobId: null,
           error: jobError,
         });
       }
@@ -429,33 +431,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           type: "pollFullBusinessAnalysis",
           status: "failed",
           profile: job.profile,
-          productJobId: null,
+          identifyJobId: null,
           error: `HTTP ${saveResp.status}: ${txt}`,
         });
       }
       const savedProfile = (await saveResp.json()) as BusinessProfile;
 
-      const productResp = await callBackendForShop(
+      const identifyResp = await callBackendForShop(
         session.shop,
-        `/api/shops/${session.shop}/market-analysis/jobs`,
+        `/api/shops/${session.shop}/market-analysis/identify`,
         { accessToken: session.accessToken, method: "POST" },
       );
-      if (!productResp.ok) {
-        const txt = await productResp.text();
+      if (!identifyResp.ok) {
+        const txt = await identifyResp.text();
         return json({
           type: "pollFullBusinessAnalysis",
           status: "failed",
           profile: savedProfile,
-          productJobId: null,
-          error: `HTTP ${productResp.status}: ${txt}`,
+          identifyJobId: null,
+          error: `HTTP ${identifyResp.status}: ${txt}`,
         });
       }
-      const productData = (await productResp.json()) as { job_id: string };
+      const identifyData = (await identifyResp.json()) as { job_id: string };
       return json({
         type: "pollFullBusinessAnalysis",
         status: "completed",
         profile: savedProfile,
-        productJobId: productData.job_id,
+        identifyJobId: identifyData.job_id,
         error: null,
       });
     } catch (err) {
@@ -463,7 +465,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         type: "pollFullBusinessAnalysis",
         status: "unknown",
         profile: null,
-        productJobId: null,
+        identifyJobId: null,
         error: String(err),
       });
     }
@@ -473,7 +475,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     try {
       const resp = await callBackendForShop(
         session.shop,
-        `/api/shops/${session.shop}/market-analysis/jobs`,
+        `/api/shops/${session.shop}/market-analysis/identify`,
         { accessToken: session.accessToken, method: "POST" },
       );
       if (!resp.ok) {
@@ -484,6 +486,69 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ type: "startProductAnalysis", jobId: data.job_id, error: null });
     } catch (err) {
       return json({ type: "startProductAnalysis", jobId: null, error: String(err) });
+    }
+  }
+
+  if (intent === "pollProductIdentification") {
+    const identifyJobId = formData.get("identifyJobId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs/${identifyJobId}`,
+        { accessToken: session.accessToken },
+      );
+      if (!resp.ok) {
+        return json({
+          type: "pollProductIdentification",
+          job: null,
+          productJobId: null,
+          error: `HTTP ${resp.status}`,
+        });
+      }
+      const job = (await resp.json()) as MarketJobState;
+      if (job.status !== "completed") {
+        return json({ type: "pollProductIdentification", job, productJobId: null, error: null });
+      }
+
+      const labels = job.labels ?? {};
+      await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/identifications`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: JSON.stringify({ identifications: labels }),
+        },
+      );
+
+      const productResp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs`,
+        { accessToken: session.accessToken, method: "POST" },
+      );
+      if (!productResp.ok) {
+        const txt = await productResp.text();
+        return json({
+          type: "pollProductIdentification",
+          job,
+          productJobId: null,
+          error: `HTTP ${productResp.status}: ${txt}`,
+        });
+      }
+      const productData = (await productResp.json()) as { job_id: string };
+      return json({
+        type: "pollProductIdentification",
+        job,
+        productJobId: productData.job_id,
+        error: null,
+      });
+    } catch (err) {
+      return json({
+        type: "pollProductIdentification",
+        job: null,
+        productJobId: null,
+        error: String(err),
+      });
     }
   }
 
@@ -636,6 +701,7 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (intent === "pollBusinessAnalysis") return false;
   if (intent === "pollFullBusinessAnalysis") return false;
   if (intent === "startProductAnalysis") return false;
+  if (intent === "pollProductIdentification") return false;
   if (intent === "pollProductAnalysis") return false;
   if (intent === "saveBusinessProfile") return false;
   if (intent === "startSingle") return false;
@@ -1153,10 +1219,16 @@ type AnalysisControlData =
       type: "pollFullBusinessAnalysis";
       status: string;
       profile: BusinessProfile | null;
-      productJobId: string | null;
+      identifyJobId: string | null;
       error: string | null;
     }
   | { type: "startProductAnalysis"; jobId: string | null; error: string | null }
+  | {
+      type: "pollProductIdentification";
+      job: MarketJobState | null;
+      productJobId: string | null;
+      error: string | null;
+    }
   | { type: "pollProductAnalysis"; job: MarketJobState | null; error: string | null };
 
 function AnalysisControlPanel({
@@ -1164,6 +1236,8 @@ function AnalysisControlPanel({
   mode,
   lastResult,
   error,
+  profileStepActive,
+  identificationStepActive,
   productJob,
   disabled,
   onFullAnalysis,
@@ -1174,6 +1248,8 @@ function AnalysisControlPanel({
   mode: AnalysisMode | null;
   lastResult: AnalysisResult | null;
   error: string | null;
+  profileStepActive: boolean;
+  identificationStepActive: boolean;
   productJob: MarketJobState | null;
   disabled: boolean;
   onFullAnalysis: () => void;
@@ -1184,9 +1260,17 @@ function AnalysisControlPanel({
   const productProgress = productJob?.progress ?? productJob?.analyzed_product_count ?? 0;
   const productProgressPct = productTotal > 0 ? Math.round((productProgress / productTotal) * 100) : 15;
   const statusText = (() => {
-    if (mode === "full" && !productJob) return t(locale, "dashboardFullAnalysisProfileRunning");
+    if (mode === "full" && profileStepActive) {
+      return t(locale, "dashboardFullAnalysisProfileRunning");
+    }
+    if (mode === "full" && identificationStepActive) {
+      return t(locale, "dashboardFullAnalysisIdentificationRunning");
+    }
     if (mode === "full" && productJob) return t(locale, "dashboardFullAnalysisProductsRunning");
     if (mode === "profile") return t(locale, "dashboardProfileAnalysisRunning");
+    if (mode === "products" && identificationStepActive) {
+      return t(locale, "dashboardProductIdentificationRunning");
+    }
     if (mode === "products") return t(locale, "dashboardProductAnalysisRunning");
     if (lastResult === "full") return t(locale, "dashboardFullAnalysisComplete");
     if (lastResult === "profile") return t(locale, "dashboardProfileAnalysisReady");
@@ -1903,24 +1987,31 @@ export default function IndexPage() {
   // ── Global analysis controls ─────────────────────────────────────────────
   const analysisFetcher = useFetcher<AnalysisControlData>();
   const analysisProfilePollFetcher = useFetcher<AnalysisControlData>();
+  const analysisIdentifyPollFetcher = useFetcher<AnalysisControlData>();
   const analysisProductPollFetcher = useFetcher<AnalysisControlData>();
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisProfileJobId, setAnalysisProfileJobId] = useState<string | null>(null);
   const [analysisProfileStatus, setAnalysisProfileStatus] = useState<string | null>(null);
+  const [analysisIdentifyJobId, setAnalysisIdentifyJobId] = useState<string | null>(null);
+  const [analysisIdentifyJob, setAnalysisIdentifyJob] = useState<MarketJobState | null>(null);
   const [analysisProductJobId, setAnalysisProductJobId] = useState<string | null>(null);
   const [analysisProductJob, setAnalysisProductJob] = useState<MarketJobState | null>(null);
 
   const analysisModeRef = useRef<AnalysisMode | null>(null);
   const analysisProfileStatusRef = useRef<string | null>(null);
+  const analysisIdentifyJobStatusRef = useRef<string | undefined>(undefined);
   const analysisProductJobStatusRef = useRef<string | undefined>(undefined);
   const analysisProfilePollRef = useRef(analysisProfilePollFetcher);
+  const analysisIdentifyPollRef = useRef(analysisIdentifyPollFetcher);
   const analysisProductPollRef = useRef(analysisProductPollFetcher);
   analysisModeRef.current = analysisMode;
   analysisProfileStatusRef.current = analysisProfileStatus;
+  analysisIdentifyJobStatusRef.current = analysisIdentifyJob?.status;
   analysisProductJobStatusRef.current = analysisProductJob?.status;
   analysisProfilePollRef.current = analysisProfilePollFetcher;
+  analysisIdentifyPollRef.current = analysisIdentifyPollFetcher;
   analysisProductPollRef.current = analysisProductPollFetcher;
 
   const resetAnalysisState = (mode: AnalysisMode) => {
@@ -1928,6 +2019,7 @@ export default function IndexPage() {
     setAnalysisResult(null);
     setAnalysisError(null);
     setAnalysisProfileStatus(null);
+    setAnalysisIdentifyJob(null);
     setAnalysisProductJob(null);
   };
 
@@ -1965,8 +2057,8 @@ export default function IndexPage() {
     }
     if (data.type === "startProductAnalysis") {
       if (data.jobId) {
-        setAnalysisProductJobId(data.jobId);
-        setAnalysisProductJob(null);
+        setAnalysisIdentifyJobId(data.jobId);
+        setAnalysisIdentifyJob(null);
       } else if (data.error) {
         setAnalysisMode(null);
         setAnalysisError(data.error);
@@ -1998,18 +2090,40 @@ export default function IndexPage() {
       if (data.profile && data.profile.status !== "error") {
         setProfileForDashboard(data.profile);
       }
-      if (data.productJobId) {
+      if (data.identifyJobId) {
         setAnalysisProfileJobId(null);
-        setAnalysisProductJobId(data.productJobId);
-        setAnalysisProductJob(null);
+        setAnalysisIdentifyJobId(data.identifyJobId);
+        setAnalysisIdentifyJob(null);
       }
-      if ((data.status === "failed" || data.status === "unknown") && !data.productJobId) {
+      if ((data.status === "failed" || data.status === "unknown") && !data.identifyJobId) {
         setAnalysisProfileJobId(null);
         setAnalysisMode(null);
         if (data.error) setAnalysisError(data.error);
       }
     }
   }, [analysisProfilePollFetcher.data]);
+
+  useEffect(() => {
+    const data = analysisIdentifyPollFetcher.data;
+    if (data?.type !== "pollProductIdentification") return;
+    if (data.error) {
+      setAnalysisIdentifyJobId(null);
+      setAnalysisMode(null);
+      setAnalysisError(data.error);
+      return;
+    }
+    if (data.job) setAnalysisIdentifyJob(data.job);
+    if (data.job?.status === "failed") {
+      setAnalysisIdentifyJobId(null);
+      setAnalysisMode(null);
+      setAnalysisError(data.job.error ?? "Identification produits échouée");
+    }
+    if (data.productJobId) {
+      setAnalysisIdentifyJobId(null);
+      setAnalysisProductJobId(data.productJobId);
+      setAnalysisProductJob(null);
+    }
+  }, [analysisIdentifyPollFetcher.data]);
 
   useEffect(() => {
     const data = analysisProductPollFetcher.data;
@@ -2068,15 +2182,32 @@ export default function IndexPage() {
     return () => clearInterval(id);
   }, [analysisProductJobId]);
 
+  useEffect(() => {
+    if (!analysisIdentifyJobId) return;
+    const poll = () => {
+      const s = analysisIdentifyJobStatusRef.current;
+      if (s === "completed" || s === "failed") return;
+      const fd = new FormData();
+      fd.set("intent", "pollProductIdentification");
+      fd.set("identifyJobId", analysisIdentifyJobId);
+      analysisIdentifyPollRef.current.submit(fd, { method: "post" });
+    };
+    poll();
+    const id = setInterval(poll, 5_000);
+    return () => clearInterval(id);
+  }, [analysisIdentifyJobId]);
+
   const isGlobalAnalysisRunning =
     analysisMode !== null ||
     analysisFetcher.state !== "idle" ||
     analysisProfilePollFetcher.state !== "idle" ||
+    analysisIdentifyPollFetcher.state !== "idle" ||
     analysisProductPollFetcher.state !== "idle";
 
   const handleFullAnalysis = () => {
     resetAnalysisState("full");
     setAnalysisProfileJobId(null);
+    setAnalysisIdentifyJobId(null);
     setAnalysisProductJobId(null);
     const fd = new FormData();
     fd.set("intent", "startFullAnalysis");
@@ -2086,6 +2217,7 @@ export default function IndexPage() {
   const handleProfileAnalysis = () => {
     resetAnalysisState("profile");
     setAnalysisProfileJobId(null);
+    setAnalysisIdentifyJobId(null);
     setAnalysisProductJobId(null);
     const fd = new FormData();
     fd.set("intent", "startBusinessAnalysis");
@@ -2095,6 +2227,7 @@ export default function IndexPage() {
   const handleProductAnalysis = () => {
     resetAnalysisState("products");
     setAnalysisProfileJobId(null);
+    setAnalysisIdentifyJobId(null);
     setAnalysisProductJobId(null);
     const fd = new FormData();
     fd.set("intent", "startProductAnalysis");
@@ -2264,6 +2397,8 @@ export default function IndexPage() {
           mode={analysisMode}
           lastResult={analysisResult}
           error={analysisError}
+          profileStepActive={analysisProfileJobId !== null}
+          identificationStepActive={analysisIdentifyJobId !== null}
           productJob={analysisProductJob}
           disabled={isGlobalAnalysisRunning}
           onFullAnalysis={handleFullAnalysis}
