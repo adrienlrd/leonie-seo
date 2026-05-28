@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path
 from pydantic import BaseModel
 
 from app.api.deps import get_authenticated_shop
-from app.gsc.token_store import get_google_token
 from app.jobs.handlers import registered_queues
 from app.jobs.store import cancel_shop_jobs, enqueue, enqueue_unique, get_job, list_jobs
 from app.oauth.token_store import save_token
@@ -47,8 +46,8 @@ async def create_job(
             os.getenv("SHOPIFY_SCOPES", ""),
         )
 
-    # Deduplicate: seo_audit must not pile up — return the existing job if already queued.
-    _enqueue = enqueue_unique if body.queue == "seo_audit" else enqueue
+    # Deduplicate long-running jobs so they don't pile up.
+    _enqueue = enqueue_unique if body.queue in ("seo_audit", "gsc_import") else enqueue
     job_id = _enqueue(
         body.queue,
         payload,
@@ -57,17 +56,6 @@ async def create_job(
         max_retries=body.max_retries,
         priority=body.priority,
     )
-
-    # When a catalog refresh is triggered, also refresh GSC page data if connected.
-    # pages_only=True skips the expensive query×page call — only page-level data
-    # is needed for the dashboard sync badge.
-    if body.queue == "seo_audit" and get_google_token(authenticated_shop):
-        enqueue(
-            "gsc_import",
-            {"pages_only": True, "days": 28},
-            shop=authenticated_shop,
-            max_retries=2,
-        )
 
     return {"job_id": job_id, "status": "pending"}
 

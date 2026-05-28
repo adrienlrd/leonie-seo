@@ -225,23 +225,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     if (dashResp.status !== "fulfilled" || !dashResp.value.ok) {
-      auditJobId = await _fireAudit(shop, session.accessToken ?? "");
       const errStatus = dashResp.status === "fulfilled" ? dashResp.value.status : 0;
       return json<LoaderData>({
         shop, locale, plan,
         dashboard: null,
         activeProducts,
-        auditJobId,
+        auditJobId: null,
         businessProfile,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
       });
     }
 
     const dashboard = (await dashResp.value.json()) as DashboardData;
-
-    if (dashboard.banners.stale_snapshot) {
-      auditJobId = await _fireAudit(shop, session.accessToken ?? "");
-    }
 
     if (!dashboard.zone1.niche_available) {
       return redirect(localizedPath("/app/onboarding", locale));
