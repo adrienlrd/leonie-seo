@@ -44,6 +44,7 @@ import {
   PersonIcon,
   PhoneIcon,
   ProductIcon,
+  RefreshIcon,
   SportsIcon,
   StarFilledIcon,
   StoreIcon,
@@ -425,15 +426,11 @@ function DashboardHeader({
   plan,
   budget,
   locale,
-  onRefresh,
-  isRefreshing,
 }: {
   shop: string;
   plan: string;
   budget: DashboardData["llm_budget"];
   locale: Locale;
-  onRefresh: () => void;
-  isRefreshing: boolean;
 }) {
   const planTone = plan === "agency" ? "success" : plan === "pro" ? "info" : undefined;
   return (
@@ -443,33 +440,23 @@ function DashboardHeader({
           <Text as="p" variant="bodyMd" fontWeight="semibold">{shop}</Text>
           <Badge tone={planTone}>{plan.charAt(0).toUpperCase() + plan.slice(1)}</Badge>
         </InlineStack>
-        <InlineStack gap="300" blockAlign="center">
-          <Tooltip content={t(locale, "dashboardHeaderLLMBudget")}>
-            <BlockStack gap="050">
-              <Text as="p" variant="bodySm" tone="subdued">
-                {t(locale, "dashboardHeaderLLMBudget")}
+        <Tooltip content={t(locale, "dashboardHeaderLLMBudget")}>
+          <BlockStack gap="050">
+            <Text as="p" variant="bodySm" tone="subdued">
+              {t(locale, "dashboardHeaderLLMBudget")}
+            </Text>
+            <InlineStack gap="100" blockAlign="center">
+              <Text as="p" variant="bodyMd">
+                {budget.used_usd.toFixed(2)} $ / {budget.limit_usd.toFixed(0)} $
               </Text>
-              <InlineStack gap="100" blockAlign="center">
-                <Text as="p" variant="bodyMd">
-                  {budget.used_usd.toFixed(2)} $ / {budget.limit_usd.toFixed(0)} $
-                </Text>
-                <ProgressBar
-                  progress={Math.min(budget.pct, 100)}
-                  tone={budget.pct >= 80 ? "critical" : "highlight"}
-                  size="small"
-                />
-              </InlineStack>
-            </BlockStack>
-          </Tooltip>
-          <Button
-            onClick={onRefresh}
-            loading={isRefreshing}
-            disabled={isRefreshing}
-            size="slim"
-          >
-            {t(locale, "dashboardRefresh")}
-          </Button>
-        </InlineStack>
+              <ProgressBar
+                progress={Math.min(budget.pct, 100)}
+                tone={budget.pct >= 80 ? "critical" : "highlight"}
+                size="small"
+              />
+            </InlineStack>
+          </BlockStack>
+        </Tooltip>
       </InlineStack>
     </Card>
   );
@@ -610,16 +597,29 @@ function gscInvisibleTooltip(issues: string[], locale: Locale): string {
 function ActiveProductsCard({
   products,
   locale,
+  onRefresh,
+  isRefreshing,
 }: {
   products: ActiveProduct[];
   locale: Locale;
+  onRefresh: () => void;
+  isRefreshing: boolean;
 }) {
   return (
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center">
           <SectionTitle source={ProductIcon}>{t(locale, "dashboardActiveProductsTitle")}</SectionTitle>
-          {products.length > 0 && <Badge>{String(products.length)}</Badge>}
+          <Tooltip content={t(locale, "dashboardRefresh")}>
+            <Button
+              icon={RefreshIcon}
+              onClick={onRefresh}
+              loading={isRefreshing}
+              disabled={isRefreshing}
+              variant="tertiary"
+              accessibilityLabel={t(locale, "dashboardRefresh")}
+            />
+          </Tooltip>
         </InlineStack>
         {products.length === 0 ? (
           <Text as="p" tone="subdued">{t(locale, "dashboardActiveProductsEmpty")}</Text>
@@ -1511,14 +1511,12 @@ export default function IndexPage() {
           </Banner>
         )}
 
-        {/* Header — shop, plan, LLM budget + refresh button */}
+        {/* Header — shop, plan, LLM budget */}
         <DashboardHeader
           shop={dashboard.shop}
           plan={dashboard.plan}
           budget={dashboard.llm_budget}
           locale={locale}
-          onRefresh={handleRefresh}
-          isRefreshing={isRefreshing}
         />
 
         {/* Zone 1 — Store health */}
@@ -1528,7 +1526,12 @@ export default function IndexPage() {
         <BusinessProfileSection initialProfile={businessProfile} locale={locale} />
 
         {/* Zone 2 — Active products */}
-        <ActiveProductsCard products={activeProducts} locale={locale} />
+        <ActiveProductsCard
+          products={activeProducts}
+          locale={locale}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+        />
 
         {/* Zone 3 — Ongoing optimizations */}
         <Zone3 data={zone3} locale={locale} />
