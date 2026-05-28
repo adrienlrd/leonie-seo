@@ -502,10 +502,7 @@ function Zone1({
   return (
     <Card>
       <BlockStack gap="300">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
-          <Icon source={GaugeIcon} tone="base" />
-          <Text as="span" variant="headingMd">{t(locale, "dashboardZone1Title")}</Text>
-        </div>
+        <SectionTitle source={GaugeIcon}>{t(locale, "dashboardZone1Title")}</SectionTitle>
         {data.global_score !== null ? (
           <BlockStack gap="200">
             <InlineStack gap="300" blockAlign="center">
@@ -612,10 +609,7 @@ function ActiveProductsCard({
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center">
-          <InlineStack gap="200" blockAlign="center" align="start">
-            <Icon source={ProductIcon} tone="base" />
-            <Text as="span" variant="headingMd">{t(locale, "dashboardActiveProductsTitle")}</Text>
-          </InlineStack>
+          <SectionTitle source={ProductIcon}>{t(locale, "dashboardActiveProductsTitle")}</SectionTitle>
           {products.length > 0 && <Badge>{String(products.length)}</Badge>}
         </InlineStack>
         {products.length === 0 ? (
@@ -666,10 +660,7 @@ function Zone2({
 
   return (
     <BlockStack gap="300">
-      <InlineStack gap="200" blockAlign="center" align="start">
-        <Icon source={StarFilledIcon} tone="base" />
-        <Text as="span" variant="headingMd">{t(locale, "dashboardZone2Title")}</Text>
-      </InlineStack>
+      <SectionTitle source={StarFilledIcon}>{t(locale, "dashboardZone2Title")}</SectionTitle>
       {data.actions.length === 0 ? (
         <Card>
           <Text as="p" tone="subdued">
@@ -710,10 +701,7 @@ function Zone3({
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center">
-          <InlineStack gap="200" blockAlign="center" align="start">
-            <Icon source={ChartHistogramGrowthIcon} tone="base" />
-            <Text as="span" variant="headingMd">{t(locale, "dashboardZone3Title")}</Text>
-          </InlineStack>
+          <SectionTitle source={ChartHistogramGrowthIcon}>{t(locale, "dashboardZone3Title")}</SectionTitle>
           {data.trend !== "flat" && (
             <Badge tone={trendTone}>{data.trend === "up" ? "↑" : "↓"}</Badge>
           )}
@@ -772,10 +760,7 @@ function Zone4({
   return (
     <Card>
       <BlockStack gap="200">
-        <InlineStack gap="200" blockAlign="center" align="start">
-          <Icon source={CheckCircleIcon} tone="base" />
-          <Text as="span" variant="headingMd">{t(locale, "dashboardZone4Title")}</Text>
-        </InlineStack>
+        <SectionTitle source={CheckCircleIcon}>{t(locale, "dashboardZone4Title")}</SectionTitle>
         {data.pending_steps.map((step) => (
           <InlineStack key={step.key} align="space-between" blockAlign="center">
             <Text as="p">{step.label}</Text>
@@ -803,10 +788,7 @@ function Zone5({
   if (data.alerts.length === 0) return null;
   return (
     <BlockStack gap="200">
-      <InlineStack gap="200" blockAlign="center" align="start">
-        <Icon source={AlertCircleIcon} tone="base" />
-        <Text as="span" variant="headingMd">{t(locale, "dashboardZone5Title")}</Text>
-      </InlineStack>
+      <SectionTitle source={AlertCircleIcon}>{t(locale, "dashboardZone5Title")}</SectionTitle>
       {data.alerts.slice(0, 3).map((alert, idx) => (
         <Banner
           key={idx}
@@ -839,6 +821,21 @@ type BizActionData =
   | { type: "startBusinessAnalysis"; jobId: string | null; error: string | null }
   | { type: "pollBusinessAnalysis"; status: string; profile: BusinessProfile | null; error: string | null }
   | { type: "saveBusinessProfile"; profile: BusinessProfile | null; error: string | null };
+
+function SectionTitle({ source, children }: { source: IconSource; children: React.ReactNode }) {
+  // The icon is wrapped in a fixed-size box because Polaris .Polaris-Icon has margin:auto,
+  // which would otherwise absorb the free space in a full-width flex row and push the title right.
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "var(--p-space-200)" }}>
+      <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
+        <Icon source={source} tone="base" />
+      </span>
+      <Text as="span" variant="headingMd">
+        {children}
+      </Text>
+    </div>
+  );
+}
 
 function getNicheIcon(profile: BusinessProfile): IconSource {
   const text = [profile.niche_summary, ...(profile.key_themes ?? [])].join(" ").toLowerCase();
@@ -888,10 +885,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="200">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
-              <Icon source={NicheIcon} tone="base" />
-              <Text as="span" variant="headingMd">{locale === "fr" ? "Niche & Marque" : "Niche & Brand"}</Text>
-            </div>
+            <SectionTitle source={NicheIcon}>{locale === "fr" ? "Niche & Marque" : "Niche & Brand"}</SectionTitle>
             <Text as="p" variant="headingLg">{profile.brand_name}</Text>
             <Text as="p" tone="subdued">{profile.niche_summary}</Text>
             {(profile.key_themes ?? []).length > 0 && (
@@ -906,10 +900,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
 
         <Card>
           <BlockStack gap="200">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
-              <Icon source={MegaphoneIcon} tone="base" />
-              <Text as="span" variant="headingMd">{locale === "fr" ? "Voix de marque" : "Brand voice"}</Text>
-            </div>
+            <SectionTitle source={MegaphoneIcon}>{locale === "fr" ? "Voix de marque" : "Brand voice"}</SectionTitle>
             <Text as="p" variant="headingLg">{profile.content_style?.tone ?? "—"}</Text>
             <Text as="p" tone="subdued">{profile.brand_voice}</Text>
             {(profile.content_style?.vocabulary_to_use ?? []).length > 0 && (
@@ -930,10 +921,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="300">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
-              <Icon source={PersonIcon} tone="base" />
-              <Text as="span" variant="headingMd">{locale === "fr" ? "Personas" : "Personas"}</Text>
-            </div>
+            <SectionTitle source={PersonIcon}>{locale === "fr" ? "Personas" : "Personas"}</SectionTitle>
             {(profile.target_personas ?? []).map((p) => (
               <BlockStack gap="100" key={p.name}>
                 <Text as="p" fontWeight="semibold">{p.name}</Text>
@@ -946,10 +934,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
 
         <Card>
           <BlockStack gap="200">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
-              <Icon source={ContentIcon} tone="base" />
-              <Text as="span" variant="headingMd">{locale === "fr" ? "Style de contenu" : "Content style"}</Text>
-            </div>
+            <SectionTitle source={ContentIcon}>{locale === "fr" ? "Style de contenu" : "Content style"}</SectionTitle>
             <Text as="p" variant="bodySm" fontWeight="semibold">
               {profile.content_style?.typical_article_length ?? ""}
             </Text>
@@ -975,10 +960,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="200">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
-              <Icon source={GlobeIcon} tone="base" />
-              <Text as="span" variant="headingMd">{locale === "fr" ? "Concurrents" : "Competitors"}</Text>
-            </div>
+            <SectionTitle source={GlobeIcon}>{locale === "fr" ? "Concurrents" : "Competitors"}</SectionTitle>
             {(profile.competitor_domains ?? []).length > 0 && (
               <InlineStack gap="150" wrap>
                 {profile.competitor_domains.map((d) => (
@@ -998,10 +980,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
 
         <Card>
           <BlockStack gap="300">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
-              <Icon source={CalendarIcon} tone="base" />
-              <Text as="span" variant="headingMd">{locale === "fr" ? "Saisonnalité & Opportunités" : "Seasonality & Gaps"}</Text>
-            </div>
+            <SectionTitle source={CalendarIcon}>{locale === "fr" ? "Saisonnalité & Opportunités" : "Seasonality & Gaps"}</SectionTitle>
             {(profile.seasonal_patterns ?? []).map((s) => (
               <InlineStack key={s.period} align="space-between" gap="200">
                 <BlockStack gap="0">
@@ -1206,8 +1185,7 @@ function BusinessProfileSection({
     <Card>
       <InlineStack align="space-between" blockAlign="center">
         <InlineStack gap="200" blockAlign="center" align="start">
-          <Icon source={CompassIcon} tone="base" />
-          <Text as="span" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
+          <SectionTitle source={CompassIcon}>{t(locale, "businessProfileTitle")}</SectionTitle>
           {displayProfile?.status === "validated" && (
             <Badge tone="success">{t(locale, "businessProfileValidated")}</Badge>
           )}
