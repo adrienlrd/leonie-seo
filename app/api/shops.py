@@ -89,6 +89,10 @@ async def list_active_products(ctx: Annotated[ShopContext, Depends(get_shop_cont
         except Exception:
             pass
 
+    # True when GSC data exists for this shop — used by the UI to decide
+    # whether to show visibility badges independently of per-product matches.
+    gsc_connected = bool(gsc_page_rows)
+
     result = []
     for p in products:
         image_url: str | None = None
@@ -113,5 +117,6 @@ async def list_active_products(ctx: Annotated[ShopContext, Depends(get_shop_cont
             "handle": handle,
             "image_url": image_url,
             "gsc_visible": gsc_visible,
+            "gsc_connected": gsc_connected,
         })
     return result

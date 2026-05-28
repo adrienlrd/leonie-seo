@@ -69,6 +69,7 @@ interface ActiveProduct {
   handle: string;
   image_url: string | null;
   gsc_visible: boolean;
+  gsc_connected: boolean;
 }
 
 interface PriorityAction {
@@ -607,7 +608,7 @@ function ActiveProductsCard({
         ) : (
           <BlockStack gap="200">
             {(() => {
-              const gscConnected = products.some((p) => p.gsc_visible);
+              const gscConnected = products.some((p) => p.gsc_connected);
               return products.map((product) => (
                 <InlineStack key={product.id} align="space-between" blockAlign="center">
                   <BlockStack gap="050">
