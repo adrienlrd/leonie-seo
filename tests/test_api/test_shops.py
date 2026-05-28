@@ -2,12 +2,14 @@
 
 import json
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.shops import _diagnose_visibility_issues
 from app.db import init_db
 from app.main import app
 
@@ -130,3 +132,51 @@ def test_shop_status_falls_back_to_db_snapshot(client: TestClient, tmp_path: Pat
     assert body["snapshot_available"] is True
     assert body["product_count"] == 1
     assert body["snapshot_date"] == "2026-05-14T12:00:00Z"
+
+
+# ── Level-1 visibility diagnosis ────────────────────────────────────────────────
+
+
+def _well_optimized_product() -> dict:
+    """A product with no indexing red flags (old, rich content, images, SEO, collection)."""
+    return {
+        "id": "gid://shopify/Product/1",
+        "title": "Harnais tout-en-un",
+        "publishedAt": (datetime.now(UTC) - timedelta(days=90)).isoformat(),
+        "description": "x" * 300,
+        "images": {"edges": [{"node": {"url": "https://img/1.jpg"}}]},
+        "seo": {"title": "Harnais", "description": "Le meilleur harnais"},
+        "collections": {"edges": [{"node": {"title": "Chiens"}}]},
+    }
+
+
+def test_diagnose_returns_no_issues_for_well_optimized_product():
+    assert _diagnose_visibility_issues(_well_optimized_product()) == []
+
+
+def test_diagnose_flags_recently_published_product():
+    product = _well_optimized_product()
+    product["publishedAt"] = (datetime.now(UTC) - timedelta(days=3)).isoformat()
+    assert "recently_published" in _diagnose_visibility_issues(product)
+
+
+def test_diagnose_flags_thin_content():
+    product = _well_optimized_product()
+    product["description"] = "Court."
+    assert "thin_content" in _diagnose_visibility_issues(product)
+
+
+def test_diagnose_flags_missing_images_seo_and_collection():
+    product = _well_optimized_product()
+    product["images"] = {"edges": []}
+    product["seo"] = {"title": "", "description": ""}
+    product["collections"] = {"edges": []}
+    issues = _diagnose_visibility_issues(product)
+    assert {"no_images", "no_seo_meta", "no_collection"} <= set(issues)
+
+
+def test_diagnose_tolerates_malformed_published_date():
+    product = _well_optimized_product()
+    product["publishedAt"] = "not-a-date"
+    # Should not raise; recently_published simply not flagged.
+    assert "recently_published" not in _diagnose_visibility_issues(product)

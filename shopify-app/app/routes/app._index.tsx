@@ -70,6 +70,7 @@ interface ActiveProduct {
   image_url: string | null;
   gsc_visible: boolean;
   gsc_connected: boolean;
+  gsc_issues: string[];
 }
 
 interface PriorityAction {
@@ -589,6 +590,23 @@ function ActionCard({
   );
 }
 
+const GSC_ISSUE_KEYS: Record<string, Parameters<typeof t>[1]> = {
+  recently_published: "gscIssueRecentlyPublished",
+  thin_content: "gscIssueThinContent",
+  no_images: "gscIssueNoImages",
+  no_seo_meta: "gscIssueNoSeoMeta",
+  no_collection: "gscIssueNoCollection",
+};
+
+function gscInvisibleTooltip(issues: string[], locale: Locale): string {
+  const reasons = issues
+    .map((code) => GSC_ISSUE_KEYS[code])
+    .filter((key): key is Parameters<typeof t>[1] => Boolean(key))
+    .map((key) => t(locale, key));
+  if (reasons.length === 0) return t(locale, "dashboardGscInvisibleTooltip");
+  return `${t(locale, "dashboardGscInvisiblePrefix")} ${reasons.join(" · ")}`;
+}
+
 function ActiveProductsCard({
   products,
   locale,
@@ -620,7 +638,7 @@ function ActiveProductsCard({
                             <Badge tone="success">{t(locale, "dashboardGscVisible")}</Badge>
                           </Tooltip>
                         ) : (
-                          <Tooltip content={t(locale, "dashboardGscInvisibleTooltip")}>
+                          <Tooltip content={gscInvisibleTooltip(product.gsc_issues, locale)}>
                             <Badge tone="warning">{t(locale, "dashboardGscInvisible")}</Badge>
                           </Tooltip>
                         )

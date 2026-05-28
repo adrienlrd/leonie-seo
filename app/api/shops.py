@@ -1,5 +1,6 @@
 """Shop management endpoints."""
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +14,51 @@ from app.safety import is_pilot_safe_mode
 from app.snapshot.scope import filter_products_by_scope
 
 router = APIRouter(prefix="/api", tags=["shops"])
+
+# Level-1 indexing diagnosis tuning.
+_RECENT_PUBLISH_DAYS = 14  # below this, Google may simply not have crawled yet
+_THIN_DESCRIPTION_CHARS = 120  # below this, content is too thin to rank
+
+
+def _diagnose_visibility_issues(product: dict) -> list[str]:
+    """Return heuristic reasons an active product may not be indexed in Google.
+
+    Returns stable issue codes (not localized text) — the frontend maps each
+    code to a translated string. Only meaningful for products that have no GSC
+    impressions. Codes are ordered from most to least likely root cause.
+    """
+    issues: list[str] = []
+
+    published_at = product.get("publishedAt") or product.get("published_at")
+    if published_at:
+        try:
+            published = datetime.fromisoformat(str(published_at).replace("Z", "+00:00"))
+            if (datetime.now(UTC) - published).days < _RECENT_PUBLISH_DAYS:
+                issues.append("recently_published")
+        except (ValueError, TypeError):
+            pass
+
+    description = str(product.get("description") or "").strip()
+    if len(description) < _THIN_DESCRIPTION_CHARS:
+        issues.append("thin_content")
+
+    images = product.get("images") or {}
+    image_edges = images.get("edges", []) if isinstance(images, dict) else []
+    if not image_edges:
+        issues.append("no_images")
+
+    seo = product.get("seo") or {}
+    has_seo_title = bool(str(seo.get("title") or "").strip())
+    has_seo_desc = bool(str(seo.get("description") or "").strip())
+    if not has_seo_title and not has_seo_desc:
+        issues.append("no_seo_meta")
+
+    collections = product.get("collections") or {}
+    coll_edges = collections.get("edges", []) if isinstance(collections, dict) else []
+    if not coll_edges:
+        issues.append("no_collection")
+
+    return issues
 
 
 @router.get("/shops", dependencies=[Depends(require_internal_secret)])
@@ -111,6 +157,8 @@ async def list_active_products(ctx: Annotated[ShopContext, Depends(get_shop_cont
             for row_url, row in gsc_page_rows.items()
         )
 
+        gsc_issues = [] if gsc_visible else _diagnose_visibility_issues(p)
+
         result.append({
             "id": str(p.get("id", "")),
             "title": p.get("title", ""),
@@ -118,5 +166,6 @@ async def list_active_products(ctx: Annotated[ShopContext, Depends(get_shop_cont
             "image_url": image_url,
             "gsc_visible": gsc_visible,
             "gsc_connected": gsc_connected,
+            "gsc_issues": gsc_issues,
         })
     return result
