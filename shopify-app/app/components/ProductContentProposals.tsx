@@ -21,10 +21,13 @@ import {
   Box,
   Button,
   Collapsible,
+  Icon,
   InlineStack,
   Text,
   TextField,
+  Tooltip,
 } from "@shopify/polaris";
+import { AlertTriangleIcon } from "@shopify/polaris-icons";
 import { useEffect, useState } from "react";
 import { t, type Locale } from "../lib/i18n";
 import {
@@ -139,6 +142,26 @@ export function ProductContentProposals({
   const canSubmitEnrichment = enrichmentQuestions.some(
     (question) => (enrichmentAnswers[question.key] ?? "").trim().length > 0,
   );
+
+  // Compact quality warning: combine publish blockers + skipped surfaces into a
+  // single tooltip shown behind a warning icon.
+  const quality = editedPack.content_quality;
+  const qualityWarningParts: string[] = [];
+  if (quality && !quality.publish_ready && quality.issues.length > 0) {
+    const prefix = locale === "fr" ? "À corriger avant publication" : "Fix before publishing";
+    qualityWarningParts.push(
+      `${prefix} : ${quality.issues.map((issue) => qualityIssueLabel(issue, locale)).join(" · ")}`,
+    );
+  }
+  if ((quality?.skipped_surfaces?.length ?? 0) > 0) {
+    const prefix = locale === "fr"
+      ? "Non généré faute de preuve ou d'intention suffisante"
+      : "Not generated due to insufficient evidence or intent";
+    qualityWarningParts.push(
+      `${prefix} : ${quality!.skipped_surfaces!.map((surface) => surfaceLabel(surface, locale)).join(", ")}`,
+    );
+  }
+  const qualityWarningTooltip = qualityWarningParts.join(" — ");
 
   // ── Field renderers ────────────────────────────────────────────────────────
   const renderMetaTitle = () => (
@@ -357,48 +380,31 @@ export function ProductContentProposals({
         </Banner>
       )}
 
-      {!editMode && editedPack.content_quality && (
-        editedPack.content_quality.publish_ready ? (
-          <Banner tone="success">
-            <BlockStack gap="050">
+      {!editMode && editedPack.content_quality?.publish_ready && (
+        <Banner tone="success">
+          <BlockStack gap="050">
+            <Text as="p" variant="bodySm">
+              {locale === "fr"
+                ? "Validation SEO/GEO réussie : cette proposition est éligible à une publication automatisée."
+                : "SEO/GEO validation passed: this proposal is eligible for automated publishing."}
+            </Text>
+            {(editedPack.content_quality.evidence_ledger?.length ?? 0) > 0 && (
               <Text as="p" variant="bodySm">
                 {locale === "fr"
-                  ? "Validation SEO/GEO réussie : cette proposition est éligible à une publication automatisée."
-                  : "SEO/GEO validation passed: this proposal is eligible for automated publishing."}
+                  ? `${editedPack.content_quality.evidence_ledger?.length} affirmation(s) reliée(s) à des faits Shopify confirmés.`
+                  : `${editedPack.content_quality.evidence_ledger?.length} claim(s) linked to confirmed Shopify facts.`}
               </Text>
-              {(editedPack.content_quality.evidence_ledger?.length ?? 0) > 0 && (
-                <Text as="p" variant="bodySm">
-                  {locale === "fr"
-                    ? `${editedPack.content_quality.evidence_ledger?.length} affirmation(s) reliée(s) à des faits Shopify confirmés.`
-                    : `${editedPack.content_quality.evidence_ledger?.length} claim(s) linked to confirmed Shopify facts.`}
-                </Text>
-              )}
-            </BlockStack>
-          </Banner>
-        ) : (
-          <Banner tone="warning">
-            <BlockStack gap="050">
-              <Text as="p" variant="bodySm">
-                {locale === "fr"
-                  ? "À corriger avant toute publication automatique :"
-                  : "Fix before any automated publishing:"}
-              </Text>
-              {editedPack.content_quality.issues.map((issue) => (
-                <Text key={issue} as="p" variant="bodySm">• {qualityIssueLabel(issue, locale)}</Text>
-              ))}
-            </BlockStack>
-          </Banner>
-        )
+            )}
+          </BlockStack>
+        </Banner>
       )}
 
-      {!editMode && (editedPack.content_quality?.skipped_surfaces?.length ?? 0) > 0 && (
-        <InlineStack gap="200" blockAlign="center" wrap>
-          <Badge tone="warning">!</Badge>
-          <Text as="p" variant="bodySm" tone="subdued">
-            {locale === "fr" ? "Non généré automatiquement faute de preuve ou d'intention suffisante : " : "Not generated automatically because supporting evidence or intent is insufficient: "}
-            {editedPack.content_quality?.skipped_surfaces?.map((surface) => surfaceLabel(surface, locale)).join(", ")}.
-          </Text>
-        </InlineStack>
+      {!editMode && qualityWarningTooltip && (
+        <Tooltip content={qualityWarningTooltip}>
+          <span style={{ display: "inline-flex", cursor: "help" }}>
+            <Icon source={AlertTriangleIcon} tone="warning" />
+          </span>
+        </Tooltip>
       )}
 
       {!editMode && enrichmentQuestions.length > 0 && (
