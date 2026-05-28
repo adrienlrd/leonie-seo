@@ -74,7 +74,13 @@ async def list_active_products(ctx: Annotated[ShopContext, Depends(get_shop_cont
     products = filter_products_by_scope(data.get("products", []), "active")
 
     # Build GSC visibility map: product URL → has impressions in GSC
-    shop_domain = str((data.get("shop") or {}).get("domain") or ctx.shop)
+    # Use primaryDomain.host (custom domain) so URLs match GSC records.
+    # Fall back to myshopifyDomain, then the shop auth identifier.
+    shop_obj = data.get("shop") or {}
+    shop_domain = (
+        (shop_obj.get("primaryDomain") or {}).get("host")
+        or str(shop_obj.get("myshopifyDomain") or ctx.shop)
+    )
     gsc_page_rows: dict[str, dict] = {}
     gsc_file = _find_gsc_file(ctx.shop)
     if gsc_file:
