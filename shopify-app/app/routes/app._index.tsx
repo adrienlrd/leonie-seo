@@ -174,25 +174,6 @@ interface LoaderData {
 
 // ── Loader ────────────────────────────────────────────────────────────────────
 
-async function _fireAudit(shop: string, accessToken: string): Promise<string | null> {
-  try {
-    const r = await callBackendForShop(shop, "/api/jobs", {
-      accessToken,
-      method: "POST",
-      body: JSON.stringify({
-        queue: "seo_audit",
-        payload: { include_content_pages: false },
-        max_retries: 1,
-      }),
-    });
-    if (!r.ok) return null;
-    const d = (await r.json()) as { job_id: string };
-    return d.job_id ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
