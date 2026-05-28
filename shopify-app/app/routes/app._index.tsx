@@ -179,6 +179,17 @@ interface BusinessProfile {
   sources_used?: string[];
 }
 
+function linesFromText(value: string): string[] {
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function textFromLines(value: string[] | undefined): string {
+  return (value ?? []).join("\n");
+}
+
 interface LoaderData {
   shop: string;
   locale: Locale;
@@ -393,7 +404,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           type: "pollFullBusinessAnalysis",
           status: "unknown",
           profile: null,
-          identifyJobId: null,
           error: `HTTP ${resp.status}`,
         });
       }
@@ -411,26 +421,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           type: "pollFullBusinessAnalysis",
           status: job.status,
           profile: job.profile ?? null,
-          identifyJobId: null,
           error: jobError,
         });
       }
 
+      return json({
+        type: "pollFullBusinessAnalysis",
+        status: "completed",
+        profile: job.profile,
+        error: null,
+      });
+    } catch (err) {
+      return json({
+        type: "pollFullBusinessAnalysis",
+        status: "unknown",
+        profile: null,
+        error: String(err),
+      });
+    }
+  }
+
+  if (intent === "saveBusinessProfileAndStartIdentification") {
+    const profileJson = formData.get("profileJson") as string;
+    try {
+      const profileData = JSON.parse(profileJson) as BusinessProfile;
       const saveResp = await callBackendForShop(
         session.shop,
         `/api/shops/${session.shop}/business-profile`,
         {
           accessToken: session.accessToken,
           method: "POST",
-          body: JSON.stringify(job.profile),
+          body: JSON.stringify(profileData),
         },
       );
       if (!saveResp.ok) {
         const txt = await saveResp.text();
         return json({
-          type: "pollFullBusinessAnalysis",
-          status: "failed",
-          profile: job.profile,
+          type: "saveBusinessProfileAndStartIdentification",
+          profile: null,
           identifyJobId: null,
           error: `HTTP ${saveResp.status}: ${txt}`,
         });
@@ -445,8 +473,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!identifyResp.ok) {
         const txt = await identifyResp.text();
         return json({
-          type: "pollFullBusinessAnalysis",
-          status: "failed",
+          type: "saveBusinessProfileAndStartIdentification",
           profile: savedProfile,
           identifyJobId: null,
           error: `HTTP ${identifyResp.status}: ${txt}`,
@@ -454,16 +481,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
       const identifyData = (await identifyResp.json()) as { job_id: string };
       return json({
-        type: "pollFullBusinessAnalysis",
-        status: "completed",
+        type: "saveBusinessProfileAndStartIdentification",
         profile: savedProfile,
         identifyJobId: identifyData.job_id,
         error: null,
       });
     } catch (err) {
       return json({
-        type: "pollFullBusinessAnalysis",
-        status: "unknown",
+        type: "saveBusinessProfileAndStartIdentification",
         profile: null,
         identifyJobId: null,
         error: String(err),
@@ -501,25 +526,41 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return json({
           type: "pollProductIdentification",
           job: null,
-          productJobId: null,
           error: `HTTP ${resp.status}`,
         });
       }
       const job = (await resp.json()) as MarketJobState;
-      if (job.status !== "completed") {
-        return json({ type: "pollProductIdentification", job, productJobId: null, error: null });
-      }
+      return json({ type: "pollProductIdentification", job, error: null });
+    } catch (err) {
+      return json({
+        type: "pollProductIdentification",
+        job: null,
+        error: String(err),
+      });
+    }
+  }
 
-      const labels = job.labels ?? {};
-      await callBackendForShop(
+  if (intent === "saveProductIdentificationAndStartAnalysis") {
+    const identificationsRaw = formData.get("identifications") as string;
+    try {
+      const identifications = JSON.parse(identificationsRaw) as Record<string, string>;
+      const saveResp = await callBackendForShop(
         session.shop,
         `/api/shops/${session.shop}/market-analysis/identifications`,
         {
           accessToken: session.accessToken,
           method: "POST",
-          body: JSON.stringify({ identifications: labels }),
+          body: JSON.stringify({ identifications }),
         },
       );
+      if (!saveResp.ok) {
+        const txt = await saveResp.text();
+        return json({
+          type: "saveProductIdentificationAndStartAnalysis",
+          productJobId: null,
+          error: `HTTP ${saveResp.status}: ${txt}`,
+        });
+      }
 
       const productResp = await callBackendForShop(
         session.shop,
@@ -529,23 +570,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!productResp.ok) {
         const txt = await productResp.text();
         return json({
-          type: "pollProductIdentification",
-          job,
+          type: "saveProductIdentificationAndStartAnalysis",
           productJobId: null,
           error: `HTTP ${productResp.status}: ${txt}`,
         });
       }
       const productData = (await productResp.json()) as { job_id: string };
       return json({
-        type: "pollProductIdentification",
-        job,
+        type: "saveProductIdentificationAndStartAnalysis",
         productJobId: productData.job_id,
         error: null,
       });
     } catch (err) {
       return json({
-        type: "pollProductIdentification",
-        job: null,
+        type: "saveProductIdentificationAndStartAnalysis",
         productJobId: null,
         error: String(err),
       });
@@ -700,8 +738,10 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (intent === "startFullAnalysis") return false;
   if (intent === "pollBusinessAnalysis") return false;
   if (intent === "pollFullBusinessAnalysis") return false;
+  if (intent === "saveBusinessProfileAndStartIdentification") return false;
   if (intent === "startProductAnalysis") return false;
   if (intent === "pollProductIdentification") return false;
+  if (intent === "saveProductIdentificationAndStartAnalysis") return false;
   if (intent === "pollProductAnalysis") return false;
   if (intent === "saveBusinessProfile") return false;
   if (intent === "startSingle") return false;
@@ -1219,6 +1259,12 @@ type AnalysisControlData =
       type: "pollFullBusinessAnalysis";
       status: string;
       profile: BusinessProfile | null;
+      error: string | null;
+    }
+  | { type: "saveBusinessProfile"; profile: BusinessProfile | null; error: string | null }
+  | {
+      type: "saveBusinessProfileAndStartIdentification";
+      profile: BusinessProfile | null;
       identifyJobId: string | null;
       error: string | null;
     }
@@ -1226,40 +1272,205 @@ type AnalysisControlData =
   | {
       type: "pollProductIdentification";
       job: MarketJobState | null;
-      productJobId: string | null;
       error: string | null;
     }
+  | { type: "saveProductIdentificationAndStartAnalysis"; productJobId: string | null; error: string | null }
   | { type: "pollProductAnalysis"; job: MarketJobState | null; error: string | null };
+
+function BusinessProfileReviewForm({
+  locale,
+  profile,
+  loading,
+  confirmLabel,
+  onChange,
+  onConfirm,
+}: {
+  locale: Locale;
+  profile: BusinessProfile;
+  loading: boolean;
+  confirmLabel: string;
+  onChange: (profile: BusinessProfile) => void;
+  onConfirm: () => void;
+}) {
+  const updateProfile = (patch: Partial<BusinessProfile>) => {
+    onChange({ ...profile, ...patch });
+  };
+
+  return (
+    <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
+      <BlockStack gap="300">
+        <SectionTitle source={CompassIcon}>{t(locale, "dashboardReviewProfileTitle")}</SectionTitle>
+        <Text as="p" tone="subdued">
+          {t(locale, "dashboardReviewProfileBody")}
+        </Text>
+        <FormLayout>
+          <TextField
+            label={t(locale, "dashboardProfileBrandName")}
+            value={profile.brand_name ?? ""}
+            onChange={(value) => updateProfile({ brand_name: value })}
+            autoComplete="off"
+          />
+          <TextField
+            label={t(locale, "dashboardProfileNiche")}
+            value={profile.niche_summary ?? ""}
+            onChange={(value) => updateProfile({ niche_summary: value })}
+            multiline={3}
+            autoComplete="off"
+          />
+          <TextField
+            label={t(locale, "dashboardProfileVoice")}
+            value={profile.brand_voice ?? ""}
+            onChange={(value) => updateProfile({ brand_voice: value })}
+            multiline={3}
+            autoComplete="off"
+          />
+          <TextField
+            label={t(locale, "dashboardProfileCompetitors")}
+            value={textFromLines(profile.competitor_domains)}
+            onChange={(value) => updateProfile({ competitor_domains: linesFromText(value) })}
+            multiline={3}
+            autoComplete="off"
+          />
+          <TextField
+            label={t(locale, "dashboardProfileThemes")}
+            value={textFromLines(profile.key_themes)}
+            onChange={(value) => updateProfile({ key_themes: linesFromText(value) })}
+            multiline={3}
+            autoComplete="off"
+          />
+          <TextField
+            label={t(locale, "dashboardProfileCompetitorInsights")}
+            value={textFromLines(profile.competitor_insights)}
+            onChange={(value) => updateProfile({ competitor_insights: linesFromText(value) })}
+            multiline={3}
+            autoComplete="off"
+          />
+          <TextField
+            label={t(locale, "dashboardProfileContentGaps")}
+            value={textFromLines(profile.content_gaps)}
+            onChange={(value) => updateProfile({ content_gaps: linesFromText(value) })}
+            multiline={3}
+            autoComplete="off"
+          />
+        </FormLayout>
+        <InlineStack align="end">
+          <Button variant="primary" onClick={onConfirm} loading={loading} disabled={loading}>
+            {confirmLabel}
+          </Button>
+        </InlineStack>
+      </BlockStack>
+    </Box>
+  );
+}
+
+function ProductIdentificationReviewForm({
+  locale,
+  labels,
+  productTitles,
+  loading,
+  onLabelChange,
+  onConfirm,
+}: {
+  locale: Locale;
+  labels: Record<string, string>;
+  productTitles: Record<string, string>;
+  loading: boolean;
+  onLabelChange: (productId: string, label: string) => void;
+  onConfirm: () => void;
+}) {
+  const entries = Object.entries(labels);
+
+  return (
+    <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
+      <BlockStack gap="300">
+        <SectionTitle source={ProductIcon}>{t(locale, "dashboardReviewProductsTitle")}</SectionTitle>
+        <Text as="p" tone="subdued">
+          {t(locale, "dashboardReviewProductsBody")}
+        </Text>
+        {entries.length > 0 ? (
+          <BlockStack gap="200">
+            {entries.map(([productId, label]) => (
+              <TextField
+                key={productId}
+                label={productTitles[productId] || productId.slice(-8)}
+                helpText={t(locale, "dashboardProductConcreteLabel")}
+                value={label}
+                onChange={(value) => onLabelChange(productId, value)}
+                placeholder={t(locale, "marketAnalysisLabelPlaceholder")}
+                autoComplete="off"
+              />
+            ))}
+          </BlockStack>
+        ) : (
+          <Banner tone="warning">
+            <Text as="p">{t(locale, "dashboardNoProductLabels")}</Text>
+          </Banner>
+        )}
+        <InlineStack align="end">
+          <Button
+            variant="primary"
+            onClick={onConfirm}
+            loading={loading}
+            disabled={loading || entries.length === 0}
+          >
+            {t(locale, "dashboardConfirmProductsAndAnalyze")}
+          </Button>
+        </InlineStack>
+      </BlockStack>
+    </Box>
+  );
+}
 
 function AnalysisControlPanel({
   locale,
   mode,
   lastResult,
   error,
+  profileDraft,
   profileStepActive,
   identificationStepActive,
+  productLabels,
+  productTitles,
   productJob,
   disabled,
+  actionPending,
   onFullAnalysis,
   onProfileAnalysis,
   onProductAnalysis,
+  onProfileDraftChange,
+  onProductLabelChange,
+  onConfirmProfileReview,
+  onConfirmProductReview,
 }: {
   locale: Locale;
   mode: AnalysisMode | null;
   lastResult: AnalysisResult | null;
   error: string | null;
+  profileDraft: BusinessProfile | null;
   profileStepActive: boolean;
   identificationStepActive: boolean;
+  productLabels: Record<string, string> | null;
+  productTitles: Record<string, string>;
   productJob: MarketJobState | null;
   disabled: boolean;
+  actionPending: boolean;
   onFullAnalysis: () => void;
   onProfileAnalysis: () => void;
   onProductAnalysis: () => void;
+  onProfileDraftChange: (profile: BusinessProfile) => void;
+  onProductLabelChange: (productId: string, label: string) => void;
+  onConfirmProfileReview: () => void;
+  onConfirmProductReview: () => void;
 }) {
   const productTotal = productJob?.total ?? productJob?.analyzed_product_count ?? 0;
   const productProgress = productJob?.progress ?? productJob?.analyzed_product_count ?? 0;
   const productProgressPct = productTotal > 0 ? Math.round((productProgress / productTotal) * 100) : 15;
+  const isProfileReview = profileDraft !== null && (mode === "full" || mode === "profile");
+  const isProductReview = productLabels !== null && (mode === "full" || mode === "products") && !productJob;
   const statusText = (() => {
+    if (isProfileReview && mode === "full") return t(locale, "dashboardFullAnalysisProfileReview");
+    if (isProfileReview && mode === "profile") return t(locale, "dashboardProfileAnalysisReview");
+    if (isProductReview) return t(locale, "dashboardProductIdentificationReview");
     if (mode === "full" && profileStepActive) {
       return t(locale, "dashboardFullAnalysisProfileRunning");
     }
@@ -1288,7 +1499,7 @@ function AnalysisControlPanel({
               icon={RefreshIcon}
               variant="primary"
               onClick={onFullAnalysis}
-              loading={mode === "full"}
+              loading={mode === "full" && !isProfileReview && !isProductReview}
               disabled={disabled}
             >
               {t(locale, "dashboardRunFullAnalysis")}
@@ -1296,7 +1507,7 @@ function AnalysisControlPanel({
             <Button
               icon={CompassIcon}
               onClick={onProfileAnalysis}
-              loading={mode === "profile"}
+              loading={mode === "profile" && !isProfileReview}
               disabled={disabled}
             >
               {t(locale, "dashboardRunProfileAnalysis")}
@@ -1304,7 +1515,7 @@ function AnalysisControlPanel({
             <Button
               icon={ProductIcon}
               onClick={onProductAnalysis}
-              loading={mode === "products"}
+              loading={mode === "products" && !isProductReview}
               disabled={disabled}
             >
               {t(locale, "dashboardRunProductAnalysis")}
@@ -1325,6 +1536,30 @@ function AnalysisControlPanel({
               )}
             </BlockStack>
           </Banner>
+        )}
+        {isProfileReview && profileDraft && (
+          <BusinessProfileReviewForm
+            locale={locale}
+            profile={profileDraft}
+            loading={actionPending}
+            confirmLabel={
+              mode === "full"
+                ? t(locale, "dashboardConfirmProfileAndContinue")
+                : t(locale, "dashboardConfirmProfileOnly")
+            }
+            onChange={onProfileDraftChange}
+            onConfirm={onConfirmProfileReview}
+          />
+        )}
+        {isProductReview && productLabels && (
+          <ProductIdentificationReviewForm
+            locale={locale}
+            labels={productLabels}
+            productTitles={productTitles}
+            loading={actionPending}
+            onLabelChange={onProductLabelChange}
+            onConfirm={onConfirmProductReview}
+          />
         )}
       </BlockStack>
     </Card>
@@ -1530,10 +1765,12 @@ function BusinessProfileSection({
   initialProfile,
   competitorSignals,
   locale,
+  onProfileDraftChange,
 }: {
   initialProfile: BusinessProfile | null;
   competitorSignals: string[];
   locale: Locale;
+  onProfileDraftChange?: (profile: BusinessProfile) => void;
 }) {
   const bizFetcher = useFetcher<BizActionData>();
   const [bizJobId, setBizJobId] = useState<string | null>(null);
@@ -1663,6 +1900,7 @@ function BusinessProfileSection({
   const handleSaveEdit = () => {
     if (!editBuffer) return;
     setBizDraft(editBuffer);
+    onProfileDraftChange?.(editBuffer);
     setIsEditing(false);
   };
 
@@ -1805,6 +2043,12 @@ function BusinessProfileSection({
       <Modal.Section>
         <FormLayout>
           <TextField
+            label={locale === "fr" ? "Nom de marque" : "Brand name"}
+            value={editBuffer.brand_name ?? ""}
+            onChange={(v) => setEditBuffer({ ...editBuffer, brand_name: v })}
+            autoComplete="off"
+          />
+          <TextField
             label={locale === "fr" ? "Résumé de niche" : "Niche summary"}
             value={editBuffer.niche_summary ?? ""}
             onChange={(v) => setEditBuffer({ ...editBuffer, niche_summary: v })}
@@ -1826,22 +2070,29 @@ function BusinessProfileSection({
           />
           <TextField
             label={locale === "fr" ? "Thèmes clés (un par ligne)" : "Key themes (one per line)"}
-            value={(editBuffer.key_themes ?? []).join("\n")}
-            onChange={(v) => setEditBuffer({ ...editBuffer, key_themes: v.split("\n").filter(Boolean) })}
+            value={textFromLines(editBuffer.key_themes)}
+            onChange={(v) => setEditBuffer({ ...editBuffer, key_themes: linesFromText(v) })}
             multiline={4}
             autoComplete="off"
           />
           <TextField
+            label={locale === "fr" ? "Concurrents (un domaine par ligne)" : "Competitors (one domain per line)"}
+            value={textFromLines(editBuffer.competitor_domains)}
+            onChange={(v) => setEditBuffer({ ...editBuffer, competitor_domains: linesFromText(v) })}
+            multiline={3}
+            autoComplete="off"
+          />
+          <TextField
             label={locale === "fr" ? "Insights concurrents (un par ligne)" : "Competitor insights (one per line)"}
-            value={(editBuffer.competitor_insights ?? []).join("\n")}
-            onChange={(v) => setEditBuffer({ ...editBuffer, competitor_insights: v.split("\n").filter(Boolean) })}
+            value={textFromLines(editBuffer.competitor_insights)}
+            onChange={(v) => setEditBuffer({ ...editBuffer, competitor_insights: linesFromText(v) })}
             multiline={4}
             autoComplete="off"
           />
           <TextField
             label={locale === "fr" ? "Lacunes de contenu (une par ligne)" : "Content gaps (one per line)"}
-            value={(editBuffer.content_gaps ?? []).join("\n")}
-            onChange={(v) => setEditBuffer({ ...editBuffer, content_gaps: v.split("\n").filter(Boolean) })}
+            value={textFromLines(editBuffer.content_gaps)}
+            onChange={(v) => setEditBuffer({ ...editBuffer, content_gaps: linesFromText(v) })}
             multiline={3}
             autoComplete="off"
           />
@@ -1994,8 +2245,11 @@ export default function IndexPage() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisProfileJobId, setAnalysisProfileJobId] = useState<string | null>(null);
   const [analysisProfileStatus, setAnalysisProfileStatus] = useState<string | null>(null);
+  const [analysisProfileDraft, setAnalysisProfileDraft] = useState<BusinessProfile | null>(null);
   const [analysisIdentifyJobId, setAnalysisIdentifyJobId] = useState<string | null>(null);
   const [analysisIdentifyJob, setAnalysisIdentifyJob] = useState<MarketJobState | null>(null);
+  const [analysisProductLabels, setAnalysisProductLabels] = useState<Record<string, string> | null>(null);
+  const [analysisProductTitles, setAnalysisProductTitles] = useState<Record<string, string>>({});
   const [analysisProductJobId, setAnalysisProductJobId] = useState<string | null>(null);
   const [analysisProductJob, setAnalysisProductJob] = useState<MarketJobState | null>(null);
 
@@ -2019,7 +2273,10 @@ export default function IndexPage() {
     setAnalysisResult(null);
     setAnalysisError(null);
     setAnalysisProfileStatus(null);
+    setAnalysisProfileDraft(null);
     setAnalysisIdentifyJob(null);
+    setAnalysisProductLabels(null);
+    setAnalysisProductTitles({});
     setAnalysisProductJob(null);
   };
 
@@ -2064,6 +2321,39 @@ export default function IndexPage() {
         setAnalysisError(data.error);
       }
     }
+    if (data.type === "saveBusinessProfile") {
+      if (data.profile) {
+        setProfileForDashboard(data.profile);
+        setAnalysisProfileDraft(null);
+        setAnalysisMode(null);
+        setAnalysisResult("profile");
+      } else if (data.error) {
+        setAnalysisError(data.error);
+      }
+    }
+    if (data.type === "saveBusinessProfileAndStartIdentification") {
+      if (data.profile) {
+        setProfileForDashboard(data.profile);
+      }
+      if (data.identifyJobId) {
+        setAnalysisProfileDraft(null);
+        setAnalysisProfileJobId(null);
+        setAnalysisIdentifyJobId(data.identifyJobId);
+        setAnalysisIdentifyJob(null);
+      } else if (data.error) {
+        setAnalysisError(data.error);
+      }
+    }
+    if (data.type === "saveProductIdentificationAndStartAnalysis") {
+      if (data.productJobId) {
+        setAnalysisProductLabels(null);
+        setAnalysisProductTitles({});
+        setAnalysisProductJobId(data.productJobId);
+        setAnalysisProductJob(null);
+      } else if (data.error) {
+        setAnalysisError(data.error);
+      }
+    }
   }, [analysisFetcher.data]);
 
   useEffect(() => {
@@ -2073,10 +2363,11 @@ export default function IndexPage() {
       setAnalysisProfileStatus(data.status);
       if (data.status === "completed") {
         setAnalysisProfileJobId(null);
-        setAnalysisMode(null);
-        setAnalysisResult("profile");
         if (data.profile && data.profile.status !== "error") {
+          setAnalysisProfileDraft(data.profile);
           setProfileForDashboard(data.profile);
+        } else if (data.error) {
+          setAnalysisError(data.error);
         }
       }
       if (data.status === "failed" || data.status === "unknown") {
@@ -2087,15 +2378,12 @@ export default function IndexPage() {
     }
     if (data.type === "pollFullBusinessAnalysis") {
       setAnalysisProfileStatus(data.status);
-      if (data.profile && data.profile.status !== "error") {
+      if (data.status === "completed" && data.profile && data.profile.status !== "error") {
+        setAnalysisProfileJobId(null);
+        setAnalysisProfileDraft(data.profile);
         setProfileForDashboard(data.profile);
       }
-      if (data.identifyJobId) {
-        setAnalysisProfileJobId(null);
-        setAnalysisIdentifyJobId(data.identifyJobId);
-        setAnalysisIdentifyJob(null);
-      }
-      if ((data.status === "failed" || data.status === "unknown") && !data.identifyJobId) {
+      if (data.status === "failed" || data.status === "unknown") {
         setAnalysisProfileJobId(null);
         setAnalysisMode(null);
         if (data.error) setAnalysisError(data.error);
@@ -2118,10 +2406,10 @@ export default function IndexPage() {
       setAnalysisMode(null);
       setAnalysisError(data.job.error ?? "Identification produits échouée");
     }
-    if (data.productJobId) {
+    if (data.job?.status === "completed") {
       setAnalysisIdentifyJobId(null);
-      setAnalysisProductJobId(data.productJobId);
-      setAnalysisProductJob(null);
+      setAnalysisProductLabels(data.job.labels ?? {});
+      setAnalysisProductTitles(data.job.product_titles ?? {});
     }
   }, [analysisIdentifyPollFetcher.data]);
 
@@ -2203,6 +2491,37 @@ export default function IndexPage() {
     analysisProfilePollFetcher.state !== "idle" ||
     analysisIdentifyPollFetcher.state !== "idle" ||
     analysisProductPollFetcher.state !== "idle";
+  const isAnalysisActionPending = analysisFetcher.state !== "idle";
+
+  const handleProfileDraftChange = (profile: BusinessProfile) => {
+    setAnalysisProfileDraft(profile);
+    setProfileForDashboard(profile);
+  };
+
+  const handleProductLabelChange = (productId: string, label: string) => {
+    setAnalysisProductLabels((prev) => ({ ...(prev ?? {}), [productId]: label }));
+  };
+
+  const handleConfirmProfileReview = () => {
+    if (!analysisProfileDraft) return;
+    setAnalysisError(null);
+    const fd = new FormData();
+    fd.set(
+      "intent",
+      analysisMode === "full" ? "saveBusinessProfileAndStartIdentification" : "saveBusinessProfile",
+    );
+    fd.set("profileJson", JSON.stringify(analysisProfileDraft));
+    analysisFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleConfirmProductReview = () => {
+    if (!analysisProductLabels) return;
+    setAnalysisError(null);
+    const fd = new FormData();
+    fd.set("intent", "saveProductIdentificationAndStartAnalysis");
+    fd.set("identifications", JSON.stringify(analysisProductLabels));
+    analysisFetcher.submit(fd, { method: "post" });
+  };
 
   const handleFullAnalysis = () => {
     resetAnalysisState("full");
@@ -2397,17 +2716,30 @@ export default function IndexPage() {
           mode={analysisMode}
           lastResult={analysisResult}
           error={analysisError}
+          profileDraft={analysisProfileDraft}
           profileStepActive={analysisProfileJobId !== null}
           identificationStepActive={analysisIdentifyJobId !== null}
+          productLabels={analysisProductLabels}
+          productTitles={analysisProductTitles}
           productJob={analysisProductJob}
           disabled={isGlobalAnalysisRunning}
+          actionPending={isAnalysisActionPending}
           onFullAnalysis={handleFullAnalysis}
           onProfileAnalysis={handleProfileAnalysis}
           onProductAnalysis={handleProductAnalysis}
+          onProfileDraftChange={handleProfileDraftChange}
+          onProductLabelChange={handleProductLabelChange}
+          onConfirmProfileReview={handleConfirmProfileReview}
+          onConfirmProductReview={handleConfirmProductReview}
         />
 
         {/* Business profile — niche, brand, personas, content style */}
-        <BusinessProfileSection initialProfile={profileForDashboard} competitorSignals={competitorSignals} locale={locale} />
+        <BusinessProfileSection
+          initialProfile={profileForDashboard}
+          competitorSignals={competitorSignals}
+          locale={locale}
+          onProfileDraftChange={handleProfileDraftChange}
+        />
 
         {/* Zone 2 — Active products */}
         <ActiveProductsCard

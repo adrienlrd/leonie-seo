@@ -12,6 +12,20 @@
 
 - **Date:** 2026-05-28
 - **Agent:** Codex (GPT-5)
+- **Goal:** Ajouter des étapes intermédiaires de validation dans l'analyse complète du dashboard.
+- **Summary:** Le dashboard ne fait plus d'analyse complète totalement automatique. `Analyse complète` génère d'abord un profil entreprise/niche en brouillon, affiche les hypothèses modifiables (marque, niche, voix, concurrents, thèmes, insights concurrents, manques de contenu), puis attend une validation marchande avant de sauvegarder le profil et de lancer l'identification produits. L'identification produits s'arrête elle aussi sur un écran de correction "quel est le produit concrètement ?" par fiche, puis lance seulement ensuite l'analyse produits profonde avec Google/DataForSEO. `Analyse profil` utilise aussi la validation profil intermédiaire, et `Analyse produits` utilise la validation des produits avant l'analyse profonde. Le bloc Profil entreprise existant permet maintenant aussi d'éditer le nom de marque et les concurrents.
+- **Files created:** Aucun.
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/lib/i18n.ts`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** (1) L'orchestration reste côté Remix et réutilise les endpoints existants pour éviter un backend job composite prématuré. (2) L'étape 1 Profil et l'étape 1 Produits deviennent explicitement validées par le marchand avant toute analyse profonde. (3) Les labels produits corrigés sont sauvegardés avant `/market-analysis/jobs`, afin que la passe Google/DataForSEO et les propositions de contenu repartent des hypothèses validées.
+- **Validations run:** `cd shopify-app && npm run typecheck` ✅ ; `cd shopify-app && npm run build` ✅ ; serveur local `cd shopify-app && npm run web -- --host 127.0.0.1 --port 3000` démarré ✅ ; tentative navigateur intégré sur `http://127.0.0.1:3000/app` bloquée par la politique navigateur de la session.
+- **Validations skipped:** Tests Python non lancés car le changement est limité au dashboard Remix et aux textes i18n frontend. Vérification visuelle Shopify embedded non finalisée : l'accès navigateur local a été refusé et la route requiert habituellement une session Shopify.
+- **Open issues:** La relance future "modifier seulement les hypothèses de l'étape 1 puis relancer uniquement l'étape 2" est partiellement couverte par les pauses avant lancement et par la sauvegarde des labels, mais il manque encore un vrai panneau persistant d'hypothèses validées avec bouton "relancer étape 2" sans refaire l'identification. Le serveur local de vérification a été lancé sur le port 3000 ; son arrêt par `kill` a été refusé par le sandbox.
+- **Next recommended action:** Tester dans une boutique pilote authentifiée : Analyse complète → correction profil/concurrents → identification produits → correction labels → analyse produits, puis décider si un panneau persistant "Hypothèses validées" doit être ajouté à l'accueil ou à Analyse marché.
+
+## Previous completed task
+
+- **Date:** 2026-05-28
+- **Agent:** Codex (GPT-5)
 - **Goal:** Restaurer le parcours complet d'identification produits avant l'analyse produits depuis le dashboard d'accueil.
 - **Summary:** Les boutons `Analyse complète` et `Analyse produits` de l'accueil ne lancent plus directement le job d'analyse produits. Ils démarrent maintenant par `/market-analysis/identify`, pollent ce job, sauvegardent les labels d'identification dans `/market-analysis/identifications`, puis lancent seulement ensuite `/market-analysis/jobs`. Cela aligne le dashboard sur le flux fiable d'Analyse marché et évite que les propositions de contenu partent d'une compréhension produit plus pauvre avant l'enrichissement Google/DataForSEO.
 - **Files created:** Aucun.
