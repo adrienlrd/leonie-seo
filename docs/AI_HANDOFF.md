@@ -12,6 +12,20 @@
 
 - **Date:** 2026-05-28
 - **Agent:** Codex (GPT-5)
+- **Goal:** Ajouter trois actions explicites sur l'accueil : analyse complète, analyse profil et analyse produits.
+- **Summary:** L'accueil dispose maintenant d'un panneau `Analyses` avec trois boutons distincts. `Analyse complète` lance l'analyse Profil entreprise, sauvegarde le profil généré comme profil validé pour que le contexte soit immédiatement utilisable, puis lance l'analyse de tous les produits. `Analyse profil` conserve le comportement séparé : génération d'un profil brouillon affiché dans le bloc Profil entreprise pour vérification/validation. `Analyse produits` lance uniquement l'analyse globale des produits avec le profil actuellement validé. Le panneau affiche les états de progression et les résultats sans recharger la page.
+- **Files created:** Aucun.
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/lib/i18n.ts`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** (1) L'analyse complète est volontairement orchestrée sur l'accueil pour éviter d'ajouter un nouveau backend job composite. (2) Le mode complet auto-sauvegarde le profil généré afin que l'analyse produits utilise réellement le nouveau contexte global. (3) Les boutons profil et produits restent séparés pour les relances quotidiennes ciblées.
+- **Validations run:** `cd shopify-app && npm run typecheck` ✅ ; `cd shopify-app && npm run build` ✅ ; `git diff --check` ✅.
+- **Validations skipped:** Tests Python non lancés car le changement est limité à la route Remix d'accueil et aux libellés i18n frontend.
+- **Open issues:** L'analyse complète n'inclut pas encore une étape intermédiaire d'ajustement manuel avant la sauvegarde automatique du profil ; le bouton profil séparé reste le chemin à utiliser quand le marchand veut corriger avant validation.
+- **Next recommended action:** Valider visuellement dans une session Shopify embedded que les trois boutons sont compréhensibles et que les états de progression restent lisibles pendant les deux jobs enchaînés.
+
+## Previous completed task
+
+- **Date:** 2026-05-28
+- **Agent:** Codex (GPT-5)
 - **Goal:** Réduire le risque qu'une analyse produits reste invisible lorsqu'elle a été générée avec une ancienne version du Profil entreprise.
 - **Summary:** Ajout d'un contexte business versionné pour Analyse marché. Le backend calcule maintenant un hash SHA-256 déterministe à partir des champs stratégiques du profil entreprise validé, sans inclure `generated_at`, puis stocke ce contexte au niveau de l'analyse globale et de chaque produit. L'API `/market-analysis/latest` compare le hash stocké au profil actuel et retourne un statut `current`, `stale`, `unknown` ou `missing_profile`, y compris produit par produit. L'interface Analyse marché affiche un badge de fraîcheur dans le résumé, un badge par carte produit en cas de contexte ancien/non versionné, et une bannière actionnable si le profil a changé ou si une ancienne analyse n'est pas versionnée.
 - **Files created:** `app/business_profile/context.py`, `tests/business_profile/test_context.py`.

@@ -63,6 +63,10 @@ import { qualityWarningText, type ProductResult } from "../lib/marketAnalysisSha
 interface MarketJobState {
   status: "pending" | "running" | "completed" | "failed";
   products: ProductResult[];
+  progress?: number;
+  total?: number;
+  analyzed_product_count?: number;
+  error?: string | null;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -323,7 +327,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  if (intent === "startBusinessAnalysis") {
+  if (intent === "startBusinessAnalysis" || intent === "startFullAnalysis") {
     try {
       let shopName = "";
       try {
@@ -348,12 +352,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
       if (!resp.ok) {
         const txt = await resp.text();
-        return json({ type: "startBusinessAnalysis", jobId: null, error: `HTTP ${resp.status}: ${txt}` });
+        return json({ type: intent, jobId: null, error: `HTTP ${resp.status}: ${txt}` });
       }
       const data = (await resp.json()) as { job_id: string };
-      return json({ type: "startBusinessAnalysis", jobId: data.job_id, error: null });
+      return json({ type: intent, jobId: data.job_id, error: null });
     } catch (err) {
-      return json({ type: "startBusinessAnalysis", jobId: null, error: String(err) });
+      return json({ type: intent, jobId: null, error: String(err) });
     }
   }
 
@@ -371,6 +375,131 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ type: "pollBusinessAnalysis", status: job.status, profile: job.profile ?? null, error: jobError });
     } catch (err) {
       return json({ type: "pollBusinessAnalysis", status: "unknown", profile: null, error: String(err) });
+    }
+  }
+
+  if (intent === "pollFullBusinessAnalysis") {
+    const bizJobId = formData.get("bizJobId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/business-profile/job/${bizJobId}`,
+        { accessToken: session.accessToken },
+      );
+      if (!resp.ok) {
+        return json({
+          type: "pollFullBusinessAnalysis",
+          status: "unknown",
+          profile: null,
+          productJobId: null,
+          error: `HTTP ${resp.status}`,
+        });
+      }
+      const job = (await resp.json()) as {
+        status: string;
+        profile?: BusinessProfile | null;
+        error?: string | null;
+      };
+      const jobError =
+        job.status === "failed" || job.status === "unknown"
+          ? (job.error ?? "Analyse échouée")
+          : null;
+      if (job.status !== "completed" || !job.profile || job.profile.status === "error") {
+        return json({
+          type: "pollFullBusinessAnalysis",
+          status: job.status,
+          profile: job.profile ?? null,
+          productJobId: null,
+          error: jobError,
+        });
+      }
+
+      const saveResp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/business-profile`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: JSON.stringify(job.profile),
+        },
+      );
+      if (!saveResp.ok) {
+        const txt = await saveResp.text();
+        return json({
+          type: "pollFullBusinessAnalysis",
+          status: "failed",
+          profile: job.profile,
+          productJobId: null,
+          error: `HTTP ${saveResp.status}: ${txt}`,
+        });
+      }
+      const savedProfile = (await saveResp.json()) as BusinessProfile;
+
+      const productResp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs`,
+        { accessToken: session.accessToken, method: "POST" },
+      );
+      if (!productResp.ok) {
+        const txt = await productResp.text();
+        return json({
+          type: "pollFullBusinessAnalysis",
+          status: "failed",
+          profile: savedProfile,
+          productJobId: null,
+          error: `HTTP ${productResp.status}: ${txt}`,
+        });
+      }
+      const productData = (await productResp.json()) as { job_id: string };
+      return json({
+        type: "pollFullBusinessAnalysis",
+        status: "completed",
+        profile: savedProfile,
+        productJobId: productData.job_id,
+        error: null,
+      });
+    } catch (err) {
+      return json({
+        type: "pollFullBusinessAnalysis",
+        status: "unknown",
+        profile: null,
+        productJobId: null,
+        error: String(err),
+      });
+    }
+  }
+
+  if (intent === "startProductAnalysis") {
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs`,
+        { accessToken: session.accessToken, method: "POST" },
+      );
+      if (!resp.ok) {
+        const txt = await resp.text();
+        return json({ type: "startProductAnalysis", jobId: null, error: `HTTP ${resp.status}: ${txt}` });
+      }
+      const data = (await resp.json()) as { job_id: string };
+      return json({ type: "startProductAnalysis", jobId: data.job_id, error: null });
+    } catch (err) {
+      return json({ type: "startProductAnalysis", jobId: null, error: String(err) });
+    }
+  }
+
+  if (intent === "pollProductAnalysis") {
+    const productJobId = formData.get("productJobId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs/${productJobId}`,
+        { accessToken: session.accessToken },
+      );
+      if (!resp.ok) return json({ type: "pollProductAnalysis", job: null, error: `HTTP ${resp.status}` });
+      const job = (await resp.json()) as MarketJobState;
+      return json({ type: "pollProductAnalysis", job, error: null });
+    } catch (err) {
+      return json({ type: "pollProductAnalysis", job: null, error: String(err) });
     }
   }
 
@@ -503,7 +632,11 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   const intent = formData?.get("intent");
   if (intent === "refresh") return false;
   if (intent === "startBusinessAnalysis") return false;
+  if (intent === "startFullAnalysis") return false;
   if (intent === "pollBusinessAnalysis") return false;
+  if (intent === "pollFullBusinessAnalysis") return false;
+  if (intent === "startProductAnalysis") return false;
+  if (intent === "pollProductAnalysis") return false;
   if (intent === "saveBusinessProfile") return false;
   if (intent === "startSingle") return false;
   if (intent === "saveFactsAndStartSingle") return false;
@@ -1007,6 +1140,113 @@ function Zone6({ locale }: { locale: Locale }) {
   );
 }
 
+// ── Analysis Controls ────────────────────────────────────────────────────────
+
+type AnalysisMode = "full" | "profile" | "products";
+type AnalysisResult = "full" | "profile" | "products";
+
+type AnalysisControlData =
+  | { type: "startFullAnalysis"; jobId: string | null; error: string | null }
+  | { type: "startBusinessAnalysis"; jobId: string | null; error: string | null }
+  | { type: "pollBusinessAnalysis"; status: string; profile: BusinessProfile | null; error: string | null }
+  | {
+      type: "pollFullBusinessAnalysis";
+      status: string;
+      profile: BusinessProfile | null;
+      productJobId: string | null;
+      error: string | null;
+    }
+  | { type: "startProductAnalysis"; jobId: string | null; error: string | null }
+  | { type: "pollProductAnalysis"; job: MarketJobState | null; error: string | null };
+
+function AnalysisControlPanel({
+  locale,
+  mode,
+  lastResult,
+  error,
+  productJob,
+  disabled,
+  onFullAnalysis,
+  onProfileAnalysis,
+  onProductAnalysis,
+}: {
+  locale: Locale;
+  mode: AnalysisMode | null;
+  lastResult: AnalysisResult | null;
+  error: string | null;
+  productJob: MarketJobState | null;
+  disabled: boolean;
+  onFullAnalysis: () => void;
+  onProfileAnalysis: () => void;
+  onProductAnalysis: () => void;
+}) {
+  const productTotal = productJob?.total ?? productJob?.analyzed_product_count ?? 0;
+  const productProgress = productJob?.progress ?? productJob?.analyzed_product_count ?? 0;
+  const productProgressPct = productTotal > 0 ? Math.round((productProgress / productTotal) * 100) : 15;
+  const statusText = (() => {
+    if (mode === "full" && !productJob) return t(locale, "dashboardFullAnalysisProfileRunning");
+    if (mode === "full" && productJob) return t(locale, "dashboardFullAnalysisProductsRunning");
+    if (mode === "profile") return t(locale, "dashboardProfileAnalysisRunning");
+    if (mode === "products") return t(locale, "dashboardProductAnalysisRunning");
+    if (lastResult === "full") return t(locale, "dashboardFullAnalysisComplete");
+    if (lastResult === "profile") return t(locale, "dashboardProfileAnalysisReady");
+    if (lastResult === "products") return t(locale, "dashboardProductAnalysisComplete");
+    return null;
+  })();
+
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center" wrap>
+          <SectionTitle source={RefreshIcon}>{t(locale, "dashboardAnalysisControlsTitle")}</SectionTitle>
+          <InlineStack gap="200" wrap>
+            <Button
+              icon={RefreshIcon}
+              variant="primary"
+              onClick={onFullAnalysis}
+              loading={mode === "full"}
+              disabled={disabled}
+            >
+              {t(locale, "dashboardRunFullAnalysis")}
+            </Button>
+            <Button
+              icon={CompassIcon}
+              onClick={onProfileAnalysis}
+              loading={mode === "profile"}
+              disabled={disabled}
+            >
+              {t(locale, "dashboardRunProfileAnalysis")}
+            </Button>
+            <Button
+              icon={ProductIcon}
+              onClick={onProductAnalysis}
+              loading={mode === "products"}
+              disabled={disabled}
+            >
+              {t(locale, "dashboardRunProductAnalysis")}
+            </Button>
+          </InlineStack>
+        </InlineStack>
+        {error && (
+          <Banner tone="critical">
+            <Text as="p">{error.split("\n")[0]}</Text>
+          </Banner>
+        )}
+        {!error && statusText && (
+          <Banner tone={mode ? "info" : "success"}>
+            <BlockStack gap="150">
+              <Text as="p">{statusText}</Text>
+              {productJob && productJob.status !== "completed" && (
+                <ProgressBar progress={Math.min(productProgressPct, 95)} size="small" />
+              )}
+            </BlockStack>
+          </Banner>
+        )}
+      </BlockStack>
+    </Card>
+  );
+}
+
 // ── Business Profile Section ──────────────────────────────────────────────────
 
 type BizActionData =
@@ -1214,8 +1454,12 @@ function BusinessProfileSection({
   const bizFetcher = useFetcher<BizActionData>();
   const [bizJobId, setBizJobId] = useState<string | null>(null);
   const [bizJobStatus, setBizJobStatus] = useState<string | null>(null);
-  const [bizProfile, setBizProfile] = useState<BusinessProfile | null>(initialProfile);
-  const [bizDraft, setBizDraft] = useState<BusinessProfile | null>(null);
+  const [bizProfile, setBizProfile] = useState<BusinessProfile | null>(
+    initialProfile?.status === "validated" ? initialProfile : null,
+  );
+  const [bizDraft, setBizDraft] = useState<BusinessProfile | null>(
+    initialProfile && initialProfile.status !== "validated" ? initialProfile : null,
+  );
   const [bizError, setBizError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editBuffer, setEditBuffer] = useState<BusinessProfile | null>(null);
@@ -1223,6 +1467,21 @@ function BusinessProfileSection({
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const bizStatusRef = useRef<string | null>(null);
   bizStatusRef.current = bizJobStatus;
+
+  useEffect(() => {
+    if (!initialProfile) {
+      setBizProfile(null);
+      setBizDraft(null);
+      return;
+    }
+    if (initialProfile.status === "validated") {
+      setBizProfile(initialProfile);
+      setBizDraft(null);
+      return;
+    }
+    setBizProfile(null);
+    setBizDraft(initialProfile);
+  }, [initialProfile]);
 
   useEffect(() => {
     if (!bizFetcher.data) return;
@@ -1535,6 +1794,11 @@ function BusinessProfileSection({
 
 export default function IndexPage() {
   const { locale, plan, dashboard, activeProducts, productResults, competitorSignals, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
+  const [profileForDashboard, setProfileForDashboard] = useState<BusinessProfile | null>(businessProfile);
+
+  useEffect(() => {
+    setProfileForDashboard(businessProfile);
+  }, [businessProfile]);
 
   // ── Audit job polling ─────────────────────────────────────────────────────
   type PollData = { type?: string; status?: string; resultStatus?: string | null; error?: string | null };
@@ -1629,6 +1893,214 @@ export default function IndexPage() {
     refreshFetcher.submit(fd, { method: "post" });
   };
 
+  // Local pack store, seeded from the loader and updated as analyses complete.
+  const [productPacks, setProductPacks] = useState<Record<string, ProductResult>>(productResults);
+
+  useEffect(() => {
+    setProductPacks(productResults);
+  }, [productResults]);
+
+  // ── Global analysis controls ─────────────────────────────────────────────
+  const analysisFetcher = useFetcher<AnalysisControlData>();
+  const analysisProfilePollFetcher = useFetcher<AnalysisControlData>();
+  const analysisProductPollFetcher = useFetcher<AnalysisControlData>();
+  const [analysisMode, setAnalysisMode] = useState<AnalysisMode | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [analysisProfileJobId, setAnalysisProfileJobId] = useState<string | null>(null);
+  const [analysisProfileStatus, setAnalysisProfileStatus] = useState<string | null>(null);
+  const [analysisProductJobId, setAnalysisProductJobId] = useState<string | null>(null);
+  const [analysisProductJob, setAnalysisProductJob] = useState<MarketJobState | null>(null);
+
+  const analysisModeRef = useRef<AnalysisMode | null>(null);
+  const analysisProfileStatusRef = useRef<string | null>(null);
+  const analysisProductJobStatusRef = useRef<string | undefined>(undefined);
+  const analysisProfilePollRef = useRef(analysisProfilePollFetcher);
+  const analysisProductPollRef = useRef(analysisProductPollFetcher);
+  analysisModeRef.current = analysisMode;
+  analysisProfileStatusRef.current = analysisProfileStatus;
+  analysisProductJobStatusRef.current = analysisProductJob?.status;
+  analysisProfilePollRef.current = analysisProfilePollFetcher;
+  analysisProductPollRef.current = analysisProductPollFetcher;
+
+  const resetAnalysisState = (mode: AnalysisMode) => {
+    setAnalysisMode(mode);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    setAnalysisProfileStatus(null);
+    setAnalysisProductJob(null);
+  };
+
+  const updateProductPacksFromJob = (job: MarketJobState) => {
+    setProductPacks((prev) => {
+      const next = { ...prev };
+      for (const result of job.products ?? []) {
+        if (result.product_id) next[result.product_id] = result;
+        if (result.product_handle) next[result.product_handle] = result;
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const data = analysisFetcher.data;
+    if (!data) return;
+    if (data.type === "startFullAnalysis") {
+      if (data.jobId) {
+        setAnalysisProfileJobId(data.jobId);
+        setAnalysisProfileStatus(null);
+      } else if (data.error) {
+        setAnalysisMode(null);
+        setAnalysisError(data.error);
+      }
+    }
+    if (data.type === "startBusinessAnalysis") {
+      if (data.jobId) {
+        setAnalysisProfileJobId(data.jobId);
+        setAnalysisProfileStatus(null);
+      } else if (data.error) {
+        setAnalysisMode(null);
+        setAnalysisError(data.error);
+      }
+    }
+    if (data.type === "startProductAnalysis") {
+      if (data.jobId) {
+        setAnalysisProductJobId(data.jobId);
+        setAnalysisProductJob(null);
+      } else if (data.error) {
+        setAnalysisMode(null);
+        setAnalysisError(data.error);
+      }
+    }
+  }, [analysisFetcher.data]);
+
+  useEffect(() => {
+    const data = analysisProfilePollFetcher.data;
+    if (!data) return;
+    if (data.type === "pollBusinessAnalysis") {
+      setAnalysisProfileStatus(data.status);
+      if (data.status === "completed") {
+        setAnalysisProfileJobId(null);
+        setAnalysisMode(null);
+        setAnalysisResult("profile");
+        if (data.profile && data.profile.status !== "error") {
+          setProfileForDashboard(data.profile);
+        }
+      }
+      if (data.status === "failed" || data.status === "unknown") {
+        setAnalysisProfileJobId(null);
+        setAnalysisMode(null);
+        if (data.error) setAnalysisError(data.error);
+      }
+    }
+    if (data.type === "pollFullBusinessAnalysis") {
+      setAnalysisProfileStatus(data.status);
+      if (data.profile && data.profile.status !== "error") {
+        setProfileForDashboard(data.profile);
+      }
+      if (data.productJobId) {
+        setAnalysisProfileJobId(null);
+        setAnalysisProductJobId(data.productJobId);
+        setAnalysisProductJob(null);
+      }
+      if ((data.status === "failed" || data.status === "unknown") && !data.productJobId) {
+        setAnalysisProfileJobId(null);
+        setAnalysisMode(null);
+        if (data.error) setAnalysisError(data.error);
+      }
+    }
+  }, [analysisProfilePollFetcher.data]);
+
+  useEffect(() => {
+    const data = analysisProductPollFetcher.data;
+    if (data?.type !== "pollProductAnalysis") return;
+    if (data.error) {
+      setAnalysisProductJobId(null);
+      setAnalysisMode(null);
+      setAnalysisError(data.error);
+      return;
+    }
+    if (!data.job) return;
+    setAnalysisProductJob(data.job);
+    if (data.job.status === "completed") {
+      updateProductPacksFromJob(data.job);
+      setAnalysisProductJobId(null);
+      setAnalysisResult(analysisModeRef.current === "full" ? "full" : "products");
+      setAnalysisMode(null);
+    }
+    if (data.job.status === "failed") {
+      setAnalysisProductJobId(null);
+      setAnalysisMode(null);
+      setAnalysisError(data.job.error ?? "Analyse produits échouée");
+    }
+  }, [analysisProductPollFetcher.data]);
+
+  useEffect(() => {
+    if (!analysisProfileJobId) return;
+    const poll = () => {
+      const s = analysisProfileStatusRef.current;
+      if (s === "completed" || s === "failed") return;
+      const fd = new FormData();
+      fd.set(
+        "intent",
+        analysisModeRef.current === "full" ? "pollFullBusinessAnalysis" : "pollBusinessAnalysis",
+      );
+      fd.set("bizJobId", analysisProfileJobId);
+      analysisProfilePollRef.current.submit(fd, { method: "post" });
+    };
+    poll();
+    const id = setInterval(poll, 5_000);
+    return () => clearInterval(id);
+  }, [analysisProfileJobId]);
+
+  useEffect(() => {
+    if (!analysisProductJobId) return;
+    const poll = () => {
+      const s = analysisProductJobStatusRef.current;
+      if (s === "completed" || s === "failed") return;
+      const fd = new FormData();
+      fd.set("intent", "pollProductAnalysis");
+      fd.set("productJobId", analysisProductJobId);
+      analysisProductPollRef.current.submit(fd, { method: "post" });
+    };
+    poll();
+    const id = setInterval(poll, 5_000);
+    return () => clearInterval(id);
+  }, [analysisProductJobId]);
+
+  const isGlobalAnalysisRunning =
+    analysisMode !== null ||
+    analysisFetcher.state !== "idle" ||
+    analysisProfilePollFetcher.state !== "idle" ||
+    analysisProductPollFetcher.state !== "idle";
+
+  const handleFullAnalysis = () => {
+    resetAnalysisState("full");
+    setAnalysisProfileJobId(null);
+    setAnalysisProductJobId(null);
+    const fd = new FormData();
+    fd.set("intent", "startFullAnalysis");
+    analysisFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleProfileAnalysis = () => {
+    resetAnalysisState("profile");
+    setAnalysisProfileJobId(null);
+    setAnalysisProductJobId(null);
+    const fd = new FormData();
+    fd.set("intent", "startBusinessAnalysis");
+    analysisFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleProductAnalysis = () => {
+    resetAnalysisState("products");
+    setAnalysisProfileJobId(null);
+    setAnalysisProductJobId(null);
+    const fd = new FormData();
+    fd.set("intent", "startProductAnalysis");
+    analysisFetcher.submit(fd, { method: "post" });
+  };
+
   // ── Single-product market analysis (per active product) ───────────────────
   type SingleData =
     | { type: "startSingle"; jobId: string | null; productId: string; error: string | null }
@@ -1637,8 +2109,6 @@ export default function IndexPage() {
   const singleFetcher = useFetcher<SingleData>();
   const pollSingleFetcher = useFetcher<SingleData>();
 
-  // Local pack store, seeded from the loader and updated as analyses complete.
-  const [productPacks, setProductPacks] = useState<Record<string, ProductResult>>(productResults);
   const [singleProductId, setSingleProductId] = useState<string | null>(null);
   const [singleJobId, setSingleJobId] = useState<string | null>(null);
   const [singleStatus, setSingleStatus] = useState<string | undefined>(undefined);
@@ -1651,10 +2121,6 @@ export default function IndexPage() {
   singleStatusRef.current = singleStatus;
   singleProductIdRef.current = singleProductId;
   pollSingleRef.current = pollSingleFetcher;
-
-  useEffect(() => {
-    setProductPacks(productResults);
-  }, [productResults]);
 
   useEffect(() => {
     if (singleFetcher.data?.type === "startSingle" && singleFetcher.data.jobId) {
@@ -1793,8 +2259,20 @@ export default function IndexPage() {
         {/* Zone 1 — Store health */}
         <Zone1 data={zone1} locale={locale} />
 
+        <AnalysisControlPanel
+          locale={locale}
+          mode={analysisMode}
+          lastResult={analysisResult}
+          error={analysisError}
+          productJob={analysisProductJob}
+          disabled={isGlobalAnalysisRunning}
+          onFullAnalysis={handleFullAnalysis}
+          onProfileAnalysis={handleProfileAnalysis}
+          onProductAnalysis={handleProductAnalysis}
+        />
+
         {/* Business profile — niche, brand, personas, content style */}
-        <BusinessProfileSection initialProfile={businessProfile} competitorSignals={competitorSignals} locale={locale} />
+        <BusinessProfileSection initialProfile={profileForDashboard} competitorSignals={competitorSignals} locale={locale} />
 
         {/* Zone 2 — Active products */}
         <ActiveProductsCard
