@@ -292,6 +292,10 @@ Retourne 2-3 personas, 6-8 key_themes, 3-5 seasonal_patterns, les domaines concu
     if not profile.get("competitor_domains") and competitor_domains:
         profile["competitor_domains"] = competitor_domains
 
+    # The brand name is known deterministically (Shopify Admin API → snapshot → vendor → domain);
+    # never trust the LLM's guess, which may be "Non spécifié" or hallucinated.
+    profile["brand_name"] = brand_name
+
     profile["generated_at"] = datetime.now(UTC).isoformat()
     profile["status"] = "draft"
     profile["sources_used"] = sources_used

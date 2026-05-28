@@ -12,7 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
 
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
-from app.business_profile.analyzer import analyze_business_profile
+from app.business_profile.analyzer import _resolve_brand_name, analyze_business_profile
 from app.business_profile.jobs import (
     load_business_profile,
     load_business_profile_job,
@@ -142,6 +142,21 @@ async def get_business_profile_job(
     return job
 
 
+_PLACEHOLDER_BRAND_NAMES = {"", "non spécifié", "non specifie", "not specified", "n/a"}
+
+
+def _repair_brand_name(profile: dict[str, Any], ctx: ShopContext) -> dict[str, Any]:
+    """Backfill a deterministic brand name when an older/stored profile lacks one."""
+    current = str(profile.get("brand_name") or "").strip()
+    if current.lower() not in _PLACEHOLDER_BRAND_NAMES:
+        return profile
+    snapshot = _load_snapshot_safe(ctx)
+    resolved = _resolve_brand_name(ctx.shop, snapshot)
+    if resolved:
+        profile["brand_name"] = resolved
+    return profile
+
+
 @router.get("/shops/{shop}/business-profile/latest")
 async def get_latest_business_profile(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
@@ -149,13 +164,13 @@ async def get_latest_business_profile(
     """Return the last validated business profile, or the last completed job result."""
     validated = load_business_profile(ctx.shop)
     if validated is not None:
-        return validated
+        return _repair_brand_name(validated, ctx)
 
     job_result = load_business_profile_job(ctx.shop)
     if job_result is not None and job_result.get("status") == "completed":
         profile = job_result.get("profile")
         if isinstance(profile, dict):
-            return profile
+            return _repair_brand_name(profile, ctx)
 
     raise HTTPException(status_code=404, detail="Aucun profil entreprise disponible")
 
