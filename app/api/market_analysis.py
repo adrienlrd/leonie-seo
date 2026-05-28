@@ -10,6 +10,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_days
 from app.api.deps import ShopContext, get_shop_context
+from app.business_profile.context import (
+    build_business_profile_context_meta,
+    resolve_business_profile_context_status,
+)
+from app.business_profile.jobs import load_business_profile
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.market_analysis.competitors import load_competitors, save_competitors
 from app.market_analysis.engine import run_market_analysis
@@ -52,6 +57,54 @@ _MERCHANT_FACT_KEYS = frozenset(
         "selection_criteria",
     }
 )
+
+
+def _stored_business_profile_context_hash(context: Any) -> str | None:
+    if not isinstance(context, dict):
+        return None
+    value = context.get("hash")
+    return value if isinstance(value, str) and value else None
+
+
+def _attach_business_profile_context_status(
+    result: dict[str, Any],
+    current_profile: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Attach freshness metadata comparing stored analysis context to current profile."""
+    current_context = build_business_profile_context_meta(current_profile)
+    top_context = result.get("business_profile_context")
+    top_hash = _stored_business_profile_context_hash(top_context)
+    top_status = resolve_business_profile_context_status(top_hash, current_profile)
+
+    enriched = dict(result)
+    product_statuses: list[str] = []
+    products: list[dict[str, Any]] = []
+    raw_products = result.get("products", [])
+    if not isinstance(raw_products, list):
+        raw_products = []
+    for product in raw_products:
+        if not isinstance(product, dict):
+            continue
+        product_copy = dict(product)
+        product_hash = product_copy.get("business_profile_context_hash")
+        if not isinstance(product_hash, str) or not product_hash:
+            product_hash = top_hash
+        product_status = resolve_business_profile_context_status(product_hash, current_profile)
+        product_copy["business_profile_context_status"] = product_status
+        product_statuses.append(product_status)
+        products.append(product_copy)
+
+    overall_status = top_status
+    if current_context.get("hash"):
+        if top_status == "stale" or "stale" in product_statuses:
+            overall_status = "stale"
+        elif top_status == "unknown" or "unknown" in product_statuses:
+            overall_status = "unknown"
+
+    enriched["business_profile_context_status"] = overall_status
+    enriched["current_business_profile_context"] = current_context
+    enriched["products"] = products
+    return enriched
 
 
 def _load_gsc_query_rows(shop: str) -> list[dict[str, Any]]:
@@ -135,6 +188,7 @@ def _run_analysis_background(
     plan: str | None = None,
     merchant_facts_by_product: dict[str, dict[str, str]] | None = None,
     persist_product_results: bool = False,
+    business_profile: dict[str, Any] | None = None,
 ) -> None:
     """Background task: runs the full analysis and updates the job store incrementally."""
 
@@ -183,6 +237,7 @@ def _run_analysis_background(
             product_labels=identifications or None,
             plan=plan,
             merchant_facts_by_product=merchant_facts_by_product,
+            business_profile=business_profile,
             progress_callback=_on_progress,
         )
         completed_data: dict[str, Any] = {
@@ -196,15 +251,17 @@ def _run_analysis_background(
             "sources_used": result["sources_used"],
             "provider_status": result.get("provider_status", {}),
             "competitor_signals": result.get("competitor_signals", []),
+            "business_profile_context": result.get("business_profile_context", {}),
             "products": result["products"],
             "progress": result["analyzed_product_count"],
             "total": result["analyzed_product_count"],
             "error": None,
         }
+        completed_data = _attach_business_profile_context_status(completed_data, business_profile)
         if persist:
             save_latest_result(shop_domain, completed_data)
         elif persist_product_results:
-            for product_result in result["products"]:
+            for product_result in completed_data["products"]:
                 replace_product_analysis(shop_domain, product_result, result["analyzed_at"])
         update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
     except Exception as exc:
@@ -314,6 +371,7 @@ async def start_market_analysis_job(
     ga4_page_rows = _load_ga4_page_rows(ctx.shop)
     identifications = load_identifications(ctx.shop)  # {} if none saved yet
     merchant_facts = load_merchant_facts(ctx.shop)
+    business_profile = load_business_profile(ctx.shop)
 
     job_id = create_job(ctx.shop)
 
@@ -332,6 +390,7 @@ async def start_market_analysis_job(
         plan,
         merchant_facts or None,
         persist_product_result,
+        business_profile,
     )
 
     age = _snapshot_age_days(snapshot)
@@ -358,7 +417,7 @@ async def get_latest_market_analysis(
     result = load_latest_result(ctx.shop)
     if result is None:
         raise HTTPException(status_code=404, detail="Aucune analyse précédente disponible")
-    return result
+    return _attach_business_profile_context_status(result, load_business_profile(ctx.shop))
 
 
 @router.patch("/shops/{shop}/market-analysis/proposals/{product_id:path}")
@@ -455,6 +514,7 @@ async def run_market_analysis_endpoint(
 
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
     merchant_facts = load_merchant_facts(ctx.shop)
+    business_profile = load_business_profile(ctx.shop)
 
     try:
         result = run_market_analysis(
@@ -467,9 +527,13 @@ async def run_market_analysis_endpoint(
             max_products=max_products,
             plan=plan,
             merchant_facts_by_product=merchant_facts or None,
+            business_profile=business_profile,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erreur analyse marché : {exc}") from exc
 
     age = _snapshot_age_days(snapshot)
-    return {**result, "snapshot_age_days": age}
+    return {
+        **_attach_business_profile_context_status(result, business_profile),
+        "snapshot_age_days": age,
+    }

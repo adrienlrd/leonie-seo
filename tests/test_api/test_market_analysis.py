@@ -8,9 +8,11 @@ from unittest.mock import patch
 
 from app.api.market_analysis import (
     _run_analysis_background,
+    get_latest_market_analysis,
     patch_market_analysis_proposals,
     save_market_analysis_facts,
 )
+from app.business_profile.context import build_business_profile_context_meta
 
 
 def _analysis_result() -> dict:
@@ -53,6 +55,31 @@ def test_faq_is_not_published_when_analysis_job_completes() -> None:
 
     persisted = save_result.call_args.args[1]
     assert "faq_sync" not in persisted["products"][0]["content_test_pack"]
+
+
+def test_analysis_background_passes_validated_business_profile_to_engine() -> None:
+    """Product analysis uses the merchant-validated strategic profile when provided."""
+    profile = {"brand_name": "Léonie", "status": "validated"}
+    with (
+        patch(
+            "app.api.market_analysis.run_market_analysis", return_value=_analysis_result()
+        ) as run,
+        patch("app.api.market_analysis.save_latest_result"),
+        patch("app.api.market_analysis.update_job"),
+    ):
+        _run_analysis_background(
+            "job-profile",
+            [],
+            "shop.myshopify.com",
+            {},
+            [],
+            {},
+            None,
+            None,
+            business_profile=profile,
+        )
+
+    assert run.call_args.kwargs["business_profile"] == profile
 
 
 def test_faq_is_not_published_when_edited_proposal_is_saved() -> None:
@@ -131,6 +158,48 @@ def test_fact_enriched_single_generation_replaces_proposal_without_shopify_write
     save_result.assert_not_called()
     replace_product.assert_called_once_with(
         "shop.myshopify.com",
-        _analysis_result()["products"][0],
+        {
+            **_analysis_result()["products"][0],
+            "business_profile_context_status": "missing_profile",
+        },
         "2026-05-27T10:00:00+00:00",
     )
+
+
+def test_latest_analysis_marks_context_current_when_profile_hash_matches() -> None:
+    """The latest endpoint reports that products used the current business profile."""
+    profile = {"brand_name": "Léonie", "niche_summary": "Accessoires premium."}
+    result = _analysis_result()
+    context = build_business_profile_context_meta(profile)
+    result["business_profile_context"] = context
+    result["products"][0]["business_profile_context_hash"] = context["hash"]
+    ctx = SimpleNamespace(shop="shop.myshopify.com")
+
+    with (
+        patch("app.api.market_analysis.load_latest_result", return_value=result),
+        patch("app.api.market_analysis.load_business_profile", return_value=profile),
+    ):
+        latest = asyncio.run(get_latest_market_analysis(ctx=ctx))
+
+    assert latest["business_profile_context_status"] == "current"
+    assert latest["products"][0]["business_profile_context_status"] == "current"
+
+
+def test_latest_analysis_marks_context_stale_when_profile_hash_changed() -> None:
+    """The latest endpoint flags products generated with an older business profile."""
+    old_profile = {"brand_name": "Léonie", "niche_summary": "Accessoires premium."}
+    current_profile = {"brand_name": "Léonie", "niche_summary": "Accessoires chats urbains."}
+    result = _analysis_result()
+    context = build_business_profile_context_meta(old_profile)
+    result["business_profile_context"] = context
+    result["products"][0]["business_profile_context_hash"] = context["hash"]
+    ctx = SimpleNamespace(shop="shop.myshopify.com")
+
+    with (
+        patch("app.api.market_analysis.load_latest_result", return_value=result),
+        patch("app.api.market_analysis.load_business_profile", return_value=current_profile),
+    ):
+        latest = asyncio.run(get_latest_market_analysis(ctx=ctx))
+
+    assert latest["business_profile_context_status"] == "stale"
+    assert latest["products"][0]["business_profile_context_status"] == "stale"

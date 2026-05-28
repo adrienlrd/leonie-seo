@@ -9,6 +9,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from app.business_profile.context import build_business_profile_context_meta
 from app.geo.facts import analyze_product_facts
 from app.llm import LLMError, get_router
 from app.market_analysis.competitors import build_competitor_signals
@@ -297,6 +298,7 @@ def _build_pass1_prompt(
     stock_qty: int | None,
     stock_status: str,
     merchant_label: str = "",
+    business_context: str = "",
 ) -> str:
     queries_text = ", ".join(matched_queries[:5]) if matched_queries else "aucune donnée GSC"
     collections_text = ", ".join(collections) if collections else "aucune"
@@ -325,10 +327,12 @@ def _build_pass1_prompt(
         trend_text = "aucune donnée Trends disponible"
 
     merchant_label_text = f"LABEL SEO MARCHAND: {merchant_label}\n" if merchant_label else ""
+    business_context_text = f"{business_context}\n" if business_context else ""
 
     return (
         f"DATE_ACTUELLE: {today} (année {current_year})\n"
         f"NICHE: {niche_summary or 'Non définie'}\n"
+        f"{business_context_text}"
         f"PRODUIT: {product_title} | handle: {handle} | prix: {price or 'non renseigné'}"
         f" | {nb_variants} variante(s)\n"
         f"{merchant_label_text}"
@@ -442,6 +446,7 @@ def _build_pass2_prompt(
     missing_facts: list[dict[str, Any]] | None = None,
     surface_plan: dict[str, Any] | None = None,
     forbidden_phrases: list[str] | None = None,
+    business_context: str = "",
 ) -> str:
     """Build the pass-2 (content) prompt with strict per-field rules.
 
@@ -558,6 +563,7 @@ def _build_pass2_prompt(
         f"NICHE: {niche_summary or 'Non définie'}",
         f"PRODUIT: {product_title} | handle: {handle}",
         merchant_label_text,
+        business_context,
         f"META TITLE ACTUEL: {current_meta_title or 'absent'}",
         f"META DESCRIPTION ACTUELLE: {current_meta_description or 'absente'}",
         "",
@@ -746,6 +752,73 @@ def _filter_domain_competitors(
         and str(s.get("domain", "")).strip().lower() not in _GENERIC_DOMAINS
     ]
     return sorted(filtered, key=lambda s: s.get("estimated_strength", 0), reverse=True)[:limit]
+
+
+def _format_business_profile_context(profile: dict[str, Any] | None) -> str:
+    """Return a compact validated business profile block for LLM prompts."""
+    if not isinstance(profile, dict):
+        return ""
+
+    def _take(values: Any, limit: int = 6) -> list[str]:
+        return [
+            _coerce_str(value).strip()
+            for value in _coerce_list(values)[:limit]
+            if _coerce_str(value).strip()
+        ]
+
+    content_style = (
+        profile.get("content_style") if isinstance(profile.get("content_style"), dict) else {}
+    )
+    personas = (
+        profile.get("target_personas") if isinstance(profile.get("target_personas"), list) else []
+    )
+    persona_lines = []
+    for persona in personas[:3]:
+        if not isinstance(persona, dict):
+            continue
+        name = _coerce_str(persona.get("name", "")).strip()
+        need = _coerce_str(persona.get("main_need", "")).strip()
+        trigger = _coerce_str(persona.get("buying_trigger", "")).strip()
+        if name or need or trigger:
+            persona_lines.append(f"{name}: besoin={need}; déclencheur={trigger}".strip())
+
+    lines = [
+        "=== PROFIL ENTREPRISE VALIDÉ — CONTEXTE STRATÉGIQUE À RESPECTER ===",
+        f"Marque: {_coerce_str(profile.get('brand_name', '')).strip() or 'non définie'}",
+        f"Résumé niche: {_coerce_str(profile.get('niche_summary', '')).strip() or 'non défini'}",
+        f"Voix de marque: {_coerce_str(profile.get('brand_voice', '')).strip() or 'non définie'}",
+        f"Ton éditorial: {_coerce_str(content_style.get('tone', '')).strip() or 'non défini'}",
+    ]
+
+    if persona_lines:
+        lines.append("Personas prioritaires: " + " | ".join(persona_lines))
+    key_themes = _take(profile.get("key_themes"), 8)
+    if key_themes:
+        lines.append("Thèmes éditoriaux prioritaires: " + ", ".join(key_themes))
+    vocabulary_to_use = _take(content_style.get("vocabulary_to_use"), 8)
+    if vocabulary_to_use:
+        lines.append("Vocabulaire à utiliser: " + ", ".join(vocabulary_to_use))
+    vocabulary_to_avoid = _take(content_style.get("vocabulary_to_avoid"), 8)
+    if vocabulary_to_avoid:
+        lines.append("Vocabulaire à éviter: " + ", ".join(vocabulary_to_avoid))
+    competitor_domains = _take(profile.get("competitor_domains"), 10)
+    if competitor_domains:
+        lines.append("Concurrents connus: " + ", ".join(competitor_domains))
+    competitor_insights = _take(profile.get("competitor_insights"), 5)
+    if competitor_insights:
+        lines.append("Observations concurrentielles: " + " | ".join(competitor_insights))
+    content_gaps = _take(profile.get("content_gaps"), 5)
+    if content_gaps:
+        lines.append("Lacunes de contenu à exploiter: " + " | ".join(content_gaps))
+    internal_links = _take(profile.get("internal_link_priorities"), 8)
+    if internal_links:
+        lines.append("Priorités de maillage interne: " + ", ".join(internal_links))
+
+    lines.append(
+        "Utilise ce contexte pour choisir les angles, la voix, les différenciations et les sujets support, "
+        "mais n'en déduis jamais des faits produit non confirmés."
+    )
+    return "\n".join(lines)
 
 
 def _find_parent_keyword_data(
@@ -1076,7 +1149,12 @@ def _build_surface_plan(
         },
         "blog": {
             "generate": has_primary_target
-            and (has_paa or has_informational_target or has_merchant_support_topic or has_informative_fact),
+            and (
+                has_paa
+                or has_informational_target
+                or has_merchant_support_topic
+                or has_informative_fact
+            ),
             "reason": (
                 "informational_demand_and_verified_facts_available"
                 if has_informative_fact and (has_paa or has_informational_target)
@@ -1626,6 +1704,7 @@ def _build_product_result(
     opportunity: dict[str, Any],
     llm_pack: dict[str, Any],
     shop: str,
+    business_profile_context_hash: str | None = None,
 ) -> dict[str, Any]:
     product_id = str(product.get("id", ""))
     product_title = product.get("title", "")
@@ -1692,6 +1771,10 @@ def _build_product_result(
         ),
         "opportunity_score": opportunity.get("opportunity_score", 0),
         "sources_used": opportunity.get("sources_used", []),
+        "business_profile_context_hash": business_profile_context_hash,
+        "business_profile_context_status": (
+            "current" if business_profile_context_hash else "missing_profile"
+        ),
     }
 
 
@@ -2025,6 +2108,7 @@ def run_market_analysis(
     product_labels: dict[str, str] | None = None,
     plan: str | None = None,
     merchant_facts_by_product: dict[str, dict[str, str]] | None = None,
+    business_profile: dict[str, Any] | None = None,
     progress_callback: Callable[..., None] | None = None,
 ) -> dict[str, Any]:
     """Run a two-pass SEO/GEO market analysis for active products.
@@ -2061,6 +2145,11 @@ def run_market_analysis(
         sources_used.append("niche_hypothesis")
     niche_summary: str = niche_hypothesis.get("primary_niche", "") if niche_hypothesis else ""
     forbidden_phrases = _forbidden_phrases_from_niche(niche_hypothesis)
+    business_context = _format_business_profile_context(business_profile)
+    business_profile_context = build_business_profile_context_meta(business_profile)
+    business_profile_context_hash = business_profile_context.get("hash")
+    if business_context:
+        sources_used.append("business_profile")
 
     # Fetch Google Trends once — use top-5 product titles as seeds
     top_titles = [
@@ -2125,6 +2214,7 @@ def run_market_analysis(
             stock_qty=fields["stock_qty"],
             stock_status=fields["stock_status"],
             merchant_label=fields["merchant_label"],
+            business_context=business_context,
         )
         fallback = _fallback_pack(
             fields["product_title"],
@@ -2147,7 +2237,13 @@ def run_market_analysis(
         if progress_callback is not None:
             try:
                 partial = [
-                    _build_product_result(s["product"], s["opp"], s["pack"], shop)
+                    _build_product_result(
+                        s["product"],
+                        s["opp"],
+                        s["pack"],
+                        shop,
+                        business_profile_context_hash,
+                    )
                     for s in pass1_states
                 ]
                 progress_callback(idx + 1, total, partial, "targeting")
@@ -2271,6 +2367,7 @@ def run_market_analysis(
                 missing_facts=fields.get("missing_facts", []),
                 surface_plan=pack.get("surface_plan", {}),
                 forbidden_phrases=forbidden_phrases,
+                business_context=business_context,
             )
             pack = _complete_json(
                 llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192
@@ -2315,7 +2412,15 @@ def run_market_analysis(
             surface_plan=pack.get("surface_plan", {}),
             forbidden_phrases=forbidden_phrases,
         )
-        product_results.append(_build_product_result(state["product"], state["opp"], pack, shop))
+        product_results.append(
+            _build_product_result(
+                state["product"],
+                state["opp"],
+                pack,
+                shop,
+                business_profile_context_hash,
+            )
+        )
         if progress_callback is not None:
             try:
                 progress_callback(idx + 1, total, list(product_results), "content")
@@ -2337,6 +2442,7 @@ def run_market_analysis(
         "sources_used": sources_used,
         "provider_status": provider_status,
         "competitor_signals": competitor_signals,
+        "business_profile_context": business_profile_context,
         "products": product_results,
         "budget": budget_status,
     }

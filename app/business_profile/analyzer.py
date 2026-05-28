@@ -120,24 +120,86 @@ def _resolve_brand_name(shop: str, snapshot: dict[str, Any], shop_name_hint: str
     return shop.removesuffix(".myshopify.com")
 
 
-def _load_market_analysis_competitors(shop: str) -> list[str]:
-    """Extract unique competitor domains from the latest market analysis result."""
+def _append_unique(values: list[str], value: Any, *, limit: int) -> None:
+    """Append a non-empty string while preserving order and a maximum length."""
+    text = str(value or "").strip()
+    if text and text not in values and len(values) < limit:
+        values.append(text)
+
+
+def _load_market_analysis_context(shop: str) -> dict[str, Any]:
+    """Extract strategic market signals from the latest product analysis."""
+    context: dict[str, Any] = {
+        "competitor_domains": [],
+        "keyword_themes": [],
+        "geo_questions": [],
+        "priority_products": [],
+        "content_gaps": [],
+    }
     try:
         from app.market_analysis.jobs import load_latest_result  # noqa: PLC0415
 
         result = load_latest_result(shop)
         if not result:
-            return []
-        seen: set[str] = set()
-        domains: list[str] = []
+            return context
+
         for sig in result.get("competitor_signals") or []:
             domain = str(sig.get("domain") or "").strip().lower()
-            if domain and domain not in seen:
-                seen.add(domain)
-                domains.append(domain)
-        return domains[:10]
+            _append_unique(context["competitor_domains"], domain, limit=10)
+
+        products = result.get("products") or []
+        if not isinstance(products, list):
+            return context
+
+        sorted_products = sorted(
+            [p for p in products if isinstance(p, dict)],
+            key=lambda p: int(p.get("opportunity_score", 0) or 0),
+            reverse=True,
+        )
+        for product in sorted_products[:8]:
+            title = str(product.get("product_title") or "").strip()
+            handle = str(product.get("product_handle") or "").strip()
+            keywords: list[str] = []
+            for keyword in product.get("seo_keywords") or []:
+                if not isinstance(keyword, dict):
+                    continue
+                query = str(keyword.get("query") or "").strip()
+                role = str(keyword.get("target_role") or "")
+                if role in {"primary", "secondary"}:
+                    _append_unique(keywords, query, limit=5)
+                _append_unique(context["keyword_themes"], query, limit=25)
+            if title or keywords:
+                context["priority_products"].append(
+                    {
+                        "title": title,
+                        "handle": handle,
+                        "opportunity_score": product.get("opportunity_score", 0),
+                        "keywords": keywords,
+                    }
+                )
+            for question in product.get("geo_questions") or []:
+                if isinstance(question, dict):
+                    _append_unique(context["geo_questions"], question.get("question"), limit=20)
+            pack = (
+                product.get("content_test_pack")
+                if isinstance(product.get("content_test_pack"), dict)
+                else {}
+            )
+            for missing_fact in pack.get("facts_missing") or []:
+                _append_unique(context["content_gaps"], missing_fact, limit=20)
+            quality = (
+                pack.get("content_quality") if isinstance(pack.get("content_quality"), dict) else {}
+            )
+            for issue in quality.get("issues") or []:
+                _append_unique(context["content_gaps"], issue, limit=20)
+        return context
     except Exception:
-        return []
+        return context
+
+
+def _load_market_analysis_competitors(shop: str) -> list[str]:
+    """Extract unique competitor domains from the latest market analysis result."""
+    return list(_load_market_analysis_context(shop).get("competitor_domains", []))
 
 
 def analyze_business_profile(
@@ -164,13 +226,18 @@ def analyze_business_profile(
     paa_questions = serp_data["paa_questions"]
     blog_results = serp_data["blog_results"]
 
-    # Prefer market analysis domain competitors (already computed via DataForSEO domain API)
-    market_competitors = _load_market_analysis_competitors(shop)
+    market_context = _load_market_analysis_context(shop)
+    market_competitors = list(market_context.get("competitor_domains", []))
     competitor_domains = market_competitors or serp_data["competitor_domains"]
 
     sources_used: list[str] = ["shopify_snapshot"]
     if top_queries:
         sources_used.append("gsc_queries")
+    if any(
+        market_context.get(key)
+        for key in ("keyword_themes", "geo_questions", "priority_products", "content_gaps")
+    ):
+        sources_used.append("market_analysis_product_signals")
     if market_competitors:
         sources_used.append("market_analysis_competitors")
     elif serp_data["competitor_domains"] or blog_results:
@@ -198,6 +265,15 @@ def analyze_business_profile(
     blog_text = json.dumps(blog_results, ensure_ascii=False) if blog_results else "[]"
     domains_text = ", ".join(competitor_domains) if competitor_domains else "aucun détecté"
     paa_text = json.dumps(paa_questions, ensure_ascii=False) if paa_questions else "[]"
+    market_context_text = json.dumps(
+        {
+            "keyword_themes": market_context.get("keyword_themes", [])[:20],
+            "geo_questions": market_context.get("geo_questions", [])[:15],
+            "priority_products": market_context.get("priority_products", [])[:8],
+            "content_gaps": market_context.get("content_gaps", [])[:12],
+        },
+        ensure_ascii=False,
+    )
 
     prompt = f"""Tu es expert en stratégie de contenu SEO e-commerce.
 {focus_hint}
@@ -216,6 +292,9 @@ Questions "People Also Ask" détectées :
 
 Articles de blog concurrents (titre + snippet) :
 {blog_text}
+
+Signaux observés dans l'analyse produits précédente :
+{market_context_text}
 {niche_hint}
 
 Analyse cette boutique et retourne UNIQUEMENT un objet JSON valide (pas de markdown, pas de texte avant/après) avec exactement ces clés :
@@ -253,7 +332,8 @@ Analyse cette boutique et retourne UNIQUEMENT un objet JSON valide (pas de markd
   "internal_link_priorities": ["handle-produit-1", "handle-produit-2"]
 }}
 
-Retourne 2-3 personas, 6-8 key_themes, 3-5 seasonal_patterns, les domaines concurrents réels détectés, 3-5 competitor_insights, 3-5 content_gaps, 5-8 internal_link_priorities."""
+Retourne 2-3 personas, 6-8 key_themes, 3-5 seasonal_patterns, les domaines concurrents réels détectés, 3-5 competitor_insights, 3-5 content_gaps, 5-8 internal_link_priorities.
+Les signaux produits observés doivent améliorer la compréhension entreprise : récurrence des besoins, concurrents, questions clients, familles de mots-clés et produits piliers."""
 
     try:
         from app.llm import LLMError, get_router  # noqa: PLC0415
@@ -300,7 +380,11 @@ Retourne 2-3 personas, 6-8 key_themes, 3-5 seasonal_patterns, les domaines concu
     domain_prefix = shop.removesuffix(".myshopify.com")
     snapshot_name = str((snapshot.get("shop") or {}).get("name") or "").strip()
     real_name = next(
-        (n for n in (shop_name_hint.strip(), snapshot_name) if n and n.lower() != domain_prefix.lower()),
+        (
+            n
+            for n in (shop_name_hint.strip(), snapshot_name)
+            if n and n.lower() != domain_prefix.lower()
+        ),
         "",
     )
     llm_name = str(profile.get("brand_name") or "").strip()

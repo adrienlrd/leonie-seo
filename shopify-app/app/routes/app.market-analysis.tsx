@@ -30,6 +30,7 @@ import { ProductContentProposals } from "../components/ProductContentProposals";
 
 type KeywordSource = "gsc" | "ga4" | "trends" | "shopify" | "llm_estimated" | "dataforseo" | "google_ads" | "parent_estimated";
 type DifficultySource = "free_estimated" | "dataforseo" | "google_ads";
+type BusinessProfileContextStatus = "current" | "stale" | "unknown" | "missing_profile";
 
 interface SeoKeyword {
   query: string;
@@ -71,6 +72,14 @@ interface ProviderStatus {
   free?: boolean;
   dataforseo?: boolean;
   google_ads?: boolean;
+}
+
+interface BusinessProfileContextMeta {
+  hash?: string | null;
+  status?: string;
+  field_names?: string[];
+  brand_name?: string | null;
+  generated_at?: string | null;
 }
 
 interface GeoQuestion {
@@ -150,6 +159,8 @@ interface ProductResult {
   confidence: string;
   opportunity_score: number;
   sources_used: string[];
+  business_profile_context_hash?: string | null;
+  business_profile_context_status?: BusinessProfileContextStatus;
 }
 
 interface JobState {
@@ -166,6 +177,9 @@ interface JobState {
   sources_used: string[];
   provider_status?: ProviderStatus;
   competitor_signals?: CompetitorSignal[];
+  business_profile_context?: BusinessProfileContextMeta;
+  current_business_profile_context?: BusinessProfileContextMeta;
+  business_profile_context_status?: BusinessProfileContextStatus;
   error: string | null;
   // identification job fields
   labels?: Record<string, string>;
@@ -720,6 +734,8 @@ function KeywordSourceBadge({ source, locale }: { source: KeywordSource | undefi
 }
 
 function SummaryCard({ job, locale }: { job: JobState; locale: Locale }) {
+  const contextStatus = job.business_profile_context_status;
+
   return (
     <Card>
       <BlockStack gap="200">
@@ -737,10 +753,62 @@ function SummaryCard({ job, locale }: { job: JobState; locale: Locale }) {
             <strong>{job.total_opportunity_count}</strong>{" "}
             {t(locale, "marketAnalysisOpportunityCount")}
           </Text>
+          {contextStatus === "current" && (
+            <Badge tone="success">{t(locale, "marketAnalysisProfileContextCurrent")}</Badge>
+          )}
+          {contextStatus === "stale" && (
+            <Badge tone="attention">{t(locale, "marketAnalysisProfileContextStaleBadge")}</Badge>
+          )}
+          {contextStatus === "unknown" && (
+            <Badge tone="attention">{t(locale, "marketAnalysisProfileContextUnknownBadge")}</Badge>
+          )}
         </InlineStack>
       </BlockStack>
     </Card>
   );
+}
+
+function BusinessProfileContextBanner({
+  job,
+  locale,
+  onRerun,
+  disabled,
+}: {
+  job: JobState | null;
+  locale: Locale;
+  onRerun: () => void;
+  disabled: boolean;
+}) {
+  if (job?.status !== "completed") return null;
+  if (job.business_profile_context_status === "stale") {
+    return (
+      <Banner tone="warning" title={t(locale, "marketAnalysisProfileContextStaleTitle")}>
+        <BlockStack gap="200">
+          <Text as="p">{t(locale, "marketAnalysisProfileContextStaleBody")}</Text>
+          <InlineStack>
+            <Button onClick={onRerun} disabled={disabled}>
+              {t(locale, "marketAnalysisAnalyzeAll")}
+            </Button>
+          </InlineStack>
+        </BlockStack>
+      </Banner>
+    );
+  }
+  if (job.business_profile_context_status === "unknown") {
+    return (
+      <Banner tone="info" title={t(locale, "marketAnalysisProfileContextUnknownTitle")}>
+        <BlockStack gap="200">
+          <Text as="p">{t(locale, "marketAnalysisProfileContextUnknownBody")}</Text>
+          <InlineStack>
+            <Button onClick={onRerun} disabled={disabled}>
+              {t(locale, "marketAnalysisAnalyzeAll")}
+            </Button>
+          </InlineStack>
+        </BlockStack>
+      </Banner>
+    );
+  }
+  return null;
 }
 
 function ProductCard({
@@ -793,6 +861,12 @@ function ProductCard({
             <Badge tone={scoreTone(100 - product.opportunity_score)}>
               {`Potentiel SEO ${100 - product.opportunity_score}/100`}
             </Badge>
+            {product.business_profile_context_status === "stale" && (
+              <Badge tone="attention">{t(locale, "marketAnalysisProfileContextStaleBadge")}</Badge>
+            )}
+            {product.business_profile_context_status === "unknown" && (
+              <Badge tone="attention">{t(locale, "marketAnalysisProfileContextUnknownBadge")}</Badge>
+            )}
             {coverageTargets.length > 0 && (
               <Badge
                 tone={
@@ -1579,6 +1653,13 @@ export default function MarketAnalysisPage() {
                 <Text as="p">{t(locale, "marketAnalysisAnalyzeAllWarning")}</Text>
               </Modal.Section>
             </Modal>
+
+            <BusinessProfileContextBanner
+              job={job}
+              locale={locale}
+              onRerun={() => setShowRerunModal(true)}
+              disabled={isInProgress}
+            />
 
             {/* Action buttons (re-run / edit identification) */}
             {job?.status === "completed" && (

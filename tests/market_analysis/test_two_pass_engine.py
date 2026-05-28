@@ -163,7 +163,7 @@ def _router(*texts):
     return router
 
 
-def _run(router, *, dataforseo, over_budget=False, crawl_findings=None):
+def _run(router, *, dataforseo, over_budget=False, crawl_findings=None, business_profile=None):
     budget = {
         "over_budget": over_budget,
         "budget_usd": 20.0,
@@ -184,6 +184,7 @@ def _run(router, *, dataforseo, over_budget=False, crawl_findings=None):
             {},
             [],
             crawl_findings=crawl_findings,
+            business_profile=business_profile,
         )
 
 
@@ -229,6 +230,50 @@ def test_free_mode_runs_pass2_without_serp_block():
     assert "=== CONCURRENTS SERP" not in pass2_prompt
     # Content still generated.
     assert result["products"][0]["content_test_pack"]["proposed_meta_title"]
+
+
+def test_business_profile_context_feeds_product_targeting_and_content_prompts():
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    profile = {
+        "status": "validated",
+        "brand_name": "Léonie",
+        "niche_summary": "Accessoires premium pour chats urbains.",
+        "brand_voice": "Expert, rassurant et précis.",
+        "target_personas": [
+            {
+                "name": "Propriétaire exigeant",
+                "main_need": "Choisir un accessoire fiable",
+                "buying_trigger": "Remplacer un produit bas de gamme",
+            }
+        ],
+        "content_style": {
+            "tone": "expert et pédagogique",
+            "vocabulary_to_use": ["hydratation", "entretien simple"],
+            "vocabulary_to_avoid": ["miracle"],
+        },
+        "key_themes": ["bien-être félin", "maison propre"],
+        "competitor_domains": ["competitor.example"],
+        "competitor_insights": ["Les concurrents insistent sur le silence."],
+        "content_gaps": ["Guide de choix par usage"],
+        "internal_link_priorities": ["fontaine-chat"],
+    }
+
+    result = _run(router, dataforseo=_FakeDataForSEO(), business_profile=profile)
+
+    pass1_prompt = router.complete.call_args_list[0].args[0]
+    pass2_prompt = router.complete.call_args_list[1].args[0]
+    assert "PROFIL ENTREPRISE VALIDÉ" in pass1_prompt
+    assert "Accessoires premium pour chats urbains" in pass1_prompt
+    assert "Propriétaire exigeant" in pass2_prompt
+    assert "competitor.example" in pass2_prompt
+    assert "Guide de choix par usage" in pass2_prompt
+    assert "business_profile" in result["sources_used"]
+    assert result["business_profile_context"]["hash"]
+    assert (
+        result["products"][0]["business_profile_context_hash"]
+        == result["business_profile_context"]["hash"]
+    )
+    assert result["products"][0]["business_profile_context_status"] == "current"
 
 
 def test_over_budget_skips_pass2_keeps_keywords():
@@ -402,7 +447,9 @@ def test_content_quality_blocks_unverified_product_claim() -> None:
     assert "performance" in quality["unsupported_claim_categories"]
 
 
-def test_surface_plan_skips_facts_surfaces_without_verified_value_but_allows_blog_with_paa() -> None:
+def test_surface_plan_skips_facts_surfaces_without_verified_value_but_allows_blog_with_paa() -> (
+    None
+):
     # No confirmed facts → product_description/faq/geo blocked.
     # PAA present → blog allowed (blog does not require confirmed facts).
     keywords = [

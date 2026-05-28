@@ -170,6 +170,7 @@ interface BusinessProfile {
   internal_link_priorities: string[];
   generated_at: string;
   status: "draft" | "validated" | "error";
+  sources_used?: string[];
 }
 
 interface LoaderData {
@@ -1388,6 +1389,9 @@ function BusinessProfileSection({
           {bizDraft && bizDraft.status !== "validated" && (
             <Badge tone="info">{locale === "fr" ? "Brouillon" : "Draft"}</Badge>
           )}
+          {displayProfile?.sources_used?.includes("market_analysis_product_signals") && (
+            <Badge tone="info">{t(locale, "businessProfileProductSignals")}</Badge>
+          )}
         </InlineStack>
         <InlineStack gap="200">
           {displayProfile && (
@@ -1508,6 +1512,9 @@ function BusinessProfileSection({
       {keywordsModal}
       {editModal}
       {headerCard}
+      <Banner tone="info">
+        <Text as="p">{t(locale, "businessProfileLoopHint")}</Text>
+      </Banner>
       {isAnalyzing && (
         <Banner tone="info">
           <InlineStack gap="200" blockAlign="center" align="start">
