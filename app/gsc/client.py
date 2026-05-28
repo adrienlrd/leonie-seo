@@ -11,12 +11,13 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import google.auth.exceptions
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
-from app.gsc.token_store import get_google_token, save_google_token
+from app.gsc.token_store import delete_google_token, get_google_token, save_google_token
 from app.tenant_config import find_tenant_by_shop_domain
 
 logger = logging.getLogger(__name__)
@@ -108,8 +109,17 @@ def _credentials_for_shop(shop: str) -> Credentials:
         raise GSCConnectionError("Google Search Console is not connected for this shop")
     credentials = Credentials.from_authorized_user_info(json.loads(record["token_json"]), GSC_SCOPES)
     if credentials.expired and credentials.refresh_token:
-        credentials.refresh(Request())
-        save_credentials(shop, credentials)
+        try:
+            credentials.refresh(Request())
+            save_credentials(shop, credentials)
+        except google.auth.exceptions.RefreshError as exc:
+            # Token revoked or permanently expired — clear it so the next call fails
+            # immediately (not-connected) instead of looping through a doomed refresh.
+            delete_google_token(shop)
+            raise GSCConnectionError(
+                "Google Search Console authorization has been revoked. "
+                "Please reconnect GSC from the app settings."
+            ) from exc
     if not credentials.valid:
         raise GSCConnectionError("Google Search Console credentials are invalid")
     return credentials

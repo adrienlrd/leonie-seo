@@ -4,9 +4,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-from app.gsc.client import fetch_and_store_gsc_performance, latest_import_status
+import google.auth.exceptions
+import pytest
+
+from app.gsc.client import (
+    GSCConnectionError,
+    _credentials_for_shop,
+    fetch_and_store_gsc_performance,
+    latest_import_status,
+)
 
 
 def _service(page_rows: list[dict], query_page_rows: list[dict]) -> MagicMock:
@@ -67,3 +75,42 @@ def test_latest_import_status_returns_empty_when_no_import_exists(tmp_path: Path
     status = latest_import_status("missing.myshopify.com")
 
     assert status == {"available": False, "row_count": 0, "imported_at": None}
+
+
+def test_credentials_for_shop_raises_when_not_connected(monkeypatch) -> None:
+    monkeypatch.setattr("app.gsc.client.get_google_token", lambda shop, **kw: None)
+
+    with pytest.raises(GSCConnectionError, match="not connected"):
+        _credentials_for_shop("store.myshopify.com")
+
+
+def test_credentials_for_shop_clears_token_and_raises_on_invalid_grant(monkeypatch) -> None:
+    fake_token = json.dumps(
+        {
+            "token": None,
+            "refresh_token": "fake_refresh",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "client_id": "fake_client",
+            "client_secret": "fake_secret",
+            "scopes": ["https://www.googleapis.com/auth/webmasters.readonly"],
+        }
+    )
+    monkeypatch.setattr(
+        "app.gsc.client.get_google_token",
+        lambda shop, **kw: {"token_json": fake_token},
+    )
+    deleted: list[str] = []
+    monkeypatch.setattr(
+        "app.gsc.client.delete_google_token", lambda shop, **kw: deleted.append(shop)
+    )
+
+    mock_creds = MagicMock()
+    mock_creds.expired = True
+    mock_creds.refresh_token = "fake_refresh"
+    mock_creds.refresh.side_effect = google.auth.exceptions.RefreshError("invalid_grant")
+
+    with patch("app.gsc.client.Credentials.from_authorized_user_info", return_value=mock_creds):
+        with pytest.raises(GSCConnectionError, match="revoked"):
+            _credentials_for_shop("store.myshopify.com")
+
+    assert deleted == ["store.myshopify.com"]
