@@ -24,6 +24,7 @@ import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import { ProductContentProposals } from "../components/ProductContentProposals";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -622,91 +623,6 @@ function keywordCoverage(keyword: string, pack: ContentTestPack): string[] {
     .filter(([, text]) => keywordIsUsed(keyword, contentWords(text)))
     .map(([label]) => label);
 }
-
-function qualityIssueLabel(issue: string, locale: Locale): string {
-  const labels: Record<string, [string, string]> = {
-    missing_primary_keyword_target: ["Aucune cible principale fiable", "No reliable primary target"],
-    meta_title_missing_primary_target: ["Cible principale absente du meta title", "Primary target missing from meta title"],
-    meta_description_missing_primary_target: ["Cible principale absente de la meta description", "Primary target missing from meta description"],
-    description_missing_primary_target: ["Cible principale absente de la description", "Primary target missing from description"],
-    description_has_insufficient_target_coverage: ["Description trop peu alignée aux cibles", "Description has insufficient target coverage"],
-    faq_missing_available_paa_question: ["FAQ non alignée aux questions SERP disponibles", "FAQ does not cover available SERP questions"],
-    faq_missing_primary_target: ["FAQ non alignée au mot-clé principal", "FAQ does not cover the primary target"],
-    missing_geo_answer_block: ["Bloc de réponse GEO manquant", "GEO answer block is missing"],
-    missing_recommended_product_description: ["Description recommandée mais non générée", "Recommended description was not generated"],
-    product_description_too_generic: ["Description trop courte ou générique pour être publiée automatiquement", "Description is too short or generic for automated publishing"],
-    unjustified_product_description_surface: ["Description générée sans faits suffisants", "Description generated without enough supporting facts"],
-    missing_recommended_faq: ["FAQ justifiée mais non générée", "Supported FAQ was not generated"],
-    unjustified_faq_surface: ["FAQ générée sans question ou preuve suffisante", "FAQ generated without sufficient question or factual evidence"],
-    unjustified_geo_answer_surface: ["Réponse GEO générée sans faits suffisants", "GEO answer generated without enough supporting facts"],
-    missing_recommended_blog_support: ["Contenu support recommandé mais non généré", "Recommended support content was not generated"],
-    blog_missing_primary_target: ["Article support non aligné au mot-clé principal", "Support article does not cover the primary target"],
-    unjustified_blog_surface: ["Article proposé sans intention informationnelle ou faits suffisants", "Blog suggested without sufficient informational intent or facts"],
-    missing_claim_evidence_ledger: ["Aucune preuve structurée pour les affirmations générées", "No structured evidence for generated claims"],
-    unverified_claim_reference: ["Une affirmation cite une preuve absente des données Shopify", "A claim references evidence absent from Shopify data"],
-    missing_informative_confirmed_fact: ["Aucun fait produit informatif confirmé pour publier ce texte", "No informative confirmed product fact supports publishing this text"],
-    unsupported_product_claims: ["La proposition contient une promesse produit non prouvée", "Proposal contains an unsupported product claim"],
-    keyword_stuffing_risk: ["Répétition excessive de la cible principale", "Primary target appears too repetitively"],
-    forbidden_promise_detected: ["La proposition reprend une formulation interdite", "Proposal contains a forbidden promise"],
-    primary_target_cannibalization_risk: ["Une autre page prioritaire cible déjà cette requête", "Another higher-priority page already targets this query"],
-    duplicate_existing_meta_title: ["Meta title identique à une autre fiche existante", "Meta title duplicates another existing page"],
-    duplicate_existing_meta_description: ["Meta description identique à une autre fiche existante", "Meta description duplicates another existing page"],
-    duplicate_proposed_meta_title: ["Meta title identique dans plusieurs propositions", "Meta title duplicates another proposal"],
-    duplicate_proposed_meta_description: ["Meta description identique dans plusieurs propositions", "Meta description duplicates another proposal"],
-    near_duplicate_product_description: ["Description trop proche d'une autre proposition", "Description is too similar to another proposal"],
-    low_generation_confidence: ["Confiance de génération insuffisante", "Generation confidence is too low"],
-    merchant_edit_requires_revalidation: ["Contenu modifié : nouvelle validation requise", "Edited content requires revalidation"],
-  };
-  const label = labels[issue];
-  return label ? label[locale === "fr" ? 0 : 1] : issue;
-}
-
-const HIGHLIGHT_STYLE = {
-  backgroundColor: "#fff4a3",
-  padding: "0 2px",
-  borderRadius: "2px",
-  fontWeight: 600,
-} as const;
-
-function highlightKeywords(text: string, keywords: string[]): ReactNode {
-  if (!keywords.length || !text) return <>{text}</>;
-  const sorted = [...keywords].sort((a, b) => b.length - a.length);
-  const escaped = sorted.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const regex = new RegExp(`(${escaped.join("|")})`, "gi");
-  const parts = text.split(regex);
-  return (
-    <>
-      {parts.map((part, i) =>
-        i % 2 === 1 ? (
-          <mark key={i} style={HIGHLIGHT_STYLE}>{part}</mark>
-        ) : (
-          part
-        ),
-      )}
-    </>
-  );
-}
-
-function surfaceLabel(surface: string, locale: Locale): string {
-  const labels: Record<string, [string, string]> = {
-    product_description: ["description produit", "product description"],
-    faq: ["FAQ", "FAQ"],
-    geo_answer: ["réponse GEO", "GEO answer"],
-    blog: ["article support", "support article"],
-  };
-  const label = labels[surface];
-  return label ? label[locale === "fr" ? 0 : 1] : surface;
-}
-
-function qualityAdvisoryLabel(advisory: string, locale: Locale): string {
-  const labels: Record<string, [string, string]> = {
-    meta_title_length_outside_guideline: ["Longueur du meta title à surveiller", "Review meta title length"],
-    meta_description_length_outside_guideline: ["Longueur de la meta description à surveiller", "Review meta description length"],
-  };
-  const label = labels[advisory];
-  return label ? label[locale === "fr" ? 0 : 1] : advisory;
-}
-
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function DataSourcesCard({
@@ -882,18 +798,6 @@ function SummaryCard({ job, locale }: { job: JobState; locale: Locale }) {
   );
 }
 
-function merchantAnswersFromPack(pack: ContentTestPack): Record<string, string> {
-  const answers: Record<string, string> = {};
-  for (const fact of (pack.confirmed_facts ?? [])) {
-    if (fact.source === "merchant_confirmation" && fact.key) {
-      answers[fact.key] = Array.isArray(fact.value)
-        ? fact.value.join(", ")
-        : String(fact.value ?? "");
-    }
-  }
-  return answers;
-}
-
 function ProductCard({
   product,
   locale,
@@ -918,96 +822,18 @@ function ProductCard({
   const coverageTargets = selectedTargets.length > 0
     ? selectedTargets
     : product.seo_keywords.slice(0, 5);
-  const kwQueries = coverageTargets.map((keyword) => keyword.query);
 
-  // ── Proposal edit mode ──────────────────────────────────────────────────
-  const [editMode, setEditMode] = useState(false);
-  const [editedPack, setEditedPack] = useState<ContentTestPack>({ ...pack });
-  const [showEnrichmentQuestions, setShowEnrichmentQuestions] = useState(false);
-  const [enrichmentAnswers, setEnrichmentAnswers] = useState<Record<string, string>>(
-    () => merchantAnswersFromPack(pack),
-  );
-  const saveFetcher = useFetcher<{ type: string; error: string | null }>();
-  const isSaving = saveFetcher.state !== "idle";
-
-  // Re-sync editedPack when the parent delivers a new pack (e.g. polling completes
-  // after the card already mounted with empty data). Skip while editing so we
-  // never wipe out in-progress merchant edits.
-  const packSignature = JSON.stringify(pack);
-  useEffect(() => {
-    if (!editMode) {
-      setEditedPack({ ...pack });
-      setShowEnrichmentQuestions(false);
-      setEnrichmentAnswers(merchantAnswersFromPack(pack));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [packSignature]);
-
-  useEffect(() => {
-    if (saveFetcher.data?.type === "saveProposals" && !saveFetcher.data.error) {
-      setEditedPack((previous) => ({
-        ...previous,
-        content_quality: {
-          publish_ready: false,
-          issues: ["merchant_edit_requires_revalidation"],
-        },
-      }));
-      setEditMode(false);
-    }
-  }, [saveFetcher.data]);
-
-  const updateProp = (key: keyof ContentTestPack, value: string) =>
-    setEditedPack((prev) => ({ ...prev, [key]: value }));
-
-  const updateFaq = (idx: number, field: "q" | "a", value: string) =>
-    setEditedPack((prev) => {
-      const faq = [...prev.proposed_faq];
-      faq[idx] = { ...faq[idx], [field]: value };
-      return { ...prev, proposed_faq: faq };
-    });
-
-  const addFaqItem = () =>
-    setEditedPack((prev) => ({
-      ...prev,
-      proposed_faq: [...prev.proposed_faq, { q: "", a: "" }],
-    }));
-
-  const removeFaqItem = (idx: number) =>
-    setEditedPack((prev) => ({
-      ...prev,
-      proposed_faq: prev.proposed_faq.filter((_, i) => i !== idx),
-    }));
-
-  const handleSaveProposals = () => {
-    const proposals = {
-      proposed_meta_title: editedPack.proposed_meta_title,
-      proposed_meta_description: editedPack.proposed_meta_description,
-      proposed_product_description: editedPack.proposed_product_description,
-      proposed_faq: editedPack.proposed_faq,
-      proposed_blog_title: editedPack.proposed_blog_title,
-      proposed_blog_intro: editedPack.proposed_blog_intro,
-      proposed_blog_outline: editedPack.proposed_blog_outline,
-    };
-    saveFetcher.submit(
-      { intent: "saveProposals", productId: product.product_id, proposals: JSON.stringify(proposals) },
-      { method: "POST" },
-    );
-  };
-
+  // Coverage badge reflects the saved pack; live edits revalidate on save.
   const coverageByKeyword = new Map(
     coverageTargets.map((keyword) => [
       keyword.query.toLowerCase(),
-      keywordCoverage(keyword.query, editedPack),
+      keywordCoverage(keyword.query, pack),
     ]),
   );
   const usedKeywords = new Set(
     [...coverageByKeyword.entries()]
       .filter(([, fields]) => fields.length > 0)
       .map(([query]) => query),
-  );
-  const enrichmentQuestions = editedPack.enrichment_questions ?? [];
-  const canSubmitEnrichment = enrichmentQuestions.some(
-    (question) => (enrichmentAnswers[question.key] ?? "").trim().length > 0,
   );
 
   return (
@@ -1201,351 +1027,23 @@ function ProductCard({
           </Box>
         )}
 
-        {(editedPack.proposed_meta_title || editedPack.proposed_meta_description ||
-          editedPack.proposed_product_description || editedPack.proposed_faq.length > 0 ||
-          editedPack.proposed_blog_title) && (
+        {(pack.proposed_meta_title || pack.proposed_meta_description ||
+          pack.proposed_product_description || pack.proposed_faq.length > 0 ||
+          pack.proposed_blog_title) && (
           <Box>
             <Button variant="plain" onClick={() => toggle("proposals")}>
               {t(locale, "marketAnalysisProposals")}
             </Button>
             <Collapsible id={`prop-${product.product_id}`} open={openSection === "proposals"}>
               <Box paddingBlockStart="200">
-                <BlockStack gap="300">
-                  {/* ── Edit / save controls ── */}
-                  <InlineStack gap="200" align="end">
-                    {editMode ? (
-                      <>
-                        <Button
-                          size="slim"
-                          loading={isSaving}
-                          onClick={handleSaveProposals}
-                        >
-                          {locale === "fr" ? "Sauvegarder" : "Save"}
-                        </Button>
-                        <Button size="slim" variant="plain" onClick={() => { setEditMode(false); setEditedPack({ ...pack }); }}>
-                          {locale === "fr" ? "Annuler" : "Cancel"}
-                        </Button>
-                      </>
-                    ) : (
-                      <Button size="slim" variant="plain" onClick={() => setEditMode(true)}>
-                        {locale === "fr" ? "Modifier" : "Edit"}
-                      </Button>
-                    )}
-                  </InlineStack>
-
-                  {saveFetcher.data?.type === "saveProposals" && saveFetcher.data.error && (
-                    <Banner tone="critical">
-                      <Text as="p" variant="bodySm">{saveFetcher.data.error}</Text>
-                    </Banner>
-                  )}
-
-                  {!editMode && editedPack.content_quality && (
-                    editedPack.content_quality.publish_ready ? (
-                      <Banner tone="success">
-                        <BlockStack gap="050">
-                          <Text as="p" variant="bodySm">
-                            {locale === "fr"
-                              ? "Validation SEO/GEO réussie : cette proposition est éligible à une publication automatisée."
-                              : "SEO/GEO validation passed: this proposal is eligible for automated publishing."}
-                          </Text>
-                          {(editedPack.content_quality.evidence_ledger?.length ?? 0) > 0 && (
-                            <Text as="p" variant="bodySm">
-                              {locale === "fr"
-                                ? `${editedPack.content_quality.evidence_ledger?.length} affirmation(s) reliée(s) à des faits Shopify confirmés.`
-                                : `${editedPack.content_quality.evidence_ledger?.length} claim(s) linked to confirmed Shopify facts.`}
-                            </Text>
-                          )}
-                        </BlockStack>
-                      </Banner>
-                    ) : (
-                      <Banner tone="warning">
-                        <BlockStack gap="050">
-                          <Text as="p" variant="bodySm">
-                            {locale === "fr"
-                              ? "À corriger avant toute publication automatique :"
-                              : "Fix before any automated publishing:"}
-                          </Text>
-                          {editedPack.content_quality.issues.map((issue) => (
-                            <Text key={issue} as="p" variant="bodySm">
-                              • {qualityIssueLabel(issue, locale)}
-                            </Text>
-                          ))}
-                        </BlockStack>
-                      </Banner>
-                    )
-                  )}
-                  {!editMode && (editedPack.content_quality?.skipped_surfaces?.length ?? 0) > 0 && (
-                    <InlineStack gap="200" blockAlign="center" wrap>
-                      <Badge tone="warning">!</Badge>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {locale === "fr" ? "Non généré automatiquement faute de preuve ou d'intention suffisante : " : "Not generated automatically because supporting evidence or intent is insufficient: "}
-                        {editedPack.content_quality?.skipped_surfaces?.map((surface) => surfaceLabel(surface, locale)).join(", ")}.
-                      </Text>
-                    </InlineStack>
-                  )}
-                  {!editMode && enrichmentQuestions.length > 0 && (
-                    <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
-                      <BlockStack gap="200">
-                        <InlineStack gap="200" blockAlign="center" wrap>
-                          <Text as="p" variant="bodySm" fontWeight="semibold">
-                            {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
-                          </Text>
-                          <Button
-                            size="slim"
-                            variant="plain"
-                            onClick={() => setShowEnrichmentQuestions((open) => !open)}
-                          >
-                            {showEnrichmentQuestions
-                              ? (locale === "fr" ? "Réduire" : "Collapse")
-                              : (locale === "fr" ? "Compléter" : "Complete")}
-                          </Button>
-                        </InlineStack>
-                        <Collapsible
-                          id={`enrichment-${product.product_id}`}
-                          open={showEnrichmentQuestions}
-                        >
-                          <BlockStack gap="300">
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              {locale === "fr"
-                                ? "Répondez seulement avec des informations exactes. Vos réponses sont injectées dans le prompt pour produire un contenu plus précis et ancré dans votre produit."
-                                : "Answer only with accurate information. Your answers are injected into the prompt to produce more precise, product-grounded content."}
-                            </Text>
-                            {enrichmentQuestions.map((question) => (
-                              <TextField
-                                key={question.key}
-                                label={question.question}
-                                helpText={question.why_it_matters}
-                                placeholder={question.placeholder}
-                                value={enrichmentAnswers[question.key] ?? ""}
-                                onChange={(value) => setEnrichmentAnswers((answers) => ({
-                                  ...answers,
-                                  [question.key]: value,
-                                }))}
-                                autoComplete="off"
-                                multiline={2}
-                              />
-                            ))}
-                            <InlineStack gap="200">
-                              <Button
-                                variant="primary"
-                                loading={isAnalyzing}
-                                disabled={!canSubmitEnrichment || analyzeDisabled}
-                                onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
-                              >
-                                {locale === "fr" ? "Enregistrer et générer" : "Save and generate"}
-                              </Button>
-                              <Button
-                                variant="plain"
-                                onClick={() => setShowEnrichmentQuestions(false)}
-                              >
-                                {locale === "fr" ? "Fermer" : "Close"}
-                              </Button>
-                            </InlineStack>
-                          </BlockStack>
-                        </Collapsible>
-                      </BlockStack>
-                    </Box>
-                  )}
-                  {!editMode && (editedPack.content_quality?.advisories?.length ?? 0) > 0 && (
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {locale === "fr" ? "À surveiller : " : "Review: "}
-                      {editedPack.content_quality?.advisories?.map((advisory) => qualityAdvisoryLabel(advisory, locale)).join(", ")}.
-                    </Text>
-                  )}
-
-                  {/* ── Meta title ── */}
-                  {editedPack.proposed_meta_title && (
-                    <BlockStack gap="100">
-                      <Text as="h4" variant="headingXs">Meta title</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {locale === "fr" ? "Actuel" : "Current"} : {pack.current_meta_title}
-                      </Text>
-                      {editMode ? (
-                        <TextField
-                          label=""
-                          labelHidden
-                          value={editedPack.proposed_meta_title}
-                          onChange={(v) => updateProp("proposed_meta_title", v)}
-                          autoComplete="off"
-                          maxLength={70}
-                          showCharacterCount
-                        />
-                      ) : (
-                        <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                          <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_meta_title, kwQueries)}</Text>
-                        </Box>
-                      )}
-                    </BlockStack>
-                  )}
-
-                  {/* ── Meta description ── */}
-                  {editedPack.proposed_meta_description && (
-                    <BlockStack gap="100">
-                      <Text as="h4" variant="headingXs">Meta description</Text>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {locale === "fr" ? "Actuelle" : "Current"} :{" "}
-                        {pack.current_meta_description || (locale === "fr" ? "absente" : "missing")}
-                      </Text>
-                      {editMode ? (
-                        <TextField
-                          label=""
-                          labelHidden
-                          value={editedPack.proposed_meta_description}
-                          onChange={(v) => updateProp("proposed_meta_description", v)}
-                          multiline={3}
-                          autoComplete="off"
-                          maxLength={160}
-                          showCharacterCount
-                        />
-                      ) : (
-                        <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                          <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_meta_description, kwQueries)}</Text>
-                        </Box>
-                      )}
-                    </BlockStack>
-                  )}
-
-                  {/* ── Product description ── */}
-                  {editedPack.proposed_product_description && (
-                    <BlockStack gap="100">
-                      <Text as="h4" variant="headingXs">
-                        {t(locale, "contentTypeProductDescription")}
-                      </Text>
-                      {editMode ? (
-                        <TextField
-                          label=""
-                          labelHidden
-                          value={editedPack.proposed_product_description}
-                          onChange={(v) => updateProp("proposed_product_description", v)}
-                          multiline={5}
-                          autoComplete="off"
-                        />
-                      ) : (
-                        <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                          <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_product_description, kwQueries)}</Text>
-                        </Box>
-                      )}
-                    </BlockStack>
-                  )}
-
-                  {/* ── FAQ ── */}
-                  {(editedPack.proposed_faq.length > 0 || editMode) && (
-                    <BlockStack gap="100">
-                      <InlineStack gap="200" blockAlign="center">
-                        <Text as="h4" variant="headingXs">FAQ</Text>
-                        {editedPack.faq_sync?.applied && editedPack.faq_sync.applied_at && (
-                          <Badge tone="success" size="small">
-                            {locale === "fr"
-                              ? `Synchronisée sur Shopify le ${new Date(editedPack.faq_sync.applied_at).toLocaleDateString("fr-FR")}`
-                              : `Synced to Shopify on ${new Date(editedPack.faq_sync.applied_at).toLocaleDateString("en-US")}`}
-                          </Badge>
-                        )}
-                        {editedPack.faq_sync?.applied === false && editedPack.faq_sync.error && (
-                          <Badge tone="attention" size="small">
-                            {locale === "fr" ? "Synchro Shopify en attente" : "Shopify sync pending"}
-                          </Badge>
-                        )}
-                      </InlineStack>
-                      {editedPack.proposed_faq.map((item, i) => (
-                        <Box key={i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
-                          <BlockStack gap="150">
-                            {editMode ? (
-                              <>
-                                <InlineStack gap="200" align="space-between" blockAlign="start">
-                                  <Box width="100%">
-                                    <TextField
-                                      label={locale === "fr" ? "Question" : "Question"}
-                                      value={item.q}
-                                      onChange={(v) => updateFaq(i, "q", v)}
-                                      autoComplete="off"
-                                    />
-                                  </Box>
-                                  <Button
-                                    size="slim"
-                                    variant="plain"
-                                    tone="critical"
-                                    onClick={() => removeFaqItem(i)}
-                                  >
-                                    ×
-                                  </Button>
-                                </InlineStack>
-                                <TextField
-                                  label={locale === "fr" ? "Réponse" : "Answer"}
-                                  value={item.a}
-                                  onChange={(v) => updateFaq(i, "a", v)}
-                                  multiline={3}
-                                  autoComplete="off"
-                                />
-                              </>
-                            ) : (
-                              <>
-                                <Text as="p" variant="headingXs">{highlightKeywords(item.q, kwQueries)}</Text>
-                                <Text as="p" variant="bodySm">{highlightKeywords(item.a, kwQueries)}</Text>
-                              </>
-                            )}
-                          </BlockStack>
-                        </Box>
-                      ))}
-                      {editMode && (
-                        <Button size="slim" variant="plain" onClick={addFaqItem}>
-                          {locale === "fr" ? "+ Ajouter une question" : "+ Add question"}
-                        </Button>
-                      )}
-                    </BlockStack>
-                  )}
-
-                  {/* ── Blog ── */}
-                  {editedPack.proposed_blog_title && (
-                    <BlockStack gap="100">
-                      <Text as="h4" variant="headingXs">
-                        {locale === "fr" ? "Idée d'article de blog" : "Blog article idea"}
-                      </Text>
-                      {editMode ? (
-                        <BlockStack gap="200">
-                          <TextField
-                            label={locale === "fr" ? "Titre" : "Title"}
-                            value={editedPack.proposed_blog_title}
-                            onChange={(v) => updateProp("proposed_blog_title", v)}
-                            autoComplete="off"
-                          />
-                          <TextField
-                            label="Intro"
-                            value={editedPack.proposed_blog_intro}
-                            onChange={(v) => updateProp("proposed_blog_intro", v)}
-                            multiline={3}
-                            autoComplete="off"
-                          />
-                          <TextField
-                            label={locale === "fr" ? "Plan (une section par ligne)" : "Outline (one section per line)"}
-                            value={editedPack.proposed_blog_outline.join("\n")}
-                            onChange={(v) =>
-                              setEditedPack((prev) => ({
-                                ...prev,
-                                proposed_blog_outline: v.split("\n"),
-                              }))
-                            }
-                            multiline={4}
-                            autoComplete="off"
-                          />
-                        </BlockStack>
-                      ) : (
-                        <>
-                          <Text as="p" variant="bodySm"><strong>{highlightKeywords(editedPack.proposed_blog_title, kwQueries)}</strong></Text>
-                          {editedPack.proposed_blog_intro && (
-                            <Text as="p" variant="bodySm" tone="subdued">{highlightKeywords(editedPack.proposed_blog_intro, kwQueries)}</Text>
-                          )}
-                          {editedPack.proposed_blog_outline.length > 0 && (
-                            <BlockStack gap="050">
-                              {editedPack.proposed_blog_outline.map((line, i) => (
-                                <Text key={i} as="p" variant="bodySm" tone="subdued">• {highlightKeywords(line, kwQueries)}</Text>
-                              ))}
-                            </BlockStack>
-                          )}
-                        </>
-                      )}
-                    </BlockStack>
-                  )}
-                </BlockStack>
+                <ProductContentProposals
+                  product={product}
+                  locale={locale}
+                  isAnalyzing={isAnalyzing}
+                  onEnrichAndAnalyze={onEnrichAndAnalyze}
+                  analyzeDisabled={analyzeDisabled}
+                  layout="sections"
+                />
               </Box>
             </Collapsible>
           </Box>

@@ -56,6 +56,13 @@ import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
 import { Sparkline } from "../components/Sparkline";
+import { ProductContentProposals } from "../components/ProductContentProposals";
+import type { ProductResult } from "../lib/marketAnalysisShared";
+
+interface MarketJobState {
+  status: "pending" | "running" | "completed" | "failed";
+  products: ProductResult[];
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -170,6 +177,7 @@ interface LoaderData {
   plan: string;
   dashboard: DashboardData | null;
   activeProducts: ActiveProduct[];
+  productResults: Record<string, ProductResult>;
   auditJobId: string | null;
   businessProfile: BusinessProfile | null;
   error: string | null;
@@ -186,14 +194,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const plan = (url.searchParams.get("plan") ?? "free") as "free" | "pro" | "agency";
 
   let activeProducts: ActiveProduct[] = [];
+  let productResults: Record<string, ProductResult> = {};
   let auditJobId: string | null = null;
   let businessProfile: BusinessProfile | null = null;
 
   try {
-    const [dashResp, productsResp, bizProfileResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp, marketResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken }),
       callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken }),
+      callBackendForShop(shop, `/api/shops/${shop}/market-analysis/latest`, { accessToken: session.accessToken }),
     ]);
 
     if (productsResp.status === "fulfilled" && productsResp.value.ok) {
@@ -208,12 +218,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       } catch (_parseErr) { /* ignore */ }
     }
 
+    // Index analyzed product packs by id and handle so the active-products panel
+    // can reveal generated content proposals per product.
+    if (marketResp.status === "fulfilled" && marketResp.value.ok) {
+      try {
+        const job = (await marketResp.value.json()) as { products?: ProductResult[] };
+        for (const result of job.products ?? []) {
+          if (result.product_id) productResults[result.product_id] = result;
+          if (result.product_handle) productResults[result.product_handle] = result;
+        }
+      } catch (_parseErr) { /* ignore */ }
+    }
+
     if (dashResp.status !== "fulfilled" || !dashResp.value.ok) {
       const errStatus = dashResp.status === "fulfilled" ? dashResp.value.status : 0;
       return json<LoaderData>({
         shop, locale, plan,
         dashboard: null,
         activeProducts,
+        productResults,
         auditJobId: null,
         businessProfile,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
@@ -226,12 +249,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirect(localizedPath("/app/onboarding", locale));
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, auditJobId, businessProfile, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, auditJobId, businessProfile, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
       dashboard: null,
       activeProducts,
+      productResults,
       auditJobId,
       businessProfile,
       error: err instanceof Error ? err.message : "Network error",
@@ -357,6 +381,83 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // ── Single-product market analysis (mirror of app.market-analysis) ────────
+  if (intent === "startSingle" || intent === "saveFactsAndStartSingle") {
+    const productId = formData.get("productId") as string;
+    try {
+      if (intent === "saveFactsAndStartSingle") {
+        const answers = JSON.parse(formData.get("answers") as string) as Record<string, string>;
+        const saveResp = await callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/market-analysis/facts/${encodeURIComponent(productId)}`,
+          {
+            accessToken: session.accessToken,
+            method: "POST",
+            body: JSON.stringify({ answers }),
+          },
+        );
+        if (!saveResp.ok) {
+          const err = await saveResp.text();
+          return json({ type: "startSingle", jobId: null, productId, error: `HTTP ${saveResp.status}: ${err}` });
+        }
+      }
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs?product_ids=${encodeURIComponent(productId)}&persist_product_result=true`,
+        { accessToken: session.accessToken, method: "POST" },
+      );
+      if (!resp.ok) {
+        const err = await resp.text();
+        return json({ type: "startSingle", jobId: null, productId, error: `HTTP ${resp.status}: ${err}` });
+      }
+      const data = (await resp.json()) as { job_id: string };
+      return json({ type: "startSingle", jobId: data.job_id, productId, error: null });
+    } catch (err) {
+      return json({ type: "startSingle", jobId: null, productId, error: String(err) });
+    }
+  }
+
+  if (intent === "pollSingle") {
+    const singleJobId = formData.get("jobId") as string;
+    const productId = formData.get("productId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs/${singleJobId}`,
+        { accessToken: session.accessToken },
+      );
+      if (!resp.ok) return json({ type: "pollSingle", job: null, productId, error: `HTTP ${resp.status}` });
+      const job = (await resp.json()) as MarketJobState;
+      return json({ type: "pollSingle", job, productId, error: null });
+    } catch (err) {
+      return json({ type: "pollSingle", job: null, productId, error: String(err) });
+    }
+  }
+
+  if (intent === "saveProposals") {
+    const productId = formData.get("productId") as string;
+    const proposalsRaw = formData.get("proposals") as string;
+    try {
+      const proposals = JSON.parse(proposalsRaw);
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/proposals/${encodeURIComponent(productId)}`,
+        {
+          accessToken: session.accessToken,
+          method: "PATCH",
+          body: JSON.stringify(proposals),
+        },
+      );
+      if (!resp.ok) {
+        const err = await resp.text();
+        return json({ type: "saveProposals", error: `HTTP ${resp.status}: ${err}` });
+      }
+      return json({ type: "saveProposals", error: null });
+    } catch (err) {
+      return json({ type: "saveProposals", error: String(err) });
+    }
+  }
+
   // Default — poll a known audit job.
   const jobId = formData.get("jobId") as string;
   try {
@@ -387,6 +488,10 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (intent === "startBusinessAnalysis") return false;
   if (intent === "pollBusinessAnalysis") return false;
   if (intent === "saveBusinessProfile") return false;
+  if (intent === "startSingle") return false;
+  if (intent === "saveFactsAndStartSingle") return false;
+  if (intent === "pollSingle") return false;
+  if (intent === "saveProposals") return false;
   return true;
 };
 
@@ -596,15 +701,26 @@ function gscInvisibleTooltip(issues: string[], locale: Locale): string {
 
 function ActiveProductsCard({
   products,
+  productPacks,
   locale,
   onRefresh,
   isRefreshing,
+  onAnalyzeProduct,
+  onEnrichAndAnalyze,
+  analyzingProductId,
+  isAnalyzingSingle,
 }: {
   products: ActiveProduct[];
+  productPacks: Record<string, ProductResult>;
   locale: Locale;
   onRefresh: () => void;
   isRefreshing: boolean;
+  onAnalyzeProduct: (productId: string) => void;
+  onEnrichAndAnalyze: (productId: string, answers: Record<string, string>) => void;
+  analyzingProductId: string | null;
+  isAnalyzingSingle: boolean;
 }) {
+  const gscConnected = products.some((p) => p.gsc_connected);
   return (
     <Card>
       <BlockStack gap="300">
@@ -624,38 +740,65 @@ function ActiveProductsCard({
         {products.length === 0 ? (
           <Text as="p" tone="subdued">{t(locale, "dashboardActiveProductsEmpty")}</Text>
         ) : (
-          <BlockStack gap="200">
-            {(() => {
-              const gscConnected = products.some((p) => p.gsc_connected);
-              return products.map((product) => (
-                <InlineStack key={product.id} align="space-between" blockAlign="center">
-                  <BlockStack gap="050">
-                    <InlineStack gap="150" blockAlign="center">
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">{product.title}</Text>
-                      {gscConnected && (
-                        product.gsc_visible ? (
-                          <Tooltip content={t(locale, "dashboardGscVisibleTooltip")}>
-                            <Badge tone="success">{t(locale, "dashboardGscVisible")}</Badge>
-                          </Tooltip>
-                        ) : (
-                          <Tooltip content={gscInvisibleTooltip(product.gsc_issues, locale)}>
-                            <Badge tone="warning">{t(locale, "dashboardGscInvisible")}</Badge>
-                          </Tooltip>
-                        )
+          <BlockStack gap="300">
+            {products.map((product) => {
+              const pack = productPacks[product.id] ?? productPacks[product.handle];
+              const analyzingThis = analyzingProductId === product.id;
+              return (
+                <Box
+                  key={product.id}
+                  padding="300"
+                  borderWidth="025"
+                  borderRadius="200"
+                  borderColor="border"
+                >
+                  <BlockStack gap="200">
+                    <InlineStack align="space-between" blockAlign="center" wrap>
+                      <InlineStack gap="150" blockAlign="center">
+                        <Text as="p" variant="bodyMd" fontWeight="semibold">{product.title}</Text>
+                        {gscConnected && (
+                          product.gsc_visible ? (
+                            <Tooltip content={t(locale, "dashboardGscVisibleTooltip")}>
+                              <Badge tone="success">{t(locale, "dashboardGscVisible")}</Badge>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip content={gscInvisibleTooltip(product.gsc_issues, locale)}>
+                              <Badge tone="warning">{t(locale, "dashboardGscInvisible")}</Badge>
+                            </Tooltip>
+                          )
+                        )}
+                      </InlineStack>
+                      {analyzingThis ? (
+                        <Spinner size="small" />
+                      ) : (
+                        <Button
+                          size="slim"
+                          onClick={() => onAnalyzeProduct(product.id)}
+                          disabled={isAnalyzingSingle}
+                        >
+                          {t(locale, "dashboardAnalyseProduct")}
+                        </Button>
                       )}
                     </InlineStack>
-                    <Text as="p" variant="bodySm" tone="subdued">/{product.handle}</Text>
+                    {pack && (
+                      <ProductContentProposals
+                        product={pack}
+                        locale={locale}
+                        isAnalyzing={analyzingThis}
+                        onEnrichAndAnalyze={(answers) => onEnrichAndAnalyze(product.id, answers)}
+                        analyzeDisabled={isAnalyzingSingle}
+                        layout="buttons"
+                      />
+                    )}
                   </BlockStack>
-                  <Button
-                    url={localizedPath("/app/market-analysis", locale)}
-                    variant="plain"
-                    size="slim"
-                  >
-                    {t(locale, "dashboardActiveProductsAnalyse")}
-                  </Button>
-                </InlineStack>
-              ));
-            })()}
+                </Box>
+              );
+            })}
+            <InlineStack align="center">
+              <Button url={localizedPath("/app/market-analysis", locale)} variant="plain">
+                {t(locale, "dashboardShowMore")}
+              </Button>
+            </InlineStack>
           </BlockStack>
         )}
       </BlockStack>
@@ -1356,7 +1499,7 @@ function BusinessProfileSection({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { locale, plan, dashboard, activeProducts, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { locale, plan, dashboard, activeProducts, productResults, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
 
   // ── Audit job polling ─────────────────────────────────────────────────────
   type PollData = { type?: string; status?: string; resultStatus?: string | null; error?: string | null };
@@ -1451,6 +1594,99 @@ export default function IndexPage() {
     refreshFetcher.submit(fd, { method: "post" });
   };
 
+  // ── Single-product market analysis (per active product) ───────────────────
+  type SingleData =
+    | { type: "startSingle"; jobId: string | null; productId: string; error: string | null }
+    | { type: "pollSingle"; job: MarketJobState | null; productId: string; error: string | null };
+
+  const singleFetcher = useFetcher<SingleData>();
+  const pollSingleFetcher = useFetcher<SingleData>();
+
+  // Local pack store, seeded from the loader and updated as analyses complete.
+  const [productPacks, setProductPacks] = useState<Record<string, ProductResult>>(productResults);
+  const [singleProductId, setSingleProductId] = useState<string | null>(null);
+  const [singleJobId, setSingleJobId] = useState<string | null>(null);
+  const [singleStatus, setSingleStatus] = useState<string | undefined>(undefined);
+
+  const singleJobIdRef = useRef<string | null>(null);
+  const singleStatusRef = useRef<string | undefined>(undefined);
+  const singleProductIdRef = useRef<string | null>(null);
+  const pollSingleRef = useRef(pollSingleFetcher);
+  singleJobIdRef.current = singleJobId;
+  singleStatusRef.current = singleStatus;
+  singleProductIdRef.current = singleProductId;
+  pollSingleRef.current = pollSingleFetcher;
+
+  useEffect(() => {
+    setProductPacks(productResults);
+  }, [productResults]);
+
+  useEffect(() => {
+    if (singleFetcher.data?.type === "startSingle" && singleFetcher.data.jobId) {
+      setSingleJobId(singleFetcher.data.jobId);
+      setSingleStatus(undefined);
+    }
+  }, [singleFetcher.data]);
+
+  useEffect(() => {
+    const d = pollSingleFetcher.data;
+    if (d?.type !== "pollSingle" || !d.job) return;
+    setSingleStatus(d.job.status);
+    if (d.job.status === "completed" && d.job.products && d.job.products.length > 0) {
+      const updated = d.job.products[0];
+      setProductPacks((prev) => ({
+        ...prev,
+        [updated.product_id]: updated,
+        ...(updated.product_handle ? { [updated.product_handle]: updated } : {}),
+      }));
+      setSingleJobId(null);
+      setSingleProductId(null);
+      setSingleStatus(undefined);
+    }
+    if (d.job.status === "failed") {
+      setSingleJobId(null);
+      setSingleProductId(null);
+      setSingleStatus(undefined);
+    }
+  }, [pollSingleFetcher.data]);
+
+  useEffect(() => {
+    if (!singleJobId) return;
+    const poll = () => {
+      const s = singleStatusRef.current;
+      if (s === "completed" || s === "failed") return;
+      const fd = new FormData();
+      fd.set("intent", "pollSingle");
+      fd.set("jobId", singleJobIdRef.current!);
+      fd.set("productId", singleProductIdRef.current || "");
+      pollSingleRef.current.submit(fd, { method: "post" });
+    };
+    poll();
+    const id = setInterval(poll, 5_000);
+    return () => clearInterval(id);
+  }, [singleJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isAnalyzingSingle =
+    singleFetcher.state !== "idle" ||
+    (singleJobId !== null && singleStatus !== "completed" && singleStatus !== "failed");
+
+  const handleAnalyzeProduct = (productId: string) => {
+    setSingleProductId(productId);
+    const fd = new FormData();
+    fd.set("intent", "startSingle");
+    fd.set("productId", productId);
+    singleFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleEnrichAndAnalyze = (productId: string, answers: Record<string, string>) => {
+    setSingleProductId(productId);
+    const fd = new FormData();
+    fd.set("intent", "saveFactsAndStartSingle");
+    fd.set("productId", productId);
+    fd.set("answers", JSON.stringify(answers));
+    singleFetcher.submit(fd, { method: "post" });
+  };
+
   if (error || !dashboard) {
     return (
       <Page title="Léonie SEO">
@@ -1528,9 +1764,14 @@ export default function IndexPage() {
         {/* Zone 2 — Active products */}
         <ActiveProductsCard
           products={activeProducts}
+          productPacks={productPacks}
           locale={locale}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
+          onAnalyzeProduct={handleAnalyzeProduct}
+          onEnrichAndAnalyze={handleEnrichAndAnalyze}
+          analyzingProductId={isAnalyzingSingle ? singleProductId : null}
+          isAnalyzingSingle={isAnalyzingSingle}
         />
 
         {/* Zone 3 — Ongoing optimizations */}
