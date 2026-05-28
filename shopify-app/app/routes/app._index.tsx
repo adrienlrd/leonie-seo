@@ -9,8 +9,10 @@ import {
   Box,
   Button,
   Card,
+  FormLayout,
   InlineGrid,
   InlineStack,
+  Modal,
   Page,
   ProgressBar,
   Spinner,
@@ -919,6 +921,8 @@ function BusinessProfileSection({
   const [bizProfile, setBizProfile] = useState<BusinessProfile | null>(initialProfile);
   const [bizDraft, setBizDraft] = useState<BusinessProfile | null>(null);
   const [bizError, setBizError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editBuffer, setEditBuffer] = useState<BusinessProfile | null>(null);
   const bizStatusRef = useRef<string | null>(null);
   bizStatusRef.current = bizJobStatus;
 
@@ -990,6 +994,19 @@ function BusinessProfileSection({
     handleAnalyze();
   };
 
+  const handleOpenEdit = () => {
+    const source = bizDraft ?? bizProfile;
+    if (!source) return;
+    setEditBuffer({ ...source });
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editBuffer) return;
+    setBizDraft(editBuffer);
+    setIsEditing(false);
+  };
+
   const isAnalyzing =
     bizFetcher.state !== "idle" ||
     (bizJobId !== null && bizJobStatus !== "completed" && bizJobStatus !== "failed");
@@ -1012,6 +1029,11 @@ function BusinessProfileSection({
           )}
         </InlineStack>
         <InlineStack gap="200">
+          {displayProfile && (
+            <Button onClick={handleOpenEdit} size="slim" variant="plain">
+              {locale === "fr" ? "Modifier" : "Edit"}
+            </Button>
+          )}
           {bizDraft && (
             <Button onClick={handleValidate} variant="primary" size="slim" loading={isSaving}>
               {t(locale, "businessProfileValidate")}
@@ -1062,8 +1084,65 @@ function BusinessProfileSection({
 
   if (!displayProfile) return headerCard;
 
+  const editModal = editBuffer && (
+    <Modal
+      open={isEditing}
+      onClose={() => setIsEditing(false)}
+      title={locale === "fr" ? "Modifier le profil entreprise" : "Edit business profile"}
+      primaryAction={{ content: locale === "fr" ? "Enregistrer" : "Save", onAction: handleSaveEdit }}
+      secondaryActions={[{ content: locale === "fr" ? "Annuler" : "Cancel", onAction: () => setIsEditing(false) }]}
+    >
+      <Modal.Section>
+        <FormLayout>
+          <TextField
+            label={locale === "fr" ? "Résumé de niche" : "Niche summary"}
+            value={editBuffer.niche_summary ?? ""}
+            onChange={(v) => setEditBuffer({ ...editBuffer, niche_summary: v })}
+            multiline={3}
+            autoComplete="off"
+          />
+          <TextField
+            label={locale === "fr" ? "Voix de marque" : "Brand voice"}
+            value={editBuffer.brand_voice ?? ""}
+            onChange={(v) => setEditBuffer({ ...editBuffer, brand_voice: v })}
+            multiline={3}
+            autoComplete="off"
+          />
+          <TextField
+            label={locale === "fr" ? "Ton éditorial" : "Editorial tone"}
+            value={editBuffer.content_style?.tone ?? ""}
+            onChange={(v) => setEditBuffer({ ...editBuffer, content_style: { ...editBuffer.content_style, tone: v } })}
+            autoComplete="off"
+          />
+          <TextField
+            label={locale === "fr" ? "Thèmes clés (un par ligne)" : "Key themes (one per line)"}
+            value={(editBuffer.key_themes ?? []).join("\n")}
+            onChange={(v) => setEditBuffer({ ...editBuffer, key_themes: v.split("\n").filter(Boolean) })}
+            multiline={4}
+            autoComplete="off"
+          />
+          <TextField
+            label={locale === "fr" ? "Insights concurrents (un par ligne)" : "Competitor insights (one per line)"}
+            value={(editBuffer.competitor_insights ?? []).join("\n")}
+            onChange={(v) => setEditBuffer({ ...editBuffer, competitor_insights: v.split("\n").filter(Boolean) })}
+            multiline={4}
+            autoComplete="off"
+          />
+          <TextField
+            label={locale === "fr" ? "Lacunes de contenu (une par ligne)" : "Content gaps (one per line)"}
+            value={(editBuffer.content_gaps ?? []).join("\n")}
+            onChange={(v) => setEditBuffer({ ...editBuffer, content_gaps: v.split("\n").filter(Boolean) })}
+            multiline={3}
+            autoComplete="off"
+          />
+        </FormLayout>
+      </Modal.Section>
+    </Modal>
+  );
+
   return (
     <BlockStack gap="400">
+      {editModal}
       {headerCard}
       {isAnalyzing && (
         <Banner tone="info">

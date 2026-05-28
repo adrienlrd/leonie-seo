@@ -84,6 +84,41 @@ def _fetch_serp_data(seeds: list[str]) -> dict[str, Any]:
         return empty
 
 
+def _resolve_brand_name(shop: str, snapshot: dict[str, Any]) -> str:
+    """Extract the brand name from snapshot: shop.name → product.vendor → stripped domain."""
+    shop_info = snapshot.get("shop") or {}
+    name = str(shop_info.get("name") or "").strip()
+    if name:
+        return name
+    raw_products = snapshot.get("products", [])
+    for p in (raw_products if isinstance(raw_products, list) else [])[:10]:
+        if isinstance(p, dict):
+            vendor = str(p.get("vendor") or "").strip()
+            if vendor:
+                return vendor
+    return shop.removesuffix(".myshopify.com")
+
+
+def _load_market_analysis_competitors(shop: str) -> list[str]:
+    """Extract unique competitor domains from the latest market analysis result."""
+    try:
+        from app.market_analysis.jobs import load_latest_result  # noqa: PLC0415
+
+        result = load_latest_result(shop)
+        if not result:
+            return []
+        seen: set[str] = set()
+        domains: list[str] = []
+        for sig in (result.get("competitor_signals") or []):
+            domain = str(sig.get("domain") or "").strip().lower()
+            if domain and domain not in seen:
+                seen.add(domain)
+                domains.append(domain)
+        return domains[:10]
+    except Exception:
+        return []
+
+
 def analyze_business_profile(
     shop: str,
     snapshot: dict[str, Any],
@@ -96,22 +131,26 @@ def analyze_business_profile(
     content_style, key_themes, seasonal_patterns, competitor_domains, competitor_insights,
     content_gaps, internal_link_priorities, generated_at, status, sources_used.
     """
-    shop_info = snapshot.get("shop") or {}
-    brand_name = shop_info.get("name") or shop
+    brand_name = _resolve_brand_name(shop, snapshot)
 
     products_summary = _extract_products_summary(snapshot)
     top_queries = _top_gsc_queries(gsc_query_rows, max_count=20)
 
     seed_queries = [row["query"] for row in top_queries[:5] if row.get("query")]
     serp_data = _fetch_serp_data(seed_queries)
-    competitor_domains = serp_data["competitor_domains"]
     paa_questions = serp_data["paa_questions"]
     blog_results = serp_data["blog_results"]
+
+    # Prefer market analysis domain competitors (already computed via DataForSEO domain API)
+    market_competitors = _load_market_analysis_competitors(shop)
+    competitor_domains = market_competitors or serp_data["competitor_domains"]
 
     sources_used: list[str] = ["shopify_snapshot"]
     if top_queries:
         sources_used.append("gsc_queries")
-    if competitor_domains or blog_results:
+    if market_competitors:
+        sources_used.append("market_analysis_competitors")
+    elif serp_data["competitor_domains"] or blog_results:
         sources_used.append("dataforseo_serp")
     if niche_hypothesis:
         sources_used.append("niche_hypothesis")
