@@ -64,7 +64,9 @@ export function ProductContentProposals({
   })();
   const kwQueries = coverageTargets.map((keyword) => keyword.query);
 
+  // Global edit toggle (sections layout) + per-field edit toggle (buttons layout).
   const [editMode, setEditMode] = useState(false);
+  const [editingField, setEditingField] = useState<FieldKey | null>(null);
   const [editedPack, setEditedPack] = useState<ContentTestPack>({ ...pack });
   const [showEnrichmentQuestions, setShowEnrichmentQuestions] = useState(false);
   const [enrichmentAnswers, setEnrichmentAnswers] = useState<Record<string, string>>(
@@ -78,7 +80,7 @@ export function ProductContentProposals({
 
   const packSignature = JSON.stringify(pack);
   useEffect(() => {
-    if (!editMode) {
+    if (!editMode && editingField === null) {
       setEditedPack({ ...pack });
       setShowEnrichmentQuestions(false);
       setEnrichmentAnswers(merchantAnswersFromPack(pack));
@@ -96,6 +98,7 @@ export function ProductContentProposals({
         },
       }));
       setEditMode(false);
+      setEditingField(null);
     }
   }, [saveFetcher.data]);
 
@@ -147,13 +150,13 @@ export function ProductContentProposals({
   const qualityWarningTooltip = qualityWarningText(editedPack, locale);
 
   // ── Field renderers ────────────────────────────────────────────────────────
-  const renderMetaTitle = () => (
+  const renderMetaTitle = (editing: boolean) => (
     <BlockStack gap="100">
       {layout === "sections" && <Text as="h4" variant="headingXs">Meta title</Text>}
       <Text as="p" variant="bodySm" tone="subdued">
         {locale === "fr" ? "Actuel" : "Current"} : {pack.current_meta_title}
       </Text>
-      {editMode ? (
+      {editing ? (
         <TextField
           label=""
           labelHidden
@@ -171,14 +174,14 @@ export function ProductContentProposals({
     </BlockStack>
   );
 
-  const renderMetaDescription = () => (
+  const renderMetaDescription = (editing: boolean) => (
     <BlockStack gap="100">
       {layout === "sections" && <Text as="h4" variant="headingXs">Meta description</Text>}
       <Text as="p" variant="bodySm" tone="subdued">
         {locale === "fr" ? "Actuelle" : "Current"} :{" "}
         {pack.current_meta_description || (locale === "fr" ? "absente" : "missing")}
       </Text>
-      {editMode ? (
+      {editing ? (
         <TextField
           label=""
           labelHidden
@@ -197,12 +200,12 @@ export function ProductContentProposals({
     </BlockStack>
   );
 
-  const renderProductDescription = () => (
+  const renderProductDescription = (editing: boolean) => (
     <BlockStack gap="100">
       {layout === "sections" && (
         <Text as="h4" variant="headingXs">{t(locale, "contentTypeProductDescription")}</Text>
       )}
-      {editMode ? (
+      {editing ? (
         <TextField
           label=""
           labelHidden
@@ -219,7 +222,7 @@ export function ProductContentProposals({
     </BlockStack>
   );
 
-  const renderFaq = () => (
+  const renderFaq = (editing: boolean) => (
     <BlockStack gap="100">
       <InlineStack gap="200" blockAlign="center">
         {layout === "sections" && <Text as="h4" variant="headingXs">FAQ</Text>}
@@ -239,7 +242,7 @@ export function ProductContentProposals({
       {editedPack.proposed_faq.map((item, i) => (
         <Box key={i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
           <BlockStack gap="150">
-            {editMode ? (
+            {editing ? (
               <>
                 <InlineStack gap="200" align="space-between" blockAlign="start">
                   <Box width="100%">
@@ -271,7 +274,7 @@ export function ProductContentProposals({
           </BlockStack>
         </Box>
       ))}
-      {editMode && (
+      {editing && (
         <Button size="slim" variant="plain" onClick={addFaqItem}>
           {locale === "fr" ? "+ Ajouter une question" : "+ Add question"}
         </Button>
@@ -279,14 +282,14 @@ export function ProductContentProposals({
     </BlockStack>
   );
 
-  const renderBlog = () => (
+  const renderBlog = (editing: boolean) => (
     <BlockStack gap="100">
       {layout === "sections" && (
         <Text as="h4" variant="headingXs">
           {locale === "fr" ? "Idée d'article de blog" : "Blog article idea"}
         </Text>
       )}
-      {editMode ? (
+      {editing ? (
         <BlockStack gap="200">
           <TextField
             label={locale === "fr" ? "Titre" : "Title"}
@@ -329,7 +332,7 @@ export function ProductContentProposals({
     </BlockStack>
   );
 
-  const fields: Array<{ key: FieldKey; labelKey: Parameters<typeof t>[1]; has: boolean; render: () => JSX.Element }> = [
+  const fields: Array<{ key: FieldKey; labelKey: Parameters<typeof t>[1]; has: boolean; render: (editing: boolean) => JSX.Element }> = [
     { key: "meta_title", labelKey: "proposalFieldMetaTitle", has: Boolean(editedPack.proposed_meta_title), render: renderMetaTitle },
     { key: "meta_description", labelKey: "proposalFieldMetaDescription", has: Boolean(editedPack.proposed_meta_description), render: renderMetaDescription },
     { key: "description", labelKey: "proposalFieldDescription", has: Boolean(editedPack.proposed_product_description), render: renderProductDescription },
@@ -452,14 +455,34 @@ export function ProductContentProposals({
         {saveError}
         {successBanner}
         {enrichmentBlock}
-        {/* Field buttons with the edit control on the same row. */}
-        <InlineStack gap="150" align="space-between" blockAlign="center" wrap>
-          <InlineStack gap="150" wrap>{fieldButtons}</InlineStack>
-          <InlineStack gap="150">{editButtons}</InlineStack>
-        </InlineStack>
+        <InlineStack gap="150" wrap>{fieldButtons}</InlineStack>
         {available.map((f) => (
           <Collapsible key={f.key} id={`field-${f.key}-${product.product_id}`} open={openField === f.key}>
-            <Box paddingBlockStart="100">{f.render()}</Box>
+            <Box paddingBlockStart="100">
+              <BlockStack gap="200">
+                {f.render(editingField === f.key)}
+                {editingField === f.key ? (
+                  <InlineStack gap="150">
+                    <Button size="slim" loading={isSaving} onClick={handleSaveProposals}>
+                      {locale === "fr" ? "Sauvegarder" : "Save"}
+                    </Button>
+                    <Button
+                      size="slim"
+                      variant="plain"
+                      onClick={() => { setEditingField(null); setEditedPack({ ...pack }); }}
+                    >
+                      {locale === "fr" ? "Annuler" : "Cancel"}
+                    </Button>
+                  </InlineStack>
+                ) : (
+                  <InlineStack>
+                    <Button size="slim" variant="plain" onClick={() => setEditingField(f.key)}>
+                      {locale === "fr" ? "Modifier" : "Edit"}
+                    </Button>
+                  </InlineStack>
+                )}
+              </BlockStack>
+            </Box>
           </Collapsible>
         ))}
       </BlockStack>
@@ -475,7 +498,7 @@ export function ProductContentProposals({
       {warningIcon}
       {enrichmentBlock}
       {fields.filter((f) => f.has).map((f) => (
-        <div key={f.key}>{f.render()}</div>
+        <div key={f.key}>{f.render(editMode)}</div>
       ))}
     </BlockStack>
   );
