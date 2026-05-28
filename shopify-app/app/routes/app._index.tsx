@@ -502,10 +502,10 @@ function Zone1({
   return (
     <Card>
       <BlockStack gap="300">
-        <InlineStack gap="200" blockAlign="center" align="start">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
           <Icon source={GaugeIcon} tone="base" />
           <Text as="span" variant="headingMd">{t(locale, "dashboardZone1Title")}</Text>
-        </InlineStack>
+        </div>
         {data.global_score !== null ? (
           <BlockStack gap="200">
             <InlineStack gap="300" blockAlign="center">
@@ -888,10 +888,10 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="200">
-            <InlineStack gap="200" blockAlign="center" align="start">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
               <Icon source={NicheIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Niche & Marque" : "Niche & Brand"}</Text>
-            </InlineStack>
+            </div>
             <Text as="p" variant="headingLg">{profile.brand_name}</Text>
             <Text as="p" tone="subdued">{profile.niche_summary}</Text>
             {(profile.key_themes ?? []).length > 0 && (
@@ -906,10 +906,10 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
 
         <Card>
           <BlockStack gap="200">
-            <InlineStack gap="200" blockAlign="center" align="start">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
               <Icon source={MegaphoneIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Voix de marque" : "Brand voice"}</Text>
-            </InlineStack>
+            </div>
             <Text as="p" variant="headingLg">{profile.content_style?.tone ?? "—"}</Text>
             <Text as="p" tone="subdued">{profile.brand_voice}</Text>
             {(profile.content_style?.vocabulary_to_use ?? []).length > 0 && (
@@ -930,10 +930,10 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="300">
-            <InlineStack gap="200" blockAlign="center" align="start">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
               <Icon source={PersonIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Personas" : "Personas"}</Text>
-            </InlineStack>
+            </div>
             {(profile.target_personas ?? []).map((p) => (
               <BlockStack gap="100" key={p.name}>
                 <Text as="p" fontWeight="semibold">{p.name}</Text>
@@ -946,10 +946,10 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
 
         <Card>
           <BlockStack gap="200">
-            <InlineStack gap="200" blockAlign="center" align="start">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
               <Icon source={ContentIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Style de contenu" : "Content style"}</Text>
-            </InlineStack>
+            </div>
             <Text as="p" variant="bodySm" fontWeight="semibold">
               {profile.content_style?.typical_article_length ?? ""}
             </Text>
@@ -975,10 +975,10 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="200">
-            <InlineStack gap="200" blockAlign="center" align="start">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
               <Icon source={GlobeIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Concurrents" : "Competitors"}</Text>
-            </InlineStack>
+            </div>
             {(profile.competitor_domains ?? []).length > 0 && (
               <InlineStack gap="150" wrap>
                 {profile.competitor_domains.map((d) => (
@@ -998,10 +998,10 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
 
         <Card>
           <BlockStack gap="300">
-            <InlineStack gap="200" blockAlign="center" align="start">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--p-space-200)' }}>
               <Icon source={CalendarIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Saisonnalité & Opportunités" : "Seasonality & Gaps"}</Text>
-            </InlineStack>
+            </div>
             {(profile.seasonal_patterns ?? []).map((s) => (
               <InlineStack key={s.period} align="space-between" gap="200">
                 <BlockStack gap="0">
