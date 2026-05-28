@@ -68,6 +68,7 @@ interface ActiveProduct {
   title: string;
   handle: string;
   image_url: string | null;
+  gsc_visible: boolean;
 }
 
 interface PriorityAction {
@@ -616,21 +617,29 @@ function ActiveProductsCard({
           <Text as="p" tone="subdued">{t(locale, "dashboardActiveProductsEmpty")}</Text>
         ) : (
           <BlockStack gap="200">
-            {products.map((product) => (
-              <InlineStack key={product.id} align="space-between" blockAlign="center">
-                <BlockStack gap="050">
-                  <Text as="p" variant="bodyMd" fontWeight="semibold">{product.title}</Text>
-                  <Text as="p" variant="bodySm" tone="subdued">/{product.handle}</Text>
-                </BlockStack>
-                <Button
-                  url={localizedPath("/app/market-analysis", locale)}
-                  variant="plain"
-                  size="slim"
-                >
-                  {t(locale, "dashboardActiveProductsAnalyse")}
-                </Button>
-              </InlineStack>
-            ))}
+            {(() => {
+              const gscConnected = products.some((p) => p.gsc_visible);
+              return products.map((product) => (
+                <InlineStack key={product.id} align="space-between" blockAlign="center">
+                  <BlockStack gap="050">
+                    <InlineStack gap="150" blockAlign="center">
+                      <Text as="p" variant="bodyMd" fontWeight="semibold">{product.title}</Text>
+                      {gscConnected && !product.gsc_visible && (
+                        <Badge tone="warning">Google</Badge>
+                      )}
+                    </InlineStack>
+                    <Text as="p" variant="bodySm" tone="subdued">/{product.handle}</Text>
+                  </BlockStack>
+                  <Button
+                    url={localizedPath("/app/market-analysis", locale)}
+                    variant="plain"
+                    size="slim"
+                  >
+                    {t(locale, "dashboardActiveProductsAnalyse")}
+                  </Button>
+                </InlineStack>
+              ));
+            })()}
           </BlockStack>
         )}
       </BlockStack>
