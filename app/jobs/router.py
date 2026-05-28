@@ -58,9 +58,16 @@ async def create_job(
         priority=body.priority,
     )
 
-    # When a catalog refresh is triggered, also refresh GSC data if connected.
+    # When a catalog refresh is triggered, also refresh GSC page data if connected.
+    # pages_only=True skips the expensive query×page call — only page-level data
+    # is needed for the dashboard sync badge.
     if body.queue == "seo_audit" and get_google_token(authenticated_shop):
-        enqueue("gsc_import", {}, shop=authenticated_shop, max_retries=2)
+        enqueue(
+            "gsc_import",
+            {"pages_only": True, "days": 28},
+            shop=authenticated_shop,
+            max_retries=2,
+        )
 
     return {"job_id": job_id, "status": "pending"}
 

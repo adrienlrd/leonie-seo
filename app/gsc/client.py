@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -16,6 +18,8 @@ from googleapiclient.discovery import build
 
 from app.gsc.token_store import get_google_token, save_google_token
 from app.tenant_config import find_tenant_by_shop_domain
+
+logger = logging.getLogger(__name__)
 
 GSC_SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 _DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
@@ -113,7 +117,12 @@ def _credentials_for_shop(shop: str) -> Credentials:
 
 def build_gsc_service(shop: str) -> Any:
     """Return an authenticated Search Console API service for a shop."""
-    return build("searchconsole", "v1", credentials=_credentials_for_shop(shop))
+    return build(
+        "searchconsole",
+        "v1",
+        credentials=_credentials_for_shop(shop),
+        cache_discovery=False,  # avoid stale/conflicting disk cache
+    )
 
 
 def default_site_url(shop: str) -> str:
@@ -126,17 +135,41 @@ def default_site_url(shop: str) -> str:
     return f"https://{shop}"
 
 
-def _query(service: Any, site_url: str, *, days: int, dimensions: list[str]) -> list[dict]:
+_ROW_LIMIT = 25_000  # GSC API maximum per request
+
+
+def _query_paginated(
+    service: Any,
+    site_url: str,
+    *,
+    days: int,
+    dimensions: list[str],
+    max_rows: int = 100_000,
+) -> list[dict]:
+    """Fetch all rows for the given dimensions, paginating as needed."""
     end_date = date.today()
     start_date = end_date - timedelta(days=days)
-    body = {
+    base_body = {
         "startDate": start_date.isoformat(),
         "endDate": end_date.isoformat(),
         "dimensions": dimensions,
-        "rowLimit": 25000,
+        "rowLimit": _ROW_LIMIT,
     }
-    response = service.searchanalytics().query(siteUrl=site_url, body=body).execute()
-    return list(response.get("rows", []))
+    all_rows: list[dict] = []
+    start_row = 0
+    while len(all_rows) < max_rows:
+        body = {**base_body, "startRow": start_row}
+        try:
+            response = service.searchanalytics().query(siteUrl=site_url, body=body).execute()
+        except Exception as exc:
+            logger.error("GSC query failed (dims=%s, startRow=%d): %s", dimensions, start_row, exc)
+            raise
+        rows = list(response.get("rows", []))
+        all_rows.extend(rows)
+        if len(rows) < _ROW_LIMIT:
+            break
+        start_row += len(rows)
+    return all_rows
 
 
 def _normalise_page_rows(rows: list[dict]) -> list[dict]:
@@ -198,54 +231,99 @@ def latest_import_status(shop: str) -> dict:
     }
 
 
+def _cleanup_old_gsc_json(shop_dir: Path, keep: int = 5) -> None:
+    """Remove oldest gsc_*.json files, keeping the most recent `keep`."""
+    files = sorted(shop_dir.glob("gsc_*.json"), reverse=True)
+    for old in files[keep:]:
+        try:
+            old.unlink()
+        except OSError:
+            pass
+
+
 def fetch_and_store_gsc_performance(
     shop: str,
     *,
-    days: int = 90,
+    days: int = 28,
     site_url: str | None = None,
     service: Any | None = None,
+    pages_only: bool = False,
 ) -> dict:
-    """Fetch GSC page and query-page data, then store shop-scoped exports."""
+    """Fetch GSC page (and optionally query-page) data, then store shop-scoped exports.
+
+    Args:
+        days: Lookback window. 28 days is enough for indexing checks and most analyses.
+        pages_only: When True, skip the expensive query×page call. Use this for
+            lightweight catalog-refresh scenarios (badge display only).
+    """
     target = site_url or default_site_url(shop)
     gsc_service = service or build_gsc_service(shop)
 
-    page_rows = _normalise_page_rows(_query(gsc_service, target, days=days, dimensions=["page"]))
-    query_page_rows = _normalise_query_page_rows(
-        _query(gsc_service, target, days=days, dimensions=["query", "page"])
-    )
+    if pages_only:
+        # Single call — fast path for dashboard badge refresh.
+        page_rows = _normalise_page_rows(
+            _query_paginated(gsc_service, target, days=days, dimensions=["page"])
+        )
+        query_page_rows: list[dict] = []
+    else:
+        # Parallel fetch — both queries at once.
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            page_future = pool.submit(
+                _query_paginated, gsc_service, target, days=days, dimensions=["page"]
+            )
+            qp_future = pool.submit(
+                _query_paginated, gsc_service, target, days=days, dimensions=["query", "page"]
+            )
+            futures = {page_future: "page", qp_future: "query_page"}
+            results: dict[str, list[dict]] = {}
+            for fut in as_completed(futures):
+                results[futures[fut]] = fut.result()
+        page_rows = _normalise_page_rows(results["page"])
+        query_page_rows = _normalise_query_page_rows(results["query_page"])
 
     shop_dir = _DATA_DIR / shop
+    shop_dir.mkdir(parents=True, exist_ok=True)
     imported_at = datetime.now(UTC).isoformat()
-    stamp = imported_at.replace(":", "").replace("-", "").split(".")[0]
 
-    _write_csv(shop_dir / "gsc_performance.csv", page_rows, ["url", "clicks", "impressions", "ctr", "position"])
     _write_csv(
-        shop_dir / "gsc_query_page.csv",
-        query_page_rows,
-        ["query", "url", "clicks", "impressions", "ctr", "position"],
+        shop_dir / "gsc_performance.csv",
+        page_rows,
+        ["url", "clicks", "impressions", "ctr", "position"],
     )
-    json_path = shop_dir / f"gsc_{stamp}.json"
-    json_path.write_text(
-        json.dumps(
-            {
-                "shop": shop,
-                "site_url": target,
-                "days": days,
-                "imported_at": imported_at,
-                "rows": query_page_rows,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+
+    json_path_str = ""
+    if not pages_only:
+        _write_csv(
+            shop_dir / "gsc_query_page.csv",
+            query_page_rows,
+            ["query", "url", "clicks", "impressions", "ctr", "position"],
+        )
+        stamp = imported_at.replace(":", "").replace("-", "").split(".")[0]
+        json_path = shop_dir / f"gsc_{stamp}.json"
+        json_path.write_text(
+            json.dumps(
+                {
+                    "shop": shop,
+                    "site_url": target,
+                    "days": days,
+                    "imported_at": imported_at,
+                    "rows": query_page_rows,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        json_path_str = str(json_path)
+        _cleanup_old_gsc_json(shop_dir)
 
     return {
         "shop": shop,
         "site_url": target,
         "days": days,
+        "pages_only": pages_only,
         "page_rows": len(page_rows),
         "query_page_rows": len(query_page_rows),
         "imported_at": imported_at,
-        "json_path": str(json_path),
+        "json_path": json_path_str,
     }

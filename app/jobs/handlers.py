@@ -164,13 +164,15 @@ async def handle_gsc_import(payload: dict, shop: str | None) -> dict:
     if not shop:
         raise ValueError("shop is required for gsc_import")
 
-    days = int(payload.get("days", 90))
+    days = int(payload.get("days", 28))
     site_url = payload.get("site_url")
+    pages_only = bool(payload.get("pages_only", False))
     return await asyncio.to_thread(
         fetch_and_store_gsc_performance,
         shop,
         days=days,
         site_url=str(site_url) if site_url else None,
+        pages_only=pages_only,
     )
 
 

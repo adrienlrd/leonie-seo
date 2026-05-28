@@ -171,10 +171,12 @@ def test_seo_audit_handler_uses_stored_access_token(monkeypatch):
 def test_gsc_import_handler_imports_for_shop(monkeypatch):
     from app.jobs.handlers import handle_gsc_import
 
-    calls: list[tuple[str, int, str | None]] = []
+    calls: list[tuple] = []
     monkeypatch.setattr(
         "app.gsc.client.fetch_and_store_gsc_performance",
-        lambda shop, days, site_url: calls.append((shop, days, site_url)) or {"query_page_rows": 3},
+        lambda shop, days, site_url, pages_only=False: (
+            calls.append((shop, days, site_url, pages_only)) or {"query_page_rows": 3}
+        ),
     )
 
     result = asyncio.run(
@@ -182,7 +184,7 @@ def test_gsc_import_handler_imports_for_shop(monkeypatch):
     )
 
     assert result["query_page_rows"] == 3
-    assert calls == [("store.myshopify.com", 30, "sc-domain:example.com")]
+    assert calls == [("store.myshopify.com", 30, "sc-domain:example.com", False)]
 
 
 def test_pagespeed_import_handler_imports_for_shop(monkeypatch):
