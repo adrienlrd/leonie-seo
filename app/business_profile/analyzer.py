@@ -13,15 +13,23 @@ _BLOG_URL_MARKERS = ("/blog/", "/article/", "/guide/", "/conseil/", "/tuto/", "/
 
 
 def _extract_products_summary(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
-    products = snapshot.get("products", [])[:30]
+    raw_products = snapshot.get("products", [])
+    products = (raw_products if isinstance(raw_products, list) else [])[:30]
     summary = []
     for p in products:
-        collections = [c.get("title", "") for c in (p.get("collections") or [])[:5]]
-        tags = (p.get("tags") or [])[:10]
+        if not isinstance(p, dict):
+            continue
+        raw_coll = p.get("collections")
+        coll_list = raw_coll if isinstance(raw_coll, list) else []
+        collections = [c.get("title", "") for c in coll_list[:5] if isinstance(c, dict)]
+
+        raw_tags = p.get("tags")
+        tags = (raw_tags if isinstance(raw_tags, list) else [])[:10]
+
         summary.append({
             "title": str(p.get("title", ""))[:120],
             "collections": collections,
-            "tags": tags,
+            "tags": [str(t) for t in tags],
         })
     return summary
 
