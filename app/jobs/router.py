@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path
 from pydantic import BaseModel
 
 from app.api.deps import get_authenticated_shop
+from app.gsc.token_store import get_google_token
 from app.jobs.handlers import registered_queues
 from app.jobs.store import cancel_shop_jobs, enqueue, enqueue_unique, get_job, list_jobs
 from app.oauth.token_store import save_token
@@ -56,6 +57,11 @@ async def create_job(
         max_retries=body.max_retries,
         priority=body.priority,
     )
+
+    # When a catalog refresh is triggered, also refresh GSC data if connected.
+    if body.queue == "seo_audit" and get_google_token(authenticated_shop):
+        enqueue("gsc_import", {}, shop=authenticated_shop, max_retries=2)
+
     return {"job_id": job_id, "status": "pending"}
 
 
