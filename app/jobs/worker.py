@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from app.jobs.handlers import get_handler
 from app.jobs.store import claim_next, recover_stale_running_jobs, update_job
-from app.llm.provider import LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +73,7 @@ class JobWorker:
                     await asyncio.sleep(self.poll_interval)
             except asyncio.CancelledError:
                 break
-            except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error, LLMError):
+            except Exception:
                 logger.exception("Unexpected error in JobWorker loop")
                 await asyncio.sleep(self.poll_interval)
         logger.info("JobWorker stopped")
@@ -118,7 +116,7 @@ class JobWorker:
             logger.warning("Job %s timed out after %ds", job_id, effective_timeout)
             self._handle_failure(job_id, retries, max_retries, f"timed out after {effective_timeout}s")
 
-        except (OSError, RuntimeError, TypeError, ValueError, sqlite3.Error, LLMError) as exc:
+        except Exception as exc:
             logger.warning("Job %s failed: %s", job_id, exc)
             self._handle_failure(job_id, retries, max_retries, str(exc))
 

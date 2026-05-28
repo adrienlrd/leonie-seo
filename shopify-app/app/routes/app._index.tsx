@@ -243,7 +243,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const intent = formData.get("intent") as string | null;
 
-  // Manual refresh — fire a forced seo_audit and return the new job ID.
+  // Manual refresh — fire seo_audit + gsc_import (pages only) and return the audit job ID.
   if (intent === "refresh") {
     try {
       const resp = await callBackendForShop(session.shop, "/api/jobs", {
@@ -260,6 +260,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return json({ type: "refresh", jobId: null, error: `HTTP ${resp.status}: ${txt}` });
       }
       const data = (await resp.json()) as { job_id: string };
+
+      // Also kick off a lightweight GSC sync (pages-only, no retry if not connected).
+      try {
+        await callBackendForShop(session.shop, "/api/jobs", {
+          method: "POST",
+          body: JSON.stringify({
+            queue: "gsc_import",
+            payload: { days: 28, pages_only: true },
+            max_retries: 1,
+          }),
+        });
+      } catch { /* non-fatal — GSC might not be connected */ }
+
       return json({ type: "refresh", jobId: data.job_id, error: null });
     } catch (err) {
       return json({ type: "refresh", jobId: null, error: String(err) });
