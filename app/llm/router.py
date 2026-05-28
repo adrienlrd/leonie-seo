@@ -74,6 +74,7 @@ class LLMRouter:
         system: str = "",
         max_tokens: int = 512,
         temperature: float = 0.3,
+        json_mode: bool = False,
     ) -> CompletionResult:
         """Call providers in order; raise LLMError if all fail.
 
@@ -84,6 +85,7 @@ class LLMRouter:
             system: System instruction (optional).
             max_tokens: Maximum tokens in the response.
             temperature: Sampling temperature.
+            json_mode: Constrain output to valid JSON when supported.
 
         Returns:
             CompletionResult from the first provider that succeeds.
@@ -96,7 +98,11 @@ class LLMRouter:
             t0 = time.monotonic()
             try:
                 result = provider.complete(
-                    prompt, system=system, max_tokens=max_tokens, temperature=temperature
+                    prompt,
+                    system=system,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    json_mode=json_mode,
                 )
                 latency_ms = (time.monotonic() - t0) * 1000
                 if provider is not self._providers[0]:

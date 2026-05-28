@@ -20,6 +20,7 @@ from app.market_analysis.providers.free_provider import (
 )
 from app.market_analysis.providers.google_ads_provider import GoogleAdsKeywordProvider
 from app.market_analysis.providers.types import KeywordSignal
+from app.niche.signals.google_suggest import fetch_suggestions_bulk
 from app.observability.metrics import check_budget
 from app.snapshot.scope import filter_products_by_scope
 
@@ -299,6 +300,7 @@ def _build_pass1_prompt(
     stock_status: str,
     merchant_label: str = "",
     business_context: str = "",
+    candidate_pool: list[dict[str, Any]] | None = None,
 ) -> str:
     queries_text = ", ".join(matched_queries[:5]) if matched_queries else "aucune donnée GSC"
     collections_text = ", ".join(collections) if collections else "aucune"
@@ -328,6 +330,46 @@ def _build_pass1_prompt(
 
     merchant_label_text = f"LABEL SEO MARCHAND: {merchant_label}\n" if merchant_label else ""
     business_context_text = f"{business_context}\n" if business_context else ""
+    pool_block, question_block, has_pool = _format_candidate_pool(candidate_pool or [])
+
+    if has_pool:
+        keyword_instructions = (
+            "ÉTAPE 1/2 — CIBLAGE À PARTIR DE DONNÉES RÉELLES.\n"
+            "Une liste de mots-clés CANDIDATS RÉELS (issus de Google Search Console, "
+            "DataForSEO, Google Suggest et Google Trends) t'est fournie ci-dessous avec leurs "
+            "métriques observées. Ne rédige PAS encore de contenu : cela viendra à l'étape 2.\n"
+            "RÈGLES DE SÉLECTION (impératif) :\n"
+            "1. seo_keywords doit être composé EXCLUSIVEMENT de requêtes copiées EXACTEMENT "
+            "depuis la liste CANDIDATS (même orthographe), choisies pour leur pertinence avec CE produit. "
+            "Sélectionne-en 6 à 10, en privilégiant volume/impressions réels et adéquation produit.\n"
+            "2. Pour chaque mot-clé sélectionné, renseigne intent_type "
+            "(informational/commercial/transactional/navigational), product_fit_score (0-100) et reason. "
+            "N'invente JAMAIS de demand_score/competition_score/volume : ils proviennent des données réelles.\n"
+            "3. Écarte les candidats hors-sujet (ne les inclus pas). Mieux vaut 6 mots-clés pertinents "
+            "que 10 approximatifs.\n"
+            "4. Tu peux ajouter AU PLUS 2 mots-clés longue traîne manquants SEULEMENT si une intention "
+            'produit évidente n\'est couverte par aucun candidat ; marque-les avec "new": true.\n'
+            "5. geo_questions (5-8) : appuie-toi en priorité sur les QUESTIONS DÉTECTÉES ci-dessous "
+            "(reformulation autorisée) — ce sont de vraies recherches type ChatGPT/Google. "
+            "Chaque objet : question/answer_angle/content_block_type/confidence.\n"
+            "Réponds uniquement en JSON valide avec exactement ces clés : "
+            "product_summary, target_customer, buying_intents (liste de strings), "
+            'seo_keywords (objets avec query/intent_type/product_fit_score/reason, +"new":true si ajouté), '
+            "geo_questions (objets avec question/answer_angle/content_block_type/confidence)."
+        )
+    else:
+        # No real candidates available (e.g. brand-new shop, no GSC/DataForSEO) — fall back
+        # to LLM-proposed targeting, clearly the degraded path.
+        keyword_instructions = (
+            "ÉTAPE 1/2 — CIBLAGE. Aucune donnée mots-clés réelle disponible pour ce produit : "
+            "propose des cibles plausibles (elles seront marquées comme estimées).\n"
+            "RÈGLE MOTS-CLÉS : priorité aux requêtes mid-tail (2-4 mots) réalistes en France. "
+            "Les 2-3 premiers seo_keywords doivent être mid-tail. Longues traînes en fin de liste pour FAQ/GEO.\n"
+            "Réponds uniquement en JSON valide avec exactement ces clés : "
+            "product_summary, target_customer, buying_intents (liste de strings), "
+            "seo_keywords (5-8 objets avec query/intent_type/demand_score/competition_score/product_fit_score/reason), "
+            "geo_questions (5-8 objets avec question/answer_angle/content_block_type/confidence)."
+        )
 
     return (
         f"DATE_ACTUELLE: {today} (année {current_year})\n"
@@ -345,23 +387,73 @@ def _build_pass1_prompt(
         f"GA4 (90 derniers jours): {ga4_text}\n"
         f"TENDANCES GOOGLE: {trend_text}\n"
         f"STOCK: {stock_text}\n"
-        f"SCORE OPPORTUNITÉ: {opportunity_score}/100\n\n"
+        f"SCORE OPPORTUNITÉ: {opportunity_score}/100\n"
+        f"{pool_block}"
+        f"{question_block}\n"
         f"IMPORTANT: nous sommes en {current_year}. "
         "N'utilise jamais d'années passées dans les titres, exemples ou références. "
         "Toutes les propositions doivent être actuelles et pertinentes pour l'année en cours.\n\n"
-        "ÉTAPE 1/2 — CIBLAGE. Identifie le produit et les cibles de recherche. "
-        "Ne rédige PAS encore de contenu (meta, description, FAQ) : cela viendra à l'étape 2 "
-        "avec des données réelles de marché.\n"
-        "RÈGLE MOTS-CLÉS : priorité absolue aux requêtes mid-tail (2-4 mots) avec volume réel en France. "
-        "Les 2-3 premiers seo_keywords doivent être mid-tail (ex. 'croquettes chat senior', 'fontaine eau chat'). "
-        "Les longues traînes (5+ mots) sont autorisées uniquement en fin de liste comme support FAQ/GEO "
-        "(ex. 'comment choisir fontaine eau chat', 'quelle croquette chaton 2 mois'). "
-        "Ne génère jamais de requête ultra-spécifique impossible à trouver dans Google Ads France.\n"
-        "Réponds uniquement en JSON valide avec exactement ces clés : "
-        "product_summary, target_customer, buying_intents (liste de strings), "
-        "seo_keywords (5-8 objets avec query/intent_type/demand_score/competition_score/product_fit_score/reason), "
-        "geo_questions (5-8 objets avec question/answer_angle/content_block_type/confidence)."
+        f"{keyword_instructions}"
     )
+
+
+_POOL_SOURCE_LABELS = {
+    "gsc": "GSC",
+    "dataforseo": "DataForSEO",
+    "google_suggest": "Suggest",
+    "trends": "Trends",
+    "google_ads": "GoogleAds",
+}
+
+
+def _format_candidate_pool(
+    candidate_pool: list[dict[str, Any]],
+) -> tuple[str, str, bool]:
+    """Render the real candidate pool + detected questions for the Pass 1 prompt.
+
+    Returns (pool_block, question_block, has_pool). Each candidate line shows the
+    exact query plus its real metrics so the LLM selects from observed demand.
+    """
+    pool = [c for c in candidate_pool if isinstance(c, dict) and str(c.get("query", "")).strip()]
+    if not pool:
+        return "", "", False
+
+    lines: list[str] = []
+    for idx, cand in enumerate(pool, start=1):
+        query = str(cand.get("query", "")).strip()
+        source = _POOL_SOURCE_LABELS.get(str(cand.get("data_source", "")), "estimé")
+        metric_bits: list[str] = []
+        vol = cand.get("search_volume")
+        if vol is not None:
+            metric_bits.append(f"{vol} rech./mois")
+        if cand.get("gsc_impressions"):
+            metric_bits.append(
+                f"{cand.get('gsc_impressions')} impr. GSC (pos. {cand.get('gsc_position', '?')})"
+            )
+        if not metric_bits:
+            metric_bits.append("volume à confirmer")
+        lines.append(f'  #{idx} "{query}" — {source}, {", ".join(metric_bits)}')
+
+    question_words = {q for q in _QUESTION_PREFIXES}
+    questions = [
+        str(c.get("query", "")).strip()
+        for c in pool
+        if str(c.get("query", "")).strip()
+        and (
+            str(c.get("query", "")).strip().lower().split()[0] in question_words
+            or "?" in str(c.get("query", ""))
+        )
+    ]
+
+    pool_block = "\n=== CANDIDATS MOTS-CLÉS RÉELS (sélectionne ici) ===\n" + "\n".join(lines) + "\n"
+    question_block = ""
+    if questions:
+        question_block = (
+            "\n=== QUESTIONS DÉTECTÉES (base pour geo_questions) ===\n"
+            + "\n".join(f"  - {q}" for q in questions[:12])
+            + "\n"
+        )
+    return pool_block, question_block, True
 
 
 def _crawl_for_handle(
@@ -922,15 +1014,33 @@ def _apply_signals_to_keywords(
                 merged["competition_score"] = int(
                     sig.get("difficulty_score", merged.get("competition_score", 50))
                 )
-            merged["data_source"] = sig.get("source", "llm_estimated")
+            # Only real-data sources upgrade provenance. A Google Suggest / Trends
+            # candidate keeps its data_source when no stronger signal is found, so
+            # the UI never mislabels a real suggestion as "llm_estimated".
+            sig_source = sig.get("source", "llm_estimated")
+            if sig_source in ("gsc", "dataforseo", "google_ads"):
+                merged["data_source"] = sig_source
+            else:
+                merged.setdefault("data_source", sig_source)
             merged["difficulty_source"] = sig.get("difficulty_source", "free_estimated")
-            merged["search_volume"] = sig.get(
-                "search_volume"
-            )  # None in free mode — UI shows "missing"
-            merged["cpc"] = sig.get("cpc")
-            merged["ads_competition"] = sig.get("ads_competition")
-            merged["confidence"] = sig.get("confidence", "low")
-            merged["notes"] = sig.get("notes", [])
+            # Never null out a real volume/CPC already carried by the candidate.
+            if sig.get("search_volume") is not None:
+                merged["search_volume"] = sig["search_volume"]
+            else:
+                merged.setdefault("search_volume", None)
+            if sig.get("cpc") is not None:
+                merged["cpc"] = sig["cpc"]
+            else:
+                merged.setdefault("cpc", None)
+            if sig.get("ads_competition") is not None:
+                merged["ads_competition"] = sig["ads_competition"]
+            else:
+                merged.setdefault("ads_competition", None)
+            merged["confidence"] = sig.get("confidence", merged.get("confidence", "low"))
+            if sig.get("notes"):
+                merged["notes"] = sig["notes"]
+            else:
+                merged.setdefault("notes", [])
         else:
             merged.setdefault("data_source", "llm_estimated")
             merged.setdefault("difficulty_source", "free_estimated")
@@ -996,6 +1106,349 @@ def _score_idea_fit(idea_query: str, product_words: frozenset[str]) -> int:
     if overlap >= 1:
         return 60
     return 50
+
+
+# ── Real-data-first candidate pool ───────────────────────────────────────────
+# The engine seeds keyword candidates from REAL sources before the LLM, so the
+# model selects from observed demand instead of inventing terms. Source priority
+# decides which entry wins when the same query comes from several sources.
+_SOURCE_PRIORITY = {
+    "dataforseo": 4,
+    "gsc": 3,
+    "google_suggest": 2,
+    "trends": 1,
+    "llm_proposed": 0,
+    "llm_estimated": 0,
+}
+_POOL_MAX = 40
+_GSC_POOL_LIMIT = 12
+_SUGGEST_SEED_MAX = 3
+# Question prefixes used to harvest GEO/AEO intents from Google Suggest — these
+# mirror what shoppers type into Google and ask assistants like ChatGPT.
+_QUESTION_PREFIXES = ("comment", "pourquoi", "quelle", "quel", "combien")
+
+
+def _gsc_candidates(
+    product_words: frozenset[str],
+    gsc_query_rows: list[dict[str, Any]],
+    *,
+    limit: int = _GSC_POOL_LIMIT,
+) -> list[dict[str, Any]]:
+    """Real GSC queries matched to this product, carrying impressions/clicks/position.
+
+    These are the strongest candidates: queries real shoppers already used to reach
+    (or almost reach) the store, so they ground keyword selection in observed demand.
+    """
+    out: list[dict[str, Any]] = []
+    for row in gsc_query_rows:
+        query = str(row.get("query", "")).strip()
+        if not query or not (_content_words(query) & product_words):
+            continue
+        impressions = int(row.get("impressions", 0) or 0)
+        clicks = int(row.get("clicks", 0) or 0)
+        position = round(float(row.get("position", 0) or 0), 1)
+        out.append(
+            {
+                "query": query,
+                "intent_type": "unknown",
+                "demand_score": _impressions_bucket(impressions),
+                "competition_score": 50,
+                "product_fit_score": 0,
+                "reason": (
+                    f"Requête réelle GSC — {impressions} impressions, "
+                    f"{clicks} clics, position moyenne {position}"
+                ),
+                "data_source": "gsc",
+                "difficulty_source": "free_estimated",
+                "search_volume": None,
+                "gsc_impressions": impressions,
+                "gsc_clicks": clicks,
+                "gsc_position": position,
+                "notes": [],
+            }
+        )
+    out.sort(key=lambda k: int(k.get("gsc_impressions", 0) or 0), reverse=True)
+    return out[:limit]
+
+
+def _suggest_candidates(
+    seeds: list[str],
+    product_words: frozenset[str],
+    *,
+    fetcher: Callable[[list[str]], list[Any]],
+) -> list[dict[str, Any]]:
+    """Google Autocomplete expansions of the product seeds (real search intents).
+
+    Adds question-prefixed seeds to surface GEO/AEO intents. Free, no volume data —
+    DataForSEO enrichment fills volumes for these candidates afterwards.
+    """
+    core = seeds[0] if seeds else ""
+    question_seeds = [f"{prefix} {core}".strip() for prefix in _QUESTION_PREFIXES[:2] if core]
+    all_seeds = list(dict.fromkeys([*seeds, *question_seeds]))
+    try:
+        raw = fetcher(all_seeds)
+    except Exception as exc:  # pragma: no cover — network/parse guarded upstream too
+        logger.warning("Google Suggest pool fetch failed: %s", exc)
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw or []:
+        kw = getattr(item, "keyword", None)
+        if kw is None and isinstance(item, dict):
+            kw = item.get("keyword")
+        query = str(kw or "").strip()
+        if not query or not (_content_words(query) & product_words):
+            continue
+        out.append(
+            {
+                "query": query,
+                "intent_type": "unknown",
+                "demand_score": 40,
+                "competition_score": 50,
+                "product_fit_score": 0,
+                "reason": "Suggestion Google Autocomplete (intention de recherche réelle)",
+                "data_source": "google_suggest",
+                "difficulty_source": "free_estimated",
+                "search_volume": None,
+                "notes": ["Google Suggest — popularité réelle, volume à confirmer"],
+            }
+        )
+    return out
+
+
+def _trend_candidates(
+    trend_top: list[str],
+    trend_rising: list[str],
+    product_words: frozenset[str],
+) -> list[dict[str, Any]]:
+    """Google Trends related queries matched to the product."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for query, rising in [(q, False) for q in trend_top] + [(q, True) for q in trend_rising]:
+        query = str(query or "").strip()
+        key = query.lower()
+        if not query or key in seen or not (_content_words(query) & product_words):
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "query": query,
+                "intent_type": "unknown",
+                "demand_score": 55 if rising else 45,
+                "competition_score": 50,
+                "product_fit_score": 0,
+                "reason": "En hausse sur Google Trends" if rising else "Tendance Google Trends",
+                "data_source": "trends",
+                "difficulty_source": "free_estimated",
+                "search_volume": None,
+                "notes": ["Google Trends (12 derniers mois)"],
+            }
+        )
+    return out
+
+
+def _merge_pool_candidate(pool: dict[str, dict[str, Any]], cand: dict[str, Any]) -> None:
+    """Insert a candidate into the pool, deduplicating by normalised query.
+
+    On collision the higher-priority source becomes the base, but real GSC metrics
+    are always preserved so we never lose observed performance data.
+    """
+    query = str(cand.get("query", "")).strip()
+    if not query:
+        return
+    key = query.lower()
+    priority = _SOURCE_PRIORITY.get(str(cand.get("data_source", "")), 0)
+    existing = pool.get(key)
+    if existing is None:
+        cand["_src_priority"] = priority
+        pool[key] = cand
+        return
+    # Preserve GSC performance regardless of which base wins.
+    if cand.get("gsc_impressions") and not existing.get("gsc_impressions"):
+        for fld in ("gsc_impressions", "gsc_clicks", "gsc_position"):
+            existing[fld] = cand.get(fld)
+    if priority > existing.get("_src_priority", 0):
+        gsc_fields = {
+            fld: existing.get(fld)
+            for fld in ("gsc_impressions", "gsc_clicks", "gsc_position")
+            if existing.get(fld)
+        }
+        cand["_src_priority"] = priority
+        cand.update(gsc_fields)
+        pool[key] = cand
+
+
+def _build_keyword_candidate_pool(
+    fields: dict[str, Any],
+    gsc_query_rows: list[dict[str, Any]],
+    *,
+    dataforseo: Any = None,
+    suggest_fetcher: Callable[[list[str]], list[Any]] | None = None,
+    use_suggest: bool = True,
+    ideas_limit: int = 25,
+    max_pool: int = _POOL_MAX,
+) -> list[dict[str, Any]]:
+    """Build a pool of REAL candidate keywords for a product, before any LLM call.
+
+    Sources, most reliable first: GSC matched queries (observed impressions/clicks),
+    DataForSEO keyword ideas (real French volume), Google Suggest (real autocomplete,
+    incl. question intents for GEO), Google Trends. Each candidate is shaped like an
+    seo_keyword dict carrying its ``data_source`` so the LLM selects from observed
+    demand instead of inventing terms — the root cause of unreliable, AI-estimated
+    keyword lists. Returns a deduplicated, source-ranked list capped at ``max_pool``.
+    """
+    title = str(fields.get("product_title", "")).strip()
+    label = str(fields.get("merchant_label", "")).strip()
+    handle_words = str(fields.get("handle", "")).replace("-", " ")
+    product_words = _content_words(
+        " ".join([fields.get("source_product_text", "") or title, label, handle_words])
+    )
+
+    gsc_cands = _gsc_candidates(product_words, gsc_query_rows)
+
+    seeds: list[str] = []
+    for seed in [label or title, title]:
+        seed = seed.strip()
+        if seed and seed.lower() not in {s.lower() for s in seeds}:
+            seeds.append(seed)
+    if gsc_cands and gsc_cands[0]["query"].lower() not in {s.lower() for s in seeds}:
+        seeds.append(gsc_cands[0]["query"])
+    seeds = seeds[:_SUGGEST_SEED_MAX]
+
+    pool: dict[str, dict[str, Any]] = {}
+    for cand in gsc_cands:
+        _merge_pool_candidate(pool, cand)
+    for cand in _trend_candidates(
+        fields.get("trend_top", []) or [], fields.get("trend_rising", []) or [], product_words
+    ):
+        _merge_pool_candidate(pool, cand)
+
+    if dataforseo is not None and getattr(dataforseo, "available", False) and seeds:
+        ideas = dataforseo.fetch_keyword_ideas(seeds, limit=ideas_limit)
+        for idea in ideas or []:
+            query = str(idea.get("query", "")).strip()
+            if not query or not _idea_is_relevant(query, seeds):
+                continue
+            idea["product_fit_score"] = _score_idea_fit(query, product_words)
+            _merge_pool_candidate(pool, idea)
+
+    if use_suggest and seeds:
+        fetcher = suggest_fetcher or fetch_suggestions_bulk
+        for cand in _suggest_candidates(seeds, product_words, fetcher=fetcher):
+            _merge_pool_candidate(pool, cand)
+
+    candidates = list(pool.values())
+    candidates.sort(
+        key=lambda k: (
+            k.get("_src_priority", 0),
+            int(k.get("search_volume") or 0),
+            int(k.get("demand_score", 0) or 0),
+        ),
+        reverse=True,
+    )
+    for cand in candidates:
+        cand.pop("_src_priority", None)
+    return candidates[:max_pool]
+
+
+def _enrich_keyword_dicts(
+    keywords: list[dict[str, Any]],
+    free_provider: Any,
+    paid_providers: list[Any],
+    *,
+    shop: str,
+) -> list[dict[str, Any]]:
+    """Run free + paid keyword enrichment over LLM-shaped keyword dicts."""
+    if not keywords:
+        return keywords
+    signals = signals_from_llm_keywords(keywords)
+    signals = free_provider.enrich(signals, shop=shop)
+    for paid in paid_providers:
+        signals = paid.enrich(signals, shop=shop)
+    return _apply_signals_to_keywords(keywords, signals)
+
+
+def _is_real_keyword(keyword: dict[str, Any]) -> bool:
+    """True when a keyword is backed by observed demand, not an LLM estimate."""
+    return (
+        str(keyword.get("data_source", "")) in ("gsc", "dataforseo", "google_ads")
+        or bool(keyword.get("search_volume"))
+        or bool(keyword.get("gsc_impressions"))
+    )
+
+
+def _merge_pass1_selection(
+    llm_keywords: list[dict[str, Any]],
+    candidate_pool: list[dict[str, Any]],
+    *,
+    min_real_floor: int = 5,
+) -> list[dict[str, Any]]:
+    """Merge the LLM's keyword selection back onto the real candidate metrics.
+
+    Selected queries inherit the pool's real data_source / volume / GSC metrics; the
+    LLM only contributes intent_type, product_fit_score and reason. Keywords the LLM
+    added (absent from the pool) are flagged ``data_source='llm_proposed'`` so they
+    are never confused with observed demand.
+
+    To keep results grounded and consistent run-to-run, the strongest real candidates
+    are guaranteed a floor of ``min_real_floor`` entries: the LLM can label and
+    reorder, but cannot silently drop high observed demand. Falls back to the top pool
+    entries when the LLM returns nothing usable.
+    """
+    pool_by_query = {
+        str(c.get("query", "")).strip().lower(): c
+        for c in candidate_pool
+        if isinstance(c, dict) and str(c.get("query", "")).strip()
+    }
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for kw in llm_keywords or []:
+        if not isinstance(kw, dict):
+            continue
+        query = str(kw.get("query", "")).strip()
+        key = query.lower()
+        if not query or key in seen:
+            continue
+        seen.add(key)
+        base = pool_by_query.get(key)
+        if base is not None:
+            merged = dict(base)
+            if kw.get("intent_type"):
+                merged["intent_type"] = kw["intent_type"]
+            if kw.get("product_fit_score") is not None:
+                merged["product_fit_score"] = kw["product_fit_score"]
+            if kw.get("reason"):
+                merged["reason"] = kw["reason"]
+        else:
+            merged = dict(kw)
+            merged["data_source"] = "llm_proposed"
+            merged.setdefault("difficulty_source", "free_estimated")
+            merged.setdefault("search_volume", None)
+            merged.setdefault("competition_score", 50)
+            notes = list(merged.get("notes", []) or [])
+            notes.append("Proposé par l'IA — aucune donnée marché")
+            merged["notes"] = notes
+        out.append(merged)
+
+    # Guarantee a floor of the strongest REAL candidates the LLM may have skipped.
+    real_in_out = sum(1 for k in out if _is_real_keyword(k))
+    if real_in_out < min_real_floor:
+        real_pool = sorted(
+            (c for c in candidate_pool if isinstance(c, dict) and _is_real_keyword(c)),
+            key=_keyword_priority_score,
+            reverse=True,
+        )
+        for cand in real_pool:
+            if real_in_out >= min_real_floor:
+                break
+            key = str(cand.get("query", "")).strip().lower()
+            if key and key not in seen:
+                out.append(dict(cand))
+                seen.add(key)
+                real_in_out += 1
+
+    if not out:
+        return [dict(c) for c in candidate_pool[:8]]
+    return out
 
 
 def _keyword_priority_score(keyword: dict[str, Any]) -> int:
@@ -1908,9 +2361,13 @@ def _complete_json(
     product_title: str,
     *,
     max_tokens: int = 4096,
+    temperature: float = 0.3,
+    json_mode: bool = True,
 ) -> dict[str, Any]:
     """Run one LLM completion and merge the parsed `keys` into a copy of `fallback`.
 
+    Defaults to deterministic JSON mode (json_mode=True) so the LLM returns a
+    parseable object and consecutive runs of the same product stay consistent.
     On any LLM/parse failure returns `fallback` unchanged (logged).
     """
     pack = dict(fallback)
@@ -1922,7 +2379,8 @@ def _complete_json(
             prompt,
             system=_SYSTEM_PROMPT,
             max_tokens=max_tokens,
-            temperature=0.3,
+            temperature=temperature,
+            json_mode=json_mode,
         )
         raw = completion.text.strip()
         if raw.startswith("```"):
@@ -2113,11 +2571,14 @@ def run_market_analysis(
 ) -> dict[str, Any]:
     """Run a two-pass SEO/GEO market analysis for active products.
 
-    Pass 1 (targeting): the LLM produces product understanding + candidate
-    keywords. Those keywords are enriched (GSC + DataForSEO volumes/difficulty),
-    and SERP intelligence (competitor angles + PAA questions) is fetched once for
-    the whole run. Pass 2 (content): the LLM writes the content pack informed by
-    real volumes, competitor angles, PAA questions and crawl findings.
+    Pass 1 (targeting): a real candidate keyword pool is built per product from
+    GSC matched queries, DataForSEO keyword ideas, Google Suggest and Trends, then
+    enriched with real volumes/difficulty. The LLM SELECTS and qualifies keywords
+    from that pool (intent, product fit) instead of inventing them, and may add at
+    most a couple of clearly-flagged gap long-tails. SERP intelligence (competitor
+    angles + PAA questions) is fetched once for the whole run. Pass 2 (content): the
+    LLM writes the content pack informed by real volumes, competitor angles, PAA
+    questions and crawl findings.
 
     Sources: Shopify snapshot, GSC queries, GA4 page metrics, Google Trends,
     stock/inventory, DataForSEO (when enabled), crawl findings. Read-only.
@@ -2195,6 +2656,22 @@ def run_market_analysis(
             (merchant_facts_by_product or {}).get(str(product.get("id", ""))),
         )
 
+        # Real-data-first: build a candidate pool from GSC + DataForSEO ideas +
+        # Google Suggest + Trends BEFORE the LLM, enrich it with real volumes, then
+        # let the LLM SELECT from observed demand instead of inventing keywords.
+        candidate_pool = _build_keyword_candidate_pool(
+            fields,
+            gsc_query_rows,
+            dataforseo=dataforseo_provider,
+            use_suggest=True,
+        )
+        if candidate_pool:
+            candidate_pool = _enrich_keyword_dicts(
+                candidate_pool, free_provider, paid_providers, shop=shop
+            )
+            if "keyword_candidate_pool" not in sources_used:
+                sources_used.append("keyword_candidate_pool")
+
         prompt = _build_pass1_prompt(
             product_title=fields["product_title"],
             handle=fields["handle"],
@@ -2215,22 +2692,44 @@ def run_market_analysis(
             stock_status=fields["stock_status"],
             merchant_label=fields["merchant_label"],
             business_context=business_context,
+            candidate_pool=candidate_pool,
         )
         fallback = _fallback_pack(
             fields["product_title"],
             fields["current_meta_title"],
             fields["current_meta_description"],
         )
-        pack = _complete_json(llm_router, prompt, _PASS1_KEYS, fallback, fields["product_title"])
+        # If the LLM fails, keep the real pool rather than an empty keyword list.
+        if candidate_pool:
+            fallback["seo_keywords"] = [dict(c) for c in candidate_pool]
+        pack = _complete_json(
+            llm_router,
+            prompt,
+            _PASS1_KEYS,
+            fallback,
+            fields["product_title"],
+            temperature=0.0,
+        )
         pack["confirmed_facts"] = fields["confirmed_facts"]
 
-        # Enrich candidate keywords: free first, then each enabled paid provider
-        if pack.get("seo_keywords"):
-            signals = signals_from_llm_keywords(pack["seo_keywords"])
-            signals = free_provider.enrich(signals, shop=shop)
-            for paid in paid_providers:
-                signals = paid.enrich(signals, shop=shop)
-            pack["seo_keywords"] = _apply_signals_to_keywords(pack["seo_keywords"], signals)
+        if candidate_pool:
+            # Map the LLM selection back onto the real metrics; enrich any LLM-added gaps.
+            pack["seo_keywords"] = _merge_pass1_selection(
+                pack.get("seo_keywords", []) or [], candidate_pool
+            )
+            added = [k for k in pack["seo_keywords"] if k.get("data_source") == "llm_proposed"]
+            if added:
+                enriched = _enrich_keyword_dicts(added, free_provider, paid_providers, shop=shop)
+                by_query = {str(k.get("query", "")).strip().lower(): k for k in enriched}
+                pack["seo_keywords"] = [
+                    by_query.get(str(k.get("query", "")).strip().lower(), k)
+                    for k in pack["seo_keywords"]
+                ]
+        elif pack.get("seo_keywords"):
+            # Degraded path: no real pool, enrich the LLM-proposed keywords as best-effort.
+            pack["seo_keywords"] = _enrich_keyword_dicts(
+                pack["seo_keywords"], free_provider, paid_providers, shop=shop
+            )
 
         pass1_states.append({"product": product, "opp": opp, "fields": fields, "pack": pack})
 
@@ -2250,44 +2749,10 @@ def run_market_analysis(
             except Exception:
                 pass
 
-    # ── Global batch: ideas first, then select the final SERP targets ─────────
-    # An idea must be part of the final ranked set before we pay for SERP/PAA
-    # evidence; otherwise content may target an idea never checked in the SERP.
-    if dataforseo_provider.available:
-        for state in pass1_states:
-            kws = state["pack"].get("seo_keywords", []) or []
-            seeds = [
-                k["query"]
-                for k in sorted(kws, key=lambda k: k.get("demand_score", 0), reverse=True)[:3]
-                if isinstance(k, dict) and k.get("query")
-            ]
-            if not seeds:
-                continue
-            ideas = dataforseo_provider.fetch_keyword_ideas(seeds, limit=15)
-            if ideas:
-                existing = {k.get("query", "").lower() for k in kws if isinstance(k, dict)}
-                fields = state["fields"]
-                product_text = " ".join(
-                    filter(
-                        None,
-                        [
-                            fields.get("product_title", ""),
-                            fields.get("handle", "").replace("-", " "),
-                            str(fields.get("tags", "")),
-                            " ".join(fields.get("collections", [])),
-                        ],
-                    )
-                )
-                product_words = _content_words(product_text)
-                new_ideas = [
-                    {**i, "product_fit_score": _score_idea_fit(i.get("query", ""), product_words)}
-                    for i in ideas
-                    if i.get("query", "").lower() not in existing
-                    and _idea_is_relevant(i.get("query", ""), seeds)
-                ]
-                state["pack"]["seo_keywords"] = list(kws) + new_ideas
-                if "dataforseo_keyword_ideas" not in sources_used:
-                    sources_used.append("dataforseo_keyword_ideas")
+    # DataForSEO keyword ideas are now fetched inside the candidate pool (per product,
+    # seeded from real product terms) rather than from the LLM's top guesses.
+    if dataforseo_provider.available and "dataforseo_keyword_ideas" not in sources_used:
+        sources_used.append("dataforseo_keyword_ideas")
 
     serp_keywords: list[str] = []
     for state in pass1_states:

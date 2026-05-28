@@ -34,6 +34,7 @@ class OpenAIProvider(LLMProvider):
         system: str = "",
         max_tokens: int = 512,
         temperature: float = 0.3,
+        json_mode: bool = False,
     ) -> CompletionResult:
         try:
             import openai as _openai
@@ -43,11 +44,16 @@ class OpenAIProvider(LLMProvider):
                 messages.append({"role": "system", "content": system})
             messages.append({"role": "user", "content": prompt})
 
+            extra: dict = {}
+            if json_mode:
+                extra["response_format"] = {"type": "json_object"}
+
             response = self._client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                **extra,
             )
             text = response.choices[0].message.content or ""
             usage = response.usage

@@ -33,7 +33,9 @@ import { t, type Locale } from "../lib/i18n";
 import {
   type ContentTestPack,
   type ProductResult,
+  KeywordSourceBadge,
   highlightKeywords,
+  keywordCoverage,
   merchantAnswersFromPack,
   qualityWarningText,
 } from "../lib/marketAnalysisShared";
@@ -437,6 +439,54 @@ export function ProductContentProposals({
     </Box>
   ) : null;
 
+  // Transparency: where each targeted keyword comes from and where it is used.
+  // Directly answers the merchant's "which keywords were actually used?" question.
+  const targetedKeywords = [...product.seo_keywords]
+    .sort((a, b) => (a.target_rank ?? 999) - (b.target_rank ?? 999))
+    .slice(0, 8);
+
+  const keywordSourcesPanel = targetedKeywords.length > 0 ? (
+    <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
+      <BlockStack gap="200">
+        <Text as="h4" variant="headingXs">
+          {t(locale, "marketAnalysisKeywordSourcesTitle")}
+        </Text>
+        <Text as="p" variant="bodySm" tone="subdued">
+          {t(locale, "marketAnalysisKeywordSourcesHelp")}
+        </Text>
+        <BlockStack gap="150">
+          {targetedKeywords.map((kw) => {
+            const used = keywordCoverage(kw.query, editedPack);
+            const volume =
+              kw.search_volume != null
+                ? `${kw.search_volume.toLocaleString()} ${t(locale, "marketAnalysisVolume")}`
+                : kw.gsc_impressions != null
+                ? `${kw.gsc_impressions} impr. GSC`
+                : null;
+            return (
+              <Box key={kw.query} paddingBlockEnd="100">
+                <BlockStack gap="050">
+                  <InlineStack gap="150" blockAlign="center" wrap>
+                    <Text as="span" variant="bodySm" fontWeight="semibold">{kw.query}</Text>
+                    <KeywordSourceBadge source={kw.data_source} locale={locale} />
+                    {volume && (
+                      <Text as="span" variant="bodySm" tone="subdued">{volume}</Text>
+                    )}
+                  </InlineStack>
+                  <Text as="p" variant="bodySm" tone={used.length ? "subdued" : "critical"}>
+                    {used.length
+                      ? `${t(locale, "marketAnalysisKeywordUsedIn")} : ${used.join(", ")}`
+                      : t(locale, "marketAnalysisKeywordUsedNowhere")}
+                  </Text>
+                </BlockStack>
+              </Box>
+            );
+          })}
+        </BlockStack>
+      </BlockStack>
+    </Box>
+  ) : null;
+
   const fieldButtons = fields.filter((f) => f.has).map((f) => (
     <Button
       key={f.key}
@@ -454,6 +504,7 @@ export function ProductContentProposals({
       <BlockStack gap="200">
         {saveError}
         {successBanner}
+        {keywordSourcesPanel}
         {enrichmentBlock}
         <InlineStack gap="150" wrap>{fieldButtons}</InlineStack>
         {available.map((f) => (
@@ -496,6 +547,7 @@ export function ProductContentProposals({
       {saveError}
       {successBanner}
       {warningIcon}
+      {keywordSourcesPanel}
       {enrichmentBlock}
       {fields.filter((f) => f.has).map((f) => (
         <div key={f.key}>{f.render(editMode)}</div>

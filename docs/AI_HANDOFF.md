@@ -10,6 +10,20 @@
 
 ## Last completed task
 
+- **Date:** 2026-05-29
+- **Agent:** Claude (Opus 4.7)
+- **Goal:** Fiabiliser l'algo d'analyse produit (analyse complète/profil/produits) : trop de mots-clés estimés par l'IA, peu de données concrètes, forte variance entre runs/produits, et opacité sur les mots-clés réellement utilisés.
+- **Summary:** Le moteur `app/market_analysis/engine.py` passe d'un pipeline « IA d'abord » à « données réelles d'abord ». Avant tout appel LLM, un pool de mots-clés candidats RÉELS est construit par produit depuis GSC (requêtes appariées + impressions/clics/position), idées DataForSEO (volumes FR réels), Google Suggest (autocomplétion réelle + formes questions pour le GEO) et Google Trends. Le Pass 1 LLM ne « invente » plus : il SÉLECTIONNE/qualifie (intent, product_fit, role) depuis ce pool et peut ajouter au plus 2 longues traînes clairement marquées `llm_proposed`. Un plancher garantit que les meilleurs candidats réels ne sont jamais écartés silencieusement (réduit la variance). Les appels LLM passent en mode JSON déterministe (`response_format=json_object`, température 0 pour le ciblage). Côté UI, un panneau « Mots-clés ciblés & sources » affiche pour chaque mot-clé sa source (badge GSC/DataForSEO/Suggest/Trends/IA), son volume/impressions et les champs de contenu où il est réellement utilisé.
+- **Files created:** `tests/market_analysis/test_keyword_pool.py`.
+- **Files modified:** `app/market_analysis/engine.py`, `app/market_analysis/providers/free_provider.py` (préservation de la provenance), `app/llm/provider.py`, `app/llm/router.py`, `app/llm/providers/openai.py`, `app/llm/providers/groq.py`, `app/llm/providers/cloudflare.py`, `shopify-app/app/lib/marketAnalysisShared.tsx` (badge mutualisé + nouvelles sources), `shopify-app/app/components/ProductContentProposals.tsx` (panneau transparence), `shopify-app/app/routes/app.market-analysis.tsx`, `shopify-app/app/lib/i18n.ts`, plusieurs fakes de tests LLM (`tests/test_llm/*`, `tests/market_analysis/test_two_pass_engine.py`).
+- **Decisions made:** (1) Les vraies sources (GSC/DataForSEO) priment sur l'estimation IA ; Suggest/Trends conservent leur provenance si aucune donnée plus forte ne les écrase. (2) Maximiser les données réelles (choix marchand) : idées DataForSEO + Suggest récupérées par produit, seedées sur les termes produit réels. (3) Plancher de mots-clés réels pour stabiliser les résultats entre deux analyses. (4) Mode JSON + température 0 sur le ciblage pour réduire la variance et les échecs de parsing.
+- **Validations run:** `pytest` complet — 1583 ✅ ; `ruff check` sur fichiers modifiés ✅ ; `ruff format` ✅ ; `cd shopify-app && npm run typecheck` ✅ ; `cd shopify-app && npm run build` ✅.
+- **Validations skipped:** Vérification visuelle dans une boutique Shopify embedded authentifiée non effectuée (nécessite session Shopify) — à faire sur boutique pilote.
+- **Open issues:** Google Suggest est appelé par produit (délai 0,5 s/seed) : latence accrue sur gros catalogues en job de fond ; envisager un cache. Les 6 erreurs ruff I001 préexistantes dans `tests/market_analysis/test_jobs.py` ne sont pas corrigées (hors périmètre).
+- **Next recommended action:** Lancer une `Analyse complète` sur boutique pilote, vérifier que le panneau « Mots-clés ciblés & sources » montre une majorité de sources réelles (GSC/DataForSEO/Suggest) et comparer deux runs du même produit pour confirmer la stabilité.
+
+## Previous completed task
+
 - **Date:** 2026-05-28
 - **Agent:** Codex (GPT-5)
 - **Goal:** Ajouter des étapes intermédiaires de validation dans l'analyse complète du dashboard.

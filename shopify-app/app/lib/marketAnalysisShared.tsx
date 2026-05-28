@@ -5,8 +5,9 @@
  * panel so the per-product content proposals render identically in both places.
  */
 
+import { Badge } from "@shopify/polaris";
 import type { ReactNode } from "react";
-import type { Locale } from "./i18n";
+import { t, type Locale } from "./i18n";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -16,6 +17,8 @@ export type KeywordSource =
   | "trends"
   | "shopify"
   | "llm_estimated"
+  | "llm_proposed"
+  | "google_suggest"
   | "dataforseo"
   | "google_ads"
   | "parent_estimated";
@@ -285,6 +288,44 @@ export function qualityWarningText(pack: ContentTestPack, locale: Locale): strin
     parts.push(`${prefix} : ${quality.skipped_surfaces!.map((surface) => surfaceLabel(surface, locale)).join(", ")}`);
   }
   return parts.join(" — ");
+}
+
+/**
+ * Badge showing where a keyword's metrics come from. Real-data sources (GSC,
+ * DataForSEO, GA4, Suggest, Trends) render as positive/info; estimated sources
+ * (AI-proposed/estimated, parent-extrapolated) render as a cautionary badge so the
+ * merchant can tell observed demand from a guess at a glance.
+ */
+export function KeywordSourceBadge({
+  source,
+  locale,
+}: {
+  source: KeywordSource | undefined;
+  locale: Locale;
+}): ReactNode {
+  if (!source) return null;
+  switch (source) {
+    case "gsc":
+      return <Badge tone="success">{t(locale, "marketAnalysisSourceGsc")}</Badge>;
+    case "dataforseo":
+      return <Badge tone="success">{t(locale, "marketAnalysisSourceDataforseo")}</Badge>;
+    case "ga4":
+      return <Badge tone="success">{t(locale, "marketAnalysisSourceGa4")}</Badge>;
+    case "google_suggest":
+      return <Badge tone="info">{t(locale, "marketAnalysisSourceSuggest")}</Badge>;
+    case "trends":
+      return <Badge tone="info">{t(locale, "marketAnalysisSourceTrends")}</Badge>;
+    case "shopify":
+      return <Badge tone="info">{t(locale, "marketAnalysisSourceShopify")}</Badge>;
+    case "parent_estimated":
+      return (
+        <Badge tone="info">{locale === "fr" ? "Estimé via parent" : "Parent-estimated"}</Badge>
+      );
+    case "llm_proposed":
+      return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlmProposed")}</Badge>;
+    default:
+      return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlm")}</Badge>;
+  }
 }
 
 export function merchantAnswersFromPack(pack: ContentTestPack): Record<string, string> {

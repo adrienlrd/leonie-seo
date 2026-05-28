@@ -176,6 +176,7 @@ def _run(router, *, dataforseo, over_budget=False, crawl_findings=None, business
         patch.object(engine, "get_router", return_value=router),
         patch.object(engine, "check_budget", return_value=budget),
         patch.object(engine, "_fetch_trends_once", return_value=[]),
+        patch.object(engine, "fetch_suggestions_bulk", return_value=[]),
         patch.object(engine, "DataForSEOProvider", return_value=dataforseo),
     ):
         return engine.run_market_analysis(
@@ -292,7 +293,25 @@ def test_over_budget_skips_pass2_keeps_keywords():
 
 def test_keyword_idea_is_serp_checked_when_it_becomes_primary_target():
     provider = _FakeDataForSEOWithWinningIdea()
-    router = _router(_PASS1_JSON, _PASS2_JSON)
+    # The high-volume idea now enters the candidate pool; the LLM selects it from
+    # the real pool and labels it the best fit, so it becomes the primary target.
+    pass1 = json.dumps(
+        {
+            "product_summary": "Fontaine à eau pour chat.",
+            "target_customer": "Propriétaires de chats.",
+            "buying_intents": ["hydratation"],
+            "seo_keywords": [
+                {
+                    "query": "fontaine chat silencieuse",
+                    "intent_type": "commercial",
+                    "product_fit_score": 95,
+                    "reason": "demande réelle élevée",
+                }
+            ],
+            "geo_questions": [],
+        }
+    )
+    router = _router(pass1, _PASS2_JSON)
 
     result = _run(router, dataforseo=provider)
 
@@ -301,6 +320,7 @@ def test_keyword_idea_is_serp_checked_when_it_becomes_primary_target():
     assert primary["query"] == "fontaine chat silencieuse"
     assert primary["target_rank"] == 1
     assert primary["target_role"] == "primary"
+    assert primary["data_source"] == "dataforseo"  # grounded in the real pool
     assert primary["serp_evidence"] is True
     assert provider.requested_serp_keywords[0] == "fontaine chat silencieuse"
 

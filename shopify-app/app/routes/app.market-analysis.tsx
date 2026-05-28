@@ -28,7 +28,7 @@ import { ProductContentProposals } from "../components/ProductContentProposals";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type KeywordSource = "gsc" | "ga4" | "trends" | "shopify" | "llm_estimated" | "dataforseo" | "google_ads" | "parent_estimated";
+type KeywordSource = "gsc" | "ga4" | "trends" | "shopify" | "llm_estimated" | "llm_proposed" | "google_suggest" | "dataforseo" | "google_ads" | "parent_estimated";
 type DifficultySource = "free_estimated" | "dataforseo" | "google_ads";
 type BusinessProfileContextStatus = "current" | "stale" | "unknown" | "missing_profile";
 
@@ -726,10 +726,13 @@ function KeywordSourceBadge({ source, locale }: { source: KeywordSource | undefi
   if (source === "gsc") return <Badge tone="success">{t(locale, "marketAnalysisSourceGsc")}</Badge>;
   if (source === "dataforseo") return <Badge tone="success">{t(locale, "marketAnalysisSourceDataforseo")}</Badge>;
   if (source === "ga4") return <Badge tone="success">{t(locale, "marketAnalysisSourceGa4")}</Badge>;
+  if (source === "google_suggest") return <Badge tone="info">{t(locale, "marketAnalysisSourceSuggest")}</Badge>;
+  if (source === "trends") return <Badge tone="info">{t(locale, "marketAnalysisSourceTrends")}</Badge>;
   if (source === "shopify") return <Badge tone="info">{t(locale, "marketAnalysisSourceShopify")}</Badge>;
   if (source === "parent_estimated") {
     return <Badge tone="info">{locale === "fr" ? "Estimé via parent" : "Parent-estimated"}</Badge>;
   }
+  if (source === "llm_proposed") return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlmProposed")}</Badge>;
   return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlm")}</Badge>;
 }
 

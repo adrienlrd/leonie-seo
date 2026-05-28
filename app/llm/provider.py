@@ -29,6 +29,7 @@ class LLMProvider(ABC):
         system: str = "",
         max_tokens: int = 512,
         temperature: float = 0.3,
+        json_mode: bool = False,
     ) -> CompletionResult:
         """Send a completion request and return the result.
 
@@ -37,6 +38,9 @@ class LLMProvider(ABC):
             system: System instruction (optional).
             max_tokens: Maximum tokens in the response.
             temperature: Sampling temperature (0 = deterministic).
+            json_mode: When True, ask the provider to constrain output to valid
+                JSON (response_format json_object). Providers that do not support
+                it ignore the flag.
 
         Returns:
             CompletionResult with the generated text, provider name, and model.

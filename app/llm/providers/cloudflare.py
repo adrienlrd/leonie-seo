@@ -51,6 +51,7 @@ class CloudflareProvider(LLMProvider):
         system: str = "",
         max_tokens: int = 512,
         temperature: float = 0.3,
+        json_mode: bool = False,  # noqa: ARG002 — Workers AI text models ignore it
     ) -> CompletionResult:
         url = _BASE_URL.format(account_id=self._account_id, model=self.model)
         messages: list[dict] = []

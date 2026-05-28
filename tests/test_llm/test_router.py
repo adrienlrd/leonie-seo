@@ -16,7 +16,7 @@ from app.llm.router import LLMRouter
 
 def _ok_provider(name: str, text: str = "ok") -> LLMProvider:
     class _Provider(LLMProvider):
-        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3):
+        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3, json_mode=False):  # noqa: ARG002
             return CompletionResult(text=text, provider=self.name, model=self.model)
 
     p = _Provider()
@@ -27,7 +27,7 @@ def _ok_provider(name: str, text: str = "ok") -> LLMProvider:
 
 def _failing_provider(name: str, exc: Exception) -> LLMProvider:
     class _Provider(LLMProvider):
-        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3):
+        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3, json_mode=False):  # noqa: ARG002
             raise exc
 
     p = _Provider()

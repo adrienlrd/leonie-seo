@@ -17,7 +17,7 @@ def _make_router(responses: list) -> LLMRouter:
         name = "fake"
         model = "fake-model"
 
-        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3):
+        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3, json_mode=False):  # noqa: ARG002
             idx = call_count[0]
             call_count[0] += 1
             r = responses[idx % len(responses)]
@@ -147,7 +147,7 @@ def test_generate_meta_uses_correct_product_fields():
         name = "fake"
         model = "fake"
 
-        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3):
+        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3, json_mode=False):  # noqa: ARG002
             captured.append(prompt)
             return CompletionResult(text="Result", provider="fake", model="fake")
 

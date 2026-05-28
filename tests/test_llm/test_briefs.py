@@ -19,7 +19,7 @@ def _make_router(text: str = "Brief généré.", *, raises: Exception | None = N
         name = "fake"
         model = "fake-model"
 
-        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3):
+        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3, json_mode=False):  # noqa: ARG002
             if raises is not None:
                 raise raises
             return CompletionResult(text=text, provider="fake", model="fake-model")
@@ -177,7 +177,7 @@ def test_generate_blog_briefs_partial_failures():
         name = "flaky"
         model = "m"
 
-        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3):
+        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3, json_mode=False):  # noqa: ARG002
             call_count[0] += 1
             if call_count[0] % 2 == 0:
                 raise LLMError("rate limited")
@@ -252,7 +252,7 @@ def test_generate_collection_brief_uses_keywords():
         name = "cap"
         model = "m"
 
-        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3):
+        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3, json_mode=False):  # noqa: ARG002
             captured.append(prompt)
             return CompletionResult(text="brief", provider="cap", model="m")
 

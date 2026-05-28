@@ -1,7 +1,8 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Dernière session : **2026-05-25** (DataForSEO 5 APIs actives + migration infra prod planifiée Phase 12)
+- Dernière session : **2026-05-29** (Fiabilisation algo Analyse produit : pipeline « données réelles d'abord », pool de mots-clés GSC/DataForSEO/Suggest/Trends avant l'IA, mode JSON déterministe, transparence des sources en UI ; `pytest` 1583 ✅, typecheck/build ✅)
+- Session 2026-05-25 (DataForSEO 5 APIs actives + migration infra prod planifiée Phase 12)
 - Phase 1 : **15/15** ✅
 - Phase 2 : **14/14** ✅
 - Phase 3 : **10/10** ✅

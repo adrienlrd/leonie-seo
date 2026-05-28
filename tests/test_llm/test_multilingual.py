@@ -25,7 +25,7 @@ def _make_router(text: str = "", *, raises: Exception | None = None) -> LLMRoute
         name = "fake"
         model = "fake-model"
 
-        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3):
+        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3, json_mode=False):  # noqa: ARG002
             if raises is not None:
                 raise raises
             return CompletionResult(text=text, provider="fake", model="fake-model")
@@ -211,7 +211,7 @@ def test_generate_meta_all_locales_partial_failure_does_not_stop():
         name = "flaky"
         model = "m"
 
-        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3):
+        def complete(self, prompt, *, system="", max_tokens=512, temperature=0.3, json_mode=False):  # noqa: ARG002
             call_count[0] += 1
             if call_count[0] % 2 == 0:
                 raise LLMError("quota exceeded")
