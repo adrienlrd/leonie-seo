@@ -179,6 +179,7 @@ interface LoaderData {
   dashboard: DashboardData | null;
   activeProducts: ActiveProduct[];
   productResults: Record<string, ProductResult>;
+  competitorSignals: string[];
   auditJobId: string | null;
   businessProfile: BusinessProfile | null;
   error: string | null;
@@ -196,6 +197,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let activeProducts: ActiveProduct[] = [];
   let productResults: Record<string, ProductResult> = {};
+  let competitorSignals: string[] = [];
   let auditJobId: string | null = null;
   let businessProfile: BusinessProfile | null = null;
 
@@ -220,14 +222,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     // Index analyzed product packs by id and handle so the active-products panel
-    // can reveal generated content proposals per product.
+    // can reveal generated content proposals per product. Also surface the
+    // detected competitor domains on the dashboard "Concurrents" card.
     if (marketResp.status === "fulfilled" && marketResp.value.ok) {
       try {
-        const job = (await marketResp.value.json()) as { products?: ProductResult[] };
+        const job = (await marketResp.value.json()) as {
+          products?: ProductResult[];
+          competitor_signals?: { domain?: string }[];
+        };
         for (const result of job.products ?? []) {
           if (result.product_id) productResults[result.product_id] = result;
           if (result.product_handle) productResults[result.product_handle] = result;
         }
+        competitorSignals = [
+          ...new Set(
+            (job.competitor_signals ?? [])
+              .map((c) => (c.domain ?? "").trim())
+              .filter(Boolean),
+          ),
+        ];
       } catch (_parseErr) { /* ignore */ }
     }
 
@@ -238,6 +251,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         dashboard: null,
         activeProducts,
         productResults,
+        competitorSignals,
         auditJobId: null,
         businessProfile,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
@@ -250,13 +264,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirect(localizedPath("/app/onboarding", locale));
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, auditJobId, businessProfile, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, auditJobId, businessProfile, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
       dashboard: null,
       activeProducts,
       productResults,
+      competitorSignals,
       auditJobId,
       businessProfile,
       error: err instanceof Error ? err.message : "Network error",
@@ -1050,7 +1065,7 @@ function getNicheIcon(profile: BusinessProfile): IconSource {
   return StarFilledIcon;
 }
 
-function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale: Locale }) {
+function BizProfileCards({ profile, competitorSignals, locale }: { profile: BusinessProfile; competitorSignals: string[]; locale: Locale }) {
   const intensityTone = (i: string): "success" | "warning" | "info" =>
     i === "high" ? "success" : i === "medium" ? "warning" : "info";
   const NicheIcon = getNicheIcon(profile);
@@ -1137,13 +1152,16 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
         <Card>
           <BlockStack gap="200">
             <SectionTitle source={GlobeIcon}>{locale === "fr" ? "Concurrents" : "Competitors"}</SectionTitle>
-            {(profile.competitor_domains ?? []).length > 0 && (
-              <InlineStack gap="150" wrap>
-                {profile.competitor_domains.map((d) => (
-                  <Badge key={d} tone="info">{d}</Badge>
-                ))}
-              </InlineStack>
-            )}
+            {(() => {
+              const domains = [...new Set([...(profile.competitor_domains ?? []), ...competitorSignals])];
+              return domains.length > 0 ? (
+                <InlineStack gap="150" wrap>
+                  {domains.map((d) => (
+                    <Badge key={d} tone="info">{d}</Badge>
+                  ))}
+                </InlineStack>
+              ) : null;
+            })()}
             {(profile.competitor_insights ?? []).length > 0 && (
               <BlockStack gap="050">
                 {profile.competitor_insights.map((i) => (
@@ -1185,9 +1203,11 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
 
 function BusinessProfileSection({
   initialProfile,
+  competitorSignals,
   locale,
 }: {
   initialProfile: BusinessProfile | null;
+  competitorSignals: string[];
   locale: Locale;
 }) {
   const bizFetcher = useFetcher<BizActionData>();
@@ -1499,7 +1519,7 @@ function BusinessProfileSection({
       {bizError && (
         <Banner tone="critical"><p>{bizError.split("\n")[0]}</p></Banner>
       )}
-      <BizProfileCards profile={displayProfile} locale={locale} />
+      <BizProfileCards profile={displayProfile} competitorSignals={competitorSignals} locale={locale} />
     </BlockStack>
   );
 }
@@ -1507,7 +1527,7 @@ function BusinessProfileSection({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { locale, plan, dashboard, activeProducts, productResults, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { locale, plan, dashboard, activeProducts, productResults, competitorSignals, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
 
   // ── Audit job polling ─────────────────────────────────────────────────────
   type PollData = { type?: string; status?: string; resultStatus?: string | null; error?: string | null };
@@ -1767,7 +1787,7 @@ export default function IndexPage() {
         <Zone1 data={zone1} locale={locale} />
 
         {/* Business profile — niche, brand, personas, content style */}
-        <BusinessProfileSection initialProfile={businessProfile} locale={locale} />
+        <BusinessProfileSection initialProfile={businessProfile} competitorSignals={competitorSignals} locale={locale} />
 
         {/* Zone 2 — Active products */}
         <ActiveProductsCard

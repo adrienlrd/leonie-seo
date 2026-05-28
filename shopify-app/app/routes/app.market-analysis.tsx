@@ -707,61 +707,6 @@ function PaidRecommendedCard({
   );
 }
 
-function CompetitorsCard({
-  signals,
-  isLoading,
-  locale,
-}: {
-  signals: CompetitorSignal[] | undefined;
-  isLoading: boolean;
-  locale: Locale;
-}) {
-  const items = signals ?? [];
-  return (
-    <Card>
-      <BlockStack gap="200">
-        <InlineStack align="space-between" blockAlign="center">
-          <Text as="h3" variant="headingSm">
-            {t(locale, "marketAnalysisCompetitors")}
-          </Text>
-          <Button
-            variant="plain"
-            size="slim"
-            url={localizedPath("/app/settings/competitors", locale)}
-          >
-            {t(locale, "marketAnalysisAddCompetitor")}
-          </Button>
-        </InlineStack>
-        {items.length === 0 ? (
-          <Text as="p" variant="bodySm" tone="subdued">
-            {isLoading
-              ? t(locale, "marketAnalysisCompetitorsLoading")
-              : t(locale, "marketAnalysisCompetitorsNone")}
-          </Text>
-        ) : (
-          <BlockStack gap="100">
-            {items.map((c) => (
-              <InlineStack key={c.domain} gap="200" blockAlign="center" wrap>
-                <Text as="span" variant="bodySm"><strong>{c.domain}</strong></Text>
-                <Badge tone={c.detected_from === "paid_provider" ? "success" : "info"}>
-                  {c.detected_from === "manual"
-                    ? (locale === "fr" ? "manuel" : "manual")
-                    : c.detected_from === "paid_provider"
-                    ? (locale === "fr" ? "SERP réel" : "real SERP")
-                    : c.detected_from}
-                </Badge>
-                {c.content_angle && (
-                  <Text as="span" variant="bodySm" tone="subdued">{c.content_angle}</Text>
-                )}
-              </InlineStack>
-            ))}
-          </BlockStack>
-        )}
-      </BlockStack>
-    </Card>
-  );
-}
-
 function KeywordSourceBadge({ source, locale }: { source: KeywordSource | undefined; locale: Locale }) {
   if (!source) return null;
   if (source === "gsc") return <Badge tone="success">{t(locale, "marketAnalysisSourceGsc")}</Badge>;
@@ -1511,13 +1456,7 @@ export default function MarketAnalysisPage() {
             </>
           ) : null;
         })()}
-        {(job ?? latestJob) && (
-          <CompetitorsCard
-            signals={job?.competitor_signals?.length ? job.competitor_signals : latestJob?.competitor_signals}
-            isLoading={job?.status === "running" || job?.status === "pending"}
-            locale={locale}
-          />
-        )}
+        {/* Competitor signals are surfaced on the dashboard "Concurrents" card. */}
 
         {/* ── STEP 1: Product identification ─────────────────────────────── */}
         {step === "identification" && (
