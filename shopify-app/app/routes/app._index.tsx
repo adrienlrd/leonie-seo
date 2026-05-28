@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   FormLayout,
+  Icon,
   InlineGrid,
   InlineStack,
   Modal,
@@ -20,7 +21,23 @@ import {
   TextField,
   Tooltip,
 } from "@shopify/polaris";
-import { useEffect, useRef, useState } from "react";
+import {
+  AlertCircleIcon,
+  BookOpenIcon,
+  ChartHistogramGrowthIcon,
+  CheckCircleIcon,
+  CompassIcon,
+  FoodIcon,
+  GaugeIcon,
+  HeartIcon,
+  HomeIcon,
+  NatureIcon,
+  ProductIcon,
+  SportsIcon,
+  StarFilledIcon,
+} from "@shopify/polaris-icons";
+import type { IconSource } from "@shopify/polaris";
+import React, { useEffect, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
@@ -232,7 +249,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ── Action (refresh + audit job polling) ──────────────────────────────────────
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent") as string | null;
 
@@ -261,10 +278,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "startBusinessAnalysis") {
     try {
+      let shopName = "";
+      try {
+        const shopResp = await admin.graphql(`#graphql
+          query { shop { name } }
+        `);
+        const shopData = (await shopResp.json()) as { data?: { shop?: { name?: string } } };
+        shopName = shopData.data?.shop?.name ?? "";
+      } catch { /* non-fatal */ }
+
+      const rawKeywords = formData.get("focusKeywords");
+      const focusKeywords: string[] = rawKeywords ? (JSON.parse(rawKeywords as string) as string[]) : [];
+
       const resp = await callBackendForShop(
         session.shop,
         `/api/shops/${session.shop}/business-profile/analyze`,
-        { accessToken: session.accessToken, method: "POST" },
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: JSON.stringify({ shop_name: shopName, focus_keywords: focusKeywords }),
+        },
       );
       if (!resp.ok) {
         const txt = await resp.text();
@@ -456,7 +489,10 @@ function Zone1({
   return (
     <Card>
       <BlockStack gap="300">
-        <Text as="h2" variant="headingMd">{t(locale, "dashboardZone1Title")}</Text>
+        <InlineStack gap="200" blockAlign="center">
+          <Icon source={GaugeIcon} tone="base" />
+          <Text as="h2" variant="headingMd">{t(locale, "dashboardZone1Title")}</Text>
+        </InlineStack>
         {data.global_score !== null ? (
           <BlockStack gap="200">
             <InlineStack gap="300" blockAlign="center">
@@ -563,7 +599,10 @@ function ActiveProductsCard({
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center">
-          <Text as="h2" variant="headingMd">{t(locale, "dashboardActiveProductsTitle")}</Text>
+          <InlineStack gap="200" blockAlign="center">
+            <Icon source={ProductIcon} tone="base" />
+            <Text as="h2" variant="headingMd">{t(locale, "dashboardActiveProductsTitle")}</Text>
+          </InlineStack>
           {products.length > 0 && <Badge>{String(products.length)}</Badge>}
         </InlineStack>
         {products.length === 0 ? (
@@ -614,7 +653,10 @@ function Zone2({
 
   return (
     <BlockStack gap="300">
-      <Text as="h2" variant="headingMd">{t(locale, "dashboardZone2Title")}</Text>
+      <InlineStack gap="200" blockAlign="center">
+        <Icon source={StarFilledIcon} tone="base" />
+        <Text as="h2" variant="headingMd">{t(locale, "dashboardZone2Title")}</Text>
+      </InlineStack>
       {data.actions.length === 0 ? (
         <Card>
           <Text as="p" tone="subdued">
@@ -655,7 +697,10 @@ function Zone3({
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center">
-          <Text as="h2" variant="headingMd">{t(locale, "dashboardZone3Title")}</Text>
+          <InlineStack gap="200" blockAlign="center">
+            <Icon source={ChartHistogramGrowthIcon} tone="base" />
+            <Text as="h2" variant="headingMd">{t(locale, "dashboardZone3Title")}</Text>
+          </InlineStack>
           {data.trend !== "flat" && (
             <Badge tone={trendTone}>{data.trend === "up" ? "↑" : "↓"}</Badge>
           )}
@@ -714,7 +759,10 @@ function Zone4({
   return (
     <Card>
       <BlockStack gap="200">
-        <Text as="h2" variant="headingMd">{t(locale, "dashboardZone4Title")}</Text>
+        <InlineStack gap="200" blockAlign="center">
+          <Icon source={CheckCircleIcon} tone="base" />
+          <Text as="h2" variant="headingMd">{t(locale, "dashboardZone4Title")}</Text>
+        </InlineStack>
         {data.pending_steps.map((step) => (
           <InlineStack key={step.key} align="space-between" blockAlign="center">
             <Text as="p">{step.label}</Text>
@@ -742,7 +790,10 @@ function Zone5({
   if (data.alerts.length === 0) return null;
   return (
     <BlockStack gap="200">
-      <Text as="h2" variant="headingMd">{t(locale, "dashboardZone5Title")}</Text>
+      <InlineStack gap="200" blockAlign="center">
+        <Icon source={AlertCircleIcon} tone="base" />
+        <Text as="h2" variant="headingMd">{t(locale, "dashboardZone5Title")}</Text>
+      </InlineStack>
       {data.alerts.slice(0, 3).map((alert, idx) => (
         <Banner
           key={idx}
@@ -776,9 +827,21 @@ type BizActionData =
   | { type: "pollBusinessAnalysis"; status: string; profile: BusinessProfile | null; error: string | null }
   | { type: "saveBusinessProfile"; profile: BusinessProfile | null; error: string | null };
 
+function getNicheIcon(profile: BusinessProfile): IconSource {
+  const text = [profile.niche_summary, ...(profile.key_themes ?? [])].join(" ").toLowerCase();
+  if (/chat|chien|animal|pet|félin|canin|poil|woof|meow/.test(text)) return HeartIcon;
+  if (/alimentation|nourriture|food|cuisine|recette|gastronomie/.test(text)) return FoodIcon;
+  if (/nature|organi|plante|garden|jardin|eco|durable/.test(text)) return NatureIcon;
+  if (/sport|fitness|muscl|yoga|running|vélo/.test(text)) return SportsIcon;
+  if (/maison|home|déco|décor|meubl|intérieur/.test(text)) return HomeIcon;
+  if (/livre|book|formation|apprend|cours|éduc/.test(text)) return BookOpenIcon;
+  return CompassIcon;
+}
+
 function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale: Locale }) {
   const intensityTone = (i: string): "success" | "warning" | "info" =>
     i === "high" ? "success" : i === "medium" ? "warning" : "info";
+  const NicheIcon = getNicheIcon(profile);
 
   return (
     <BlockStack gap="400">
@@ -786,7 +849,10 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="200">
-            <Text as="h2" variant="headingMd">{locale === "fr" ? "Niche & Marque" : "Niche & Brand"}</Text>
+            <InlineStack gap="200" blockAlign="center">
+              <Icon source={NicheIcon} tone="base" />
+              <Text as="h2" variant="headingMd">{locale === "fr" ? "Niche & Marque" : "Niche & Brand"}</Text>
+            </InlineStack>
             <Text as="p" variant="headingLg">{profile.brand_name}</Text>
             <Text as="p" tone="subdued">{profile.niche_summary}</Text>
             {(profile.key_themes ?? []).length > 0 && (
@@ -923,6 +989,8 @@ function BusinessProfileSection({
   const [bizError, setBizError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editBuffer, setEditBuffer] = useState<BusinessProfile | null>(null);
+  const [isKeywordsOpen, setIsKeywordsOpen] = useState(false);
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const bizStatusRef = useRef<string | null>(null);
   bizStatusRef.current = bizJobStatus;
 
@@ -973,10 +1041,12 @@ function BusinessProfileSection({
     return () => clearInterval(id);
   }, [bizJobId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleAnalyze = () => {
+  const handleAnalyze = (keywords: string[] = []) => {
     setBizError(null);
+    setIsKeywordsOpen(false);
     const fd = new FormData();
     fd.set("intent", "startBusinessAnalysis");
+    if (keywords.length > 0) fd.set("focusKeywords", JSON.stringify(keywords));
     bizFetcher.submit(fd, { method: "post" });
   };
 
@@ -989,9 +1059,25 @@ function BusinessProfileSection({
   };
 
   const handleRegenerate = () => {
+    const profile = bizDraft ?? bizProfile;
+    if (profile) {
+      setSelectedKeywords([]);
+      setIsKeywordsOpen(true);
+    } else {
+      handleAnalyze();
+    }
+  };
+
+  const handleConfirmKeywords = () => {
     setBizProfile(null);
     setBizDraft(null);
-    handleAnalyze();
+    handleAnalyze(selectedKeywords);
+  };
+
+  const toggleKeyword = (kw: string) => {
+    setSelectedKeywords((prev) =>
+      prev.includes(kw) ? prev.filter((k) => k !== kw) : [...prev, kw],
+    );
   };
 
   const handleOpenEdit = () => {
@@ -1015,11 +1101,58 @@ function BusinessProfileSection({
 
   const displayProfile = bizDraft ?? bizProfile;
 
+  const keywordsModal = (() => {
+    const profile = bizDraft ?? bizProfile;
+    if (!profile) return null;
+    const suggestions = [
+      ...(profile.key_themes ?? []),
+      ...(profile.competitor_domains ?? []).slice(0, 5),
+    ].filter(Boolean);
+    return (
+      <Modal
+        open={isKeywordsOpen}
+        onClose={() => setIsKeywordsOpen(false)}
+        title={locale === "fr" ? "Orienter la régénération" : "Guide regeneration"}
+        primaryAction={{
+          content: locale === "fr" ? "Régénérer" : "Regenerate",
+          onAction: handleConfirmKeywords,
+        }}
+        secondaryActions={[{
+          content: locale === "fr" ? "Sans filtre" : "No filter",
+          onAction: () => { setBizProfile(null); setBizDraft(null); handleAnalyze([]); },
+        }]}
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            <Text as="p" tone="subdued">
+              {locale === "fr"
+                ? "Sélectionnez les thèmes sur lesquels concentrer l'analyse."
+                : "Select themes to focus the analysis on."}
+            </Text>
+            <InlineStack gap="200" wrap>
+              {suggestions.map((kw) => (
+                <Button
+                  key={kw}
+                  size="slim"
+                  variant={selectedKeywords.includes(kw) ? "primary" : "secondary"}
+                  onClick={() => toggleKeyword(kw)}
+                >
+                  {kw}
+                </Button>
+              ))}
+            </InlineStack>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
+    );
+  })();
+
   // ── Header card (always visible once we have any state) ──
   const headerCard = (
     <Card>
       <InlineStack align="space-between" blockAlign="center">
         <InlineStack gap="200" blockAlign="center">
+          <Icon source={CompassIcon} tone="base" />
           <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
           {displayProfile?.status === "validated" && (
             <Badge tone="success">{t(locale, "businessProfileValidated")}</Badge>
@@ -1056,6 +1189,7 @@ function BusinessProfileSection({
   if (!displayProfile && !isAnalyzing) {
     return (
       <BlockStack gap="300">
+        {keywordsModal}
         {headerCard}
         {bizError && (
           <Banner tone="critical"><p>{bizError.split("\n")[0]}</p></Banner>
@@ -1071,6 +1205,7 @@ function BusinessProfileSection({
   if (isAnalyzing && !displayProfile) {
     return (
       <BlockStack gap="300">
+        {keywordsModal}
         {headerCard}
         <Card>
           <InlineStack gap="200" blockAlign="center">
@@ -1142,6 +1277,7 @@ function BusinessProfileSection({
 
   return (
     <BlockStack gap="400">
+      {keywordsModal}
       {editModal}
       {headerCard}
       {isAnalyzing && (

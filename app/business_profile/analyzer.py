@@ -9,7 +9,15 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_BLOG_URL_MARKERS = ("/blog/", "/article/", "/guide/", "/conseil/", "/tuto/", "/how-to/", "/comment-")
+_BLOG_URL_MARKERS = (
+    "/blog/",
+    "/article/",
+    "/guide/",
+    "/conseil/",
+    "/tuto/",
+    "/how-to/",
+    "/comment-",
+)
 
 
 def _extract_products_summary(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
@@ -26,15 +34,19 @@ def _extract_products_summary(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
         raw_tags = p.get("tags")
         tags = (raw_tags if isinstance(raw_tags, list) else [])[:10]
 
-        summary.append({
-            "title": str(p.get("title", ""))[:120],
-            "collections": collections,
-            "tags": [str(t) for t in tags],
-        })
+        summary.append(
+            {
+                "title": str(p.get("title", ""))[:120],
+                "collections": collections,
+                "tags": [str(t) for t in tags],
+            }
+        )
     return summary
 
 
-def _top_gsc_queries(gsc_query_rows: list[dict[str, Any]], max_count: int = 20) -> list[dict[str, Any]]:
+def _top_gsc_queries(
+    gsc_query_rows: list[dict[str, Any]], max_count: int = 20
+) -> list[dict[str, Any]]:
     sorted_rows = sorted(gsc_query_rows, key=lambda r: r.get("impressions", 0), reverse=True)
     return sorted_rows[:max_count]
 
@@ -66,12 +78,17 @@ def _fetch_serp_data(seeds: list[str]) -> dict[str, Any]:
                     if domain:
                         domains[domain] = domains.get(domain, 0) + 1
                     url = str(comp.get("url", ""))
-                    if any(marker in url for marker in _BLOG_URL_MARKERS) and len(blog_results) < 10:
-                        blog_results.append({
-                            "title": comp.get("title", ""),
-                            "snippet": comp.get("snippet", ""),
-                            "url": url,
-                        })
+                    if (
+                        any(marker in url for marker in _BLOG_URL_MARKERS)
+                        and len(blog_results) < 10
+                    ):
+                        blog_results.append(
+                            {
+                                "title": comp.get("title", ""),
+                                "snippet": comp.get("snippet", ""),
+                                "url": url,
+                            }
+                        )
 
         sorted_domains = sorted(domains.items(), key=lambda x: x[1], reverse=True)
         return {
@@ -84,8 +101,10 @@ def _fetch_serp_data(seeds: list[str]) -> dict[str, Any]:
         return empty
 
 
-def _resolve_brand_name(shop: str, snapshot: dict[str, Any]) -> str:
-    """Extract the brand name from snapshot: shop.name → product.vendor → stripped domain."""
+def _resolve_brand_name(shop: str, snapshot: dict[str, Any], shop_name_hint: str = "") -> str:
+    """Extract the brand name: hint (from Shopify Admin API) → snapshot.shop.name → product.vendor → stripped domain."""
+    if shop_name_hint:
+        return shop_name_hint
     shop_info = snapshot.get("shop") or {}
     name = str(shop_info.get("name") or "").strip()
     if name:
@@ -109,7 +128,7 @@ def _load_market_analysis_competitors(shop: str) -> list[str]:
             return []
         seen: set[str] = set()
         domains: list[str] = []
-        for sig in (result.get("competitor_signals") or []):
+        for sig in result.get("competitor_signals") or []:
             domain = str(sig.get("domain") or "").strip().lower()
             if domain and domain not in seen:
                 seen.add(domain)
@@ -124,6 +143,8 @@ def analyze_business_profile(
     snapshot: dict[str, Any],
     gsc_query_rows: list[dict[str, Any]],
     niche_hypothesis: dict[str, Any] | None = None,
+    shop_name_hint: str = "",
+    focus_keywords: list[str] | None = None,
 ) -> dict[str, Any]:
     """Analyze the business profile of a Shopify store using snapshot, GSC data, and LLM.
 
@@ -131,7 +152,7 @@ def analyze_business_profile(
     content_style, key_themes, seasonal_patterns, competitor_domains, competitor_insights,
     content_gaps, internal_link_priorities, generated_at, status, sources_used.
     """
-    brand_name = _resolve_brand_name(shop, snapshot)
+    brand_name = _resolve_brand_name(shop, snapshot, shop_name_hint)
 
     products_summary = _extract_products_summary(snapshot)
     top_queries = _top_gsc_queries(gsc_query_rows, max_count=20)
@@ -157,7 +178,15 @@ def analyze_business_profile(
 
     niche_hint = ""
     if niche_hypothesis:
-        niche_hint = f"\nHypothèse niche validée : {json.dumps(niche_hypothesis, ensure_ascii=False)}"
+        niche_hint = (
+            f"\nHypothèse niche validée : {json.dumps(niche_hypothesis, ensure_ascii=False)}"
+        )
+
+    focus_hint = ""
+    if focus_keywords:
+        focus_hint = (
+            f"\nMots-clés prioritaires sélectionnés par le marchand : {', '.join(focus_keywords)}"
+        )
 
     products_text = json.dumps(products_summary[:20], ensure_ascii=False, indent=None)
     queries_text = json.dumps(
@@ -169,7 +198,7 @@ def analyze_business_profile(
     paa_text = json.dumps(paa_questions, ensure_ascii=False) if paa_questions else "[]"
 
     prompt = f"""Tu es expert en stratégie de contenu SEO e-commerce.
-
+{focus_hint}
 Boutique Shopify : {brand_name}
 Top produits (titre, collections, tags) :
 {products_text}

@@ -8,7 +8,7 @@ import traceback
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
 
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
@@ -64,6 +64,8 @@ def _run_business_profile_background(
     snapshot: dict[str, Any],
     gsc_query_rows: list[dict[str, Any]],
     niche_hypothesis: dict[str, Any] | None,
+    shop_name_hint: str = "",
+    focus_keywords: list[str] | None = None,
 ) -> None:
     """Background task: run business profile analysis and persist the result."""
     try:
@@ -73,6 +75,8 @@ def _run_business_profile_background(
             snapshot=snapshot,
             gsc_query_rows=gsc_query_rows,
             niche_hypothesis=niche_hypothesis,
+            shop_name_hint=shop_name_hint,
+            focus_keywords=focus_keywords,
         )
         completed_data: dict[str, Any] = {
             "job_id": job_id,
@@ -102,8 +106,12 @@ def _load_snapshot_safe(ctx: ShopContext) -> dict[str, Any]:
 async def start_business_profile_analysis(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     background_tasks: BackgroundTasks,
+    body: dict[str, Any] = Body(default={}),
 ) -> dict[str, Any]:
     """Start an async job to analyze the business profile (niche, brand, personas, content style)."""
+    shop_name_hint = str(body.get("shop_name") or "").strip()
+    focus_keywords: list[str] = [str(k) for k in (body.get("focus_keywords") or []) if k]
+
     snapshot = _load_snapshot_safe(ctx)
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
     niche_hypothesis = get_validated_niche_hypothesis(ctx.shop)
@@ -116,6 +124,8 @@ async def start_business_profile_analysis(
         snapshot,
         gsc_query_rows,
         niche_hypothesis,
+        shop_name_hint,
+        focus_keywords,
     )
     return {"job_id": job_id, "status": "pending"}
 
