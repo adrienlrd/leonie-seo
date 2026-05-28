@@ -39,35 +39,49 @@ def _top_gsc_queries(gsc_query_rows: list[dict[str, Any]], max_count: int = 20) 
     return sorted_rows[:max_count]
 
 
-def _fetch_blog_results(seeds: list[str]) -> list[dict[str, Any]]:
-    """Fetch blog-like SERP results for up to 3 seed queries via DataForSEO."""
+def _fetch_serp_data(seeds: list[str]) -> dict[str, Any]:
+    """Fetch competitor domains, PAA questions, and blog content from DataForSEO SERP."""
+    empty: dict[str, Any] = {"competitor_domains": [], "paa_questions": [], "blog_results": []}
     try:
-        from app.market_analysis.providers.dataforseo_provider import (
-            DataForSEOProvider,  # noqa: PLC0415
+        from app.market_analysis.providers.dataforseo_provider import (  # noqa: PLC0415
+            DataForSEOProvider,
         )
 
         provider = DataForSEOProvider()
         if not provider.available:
-            return []
+            return empty
 
+        domains: dict[str, int] = {}
+        paa: list[str] = []
         blog_results: list[dict[str, Any]] = []
-        for seed in seeds[:3]:
+
+        for seed in seeds[:5]:
             intelligence = provider.fetch_serp_intelligence([seed])
             for _kw, data in intelligence.items():
-                for competitor in data.get("top_competitors", []):
-                    url = str(competitor.get("url", ""))
-                    if any(marker in url for marker in _BLOG_URL_MARKERS):
+                for paa_q in data.get("paa", []) or []:
+                    if paa_q and paa_q not in paa:
+                        paa.append(paa_q)
+                for comp in data.get("top_competitors", []):
+                    domain = str(comp.get("domain") or "").strip()
+                    if domain:
+                        domains[domain] = domains.get(domain, 0) + 1
+                    url = str(comp.get("url", ""))
+                    if any(marker in url for marker in _BLOG_URL_MARKERS) and len(blog_results) < 10:
                         blog_results.append({
-                            "title": competitor.get("title", ""),
-                            "snippet": competitor.get("snippet", ""),
+                            "title": comp.get("title", ""),
+                            "snippet": comp.get("snippet", ""),
                             "url": url,
                         })
-                    if len(blog_results) >= 10:
-                        return blog_results
-        return blog_results
+
+        sorted_domains = sorted(domains.items(), key=lambda x: x[1], reverse=True)
+        return {
+            "competitor_domains": [d for d, _ in sorted_domains[:10]],
+            "paa_questions": paa[:15],
+            "blog_results": blog_results,
+        }
     except Exception as exc:
-        logger.warning("DataForSEO blog fetch failed (non-fatal): %s", exc)
-        return []
+        logger.warning("DataForSEO SERP fetch failed (non-fatal): %s", exc)
+        return empty
 
 
 def analyze_business_profile(
@@ -78,16 +92,9 @@ def analyze_business_profile(
 ) -> dict[str, Any]:
     """Analyze the business profile of a Shopify store using snapshot, GSC data, and LLM.
 
-    Args:
-        shop: Shop domain.
-        snapshot: Shopify snapshot dict (products, collections, shop info).
-        gsc_query_rows: List of GSC query rows with impressions, clicks, position.
-        niche_hypothesis: Optional validated niche hypothesis dict.
-
-    Returns:
-        Business profile dict with niche_summary, brand_name, brand_voice, target_personas,
-        content_style, key_themes, seasonal_patterns, competitor_insights,
-        internal_link_priorities, generated_at, status, sources_used.
+    Returns a profile dict with: niche_summary, brand_name, brand_voice, target_personas,
+    content_style, key_themes, seasonal_patterns, competitor_domains, competitor_insights,
+    content_gaps, internal_link_priorities, generated_at, status, sources_used.
     """
     shop_info = snapshot.get("shop") or {}
     brand_name = shop_info.get("name") or shop
@@ -95,13 +102,16 @@ def analyze_business_profile(
     products_summary = _extract_products_summary(snapshot)
     top_queries = _top_gsc_queries(gsc_query_rows, max_count=20)
 
-    seed_queries = [row["query"] for row in top_queries[:3] if row.get("query")]
-    blog_results = _fetch_blog_results(seed_queries)
+    seed_queries = [row["query"] for row in top_queries[:5] if row.get("query")]
+    serp_data = _fetch_serp_data(seed_queries)
+    competitor_domains = serp_data["competitor_domains"]
+    paa_questions = serp_data["paa_questions"]
+    blog_results = serp_data["blog_results"]
 
     sources_used: list[str] = ["shopify_snapshot"]
     if top_queries:
         sources_used.append("gsc_queries")
-    if blog_results:
+    if competitor_domains or blog_results:
         sources_used.append("dataforseo_serp")
     if niche_hypothesis:
         sources_used.append("niche_hypothesis")
@@ -116,6 +126,8 @@ def analyze_business_profile(
         ensure_ascii=False,
     )
     blog_text = json.dumps(blog_results, ensure_ascii=False) if blog_results else "[]"
+    domains_text = ", ".join(competitor_domains) if competitor_domains else "aucun détecté"
+    paa_text = json.dumps(paa_questions, ensure_ascii=False) if paa_questions else "[]"
 
     prompt = f"""Tu es expert en stratégie de contenu SEO e-commerce.
 
@@ -126,7 +138,13 @@ Top produits (titre, collections, tags) :
 Top requêtes GSC (impressions) :
 {queries_text}
 
-Articles concurrents détectés (titre + snippet) :
+Domaines concurrents détectés dans les SERP :
+{domains_text}
+
+Questions "People Also Ask" détectées :
+{paa_text}
+
+Articles de blog concurrents (titre + snippet) :
 {blog_text}
 {niche_hint}
 
@@ -155,13 +173,17 @@ Analyse cette boutique et retourne UNIQUEMENT un objet JSON valide (pas de markd
   "seasonal_patterns": [
     {{"period": "ex: Noël", "theme": "thème saisonnier", "intensity": "high"}}
   ],
+  "competitor_domains": ["domaine1.com", "domaine2.com"],
   "competitor_insights": [
-    "observation 1 sur les articles concurrents"
+    "observation sur la stratégie de contenu des concurrents"
+  ],
+  "content_gaps": [
+    "sujet non couvert par les concurrents mais pertinent pour la boutique"
   ],
   "internal_link_priorities": ["handle-produit-1", "handle-produit-2"]
 }}
 
-Retourne 2-3 personas, 6-8 key_themes, 3-5 seasonal_patterns, 3-5 competitor_insights, 5-8 internal_link_priorities."""
+Retourne 2-3 personas, 6-8 key_themes, 3-5 seasonal_patterns, les domaines concurrents réels détectés, 3-5 competitor_insights, 3-5 content_gaps, 5-8 internal_link_priorities."""
 
     try:
         from app.llm import LLMError, get_router  # noqa: PLC0415
@@ -170,12 +192,11 @@ Retourne 2-3 personas, 6-8 key_themes, 3-5 seasonal_patterns, 3-5 competitor_ins
         result = llm_router.complete(
             prompt,
             system="Tu es expert en stratégie de contenu SEO e-commerce. Réponds uniquement avec du JSON valide.",
-            max_tokens=2048,
+            max_tokens=2500,
             temperature=0.3,
         )
         raw_text = result.text.strip()
 
-        # Strip markdown code fences if present
         if raw_text.startswith("```"):
             lines = raw_text.split("\n")
             raw_text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
@@ -198,6 +219,10 @@ Retourne 2-3 personas, 6-8 key_themes, 3-5 seasonal_patterns, 3-5 competitor_ins
             "generated_at": datetime.now(UTC).isoformat(),
             "sources_used": sources_used,
         }
+
+    # Merge in the raw DataForSEO domains if LLM didn't return any
+    if not profile.get("competitor_domains") and competitor_domains:
+        profile["competitor_domains"] = competitor_domains
 
     profile["generated_at"] = datetime.now(UTC).isoformat()
     profile["status"] = "draft"

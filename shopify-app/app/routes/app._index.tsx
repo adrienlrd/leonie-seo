@@ -120,7 +120,9 @@ interface BusinessProfile {
   content_style: ContentStyle;
   key_themes: string[];
   seasonal_patterns: Array<{ period: string; theme: string; intensity: string }>;
+  competitor_domains: string[];
   competitor_insights: string[];
+  content_gaps: string[];
   internal_link_priorities: string[];
   generated_at: string;
   status: "draft" | "validated" | "error";
@@ -772,6 +774,138 @@ type BizActionData =
   | { type: "pollBusinessAnalysis"; status: string; profile: BusinessProfile | null; error: string | null }
   | { type: "saveBusinessProfile"; profile: BusinessProfile | null; error: string | null };
 
+function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale: Locale }) {
+  const intensityTone = (i: string): "success" | "warning" | "info" =>
+    i === "high" ? "success" : i === "medium" ? "warning" : "info";
+
+  return (
+    <BlockStack gap="400">
+      {/* Row 1 — Niche + Voix */}
+      <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
+        <Card>
+          <BlockStack gap="200">
+            <Text as="h2" variant="headingMd">{locale === "fr" ? "Niche & Marque" : "Niche & Brand"}</Text>
+            <Text as="p" variant="headingLg">{profile.brand_name}</Text>
+            <Text as="p" tone="subdued">{profile.niche_summary}</Text>
+            {(profile.key_themes ?? []).length > 0 && (
+              <InlineStack gap="100" wrap>
+                {profile.key_themes.map((theme) => (
+                  <Badge key={theme} tone="info">{theme}</Badge>
+                ))}
+              </InlineStack>
+            )}
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="200">
+            <Text as="h2" variant="headingMd">{locale === "fr" ? "Voix de marque" : "Brand voice"}</Text>
+            <Text as="p" variant="headingLg">{profile.content_style?.tone ?? "—"}</Text>
+            <Text as="p" tone="subdued">{profile.brand_voice}</Text>
+            {(profile.content_style?.vocabulary_to_use ?? []).length > 0 && (
+              <InlineStack gap="100" wrap>
+                {profile.content_style.vocabulary_to_use.map((v) => (
+                  <Badge key={v} tone="success">{v}</Badge>
+                ))}
+                {(profile.content_style?.vocabulary_to_avoid ?? []).map((v) => (
+                  <Badge key={v} tone="critical">{v}</Badge>
+                ))}
+              </InlineStack>
+            )}
+          </BlockStack>
+        </Card>
+      </InlineGrid>
+
+      {/* Row 2 — Personas + Style contenu */}
+      <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingMd">{locale === "fr" ? "Personas" : "Personas"}</Text>
+            {(profile.target_personas ?? []).map((p) => (
+              <BlockStack gap="100" key={p.name}>
+                <Text as="p" fontWeight="semibold">{p.name}</Text>
+                <Text as="p" tone="subdued" variant="bodySm">{p.main_need}</Text>
+                <Text as="p" tone="subdued" variant="bodySm">→ {p.buying_trigger}</Text>
+              </BlockStack>
+            ))}
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="200">
+            <Text as="h2" variant="headingMd">{locale === "fr" ? "Style de contenu" : "Content style"}</Text>
+            <Text as="p" variant="bodySm" fontWeight="semibold">
+              {profile.content_style?.typical_article_length ?? ""}
+            </Text>
+            {(profile.content_style?.h2_structure ?? []).length > 0 && (
+              <BlockStack gap="050">
+                {profile.content_style.h2_structure.map((h) => (
+                  <Text as="p" tone="subdued" variant="bodySm" key={h}>• {h}</Text>
+                ))}
+              </BlockStack>
+            )}
+            {(profile.content_style?.hook_patterns ?? []).length > 0 && (
+              <BlockStack gap="050">
+                {profile.content_style.hook_patterns.map((h) => (
+                  <Text as="p" tone="subdued" variant="bodySm" key={h}>→ {h}</Text>
+                ))}
+              </BlockStack>
+            )}
+          </BlockStack>
+        </Card>
+      </InlineGrid>
+
+      {/* Row 3 — Concurrents + Opportunités */}
+      <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
+        <Card>
+          <BlockStack gap="200">
+            <Text as="h2" variant="headingMd">{locale === "fr" ? "Concurrents" : "Competitors"}</Text>
+            {(profile.competitor_domains ?? []).length > 0 && (
+              <InlineStack gap="150" wrap>
+                {profile.competitor_domains.map((d) => (
+                  <Badge key={d} tone="info">{d}</Badge>
+                ))}
+              </InlineStack>
+            )}
+            {(profile.competitor_insights ?? []).length > 0 && (
+              <BlockStack gap="050">
+                {profile.competitor_insights.map((i) => (
+                  <Text as="p" tone="subdued" variant="bodySm" key={i}>• {i}</Text>
+                ))}
+              </BlockStack>
+            )}
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingMd">{locale === "fr" ? "Saisonnalité & Opportunités" : "Seasonality & Gaps"}</Text>
+            {(profile.seasonal_patterns ?? []).map((s) => (
+              <InlineStack key={s.period} align="space-between" gap="200">
+                <BlockStack gap="0">
+                  <Text as="p" variant="bodySm" fontWeight="semibold">{s.period}</Text>
+                  <Text as="p" tone="subdued" variant="bodySm">{s.theme}</Text>
+                </BlockStack>
+                <Badge tone={intensityTone(s.intensity)}>{s.intensity}</Badge>
+              </InlineStack>
+            ))}
+            {(profile.content_gaps ?? []).length > 0 && (
+              <BlockStack gap="050">
+                <Text as="p" variant="bodySm" fontWeight="semibold">
+                  {locale === "fr" ? "Lacunes de contenu" : "Content gaps"}
+                </Text>
+                {profile.content_gaps.map((g) => (
+                  <Text as="p" tone="subdued" variant="bodySm" key={g}>• {g}</Text>
+                ))}
+              </BlockStack>
+            )}
+          </BlockStack>
+        </Card>
+      </InlineGrid>
+    </BlockStack>
+  );
+}
+
 function BusinessProfileSection({
   initialProfile,
   locale,
@@ -788,7 +922,6 @@ function BusinessProfileSection({
   const bizStatusRef = useRef<string | null>(null);
   bizStatusRef.current = bizJobStatus;
 
-  // Handle action responses
   useEffect(() => {
     if (!bizFetcher.data) return;
     const data = bizFetcher.data;
@@ -807,7 +940,6 @@ function BusinessProfileSection({
         if (data.profile && data.profile.status !== "error") {
           setBizDraft(data.profile);
         } else if (data.profile?.status === "error") {
-          setBizJobId(null);
           setBizError((data.profile as { error?: string }).error ?? "L'analyse IA a échoué");
         }
       }
@@ -822,7 +954,6 @@ function BusinessProfileSection({
     }
   }, [bizFetcher.data]);
 
-  // Poll while a job is running
   useEffect(() => {
     if (!bizJobId) return;
     const poll = () => {
@@ -863,241 +994,90 @@ function BusinessProfileSection({
     bizFetcher.state !== "idle" ||
     (bizJobId !== null && bizJobStatus !== "completed" && bizJobStatus !== "failed");
 
-  // Validated state
-  if (bizProfile && bizProfile.status === "validated" && !bizDraft) {
-    return (
-      <Card>
-        <BlockStack gap="300">
-          <InlineStack align="space-between" blockAlign="center">
-            <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
-            <InlineStack gap="200" blockAlign="center">
-              <Badge tone="success">{t(locale, "businessProfileValidated")}</Badge>
-              <Button onClick={handleRegenerate} size="slim" variant="plain" loading={isAnalyzing}>
-                {t(locale, "businessProfileRegenerate")}
-              </Button>
-            </InlineStack>
-          </InlineStack>
-          <Text as="p" tone="subdued" variant="bodySm">{bizProfile.niche_summary}</Text>
-        </BlockStack>
-      </Card>
-    );
-  }
+  const isSaving = bizFetcher.state !== "idle" && !isAnalyzing;
 
-  // Empty state — no profile yet
-  if (!bizProfile && !bizDraft && !bizJobId) {
-    return (
-      <Card>
-        <BlockStack gap="300">
+  const displayProfile = bizDraft ?? bizProfile;
+
+  // ── Header card (always visible once we have any state) ──
+  const headerCard = (
+    <Card>
+      <InlineStack align="space-between" blockAlign="center">
+        <InlineStack gap="200" blockAlign="center">
           <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
-          {bizError ? (
-            <Banner tone="critical">
-              <p>{bizError}</p>
-            </Banner>
-          ) : (
-            <Text as="p" tone="subdued">{t(locale, "businessProfileSubtitle")}</Text>
+          {displayProfile?.status === "validated" && (
+            <Badge tone="success">{t(locale, "businessProfileValidated")}</Badge>
           )}
-          <InlineStack>
-            <Button onClick={handleAnalyze} variant="primary" size="slim" loading={isAnalyzing}>
-              {bizError ? t(locale, "businessProfileRegenerate") : t(locale, "businessProfileAnalyze")}
+          {bizDraft && bizDraft.status !== "validated" && (
+            <Badge tone="info">{locale === "fr" ? "Brouillon" : "Draft"}</Badge>
+          )}
+        </InlineStack>
+        <InlineStack gap="200">
+          {bizDraft && (
+            <Button onClick={handleValidate} variant="primary" size="slim" loading={isSaving}>
+              {t(locale, "businessProfileValidate")}
             </Button>
-          </InlineStack>
-        </BlockStack>
-      </Card>
+          )}
+          <Button
+            onClick={displayProfile ? handleRegenerate : handleAnalyze}
+            size="slim"
+            variant={displayProfile ? "plain" : "primary"}
+            loading={isAnalyzing}
+          >
+            {displayProfile ? t(locale, "businessProfileRegenerate") : t(locale, "businessProfileAnalyze")}
+          </Button>
+        </InlineStack>
+      </InlineStack>
+    </Card>
+  );
+
+  // Empty / error state
+  if (!displayProfile && !isAnalyzing) {
+    return (
+      <BlockStack gap="300">
+        {headerCard}
+        {bizError && (
+          <Banner tone="critical"><p>{bizError.split("\n")[0]}</p></Banner>
+        )}
+        {!bizError && (
+          <Banner tone="info"><p>{t(locale, "businessProfileSubtitle")}</p></Banner>
+        )}
+      </BlockStack>
     );
   }
 
-  // Loading/polling state
-  if (isAnalyzing && !bizDraft) {
+  // Analyzing spinner
+  if (isAnalyzing && !displayProfile) {
     return (
-      <Card>
-        <BlockStack gap="300">
-          <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
+      <BlockStack gap="300">
+        {headerCard}
+        <Card>
           <InlineStack gap="200" blockAlign="center">
             <Spinner size="small" />
             <Text as="p" tone="subdued">{t(locale, "businessProfileAnalyzing")}</Text>
           </InlineStack>
-        </BlockStack>
-      </Card>
+        </Card>
+      </BlockStack>
     );
   }
 
-  // Draft editing state
-  const draft = bizDraft ?? bizProfile;
-  // Safety fallback: if we somehow have no draft and no loading state, show empty state.
-  if (!draft) {
-    return (
-      <Card>
-        <BlockStack gap="300">
-          <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
-          {bizError ? (
-            <Banner tone="critical"><p>{bizError}</p></Banner>
-          ) : (
-            <Text as="p" tone="subdued">{t(locale, "businessProfileSubtitle")}</Text>
-          )}
-          <InlineStack>
-            <Button onClick={handleAnalyze} variant="primary" size="slim" loading={isAnalyzing}>
-              {bizError ? t(locale, "businessProfileRegenerate") : t(locale, "businessProfileAnalyze")}
-            </Button>
-          </InlineStack>
-        </BlockStack>
-      </Card>
-    );
-  }
+  if (!displayProfile) return headerCard;
 
   return (
-    <Card>
-      <BlockStack gap="400">
-        <InlineStack align="space-between" blockAlign="center">
-          <Text as="h2" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
-          {draft.status === "validated" && (
-            <Badge tone="success">{t(locale, "businessProfileValidated")}</Badge>
-          )}
-        </InlineStack>
-        <Banner tone="info"><p>{t(locale, "businessProfileDraft")}</p></Banner>
-
-        <BlockStack gap="200">
-          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfileNicheSummary")}</Text>
-          <TextField
-            label=""
-            labelHidden
-            value={draft.niche_summary ?? ""}
-            onChange={(v) => setBizDraft({ ...draft, niche_summary: v })}
-            multiline={3}
-            autoComplete="off"
-          />
-        </BlockStack>
-
-        <BlockStack gap="200">
-          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfileBrandVoice")}</Text>
-          <TextField
-            label=""
-            labelHidden
-            value={draft.brand_voice ?? ""}
-            onChange={(v) => setBizDraft({ ...draft, brand_voice: v })}
-            multiline={3}
-            autoComplete="off"
-          />
-        </BlockStack>
-
-        <BlockStack gap="200">
-          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfilePersonas")}</Text>
-          {(draft.target_personas ?? []).map((persona, idx) => (
-            <Box key={idx} background="bg-surface-secondary" padding="300" borderRadius="200">
-              <BlockStack gap="200">
-                <TextField
-                  label={locale === "fr" ? "Nom" : "Name"}
-                  value={persona.name ?? ""}
-                  onChange={(v) => {
-                    const updated = [...(draft.target_personas ?? [])];
-                    updated[idx] = { ...updated[idx], name: v };
-                    setBizDraft({ ...draft, target_personas: updated });
-                  }}
-                  autoComplete="off"
-                />
-                <TextField
-                  label={locale === "fr" ? "Description" : "Description"}
-                  value={persona.description ?? ""}
-                  onChange={(v) => {
-                    const updated = [...(draft.target_personas ?? [])];
-                    updated[idx] = { ...updated[idx], description: v };
-                    setBizDraft({ ...draft, target_personas: updated });
-                  }}
-                  autoComplete="off"
-                />
-                <TextField
-                  label={locale === "fr" ? "Besoin principal" : "Main need"}
-                  value={persona.main_need ?? ""}
-                  onChange={(v) => {
-                    const updated = [...(draft.target_personas ?? [])];
-                    updated[idx] = { ...updated[idx], main_need: v };
-                    setBizDraft({ ...draft, target_personas: updated });
-                  }}
-                  autoComplete="off"
-                />
-                <TextField
-                  label={locale === "fr" ? "Déclencheur d'achat" : "Buying trigger"}
-                  value={persona.buying_trigger ?? ""}
-                  onChange={(v) => {
-                    const updated = [...(draft.target_personas ?? [])];
-                    updated[idx] = { ...updated[idx], buying_trigger: v };
-                    setBizDraft({ ...draft, target_personas: updated });
-                  }}
-                  autoComplete="off"
-                />
-              </BlockStack>
-            </Box>
-          ))}
-        </BlockStack>
-
-        <BlockStack gap="200">
-          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfileContentStyle")}</Text>
-          <TextField
-            label={locale === "fr" ? "Ton" : "Tone"}
-            value={draft.content_style?.tone ?? ""}
-            onChange={(v) => setBizDraft({ ...draft, content_style: { ...draft.content_style, tone: v } })}
-            autoComplete="off"
-          />
-          <TextField
-            label={locale === "fr" ? "Structure H2 (une par ligne)" : "H2 structure (one per line)"}
-            value={(draft.content_style?.h2_structure ?? []).join("\n")}
-            onChange={(v) => setBizDraft({
-              ...draft,
-              content_style: { ...draft.content_style, h2_structure: v.split("\n") },
-            })}
-            multiline={4}
-            autoComplete="off"
-          />
-          <TextField
-            label={locale === "fr" ? "Formules accrocheuses (une par ligne)" : "Hook patterns (one per line)"}
-            value={(draft.content_style?.hook_patterns ?? []).join("\n")}
-            onChange={(v) => setBizDraft({
-              ...draft,
-              content_style: { ...draft.content_style, hook_patterns: v.split("\n") },
-            })}
-            multiline={3}
-            autoComplete="off"
-          />
-        </BlockStack>
-
-        <BlockStack gap="200">
-          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfileKeyThemes")}</Text>
-          <TextField
-            label=""
-            labelHidden
-            value={(draft.key_themes ?? []).join("\n")}
-            onChange={(v) => setBizDraft({ ...draft, key_themes: v.split("\n") })}
-            multiline={4}
-            helpText={locale === "fr" ? "Un thème par ligne" : "One theme per line"}
-            autoComplete="off"
-          />
-        </BlockStack>
-
-        <BlockStack gap="200">
-          <Text as="p" variant="bodyMd" fontWeight="semibold">{t(locale, "businessProfileInsights")}</Text>
-          <TextField
-            label=""
-            labelHidden
-            value={(draft.competitor_insights ?? []).join("\n")}
-            onChange={(v) => setBizDraft({ ...draft, competitor_insights: v.split("\n") })}
-            multiline={4}
-            helpText={locale === "fr" ? "Une observation par ligne" : "One insight per line"}
-            autoComplete="off"
-          />
-        </BlockStack>
-
-        <InlineStack gap="200">
-          <Button onClick={handleValidate} variant="primary" size="slim" loading={bizFetcher.state !== "idle"}>
-            {t(locale, "businessProfileValidate")}
-          </Button>
-          <Button onClick={handleRegenerate} size="slim" loading={isAnalyzing}>
-            {t(locale, "businessProfileRegenerate")}
-          </Button>
-        </InlineStack>
-        {bizFetcher.data && "error" in bizFetcher.data && bizFetcher.data.error && (
-          <Banner tone="critical"><p>{bizFetcher.data.error}</p></Banner>
-        )}
-      </BlockStack>
-    </Card>
+    <BlockStack gap="400">
+      {headerCard}
+      {isAnalyzing && (
+        <Banner tone="info">
+          <InlineStack gap="200" blockAlign="center">
+            <Spinner size="small" />
+            <Text as="p">{t(locale, "businessProfileAnalyzing")}</Text>
+          </InlineStack>
+        </Banner>
+      )}
+      {bizError && (
+        <Banner tone="critical"><p>{bizError.split("\n")[0]}</p></Banner>
+      )}
+      <BizProfileCards profile={displayProfile} locale={locale} />
+    </BlockStack>
   );
 }
 
