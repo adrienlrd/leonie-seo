@@ -42,3 +42,16 @@ def test_repair_keeps_existing_brand_name(monkeypatch):
     repaired = bp._repair_brand_name({"brand_name": "Léonie Delacroix"}, _ctx())
     assert repaired["brand_name"] == "Léonie Delacroix"
     assert called is False
+
+
+def test_repair_brand_name_when_bare_domain(monkeypatch):
+    monkeypatch.setattr(bp, "_load_snapshot_safe", lambda ctx: {"shop": {"name": "Léonie Delacroix"}})
+    repaired = bp._repair_brand_name({"brand_name": "leonie"}, _ctx())
+    assert repaired["brand_name"] == "Léonie Delacroix"
+
+
+def test_repair_never_downgrades_to_domain(monkeypatch):
+    # Snapshot only carries the dev-store hash → keep the placeholder rather than the domain.
+    monkeypatch.setattr(bp, "_load_snapshot_safe", lambda ctx: {"shop": {"name": "leonie"}})
+    repaired = bp._repair_brand_name({"brand_name": "Non spécifié"}, _ctx())
+    assert repaired["brand_name"] == "Non spécifié"

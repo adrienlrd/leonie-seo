@@ -12,7 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
 
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
-from app.business_profile.analyzer import _resolve_brand_name, analyze_business_profile
+from app.business_profile.analyzer import _PLACEHOLDER_BRAND_NAMES, analyze_business_profile
 from app.business_profile.jobs import (
     load_business_profile,
     load_business_profile_job,
@@ -142,18 +142,20 @@ async def get_business_profile_job(
     return job
 
 
-_PLACEHOLDER_BRAND_NAMES = {"", "non spécifié", "non specifie", "not specified", "n/a"}
-
-
 def _repair_brand_name(profile: dict[str, Any], ctx: ShopContext) -> dict[str, Any]:
-    """Backfill a deterministic brand name when an older/stored profile lacks one."""
+    """Backfill a real brand name when a stored profile shows a placeholder or the bare domain.
+
+    Never downgrades to the myshopify subdomain — only repairs from a genuine snapshot name.
+    """
     current = str(profile.get("brand_name") or "").strip()
-    if current.lower() not in _PLACEHOLDER_BRAND_NAMES:
+    domain_prefix = ctx.shop.removesuffix(".myshopify.com")
+    needs_repair = current.lower() in _PLACEHOLDER_BRAND_NAMES or current.lower() == domain_prefix.lower()
+    if not needs_repair:
         return profile
     snapshot = _load_snapshot_safe(ctx)
-    resolved = _resolve_brand_name(ctx.shop, snapshot)
-    if resolved:
-        profile["brand_name"] = resolved
+    snapshot_name = str((snapshot.get("shop") or {}).get("name") or "").strip()
+    if snapshot_name and snapshot_name.lower() != domain_prefix.lower():
+        profile["brand_name"] = snapshot_name
     return profile
 
 

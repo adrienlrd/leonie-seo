@@ -9,6 +9,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_PLACEHOLDER_BRAND_NAMES = frozenset({"", "non spécifié", "non specifie", "not specified", "n/a"})
+
 _BLOG_URL_MARKERS = (
     "/blog/",
     "/article/",
@@ -292,9 +294,20 @@ Retourne 2-3 personas, 6-8 key_themes, 3-5 seasonal_patterns, les domaines concu
     if not profile.get("competitor_domains") and competitor_domains:
         profile["competitor_domains"] = competitor_domains
 
-    # The brand name is known deterministically (Shopify Admin API → snapshot → vendor → domain);
-    # never trust the LLM's guess, which may be "Non spécifié" or hallucinated.
-    profile["brand_name"] = brand_name
+    # Brand name priority: a real store name (Admin hint / snapshot name, when it differs
+    # from the bare myshopify subdomain) → the LLM's inferred name → the domain fallback.
+    # On dev stores shop.name is often the random subdomain, so the LLM guess beats it.
+    domain_prefix = shop.removesuffix(".myshopify.com")
+    snapshot_name = str((snapshot.get("shop") or {}).get("name") or "").strip()
+    real_name = next(
+        (n for n in (shop_name_hint.strip(), snapshot_name) if n and n.lower() != domain_prefix.lower()),
+        "",
+    )
+    llm_name = str(profile.get("brand_name") or "").strip()
+    if real_name:
+        profile["brand_name"] = real_name
+    elif not llm_name or llm_name.lower() in _PLACEHOLDER_BRAND_NAMES:
+        profile["brand_name"] = brand_name
 
     profile["generated_at"] = datetime.now(UTC).isoformat()
     profile["status"] = "draft"
