@@ -25,21 +25,29 @@ import {
   AlertCircleIcon,
   BookOpenIcon,
   CalendarIcon,
+  CameraIcon,
   ChartHistogramGrowthIcon,
   CheckCircleIcon,
   CompassIcon,
   ContentIcon,
+  EyeDropperIcon,
+  FlowerIcon,
   FoodIcon,
+  GamesIcon,
   GaugeIcon,
   GlobeIcon,
   HeartIcon,
   HomeIcon,
   MegaphoneIcon,
+  MicrophoneIcon,
   NatureIcon,
   PersonIcon,
+  PhoneIcon,
   ProductIcon,
   SportsIcon,
   StarFilledIcon,
+  StoreIcon,
+  WatchIcon,
 } from "@shopify/polaris-icons";
 import type { IconSource } from "@shopify/polaris";
 import React, { useEffect, useRef, useState } from "react";
@@ -439,7 +447,7 @@ function DashboardHeader({
   return (
     <Card>
       <InlineStack align="space-between" blockAlign="center" wrap={false}>
-        <InlineStack gap="200" blockAlign="center">
+        <InlineStack gap="200" blockAlign="center" align="start">
           <Text as="p" variant="bodyMd" fontWeight="semibold">{shop}</Text>
           <Badge tone={planTone}>{plan.charAt(0).toUpperCase() + plan.slice(1)}</Badge>
         </InlineStack>
@@ -494,7 +502,7 @@ function Zone1({
   return (
     <Card>
       <BlockStack gap="300">
-        <InlineStack gap="200" blockAlign="center">
+        <InlineStack gap="200" blockAlign="center" align="start">
           <Icon source={GaugeIcon} tone="base" />
           <Text as="span" variant="headingMd">{t(locale, "dashboardZone1Title")}</Text>
         </InlineStack>
@@ -565,7 +573,7 @@ function ActionCard({
   return (
     <Card>
       <BlockStack gap="200">
-        <InlineStack gap="200" blockAlign="center">
+        <InlineStack gap="200" blockAlign="center" align="start">
           <Badge tone="info">{`#${action.rank}`}</Badge>
           <Text as="p" variant="bodyMd" fontWeight="semibold">{title}</Text>
         </InlineStack>
@@ -604,7 +612,7 @@ function ActiveProductsCard({
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center">
-          <InlineStack gap="200" blockAlign="center">
+          <InlineStack gap="200" blockAlign="center" align="start">
             <Icon source={ProductIcon} tone="base" />
             <Text as="span" variant="headingMd">{t(locale, "dashboardActiveProductsTitle")}</Text>
           </InlineStack>
@@ -658,7 +666,7 @@ function Zone2({
 
   return (
     <BlockStack gap="300">
-      <InlineStack gap="200" blockAlign="center">
+      <InlineStack gap="200" blockAlign="center" align="start">
         <Icon source={StarFilledIcon} tone="base" />
         <Text as="span" variant="headingMd">{t(locale, "dashboardZone2Title")}</Text>
       </InlineStack>
@@ -702,7 +710,7 @@ function Zone3({
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center">
-          <InlineStack gap="200" blockAlign="center">
+          <InlineStack gap="200" blockAlign="center" align="start">
             <Icon source={ChartHistogramGrowthIcon} tone="base" />
             <Text as="span" variant="headingMd">{t(locale, "dashboardZone3Title")}</Text>
           </InlineStack>
@@ -712,7 +720,7 @@ function Zone3({
         </InlineStack>
         {data.active_optimizations_count > 0 ? (
           <>
-            <InlineStack gap="200" blockAlign="center">
+            <InlineStack gap="200" blockAlign="center" align="start">
               <Text as="p" variant="headingLg" fontWeight="bold">
                 {data.active_optimizations_count}
               </Text>
@@ -764,7 +772,7 @@ function Zone4({
   return (
     <Card>
       <BlockStack gap="200">
-        <InlineStack gap="200" blockAlign="center">
+        <InlineStack gap="200" blockAlign="center" align="start">
           <Icon source={CheckCircleIcon} tone="base" />
           <Text as="span" variant="headingMd">{t(locale, "dashboardZone4Title")}</Text>
         </InlineStack>
@@ -795,7 +803,7 @@ function Zone5({
   if (data.alerts.length === 0) return null;
   return (
     <BlockStack gap="200">
-      <InlineStack gap="200" blockAlign="center">
+      <InlineStack gap="200" blockAlign="center" align="start">
         <Icon source={AlertCircleIcon} tone="base" />
         <Text as="span" variant="headingMd">{t(locale, "dashboardZone5Title")}</Text>
       </InlineStack>
@@ -834,13 +842,39 @@ type BizActionData =
 
 function getNicheIcon(profile: BusinessProfile): IconSource {
   const text = [profile.niche_summary, ...(profile.key_themes ?? [])].join(" ").toLowerCase();
-  if (/chat|chien|animal|pet|félin|canin|poil|woof|meow/.test(text)) return HeartIcon;
-  if (/alimentation|nourriture|food|cuisine|recette|gastronomie/.test(text)) return FoodIcon;
-  if (/nature|organi|plante|garden|jardin|eco|durable/.test(text)) return NatureIcon;
-  if (/sport|fitness|muscl|yoga|running|vélo/.test(text)) return SportsIcon;
-  if (/maison|home|déco|décor|meubl|intérieur/.test(text)) return HomeIcon;
-  if (/livre|book|formation|apprend|cours|éduc/.test(text)) return BookOpenIcon;
-  return CompassIcon;
+  // Animals & pets
+  if (/chat|chien|animal|pet|félin|canin|poil|woof|meow|oiseau|reptile|aquarium/.test(text)) return HeartIcon;
+  // Automotive & vehicles
+  if (/voiture|auto|moto|véhicule|car\b|motor|tuning|pneu|conduite|bagnole|vitesse|garage/.test(text)) return GaugeIcon;
+  // Beauty & cosmetics
+  if (/beauté|cosméti|parfum|maquillage|soin du visage|skincare|beauty|soin de peau/.test(text)) return EyeDropperIcon;
+  // Flowers & plants
+  if (/fleur|bouquet|plante|jardinage|botanique|flower|garden|herb/.test(text)) return FlowerIcon;
+  // Nature & eco
+  if (/nature|organi|ecolog|durable|vert|green|eco|recyclé|environnement/.test(text)) return NatureIcon;
+  // Food & gastronomy
+  if (/alimentation|nourriture|food|cuisine|recette|gastronomie|épicerie|bio|repas|chef/.test(text)) return FoodIcon;
+  // Sports & fitness
+  if (/sport|fitness|muscl|yoga|running|vélo|natation|crossfit|athlétisme|gym/.test(text)) return SportsIcon;
+  // Home & deco
+  if (/maison|home|déco|décor|meubl|intérieur|aménagement|rénov|habitat/.test(text)) return HomeIcon;
+  // Fashion & accessories (watches/jewelry)
+  if (/mode|fashion|vêtement|bijou|montre|accessoire|jewelry|luxe|couture|sac|chaussure/.test(text)) return WatchIcon;
+  // Electronics & tech
+  if (/tech|électronique|informatiqu|téléphone|smartphone|gadget|digital|numérique|appareil/.test(text)) return PhoneIcon;
+  // Photography
+  if (/photo|photographi|camera|appareil photo|objectif/.test(text)) return CameraIcon;
+  // Gaming & toys
+  if (/jeu|game|jouet|gaming|console|enfant|baby|toy|bébé/.test(text)) return GamesIcon;
+  // Music
+  if (/musique|music|instrument|guitare|piano|vinyl|concert/.test(text)) return MicrophoneIcon;
+  // Travel
+  if (/voyage|travel|aventure|randonnée|plage|tourisme|destination/.test(text)) return CompassIcon;
+  // Books & education
+  if (/livre|book|formation|apprend|cours|éduc|e-learning|formation/.test(text)) return BookOpenIcon;
+  // Commerce / retail
+  if (/boutique|commerce|retail|marketplace|shop|magasin/.test(text)) return StoreIcon;
+  return StarFilledIcon;
 }
 
 function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale: Locale }) {
@@ -854,7 +888,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="200">
-            <InlineStack gap="200" blockAlign="center">
+            <InlineStack gap="200" blockAlign="center" align="start">
               <Icon source={NicheIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Niche & Marque" : "Niche & Brand"}</Text>
             </InlineStack>
@@ -872,7 +906,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
 
         <Card>
           <BlockStack gap="200">
-            <InlineStack gap="200" blockAlign="center">
+            <InlineStack gap="200" blockAlign="center" align="start">
               <Icon source={MegaphoneIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Voix de marque" : "Brand voice"}</Text>
             </InlineStack>
@@ -896,7 +930,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="300">
-            <InlineStack gap="200" blockAlign="center">
+            <InlineStack gap="200" blockAlign="center" align="start">
               <Icon source={PersonIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Personas" : "Personas"}</Text>
             </InlineStack>
@@ -912,7 +946,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
 
         <Card>
           <BlockStack gap="200">
-            <InlineStack gap="200" blockAlign="center">
+            <InlineStack gap="200" blockAlign="center" align="start">
               <Icon source={ContentIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Style de contenu" : "Content style"}</Text>
             </InlineStack>
@@ -941,7 +975,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="200">
-            <InlineStack gap="200" blockAlign="center">
+            <InlineStack gap="200" blockAlign="center" align="start">
               <Icon source={GlobeIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Concurrents" : "Competitors"}</Text>
             </InlineStack>
@@ -964,7 +998,7 @@ function BizProfileCards({ profile, locale }: { profile: BusinessProfile; locale
 
         <Card>
           <BlockStack gap="300">
-            <InlineStack gap="200" blockAlign="center">
+            <InlineStack gap="200" blockAlign="center" align="start">
               <Icon source={CalendarIcon} tone="base" />
               <Text as="span" variant="headingMd">{locale === "fr" ? "Saisonnalité & Opportunités" : "Seasonality & Gaps"}</Text>
             </InlineStack>
@@ -1171,7 +1205,7 @@ function BusinessProfileSection({
   const headerCard = (
     <Card>
       <InlineStack align="space-between" blockAlign="center">
-        <InlineStack gap="200" blockAlign="center">
+        <InlineStack gap="200" blockAlign="center" align="start">
           <Icon source={CompassIcon} tone="base" />
           <Text as="span" variant="headingMd">{t(locale, "businessProfileTitle")}</Text>
           {displayProfile?.status === "validated" && (
@@ -1228,7 +1262,7 @@ function BusinessProfileSection({
         {keywordsModal}
         {headerCard}
         <Card>
-          <InlineStack gap="200" blockAlign="center">
+          <InlineStack gap="200" blockAlign="center" align="start">
             <Spinner size="small" />
             <Text as="p" tone="subdued">{t(locale, "businessProfileAnalyzing")}</Text>
           </InlineStack>
@@ -1302,7 +1336,7 @@ function BusinessProfileSection({
       {headerCard}
       {isAnalyzing && (
         <Banner tone="info">
-          <InlineStack gap="200" blockAlign="center">
+          <InlineStack gap="200" blockAlign="center" align="start">
             <Spinner size="small" />
             <Text as="p">{t(locale, "businessProfileAnalyzing")}</Text>
           </InlineStack>
