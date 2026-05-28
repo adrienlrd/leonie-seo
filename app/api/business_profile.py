@@ -142,20 +142,34 @@ async def get_business_profile_job(
     return job
 
 
+def _good_brand(name: Any, domain_prefix: str) -> str:
+    """Return the name if it is a usable brand (not empty/placeholder/bare domain), else ''."""
+    n = str(name or "").strip()
+    if not n or n.lower() in _PLACEHOLDER_BRAND_NAMES or n.lower() == domain_prefix.lower():
+        return ""
+    return n
+
+
 def _repair_brand_name(profile: dict[str, Any], ctx: ShopContext) -> dict[str, Any]:
     """Backfill a real brand name when a stored profile shows a placeholder or the bare domain.
 
-    Never downgrades to the myshopify subdomain — only repairs from a genuine snapshot name.
+    Sources, in order: the snapshot store name, then the latest analysis job's
+    LLM-inferred name. Never downgrades to the myshopify subdomain.
     """
-    current = str(profile.get("brand_name") or "").strip()
     domain_prefix = ctx.shop.removesuffix(".myshopify.com")
-    needs_repair = current.lower() in _PLACEHOLDER_BRAND_NAMES or current.lower() == domain_prefix.lower()
-    if not needs_repair:
+    if _good_brand(profile.get("brand_name"), domain_prefix):
         return profile
+
     snapshot = _load_snapshot_safe(ctx)
-    snapshot_name = str((snapshot.get("shop") or {}).get("name") or "").strip()
-    if snapshot_name and snapshot_name.lower() != domain_prefix.lower():
-        profile["brand_name"] = snapshot_name
+    snapshot_name = _good_brand((snapshot.get("shop") or {}).get("name"), domain_prefix)
+
+    job = load_business_profile_job(ctx.shop) or {}
+    job_profile = job.get("profile") if isinstance(job.get("profile"), dict) else {}
+    job_name = _good_brand(job_profile.get("brand_name"), domain_prefix)
+
+    repaired = snapshot_name or job_name
+    if repaired:
+        profile["brand_name"] = repaired
     return profile
 
 

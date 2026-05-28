@@ -51,7 +51,20 @@ def test_repair_brand_name_when_bare_domain(monkeypatch):
 
 
 def test_repair_never_downgrades_to_domain(monkeypatch):
-    # Snapshot only carries the dev-store hash → keep the placeholder rather than the domain.
+    # Snapshot only carries the dev-store hash and no analysis job → keep the placeholder.
     monkeypatch.setattr(bp, "_load_snapshot_safe", lambda ctx: {"shop": {"name": "leonie"}})
+    monkeypatch.setattr(bp, "load_business_profile_job", lambda shop: None)
     repaired = bp._repair_brand_name({"brand_name": "Non spécifié"}, _ctx())
     assert repaired["brand_name"] == "Non spécifié"
+
+
+def test_repair_falls_back_to_job_llm_name(monkeypatch):
+    # Stale validated profile is repaired from the latest job's LLM-inferred name.
+    monkeypatch.setattr(bp, "_load_snapshot_safe", lambda ctx: {"shop": {"name": "leonie"}})
+    monkeypatch.setattr(
+        bp,
+        "load_business_profile_job",
+        lambda shop: {"profile": {"brand_name": "Léonie Delacroix"}},
+    )
+    repaired = bp._repair_brand_name({"brand_name": "Non spécifié"}, _ctx())
+    assert repaired["brand_name"] == "Léonie Delacroix"
