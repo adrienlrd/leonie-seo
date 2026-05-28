@@ -270,6 +270,23 @@ export function qualityAdvisoryLabel(advisory: string, locale: Locale): string {
   return label ? label[locale === "fr" ? 0 : 1] : advisory;
 }
 
+export function qualityWarningText(pack: ContentTestPack, locale: Locale): string {
+  const quality = pack.content_quality;
+  if (!quality) return "";
+  const parts: string[] = [];
+  if (!quality.publish_ready && quality.issues.length > 0) {
+    const prefix = locale === "fr" ? "À corriger avant publication" : "Fix before publishing";
+    parts.push(`${prefix} : ${quality.issues.map((issue) => qualityIssueLabel(issue, locale)).join(" · ")}`);
+  }
+  if ((quality.skipped_surfaces?.length ?? 0) > 0) {
+    const prefix = locale === "fr"
+      ? "Non généré faute de preuve ou d'intention suffisante"
+      : "Not generated due to insufficient evidence or intent";
+    parts.push(`${prefix} : ${quality.skipped_surfaces!.map((surface) => surfaceLabel(surface, locale)).join(", ")}`);
+  }
+  return parts.join(" — ");
+}
+
 export function merchantAnswersFromPack(pack: ContentTestPack): Record<string, string> {
   const answers: Record<string, string> = {};
   for (const fact of (pack.confirmed_facts ?? [])) {

@@ -23,6 +23,7 @@ import {
 } from "@shopify/polaris";
 import {
   AlertCircleIcon,
+  AlertTriangleIcon,
   BookOpenIcon,
   CalendarIcon,
   CameraIcon,
@@ -57,7 +58,7 @@ import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
-import type { ProductResult } from "../lib/marketAnalysisShared";
+import { qualityWarningText, type ProductResult } from "../lib/marketAnalysisShared";
 
 interface MarketJobState {
   status: "pending" | "running" | "completed" | "failed";
@@ -766,6 +767,13 @@ function ActiveProductsCard({
                               <Badge tone="warning">{t(locale, "dashboardGscInvisible")}</Badge>
                             </Tooltip>
                           )
+                        )}
+                        {pack && qualityWarningText(pack.content_test_pack, locale) && (
+                          <Tooltip content={qualityWarningText(pack.content_test_pack, locale)}>
+                            <span style={{ display: "inline-flex", cursor: "help" }}>
+                              <Icon source={AlertTriangleIcon} tone="warning" />
+                            </span>
+                          </Tooltip>
                         )}
                       </InlineStack>
                       {analyzingThis ? (

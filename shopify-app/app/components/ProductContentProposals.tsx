@@ -35,8 +35,7 @@ import {
   type ProductResult,
   highlightKeywords,
   merchantAnswersFromPack,
-  qualityIssueLabel,
-  surfaceLabel,
+  qualityWarningText,
 } from "../lib/marketAnalysisShared";
 
 type FieldKey = "meta_title" | "meta_description" | "description" | "faq" | "blog";
@@ -143,25 +142,9 @@ export function ProductContentProposals({
     (question) => (enrichmentAnswers[question.key] ?? "").trim().length > 0,
   );
 
-  // Compact quality warning: combine publish blockers + skipped surfaces into a
-  // single tooltip shown behind a warning icon.
-  const quality = editedPack.content_quality;
-  const qualityWarningParts: string[] = [];
-  if (quality && !quality.publish_ready && quality.issues.length > 0) {
-    const prefix = locale === "fr" ? "À corriger avant publication" : "Fix before publishing";
-    qualityWarningParts.push(
-      `${prefix} : ${quality.issues.map((issue) => qualityIssueLabel(issue, locale)).join(" · ")}`,
-    );
-  }
-  if ((quality?.skipped_surfaces?.length ?? 0) > 0) {
-    const prefix = locale === "fr"
-      ? "Non généré faute de preuve ou d'intention suffisante"
-      : "Not generated due to insufficient evidence or intent";
-    qualityWarningParts.push(
-      `${prefix} : ${quality!.skipped_surfaces!.map((surface) => surfaceLabel(surface, locale)).join(", ")}`,
-    );
-  }
-  const qualityWarningTooltip = qualityWarningParts.join(" — ");
+  // Compact quality warning shown behind a warning icon (sections layout only;
+  // the buttons layout renders it next to the product title in the parent).
+  const qualityWarningTooltip = qualityWarningText(editedPack, locale);
 
   // ── Field renderers ────────────────────────────────────────────────────────
   const renderMetaTitle = () => (
@@ -354,125 +337,125 @@ export function ProductContentProposals({
     { key: "blog", labelKey: "proposalFieldBlog", has: Boolean(editedPack.proposed_blog_title), render: renderBlog },
   ];
 
-  // ── Shared chrome (edit controls, quality, enrichment) ─────────────────────
-  const chrome = (
-    <BlockStack gap="300">
-      <InlineStack gap="200" align="end">
-        {editMode ? (
-          <>
-            <Button size="slim" loading={isSaving} onClick={handleSaveProposals}>
-              {locale === "fr" ? "Sauvegarder" : "Save"}
-            </Button>
-            <Button size="slim" variant="plain" onClick={() => { setEditMode(false); setEditedPack({ ...pack }); }}>
-              {locale === "fr" ? "Annuler" : "Cancel"}
-            </Button>
-          </>
-        ) : (
-          <Button size="slim" variant="plain" onClick={() => setEditMode(true)}>
-            {locale === "fr" ? "Modifier" : "Edit"}
-          </Button>
+  // ── Reusable chrome pieces ─────────────────────────────────────────────────
+  const editButtons = editMode ? (
+    <>
+      <Button size="slim" loading={isSaving} onClick={handleSaveProposals}>
+        {locale === "fr" ? "Sauvegarder" : "Save"}
+      </Button>
+      <Button size="slim" variant="plain" onClick={() => { setEditMode(false); setEditedPack({ ...pack }); }}>
+        {locale === "fr" ? "Annuler" : "Cancel"}
+      </Button>
+    </>
+  ) : (
+    <Button size="slim" variant="plain" onClick={() => setEditMode(true)}>
+      {locale === "fr" ? "Modifier" : "Edit"}
+    </Button>
+  );
+
+  const saveError = saveFetcher.data?.type === "saveProposals" && saveFetcher.data.error ? (
+    <Banner tone="critical">
+      <Text as="p" variant="bodySm">{saveFetcher.data.error}</Text>
+    </Banner>
+  ) : null;
+
+  const successBanner = !editMode && editedPack.content_quality?.publish_ready ? (
+    <Banner tone="success">
+      <BlockStack gap="050">
+        <Text as="p" variant="bodySm">
+          {locale === "fr"
+            ? "Validation SEO/GEO réussie : cette proposition est éligible à une publication automatisée."
+            : "SEO/GEO validation passed: this proposal is eligible for automated publishing."}
+        </Text>
+        {(editedPack.content_quality.evidence_ledger?.length ?? 0) > 0 && (
+          <Text as="p" variant="bodySm">
+            {locale === "fr"
+              ? `${editedPack.content_quality.evidence_ledger?.length} affirmation(s) reliée(s) à des faits Shopify confirmés.`
+              : `${editedPack.content_quality.evidence_ledger?.length} claim(s) linked to confirmed Shopify facts.`}
+          </Text>
         )}
-      </InlineStack>
+      </BlockStack>
+    </Banner>
+  ) : null;
 
-      {saveFetcher.data?.type === "saveProposals" && saveFetcher.data.error && (
-        <Banner tone="critical">
-          <Text as="p" variant="bodySm">{saveFetcher.data.error}</Text>
-        </Banner>
-      )}
+  const warningIcon = !editMode && qualityWarningTooltip ? (
+    <Tooltip content={qualityWarningTooltip}>
+      <span style={{ display: "inline-flex", cursor: "help" }}>
+        <Icon source={AlertTriangleIcon} tone="warning" />
+      </span>
+    </Tooltip>
+  ) : null;
 
-      {!editMode && editedPack.content_quality?.publish_ready && (
-        <Banner tone="success">
-          <BlockStack gap="050">
-            <Text as="p" variant="bodySm">
+  const enrichmentBlock = !editMode && enrichmentQuestions.length > 0 ? (
+    <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
+      <BlockStack gap="200">
+        <InlineStack gap="200" blockAlign="center" wrap>
+          <Text as="p" variant="bodySm" fontWeight="semibold">
+            {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
+          </Text>
+          <Button size="slim" variant="plain" onClick={() => setShowEnrichmentQuestions((open) => !open)}>
+            {showEnrichmentQuestions
+              ? (locale === "fr" ? "Réduire" : "Collapse")
+              : (locale === "fr" ? "Compléter" : "Complete")}
+          </Button>
+        </InlineStack>
+        <Collapsible id={`enrichment-${product.product_id}`} open={showEnrichmentQuestions}>
+          <BlockStack gap="300">
+            <Text as="p" variant="bodySm" tone="subdued">
               {locale === "fr"
-                ? "Validation SEO/GEO réussie : cette proposition est éligible à une publication automatisée."
-                : "SEO/GEO validation passed: this proposal is eligible for automated publishing."}
+                ? "Répondez seulement avec des informations exactes. Vos réponses sont injectées dans le prompt pour produire un contenu plus précis et ancré dans votre produit."
+                : "Answer only with accurate information. Your answers are injected into the prompt to produce more precise, product-grounded content."}
             </Text>
-            {(editedPack.content_quality.evidence_ledger?.length ?? 0) > 0 && (
-              <Text as="p" variant="bodySm">
-                {locale === "fr"
-                  ? `${editedPack.content_quality.evidence_ledger?.length} affirmation(s) reliée(s) à des faits Shopify confirmés.`
-                  : `${editedPack.content_quality.evidence_ledger?.length} claim(s) linked to confirmed Shopify facts.`}
-              </Text>
-            )}
-          </BlockStack>
-        </Banner>
-      )}
-
-      {!editMode && qualityWarningTooltip && (
-        <Tooltip content={qualityWarningTooltip}>
-          <span style={{ display: "inline-flex", cursor: "help" }}>
-            <Icon source={AlertTriangleIcon} tone="warning" />
-          </span>
-        </Tooltip>
-      )}
-
-      {!editMode && enrichmentQuestions.length > 0 && (
-        <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
-          <BlockStack gap="200">
-            <InlineStack gap="200" blockAlign="center" wrap>
-              <Text as="p" variant="bodySm" fontWeight="semibold">
-                {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
-              </Text>
-              <Button size="slim" variant="plain" onClick={() => setShowEnrichmentQuestions((open) => !open)}>
-                {showEnrichmentQuestions
-                  ? (locale === "fr" ? "Réduire" : "Collapse")
-                  : (locale === "fr" ? "Compléter" : "Complete")}
+            {enrichmentQuestions.map((question) => (
+              <TextField
+                key={question.key}
+                label={question.question}
+                helpText={question.why_it_matters}
+                placeholder={question.placeholder}
+                value={enrichmentAnswers[question.key] ?? ""}
+                onChange={(value) => setEnrichmentAnswers((answers) => ({ ...answers, [question.key]: value }))}
+                autoComplete="off"
+                multiline={2}
+              />
+            ))}
+            <InlineStack gap="200">
+              <Button
+                variant="primary"
+                loading={isAnalyzing}
+                disabled={!canSubmitEnrichment || analyzeDisabled}
+                onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
+              >
+                {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
               </Button>
             </InlineStack>
-            <Collapsible id={`enrichment-${product.product_id}`} open={showEnrichmentQuestions}>
-              <BlockStack gap="300">
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {locale === "fr"
-                    ? "Répondez seulement avec des informations exactes. Vos réponses sont injectées dans le prompt pour produire un contenu plus précis et ancré dans votre produit."
-                    : "Answer only with accurate information. Your answers are injected into the prompt to produce more precise, product-grounded content."}
-                </Text>
-                {enrichmentQuestions.map((question) => (
-                  <TextField
-                    key={question.key}
-                    label={question.question}
-                    helpText={question.why_it_matters}
-                    placeholder={question.placeholder}
-                    value={enrichmentAnswers[question.key] ?? ""}
-                    onChange={(value) => setEnrichmentAnswers((answers) => ({ ...answers, [question.key]: value }))}
-                    autoComplete="off"
-                    multiline={2}
-                  />
-                ))}
-                <InlineStack gap="200">
-                  <Button
-                    variant="primary"
-                    loading={isAnalyzing}
-                    disabled={!canSubmitEnrichment || analyzeDisabled}
-                    onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
-                  >
-                    {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
-                  </Button>
-                </InlineStack>
-              </BlockStack>
-            </Collapsible>
           </BlockStack>
-        </Box>
-      )}
-    </BlockStack>
-  );
+        </Collapsible>
+      </BlockStack>
+    </Box>
+  ) : null;
+
+  const fieldButtons = fields.filter((f) => f.has).map((f) => (
+    <Button
+      key={f.key}
+      size="slim"
+      pressed={openField === f.key}
+      onClick={() => toggleField(f.key)}
+    >
+      {t(locale, f.labelKey)}
+    </Button>
+  ));
 
   if (layout === "buttons") {
     const available = fields.filter((f) => f.has);
     return (
       <BlockStack gap="200">
-        {chrome}
-        <InlineStack gap="150" wrap>
-          {available.map((f) => (
-            <Button
-              key={f.key}
-              size="slim"
-              pressed={openField === f.key}
-              onClick={() => toggleField(f.key)}
-            >
-              {t(locale, f.labelKey)}
-            </Button>
-          ))}
+        {saveError}
+        {successBanner}
+        {enrichmentBlock}
+        {/* Field buttons with the edit control on the same row. */}
+        <InlineStack gap="150" align="space-between" blockAlign="center" wrap>
+          <InlineStack gap="150" wrap>{fieldButtons}</InlineStack>
+          <InlineStack gap="150">{editButtons}</InlineStack>
         </InlineStack>
         {available.map((f) => (
           <Collapsible key={f.key} id={`field-${f.key}-${product.product_id}`} open={openField === f.key}>
@@ -486,7 +469,11 @@ export function ProductContentProposals({
   // layout === "sections"
   return (
     <BlockStack gap="300">
-      {chrome}
+      <InlineStack gap="200" align="end">{editButtons}</InlineStack>
+      {saveError}
+      {successBanner}
+      {warningIcon}
+      {enrichmentBlock}
       {fields.filter((f) => f.has).map((f) => (
         <div key={f.key}>{f.render()}</div>
       ))}
