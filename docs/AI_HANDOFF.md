@@ -20,6 +20,7 @@
 - **Validations run:** `pytest` complet — 1601 ✅ ; recomputation sur l'export réel confirmant les nouveaux primaries ; `ruff check` (fichiers modifiés) ✅.
 - **Open issues:** DataForSEO renvoie souvent `difficulty` absente (difficulty_source=free_estimated) — la difficulté réelle serait préférable ; l'inférence par volume est un garde-fou. GSC toujours absent.
 - **Next recommended action:** Re-exporter une analyse et confirmer en réel que les primaries sont bien les mid-tail spécifiques.
+- **Suivi 2026-05-29 :** 4ᵉ run confirme les bons primaries (`harnais chien cuir`, `fontaine à eau inox sans fil pour chat`, `pull en cachemire pour chien`). Ajout d'un nettoyeur `_clean_keyword_query` (retire un préfixe parasite LLM type « new: » des requêtes) appliqué au coerce + à la fusion Pass 1. `pytest` 1604 ✅.
 
 ## Previous completed task
 

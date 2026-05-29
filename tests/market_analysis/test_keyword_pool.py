@@ -316,6 +316,28 @@ def test_assign_targets_primary_is_real_not_ai_proposed():
     assert ranked[0]["target_role"] == "primary"
 
 
+def test_keyword_query_prefix_is_cleaned():
+    assert engine._clean_keyword_query("new: fontaine d'eau pour chat") == (
+        "fontaine d'eau pour chat"
+    )
+    assert engine._clean_keyword_query("Nouveau - harnais chien cuir") == "harnais chien cuir"
+    assert engine._clean_keyword_query("  harnais   chien  ") == "harnais chien"
+    assert engine._clean_keyword_query("fontaine eau chat") == "fontaine eau chat"
+
+
+def test_merge_cleans_added_keyword_query():
+    pool = [{"query": "fontaine eau chat", "data_source": "dataforseo", "search_volume": 800}]
+    llm = [{"query": "new: fontaine inox sans fil", "product_fit_score": 85}]
+    out = engine._merge_pass1_selection(llm, pool, min_real_floor=1)
+    added = next(k for k in out if k.get("data_source") == "llm_proposed")
+    assert added["query"] == "fontaine inox sans fil"
+
+
+def test_coerce_seo_keywords_strips_prefix():
+    out = engine._coerce_seo_keywords([{"query": "new: pull cachemire chien", "intent_type": "x"}])
+    assert out[0]["query"] == "pull cachemire chien"
+
+
 def test_complete_json_uses_deterministic_json_mode_by_default():
     router = MagicMock()
     router.complete.return_value = CompletionResult(

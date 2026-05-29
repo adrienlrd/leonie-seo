@@ -171,6 +171,20 @@ def _coerce_target_customer(value: Any) -> str:
     return _coerce_str(value)
 
 
+# The LLM occasionally prepends a marker (e.g. "new: …") into the keyword string
+# itself instead of using the separate "new" field. Strip it so the query stays clean
+# for matching, SERP lookups and merchant display.
+_KEYWORD_PREFIX_RE = re.compile(
+    r"^\s*(?:new|nouveau|nouvelle|ajout[ée]?|added)\s*[:\-–—]\s*", re.IGNORECASE
+)
+
+
+def _clean_keyword_query(value: Any) -> str:
+    """Normalize a keyword query: drop parasitic prefixes, collapse whitespace."""
+    text = _KEYWORD_PREFIX_RE.sub("", _coerce_str(value).strip())
+    return " ".join(text.split())
+
+
 def _coerce_seo_keywords(value: Any) -> list[dict[str, Any]]:
     """Ensure every seo_keyword item has plain-string scalar fields."""
     if not isinstance(value, list):
@@ -180,7 +194,8 @@ def _coerce_seo_keywords(value: Any) -> list[dict[str, Any]]:
         if not isinstance(kw, dict):
             continue
         kw = dict(kw)
-        for field in ("query", "intent_type", "reason"):
+        kw["query"] = _clean_keyword_query(kw.get("query", ""))
+        for field in ("intent_type", "reason"):
             kw[field] = _coerce_str(kw.get(field, ""))
         out.append(kw)
     return out
@@ -1441,7 +1456,7 @@ def _merge_pass1_selection(
     for kw in llm_keywords or []:
         if not isinstance(kw, dict):
             continue
-        query = str(kw.get("query", "")).strip()
+        query = _clean_keyword_query(kw.get("query", ""))
         key = query.lower()
         if not query or key in seen:
             continue
@@ -1457,6 +1472,7 @@ def _merge_pass1_selection(
                 merged["reason"] = kw["reason"]
         else:
             merged = dict(kw)
+            merged["query"] = query  # cleaned (no "new:" prefix)
             merged["data_source"] = "llm_proposed"
             merged.setdefault("difficulty_source", "free_estimated")
             merged.setdefault("search_volume", None)
