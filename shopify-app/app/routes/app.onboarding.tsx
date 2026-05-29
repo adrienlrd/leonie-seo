@@ -244,6 +244,7 @@ function GuidedStep({
   active,
   children,
   locale,
+  keepChildrenWhenDone = false,
 }: {
   index: number;
   title: string;
@@ -252,6 +253,7 @@ function GuidedStep({
   active: boolean;
   children?: ReactNode;
   locale: Locale;
+  keepChildrenWhenDone?: boolean;
 }) {
   const statusLabel = done
     ? locale === "fr" ? "Terminé" : "Done"
@@ -270,7 +272,7 @@ function GuidedStep({
           <Badge tone={done ? "success" : active ? "info" : undefined}>{statusLabel}</Badge>
         </InlineStack>
         <Text as="p" tone="subdued">{body}</Text>
-        {active && children}
+        {(active || (done && keepChildrenWhenDone)) && children}
       </BlockStack>
     </Card>
   );
@@ -318,6 +320,7 @@ function GuidedOnboardingFlow({
           done={googleReady}
           active={activeStep === 1}
           locale={locale}
+          keepChildrenWhenDone
         >
           {gsc?.connected ? (
             <BlockStack gap="200">
