@@ -1434,6 +1434,34 @@ export default function MarketAnalysisPage() {
       singleProductJob?.status !== "failed");
 
   // ── Handlers ──────────────────────────────────────────────────────────────
+  // Client-side export of the current analysis as a JSON file the merchant can
+  // share (keywords + sources, content packs, GEO questions, data sources used).
+  const handleExportResults = () => {
+    if (typeof document === "undefined" || !job) return;
+    const payload = {
+      exported_at: new Date().toISOString(),
+      source: "market-analysis",
+      analyzed_at: job.analyzed_at,
+      analyzed_product_count: job.analyzed_product_count,
+      total_opportunity_count: job.total_opportunity_count,
+      sources_used: job.sources_used,
+      provider_status: job.provider_status,
+      business_profile_context: job.business_profile_context,
+      products: job.products,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `analyse-marche-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
   const handleStartIdentify = () => {
     setIdentifyJobId(null);
     setIdentifyJob(null);
@@ -1746,9 +1774,16 @@ export default function MarketAnalysisPage() {
               </Banner>
             )}
 
-            {/* Summary */}
+            {/* Summary + export */}
             {job && job.analyzed_product_count > 0 && (
-              <SummaryCard job={job} locale={locale} />
+              <>
+                <InlineStack align="end">
+                  <Button onClick={handleExportResults}>
+                    {t(locale, "marketAnalysisExport")}
+                  </Button>
+                </InlineStack>
+                <SummaryCard job={job} locale={locale} />
+              </>
             )}
 
             {/* Product cards — filtered to active by default */}
