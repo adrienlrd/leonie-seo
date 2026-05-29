@@ -254,6 +254,46 @@ def test_coerce_geo_questions_normalizes_french_confidence():
     assert out[0]["confidence"] == "high"
 
 
+def test_real_traffic_keyword_outranks_equivalent_ai_estimate():
+    # A keyword with real GSC traffic evidence must outrank an identical AI estimate.
+    gsc = {
+        "query": "fontaine eau chat",
+        "demand_score": 65,
+        "competition_score": 50,
+        "product_fit_score": 80,
+        "data_source": "gsc",
+        "difficulty_source": "free_estimated",
+        "gsc_impressions": 300,
+    }
+    llm = {**gsc, "data_source": "llm_estimated", "gsc_impressions": None}
+    assert engine._keyword_priority_score(gsc) > engine._keyword_priority_score(llm)
+
+
+def test_assign_targets_primary_is_real_not_ai_proposed():
+    keywords = [
+        {
+            "query": "gadget chat",
+            "data_source": "llm_proposed",
+            "difficulty_source": "free_estimated",
+            "demand_score": 40,
+            "competition_score": 50,
+            "product_fit_score": 90,
+        },
+        {
+            "query": "fontaine eau chat",
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+            "demand_score": 75,
+            "competition_score": 40,
+            "product_fit_score": 80,
+            "search_volume": 1500,
+        },
+    ]
+    ranked = engine._assign_keyword_targets(keywords, engine._content_words("fontaine eau chat"))
+    assert ranked[0]["query"] == "fontaine eau chat"
+    assert ranked[0]["target_role"] == "primary"
+
+
 def test_complete_json_uses_deterministic_json_mode_by_default():
     router = MagicMock()
     router.complete.return_value = CompletionResult(

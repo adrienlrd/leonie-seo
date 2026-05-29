@@ -31,6 +31,7 @@ import logging
 import os
 from typing import Any
 
+from app.market_analysis import keyword_cache
 from app.market_analysis.providers.types import CompetitorSignal, KeywordSignal
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,7 @@ class DataForSEOProvider:
         *,
         location_code: int = _DEFAULT_LOCATION_CODE,
         language_code: str = _DEFAULT_LANGUAGE_CODE,
+        cache_db_path=None,
     ) -> None:
         self._login = os.getenv("DATAFORSEO_LOGIN", "").strip()
         self._password = os.getenv("DATAFORSEO_PASSWORD", "").strip()
@@ -99,10 +101,41 @@ class DataForSEOProvider:
         )
         self._location_code = location_code
         self._language_code = language_code
+        self._cache_db_path = cache_db_path
 
     @property
     def available(self) -> bool:
         return bool(self._enabled and self._login and self._password)
+
+    # ── Shared cache (fail-open: a cache error must never break enrichment) ────
+
+    def _cache_get(self, data_type: str, keywords: list[str]) -> dict[str, Any]:
+        try:
+            return keyword_cache.get_many(
+                data_type,
+                keywords,
+                location_code=self._location_code,
+                language_code=self._language_code,
+                db_path=self._cache_db_path,
+            )
+        except Exception as exc:  # pragma: no cover - cache is best-effort
+            logger.debug("keyword cache read failed (non-fatal): %s", exc)
+            return {}
+
+    def _cache_set(self, data_type: str, payloads: dict[str, Any], ttl_days: int) -> None:
+        if not payloads:
+            return
+        try:
+            keyword_cache.set_many(
+                data_type,
+                payloads,
+                location_code=self._location_code,
+                language_code=self._language_code,
+                ttl_days=ttl_days,
+                db_path=self._cache_db_path,
+            )
+        except Exception as exc:  # pragma: no cover - cache is best-effort
+            logger.debug("keyword cache write failed (non-fatal): %s", exc)
 
     # ── Public API used by the engine ────────────────────────────────────────
 
@@ -114,52 +147,77 @@ class DataForSEOProvider:
         if not keywords:
             return signals
 
-        volumes: dict[str, dict[str, Any]] = {}
-        difficulties: dict[str, int] = {}
+        # Shared cache first; only call the paid API for keywords not seen before
+        # (by any shop). The first shop in a niche pays, later shops read the cache.
+        metrics = self._cache_get(keyword_cache.METRICS, keywords)
+        misses = [k for k in keywords if keyword_cache.normalize_keyword(k) not in metrics]
 
-        # Skip the costly Google Ads search-volume call unless explicitly enabled —
-        # keyword_ideas already carries volume/CPC for the keywords that matter.
-        if self._search_volume_enabled:
+        if misses:
+            volumes: dict[str, dict[str, Any]] = {}
+            difficulties: dict[str, int] = {}
+            vol_ok = diff_ok = False
+            # Skip the costly Google Ads search-volume call unless explicitly enabled —
+            # keyword_ideas already carries volume/CPC for the keywords that matter.
+            if self._search_volume_enabled:
+                try:
+                    volumes = self._fetch_search_volumes(misses)
+                    vol_ok = True
+                except Exception as exc:
+                    logger.warning("DataForSEO search volume call failed: %s", exc)
             try:
-                volumes = self._fetch_search_volumes(keywords)
+                difficulties = self._fetch_keyword_difficulty(misses)
+                diff_ok = True
             except Exception as exc:
-                logger.warning("DataForSEO search volume call failed: %s", exc)
+                logger.warning("DataForSEO keyword difficulty call failed: %s", exc)
 
-        try:
-            difficulties = self._fetch_keyword_difficulty(keywords)
-        except Exception as exc:
-            logger.warning("DataForSEO keyword difficulty call failed: %s", exc)
+            # Only cache when at least one call succeeded, so transient failures are
+            # not frozen as "no data". A genuine no-data result IS cached (None values)
+            # to avoid re-querying obscure terms.
+            if vol_ok or diff_ok:
+                fresh: dict[str, dict[str, Any]] = {}
+                for kw in misses:
+                    norm = keyword_cache.normalize_keyword(kw)
+                    vol_data = volumes.get(norm) or {}
+                    fresh[norm] = {
+                        "search_volume": vol_data.get("search_volume"),
+                        "cpc": vol_data.get("cpc"),
+                        "competition_index": vol_data.get("competition_index"),
+                        "difficulty": difficulties.get(norm),
+                    }
+                self._cache_set(keyword_cache.METRICS, fresh, keyword_cache.METRICS_TTL_DAYS)
+                metrics = {**metrics, **fresh}
 
         for sig in signals:
-            kw = str(sig.get("keyword", "")).strip().lower()
-            vol_data = volumes.get(kw)
-            difficulty = difficulties.get(kw)
-
-            if vol_data or difficulty is not None:
-                sig["source"] = "dataforseo"
-                sig["confidence"] = "high"
-                notes = list(sig.get("notes", []))
-
-                if vol_data:
-                    vol = vol_data.get("search_volume")
-                    cpc = vol_data.get("cpc")
-                    comp = vol_data.get("competition_index")
-                    sig["search_volume"] = vol
-                    sig["cpc"] = cpc
-                    sig["ads_competition"] = comp
-                    if vol is not None:
-                        sig["difficulty_score"] = _to_demand_bucket(vol)
-                    notes.append(
-                        f"DataForSEO: {vol if vol is not None else '—'} rech./mois, "
-                        f"CPC {cpc if cpc is not None else '—'}€, "
-                        f"concurrence Ads {comp}"
-                    )
-                    sig["notes"] = notes
-
-                # Real SEO difficulty overrides ads competition mapping
-                if difficulty is not None:
-                    sig["difficulty_score"] = difficulty
-                    sig["difficulty_source"] = "dataforseo"
+            norm = keyword_cache.normalize_keyword(str(sig.get("keyword", "")))
+            payload = metrics.get(norm)
+            if not payload:
+                continue
+            vol = payload.get("search_volume")
+            cpc = payload.get("cpc")
+            comp = payload.get("competition_index")
+            difficulty = payload.get("difficulty")
+            has_volume = vol is not None or cpc is not None or comp is not None
+            if not (has_volume or difficulty is not None):
+                continue
+            sig["source"] = "dataforseo"
+            sig["confidence"] = "high"
+            notes = list(sig.get("notes", []))
+            if has_volume:
+                sig["search_volume"] = vol
+                sig["cpc"] = cpc
+                sig["ads_competition"] = comp
+                if vol is not None:
+                    sig["difficulty_score"] = _to_demand_bucket(vol)
+                notes.append(
+                    f"DataForSEO: {vol if vol is not None else '—'} rech./mois, "
+                    f"CPC {cpc if cpc is not None else '—'}€, "
+                    f"concurrence Ads {comp}"
+                )
+                sig["notes"] = notes
+            # Real SEO difficulty overrides ads competition mapping
+            if difficulty is not None:
+                sig["difficulty_score"] = difficulty
+                sig["difficulty_source"] = "dataforseo"
 
         return signals
 
@@ -193,12 +251,22 @@ class DataForSEOProvider:
         if not self.available or not keywords:
             return {}
         capped = list(dict.fromkeys(keywords))[:_SERP_MAX_KEYWORDS]
+
+        # Shared cache (short TTL — SERP/PAA move faster than volume/difficulty).
+        cached = self._cache_get(keyword_cache.SERP, capped)
+        misses = [k for k in capped if keyword_cache.normalize_keyword(k) not in cached]
+        if not misses:
+            return cached
+
         try:
-            serp_data = self._fetch_serp(capped)
+            serp_data = self._fetch_serp(misses)
         except Exception as exc:
             logger.warning("DataForSEO SERP intelligence call failed: %s", exc)
-            return {}
-        return _parse_serp_intelligence(serp_data)
+            return cached
+        parsed = _parse_serp_intelligence(serp_data)
+        fresh = {keyword_cache.normalize_keyword(k): v for k, v in parsed.items()}
+        self._cache_set(keyword_cache.SERP, fresh, keyword_cache.SERP_TTL_DAYS)
+        return {**cached, **fresh}
 
     # ── Internal HTTP calls ──────────────────────────────────────────────────
 

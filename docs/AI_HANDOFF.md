@@ -12,6 +12,20 @@
 
 - **Date:** 2026-05-29
 - **Agent:** Claude (Opus 4.7)
+- **Goal:** Rendre les coûts DataForSEO soutenables en multi-shop (app publique) sans dépendance externe — abandon de l'idée Google Ads API (friction quotas/compliance/migrations, volumes en fourchettes) au profit d'un cache de mots-clés partagé entre shops.
+- **Summary:** Nouveau cache partagé `keyword_data_cache` (clé `data_type+location+language+mot-clé`, **sans scope shop** car la donnée marché est identique pour tous les shops) avec TTL différencié (volume/difficulté 60 j, SERP/PAA 10 j). `DataForSEOProvider.enrich()` et `fetch_serp_intelligence()` consultent le cache d'abord et n'appellent l'API que pour les manques → le 1ᵉʳ shop d'une niche paie, les suivants/reruns lisent le cache. Accès cache « fail-open » (une erreur de cache ne casse jamais l'enrichissement). Décision : Google Ads API abandonnée (cf. analyse multi-tenant).
+- **Files created:** `app/market_analysis/keyword_cache.py`, `tests/market_analysis/test_keyword_cache.py`.
+- **Files modified:** `app/db.py` (table SQLite + Postgres), `app/market_analysis/providers/dataforseo_provider.py` (cache + `cache_db_path` pour isolation tests), `tests/market_analysis/test_dataforseo_cost.py` (isolation cache), `tests/market_analysis/test_keyword_pool.py` (tests qualité/trafic), `docs/AI_HANDOFF.md`.
+- **Decisions made:** Cache partagé entre shops (pas par-shop) = vrai levier de coût multi-tenant. GSC reste par-shop (1ʳᵉ partie). Abandon Google Ads API. Cache best-effort (jamais bloquant).
+- **Validations run:** `pytest` complet — 1599 ✅ (dont 6 tests cache : hit/miss, partage cross-shop, dédup mot-clé partagé entre produits, TTL expiré, fail-open, SERP caché ; + 2 tests qualité : réel > estimé IA, primary = réel) ; `ruff check` ✅.
+- **Validations skipped:** Frontend inchangé ; pas de run live (cache vérifié uniquement par tests mockés).
+- **Open issues:** GSC toujours absent des sources (à reconnecter/alimenter). Cache des idées DataForSEO et competitors_domain non mis en cache (variabilité plus forte) — possible si besoin. Pas encore de purge/éviction des entrées expirées (lecture filtrée par `expires_at`, suffisant).
+- **Next recommended action:** Relancer plusieurs analyses (même niche, 2 shops) et vérifier la chute des appels DataForSEO + la cohérence des métriques entre runs/produits.
+
+## Previous completed task
+
+- **Date:** 2026-05-29
+- **Agent:** Claude (Opus 4.7)
 - **Goal:** Optimisation coût DataForSEO + correctifs issus d'un 2ᵉ run réel (la fontaine avait dérivé vers des mots-clés « filtre » = mauvaise intention).
 - **Summary:** (1) Coupé l'endpoint coûteux `keywords_data/google_ads/search_volume/live` (~10x le coût des endpoints Labs, redondant avec `keyword_ideas` qui renvoie déjà le volume) — désactivé par défaut, réactivable via `DATAFORSEO_SEARCH_VOLUME_ENABLED=true` ; la difficulté Labs continue. (2) `_keyword_priority_score` : ne fait confiance à la difficulté que si réelle (`difficulty_source=dataforseo`), sinon neutre (50) — évite qu'une difficulté estimée fasse un faux bonus/pénalité. (3) Garde d'intention : pénalité (−20) si la requête contient un marqueur accessoire/consommable (`filtre`, `recharge`, `pièce`, `pompe`…) absent du produit → le primary reste sur le produit, pas sur une pièce détachée ; règle ajoutée au prompt Pass 1. (4) Identification produit en température 0 + json_mode → labels stables → seeds DataForSEO stables → moins de variance entre runs.
 - **Files created:** `tests/market_analysis/test_dataforseo_cost.py`.

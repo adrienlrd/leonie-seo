@@ -110,6 +110,17 @@ _SQLITE_DDL = [
         expires_at     TEXT NOT NULL,
         PRIMARY KEY (shop, task_name, prompt_version, content_hash)
     )""",
+    # Shared keyword-data cache (volume/difficulty/SERP-PAA). Keyed by
+    # data_type+location+language+keyword and intentionally NOT scoped to a shop:
+    # keyword market data is identical across shops, so the cache is shared to cut
+    # repeated paid-provider calls as more shops are onboarded.
+    """CREATE TABLE IF NOT EXISTS keyword_data_cache (
+        cache_key    TEXT PRIMARY KEY,
+        data_type    TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at   TEXT NOT NULL,
+        expires_at   TEXT NOT NULL
+    )""",
     # Semantic embeddings (Phase 8, task 70) — stored as JSON text for SQLite
     """CREATE TABLE IF NOT EXISTS product_embeddings (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -291,6 +302,14 @@ _PG_LLM_CACHE = """CREATE TABLE IF NOT EXISTS llm_cache (
     created_at     TEXT NOT NULL,
     expires_at     TEXT NOT NULL,
     PRIMARY KEY (shop, task_name, prompt_version, content_hash)
+)"""
+
+_PG_KEYWORD_CACHE = """CREATE TABLE IF NOT EXISTS keyword_data_cache (
+    cache_key    TEXT PRIMARY KEY,
+    data_type    TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at   TEXT NOT NULL,
+    expires_at   TEXT NOT NULL
 )"""
 
 _PG_DDL = [
@@ -499,6 +518,7 @@ def _init_postgres(database_url: str) -> None:
                 cur.execute(stmt)
             cur.execute(_PG_LLM_METRICS)
             cur.execute(_PG_LLM_CACHE)
+            cur.execute(_PG_KEYWORD_CACHE)
             for stmt in _PG_EMBEDDINGS:
                 cur.execute(stmt)
             cur.execute(_PG_SHOP_CONFIG)
