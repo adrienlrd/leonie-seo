@@ -121,6 +121,19 @@ def test_enrich_is_fail_open_when_cache_unavailable(monkeypatch, tmp_path):
     assert out[0]["source"] == "dataforseo"
 
 
+def test_all_none_result_is_not_cached(monkeypatch, tmp_path):
+    # A keyword with no data at all must not be frozen in cache — it should be
+    # re-queried next time (the provider may temporarily omit difficulty).
+    provider = _provider(monkeypatch, tmp_path, with_volume=False)
+    diff = MagicMock(return_value={})
+    monkeypatch.setattr(provider, "_fetch_keyword_difficulty", diff)
+
+    provider.enrich([{"keyword": "obscure kw"}], shop="s")
+    provider.enrich([{"keyword": "obscure kw"}], shop="s")
+
+    assert diff.call_count == 2  # not cached → fetched again
+
+
 def test_serp_intelligence_is_cached(monkeypatch, tmp_path):
     provider = _provider(monkeypatch, tmp_path)
     serp = MagicMock(

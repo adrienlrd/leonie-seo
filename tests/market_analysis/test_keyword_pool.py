@@ -254,6 +254,28 @@ def test_coerce_geo_questions_normalizes_french_confidence():
     assert out[0]["confidence"] == "high"
 
 
+def test_high_volume_unknown_difficulty_is_penalized():
+    # Head term with huge volume but NO real difficulty must not beat a winnable
+    # mid-tail — low ads competition is not a proxy for organic difficulty.
+    head = {
+        "query": "harnais chien",
+        "demand_score": 90,
+        "competition_score": 0,
+        "product_fit_score": 90,
+        "data_source": "dataforseo",
+        "difficulty_source": "free_estimated",
+    }
+    mid = {
+        "query": "harnais chien cuir",
+        "demand_score": 55,
+        "competition_score": 0,
+        "product_fit_score": 75,
+        "data_source": "dataforseo",
+        "difficulty_source": "free_estimated",
+    }
+    assert engine._keyword_priority_score(mid) > engine._keyword_priority_score(head)
+
+
 def test_real_traffic_keyword_outranks_equivalent_ai_estimate():
     # A keyword with real GSC traffic evidence must outrank an identical AI estimate.
     gsc = {

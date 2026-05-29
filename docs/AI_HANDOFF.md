@@ -12,6 +12,19 @@
 
 - **Date:** 2026-05-29
 - **Agent:** Claude (Opus 4.7)
+- **Goal:** 3ᵉ run réel : le harnais reciblait le head term `harnais chien` (27 100/mois) car DataForSEO renvoyait `difficulty=0`/absente (difficulty_source=free_estimated) → le volume énorme gagnait faute de difficulté réelle.
+- **Summary:** (1) Quand la difficulté réelle est absente, `_keyword_priority_score` l'**infère du volume** : demande ≥85 → −25, ≥75 → −12 (un head term à fort volume est forcément concurrentiel ; la faible concurrence Ads n'est pas un proxy de difficulté SEO). (2) Le cache ne stocke plus les payloads entièrement vides (None) → une difficulté temporairement omise n'est plus figée 60 j. Vérifié sur l'export réel : les primaries deviennent `harnais chien cuir`, `fontaine à eau inox sans fil pour chat`, `pull en cachemire pour chien`. Les correctifs fontaine du commit précédent sont confirmés (intent « filtre » rétrogradé, confidence normalisée).
+- **Files created:** Aucun.
+- **Files modified:** `app/market_analysis/engine.py`, `app/market_analysis/providers/dataforseo_provider.py`, `tests/market_analysis/test_keyword_pool.py`, `tests/market_analysis/test_keyword_cache.py`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Inférer la difficulté du volume quand DataForSEO ne la fournit pas (robustesse). Ne jamais cacher un résultat all-None.
+- **Validations run:** `pytest` complet — 1601 ✅ ; recomputation sur l'export réel confirmant les nouveaux primaries ; `ruff check` (fichiers modifiés) ✅.
+- **Open issues:** DataForSEO renvoie souvent `difficulty` absente (difficulty_source=free_estimated) — la difficulté réelle serait préférable ; l'inférence par volume est un garde-fou. GSC toujours absent.
+- **Next recommended action:** Re-exporter une analyse et confirmer en réel que les primaries sont bien les mid-tail spécifiques.
+
+## Previous completed task
+
+- **Date:** 2026-05-29
+- **Agent:** Claude (Opus 4.7)
 - **Goal:** Rendre les coûts DataForSEO soutenables en multi-shop (app publique) sans dépendance externe — abandon de l'idée Google Ads API (friction quotas/compliance/migrations, volumes en fourchettes) au profit d'un cache de mots-clés partagé entre shops.
 - **Summary:** Nouveau cache partagé `keyword_data_cache` (clé `data_type+location+language+mot-clé`, **sans scope shop** car la donnée marché est identique pour tous les shops) avec TTL différencié (volume/difficulté 60 j, SERP/PAA 10 j). `DataForSEOProvider.enrich()` et `fetch_serp_intelligence()` consultent le cache d'abord et n'appellent l'API que pour les manques → le 1ᵉʳ shop d'une niche paie, les suivants/reruns lisent le cache. Accès cache « fail-open » (une erreur de cache ne casse jamais l'enrichissement). Décision : Google Ads API abandonnée (cf. analyse multi-tenant).
 - **Files created:** `app/market_analysis/keyword_cache.py`, `tests/market_analysis/test_keyword_cache.py`.

@@ -1558,11 +1558,20 @@ def _keyword_priority_score(
     score = 0.40 * demand + 0.25 * (100.0 - competition) + 0.35 * product_fit
 
     # Winnability: down-rank head terms a small store cannot realistically rank for.
-    # Only applies to real difficulty (unknown difficulty is neutral, never penalized).
-    if has_real_difficulty and competition >= _HARD_DIFFICULTY:
-        score -= 25.0
-    elif has_real_difficulty and competition >= _TOUGH_DIFFICULTY:
-        score -= 12.0
+    if has_real_difficulty:
+        if competition >= _HARD_DIFFICULTY:
+            score -= 25.0
+        elif competition >= _TOUGH_DIFFICULTY:
+            score -= 12.0
+    else:
+        # No real difficulty (the provider frequently omits it). Infer it from demand:
+        # a high-volume head term is almost always highly competitive, so a small store
+        # should not target it as primary just because its volume is large. Low ads
+        # competition is NOT a proxy for organic difficulty.
+        if demand >= 85:
+            score -= 25.0
+        elif demand >= 75:
+            score -= 12.0
 
     # Specificity: reward product-fitting mid/long-tail (the queries that convert).
     word_count = len(_content_words(str(keyword.get("query", ""))))

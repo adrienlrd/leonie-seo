@@ -170,20 +170,22 @@ class DataForSEOProvider:
             except Exception as exc:
                 logger.warning("DataForSEO keyword difficulty call failed: %s", exc)
 
-            # Only cache when at least one call succeeded, so transient failures are
-            # not frozen as "no data". A genuine no-data result IS cached (None values)
-            # to avoid re-querying obscure terms.
+            # Only cache when at least one call succeeded, and only entries that
+            # actually carry data — never freeze an all-None result (a transient miss
+            # or a difficulty the provider temporarily omitted) for the full TTL.
             if vol_ok or diff_ok:
                 fresh: dict[str, dict[str, Any]] = {}
                 for kw in misses:
                     norm = keyword_cache.normalize_keyword(kw)
                     vol_data = volumes.get(norm) or {}
-                    fresh[norm] = {
+                    payload = {
                         "search_volume": vol_data.get("search_volume"),
                         "cpc": vol_data.get("cpc"),
                         "competition_index": vol_data.get("competition_index"),
                         "difficulty": difficulties.get(norm),
                     }
+                    if any(value is not None for value in payload.values()):
+                        fresh[norm] = payload
                 self._cache_set(keyword_cache.METRICS, fresh, keyword_cache.METRICS_TTL_DAYS)
                 metrics = {**metrics, **fresh}
 
