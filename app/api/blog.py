@@ -288,7 +288,7 @@ def _build_faq_pairs(sections: list[BlogSection]) -> list[dict[str, str]]:
 
 
 class DraftPublishRequest(BaseModel):
-    blog_id: str
+    blog_id: str = ""  # empty → backend auto-creates a default blog if none exists
     publisher_name: str = ""
     publisher_logo_url: str | None = None
 
@@ -321,8 +321,10 @@ def publish_blog_draft(
     body_html = html + "\n" + render_jsonld_blocks(article_ld, faq_ld)
 
     try:
-        created = BlogPublisher(ctx.shop, ctx.access_token).create_draft_article(
-            blog_id=body.blog_id,
+        publisher = BlogPublisher(ctx.shop, ctx.access_token)
+        blog_id = body.blog_id or publisher.ensure_default_blog()
+        created = publisher.create_draft_article(
+            blog_id=blog_id,
             title=draft.get("blog_title", ""),
             body_html=body_html,
             summary=draft.get("summary", ""),
@@ -336,7 +338,7 @@ def publish_blog_draft(
     draft["status"] = "published_to_shopify"
     draft["shopify_article_id"] = created.get("id")
     draft["shopify_article_handle"] = created.get("handle")
-    draft["shopify_blog_id"] = body.blog_id
+    draft["shopify_blog_id"] = blog_id
     saved = save_draft(ctx.shop, draft)
     return {"draft": saved, "article": created}
 

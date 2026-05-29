@@ -38,6 +38,15 @@ mutation CreateArticle($article: ArticleCreateInput!) {
 }
 """.strip()
 
+_CREATE_BLOG_MUTATION = """
+mutation CreateBlog($blog: BlogInput!) {
+  blogCreate(blog: $blog) {
+    blog { id handle title }
+    userErrors { field message }
+  }
+}
+""".strip()
+
 
 class BlogPublisher:
     """Publish blog articles (default: draft) to a merchant's Shopify store."""
@@ -83,6 +92,26 @@ class BlogPublisher:
         raise ShopifyWriteError(
             f"Max retries ({self._max_retries}) exceeded on {self._endpoint}"
         )
+
+    def ensure_default_blog(self, *, title: str = "Blog") -> str:
+        """Return the first blog's id, creating one when the store has none.
+
+        Most fresh Shopify stores ship without any blog, so the publish flow would
+        otherwise dead-end on the destination picker. Creating a default container
+        keeps the experience one-click for the merchant.
+        """
+        existing = self.list_blogs(limit=1)
+        if existing and existing[0].get("id"):
+            return str(existing[0]["id"])
+        data = self._post(_CREATE_BLOG_MUTATION, {"blog": {"title": title}})
+        payload = ((data.get("data") or {}).get("blogCreate")) or {}
+        errors = payload.get("userErrors") or []
+        if errors:
+            raise ShopifyWriteError(f"blogCreate userErrors: {errors}")
+        created = payload.get("blog") or {}
+        if not created.get("id"):
+            raise ShopifyWriteError(f"blogCreate returned no blog: {data}")
+        return str(created["id"])
 
     def list_blogs(self, *, limit: int = 25) -> list[dict[str, Any]]:
         """Return the merchant's blogs so the editor can pick a destination."""

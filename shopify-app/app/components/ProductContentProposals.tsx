@@ -13,7 +13,7 @@
  *    (dashboard active-products panel)
  */
 
-import { Form, useFetcher } from "@remix-run/react";
+import { Form, useFetcher, useNavigation } from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -79,6 +79,10 @@ export function ProductContentProposals({
 
   const saveFetcher = useFetcher<{ type: string; error: string | null }>();
   const isSaving = saveFetcher.state !== "idle";
+  const navigation = useNavigation();
+  const generateAction = `/app/blog?productId=${encodeURIComponent(product.product_id)}`;
+  const isGenerating =
+    navigation.state !== "idle" && navigation.formAction === generateAction;
 
   const packSignature = JSON.stringify(pack);
   useEffect(() => {
@@ -319,17 +323,26 @@ export function ProductContentProposals({
       ) : (
         <>
           <Text as="p" variant="bodySm"><strong>{highlightKeywords(editedPack.proposed_blog_title, kwQueries)}</strong></Text>
-          <InlineStack gap="200">
-            <Form method="post" action={`/app/blog?productId=${encodeURIComponent(product.product_id)}`}>
-              <input type="hidden" name="intent" value="createFromProduct" />
-              <Button size="slim" variant="primary" submit>
-                {locale === "fr" ? "Générer l'article" : "Generate article"}
+          <BlockStack gap="200">
+            <InlineStack gap="200">
+              <Form method="post" action={generateAction}>
+                <input type="hidden" name="intent" value="createFromProduct" />
+                <Button size="slim" variant="primary" submit loading={isGenerating}>
+                  {locale === "fr" ? "Générer l'article" : "Generate article"}
+                </Button>
+              </Form>
+              <Button size="slim" variant="plain" url="/app/blog">
+                {locale === "fr" ? "Voir tous les blogs" : "View all blogs"}
               </Button>
-            </Form>
-            <Button size="slim" variant="plain" url="/app/blog">
-              {locale === "fr" ? "Voir tous les blogs" : "View all blogs"}
-            </Button>
-          </InlineStack>
+            </InlineStack>
+            {isGenerating && (
+              <Text as="p" variant="bodySm" tone="subdued">
+                {locale === "fr"
+                  ? "Génération en cours — environ 20-40 secondes selon le nombre de sections."
+                  : "Generating — about 20-40 seconds depending on the number of sections."}
+              </Text>
+            )}
+          </BlockStack>
           {editedPack.proposed_blog_intro && (
             <Text as="p" variant="bodySm" tone="subdued">{highlightKeywords(editedPack.proposed_blog_intro, kwQueries)}</Text>
           )}

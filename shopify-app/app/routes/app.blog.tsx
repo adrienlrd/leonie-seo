@@ -7,7 +7,14 @@
 
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useActionData, useFetcher, useLoaderData, useNavigate, useSubmit } from "@remix-run/react";
+import {
+  Link as RemixLink,
+  useActionData,
+  useFetcher,
+  useLoaderData,
+  useNavigate,
+  useSubmit,
+} from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -22,6 +29,7 @@ import {
   Page,
   Select,
   Spinner,
+  Tabs,
   Text,
   TextField,
 } from "@shopify/polaris";
@@ -192,9 +200,11 @@ function DraftListItem({
   locale,
 }: { draft: Draft; active: boolean; locale: Locale }) {
   const fr = locale === "fr";
+  // Use the Remix Link (client-side navigation) so we never leave the embedded
+  // Shopify session — a plain anchor would trigger the OAuth login path.
   return (
-    <a
-      href={`/app/blog?draft=${draft.id}`}
+    <RemixLink
+      to={`/app/blog?draft=${draft.id}`}
       style={{
         display: "block",
         textDecoration: "none",
@@ -218,7 +228,7 @@ function DraftListItem({
           </Badge>
         </InlineStack>
       </BlockStack>
-    </a>
+    </RemixLink>
   );
 }
 
@@ -238,6 +248,9 @@ export default function BlogIndexPage() {
   const isBusy = fetcher.state !== "idle";
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
+  // 0 = édition, 1 = aperçu — saving auto-switches to preview so the merchant
+  // immediately sees the cleanly-rendered article.
+  const [tabIndex, setTabIndex] = useState(0);
 
   useEffect(() => {
     if (blogsFetcher.data?.blogs && blogsFetcher.data.blogs.length && !selectedBlog) {
@@ -251,6 +264,8 @@ export default function BlogIndexPage() {
     if ((d.type === "saveDraft" || d.type === "regenerateSection" || d.type === "publishDraft") && d.ok && d.draft) {
       setDraft(d.draft as Draft);
       if (d.type === "publishDraft") setPublishOpen(false);
+      // After a save, switch to preview so the merchant sees the final article.
+      if (d.type === "saveDraft") setTabIndex(1);
     }
   }, [fetcher.data]);
 
@@ -394,40 +409,85 @@ export default function BlogIndexPage() {
                   </Banner>
                 )}
 
-                <TextField
-                  label={fr ? "Titre" : "Title"}
-                  value={draft.blog_title}
-                  onChange={(v) => setDraft((p) => p ? { ...p, blog_title: v } : p)}
-                  autoComplete="off"
-                />
-                <TextField
-                  label="Intro"
-                  value={draft.intro}
-                  onChange={(v) => setDraft((p) => p ? { ...p, intro: v } : p)}
-                  multiline={3}
-                  autoComplete="off"
+                <Tabs
+                  tabs={[
+                    { id: "edit", content: fr ? "Édition" : "Edit" },
+                    { id: "preview", content: fr ? "Aperçu" : "Preview" },
+                  ]}
+                  selected={tabIndex}
+                  onSelect={setTabIndex}
                 />
 
-                {draft.sections.map((section, idx) => (
-                  <Card key={`${section.h2}-${idx}`} padding="300">
-                    <BlockStack gap="200">
-                      <InlineStack align="space-between" blockAlign="center" wrap>
-                        <Text as="h3" variant="headingSm">H{idx + 2} · Section {idx + 1}</Text>
-                        <Button size="slim" onClick={() => onRegenerate(section.h2)}
-                          loading={isBusy && fetcher.formData?.get("intent") === "regenerateSection" && String(fetcher.formData?.get("payload") ?? "").includes(section.h2)}>
-                          {fr ? "Régénérer" : "Regenerate"}
-                        </Button>
-                      </InlineStack>
-                      <TextField label={fr ? "Question (H2)" : "Question (H2)"} value={section.h2}
-                        onChange={(v) => setSection(idx, { h2: v })} autoComplete="off" />
-                      <TextField label={fr ? "Réponse directe (40-60 mots)" : "Direct answer (40-60 words)"}
-                        value={section.direct_answer} onChange={(v) => setSection(idx, { direct_answer: v })}
-                        multiline={3} autoComplete="off" />
-                      <TextField label={fr ? "Corps" : "Body"} value={section.body}
-                        onChange={(v) => setSection(idx, { body: v })} multiline={6} autoComplete="off" />
-                    </BlockStack>
-                  </Card>
-                ))}
+                {tabIndex === 0 ? (
+                  <>
+                    <TextField
+                      label={fr ? "Titre" : "Title"}
+                      value={draft.blog_title}
+                      onChange={(v) => setDraft((p) => p ? { ...p, blog_title: v } : p)}
+                      autoComplete="off"
+                    />
+                    <TextField
+                      label="Intro"
+                      value={draft.intro}
+                      onChange={(v) => setDraft((p) => p ? { ...p, intro: v } : p)}
+                      multiline={3}
+                      autoComplete="off"
+                    />
+
+                    {draft.sections.map((section, idx) => (
+                      <Card key={`${section.h2}-${idx}`} padding="300">
+                        <BlockStack gap="200">
+                          <InlineStack align="space-between" blockAlign="center" wrap>
+                            <Text as="h3" variant="headingSm">H{idx + 2} · Section {idx + 1}</Text>
+                            <Button size="slim" onClick={() => onRegenerate(section.h2)}
+                              loading={isBusy && fetcher.formData?.get("intent") === "regenerateSection" && String(fetcher.formData?.get("payload") ?? "").includes(section.h2)}>
+                              {fr ? "Régénérer" : "Regenerate"}
+                            </Button>
+                          </InlineStack>
+                          <TextField label={fr ? "Question (H2)" : "Question (H2)"} value={section.h2}
+                            onChange={(v) => setSection(idx, { h2: v })} autoComplete="off" />
+                          <TextField label={fr ? "Réponse directe (40-60 mots)" : "Direct answer (40-60 words)"}
+                            value={section.direct_answer} onChange={(v) => setSection(idx, { direct_answer: v })}
+                            multiline={3} autoComplete="off" />
+                          <TextField label={fr ? "Corps" : "Body"} value={section.body}
+                            onChange={(v) => setSection(idx, { body: v })} multiline={6} autoComplete="off" />
+                        </BlockStack>
+                      </Card>
+                    ))}
+                  </>
+                ) : (
+                  <Box
+                    padding="500"
+                    background="bg-surface"
+                    borderRadius="200"
+                    borderColor="border"
+                    borderWidth="025"
+                  >
+                    <article style={{ maxWidth: 720, margin: "0 auto", lineHeight: 1.65 }}>
+                      <h1 style={{ marginBottom: 16, fontSize: 28 }}>
+                        {draft.blog_title || (fr ? "(sans titre)" : "(untitled)")}
+                      </h1>
+                      {draft.intro && (
+                        <p style={{ color: "#374151", fontSize: 17, marginBottom: 24 }}>
+                          {draft.intro}
+                        </p>
+                      )}
+                      {draft.sections.map((section, idx) => (
+                        <section key={`prev-${section.h2}-${idx}`} style={{ marginBottom: 28 }}>
+                          <h2 style={{ fontSize: 22, marginBottom: 10 }}>{section.h2}</h2>
+                          {section.direct_answer && (
+                            <p style={{ fontWeight: 600, marginBottom: 12 }}>
+                              {section.direct_answer}
+                            </p>
+                          )}
+                          {section.body && (
+                            <div style={{ whiteSpace: "pre-wrap" }}>{section.body}</div>
+                          )}
+                        </section>
+                      ))}
+                    </article>
+                  </Box>
+                )}
               </BlockStack>
             </Card>
           ) : (
@@ -456,21 +516,28 @@ export default function BlogIndexPage() {
           content: fr ? "Créer le brouillon" : "Create draft",
           onAction: onPublish,
           loading: isBusy && fetcher.formData?.get("intent") === "publishDraft",
-          disabled: !selectedBlog,
         }}
         secondaryActions={[{ content: fr ? "Annuler" : "Cancel", onAction: () => setPublishOpen(false) }]}
       >
         <Modal.Section>
           <BlockStack gap="300">
-            {!blogsFetcher.data?.blogs ? (
+            {!blogsFetcher.data ? (
               <InlineStack gap="200" blockAlign="center">
                 <Spinner size="small" />
                 <Text as="span">{fr ? "Chargement des blogs…" : "Loading blogs…"}</Text>
               </InlineStack>
+            ) : (blogsFetcher.data.blogs ?? []).length === 0 ? (
+              <Banner tone="info">
+                <p>
+                  {fr
+                    ? "Aucun blog Shopify détecté — un blog « Blog » sera créé automatiquement."
+                    : "No Shopify blog detected — a default \"Blog\" container will be created automatically."}
+                </p>
+              </Banner>
             ) : (
               <Select
                 label={fr ? "Blog de destination" : "Target blog"}
-                options={blogsFetcher.data.blogs.map((b) => ({ label: b.title, value: b.id }))}
+                options={(blogsFetcher.data.blogs ?? []).map((b) => ({ label: b.title, value: b.id }))}
                 value={selectedBlog}
                 onChange={setSelectedBlog}
               />
