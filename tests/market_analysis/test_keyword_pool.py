@@ -165,6 +165,7 @@ def test_priority_prefers_winnable_specific_over_hard_head_term():
         "competition_score": 90,
         "product_fit_score": 90,
         "data_source": "dataforseo",
+        "difficulty_source": "dataforseo",
     }
     specific = {
         "query": "harnais en cuir pour chien",
@@ -172,10 +173,62 @@ def test_priority_prefers_winnable_specific_over_hard_head_term():
         "competition_score": 30,
         "product_fit_score": 80,
         "data_source": "dataforseo",
+        "difficulty_source": "dataforseo",
     }
     # A small store should target the winnable, product-specific mid-tail, not the
     # 27k-volume head term it cannot realistically rank for.
     assert engine._keyword_priority_score(specific) > engine._keyword_priority_score(head)
+
+
+def test_unknown_difficulty_treated_as_neutral_not_winnable():
+    # A non-zero ESTIMATED difficulty must be treated as neutral (50), not trusted as
+    # a winnability signal — only a real DataForSEO difficulty earns the bonus.
+    real_low_diff = {
+        "query": "abc def",
+        "demand_score": 55,
+        "competition_score": 20,
+        "product_fit_score": 80,
+        "data_source": "dataforseo",
+        "difficulty_source": "dataforseo",
+    }
+    estimated = {**real_low_diff, "difficulty_source": "free_estimated"}
+    assert engine._keyword_priority_score(real_low_diff) > engine._keyword_priority_score(estimated)
+
+
+def test_accessory_keyword_penalized_when_product_is_not_the_accessory():
+    product_words = engine._content_words("fontaine à eau sans fil pour chat inox")
+    accessory = {
+        "query": "filtre fontaine a eau chat",
+        "demand_score": 55,
+        "competition_score": 50,
+        "product_fit_score": 80,
+        "data_source": "dataforseo",
+        "difficulty_source": "dataforseo",
+    }
+    product = {**accessory, "query": "fontaine eau chat sans fil"}
+    score_acc = engine._keyword_priority_score(accessory, product_words)
+    score_prod = engine._keyword_priority_score(product, product_words)
+    assert score_prod > score_acc  # the fountain term beats the spare-filter term
+    # Penalty only applies with product context.
+    assert engine._keyword_priority_score(accessory) > score_acc
+
+
+def test_identifier_calls_llm_deterministically():
+    from unittest.mock import patch
+
+    from app.market_analysis import identifier
+
+    router = MagicMock()
+    router.complete.return_value = CompletionResult(
+        text='{"gid://shopify/Product/1": "Fontaine chat"}', provider="openai", model="m"
+    )
+    with patch.object(identifier, "get_router", return_value=router):
+        identifier.generate_product_labels(
+            [{"id": "gid://shopify/Product/1", "title": "Fontaine"}], "s.myshopify.com"
+        )
+    kwargs = router.complete.call_args.kwargs
+    assert kwargs["temperature"] == 0.0
+    assert kwargs["json_mode"] is True
 
 
 def test_normalize_confidence_maps_french_and_variants():

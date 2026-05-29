@@ -12,6 +12,20 @@
 
 - **Date:** 2026-05-29
 - **Agent:** Claude (Opus 4.7)
+- **Goal:** Optimisation coût DataForSEO + correctifs issus d'un 2ᵉ run réel (la fontaine avait dérivé vers des mots-clés « filtre » = mauvaise intention).
+- **Summary:** (1) Coupé l'endpoint coûteux `keywords_data/google_ads/search_volume/live` (~10x le coût des endpoints Labs, redondant avec `keyword_ideas` qui renvoie déjà le volume) — désactivé par défaut, réactivable via `DATAFORSEO_SEARCH_VOLUME_ENABLED=true` ; la difficulté Labs continue. (2) `_keyword_priority_score` : ne fait confiance à la difficulté que si réelle (`difficulty_source=dataforseo`), sinon neutre (50) — évite qu'une difficulté estimée fasse un faux bonus/pénalité. (3) Garde d'intention : pénalité (−20) si la requête contient un marqueur accessoire/consommable (`filtre`, `recharge`, `pièce`, `pompe`…) absent du produit → le primary reste sur le produit, pas sur une pièce détachée ; règle ajoutée au prompt Pass 1. (4) Identification produit en température 0 + json_mode → labels stables → seeds DataForSEO stables → moins de variance entre runs.
+- **Files created:** `tests/market_analysis/test_dataforseo_cost.py`.
+- **Files modified:** `app/market_analysis/providers/dataforseo_provider.py`, `app/market_analysis/engine.py`, `app/market_analysis/identifier.py`, `tests/market_analysis/test_keyword_pool.py`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Garder DataForSEO Labs (idées/difficulté/SERP) comme base pas chère ; le volume Google Ads exact devient opt-in. Pénalité accessoire plutôt que filtrage dur (le terme reste utile en contenu support).
+- **Validations run:** `pytest` complet — 1591 ✅ ; `ruff check`/`format` ✅.
+- **Validations skipped:** Frontend inchangé ; pas de run live (à vérifier sur prochaine analyse pilote).
+- **Open issues:** Variance entre runs réduite mais à reconfirmer. Google Ads API (volume gratuit) non branchée (stub) — nécessite un developer token côté marchand. GSC toujours absent des sources.
+- **Next recommended action:** Relancer l'analyse fontaine, vérifier que le primary cible la fontaine (pas « filtre ») et que les runs sont stables. Puis décider du branchement Google Ads API.
+
+## Previous completed task
+
+- **Date:** 2026-05-29
+- **Agent:** Claude (Opus 4.7)
 - **Goal:** Ajustements post-évaluation d'un run réel (3 produits, ~0,40 $ DataForSEO) : (1) le mot-clé principal visait des head terms ingagnables (ex. « harnais chien » diff 90, 27 100/mois) au lieu de mid-tail spécifiques gagnables ; (2) `confidence` GEO parfois en français (« élevée ») ; (3) clarifier le plafond produits et le score d'opportunité figé à 15.
 - **Summary:** (1) `_keyword_priority_score` rééquilibré : difficulté plus pondérée (0.25), pénalité forte pour difficulté ≥85 (−25) et ≥70 (−12), bonus de spécificité pour les requêtes mid/longue-traîne qui collent au produit → le primary devient un mid-tail gagnable (ex. « harnais chien cuir », « fontaine eau chat sans fil »). (2) Nouveau `_normalize_confidence` (FR/variantes → high/medium/low) appliqué aux geo_questions et au confidence du content pack/produit. (3) Plafond : le job d'analyse complète tourne avec `max_products=0` (aucune limite) — les « 3 produits » = la taille réelle du catalogue actif, pas un cap. `total_opportunity_count` (34) = somme mots-clés+questions, pas un nombre de produits. Score d'opportunité figé à 15 = comportement attendu (balises SEO déjà correctes, GA4 sans trafic) ; ajout d'un bonus gradué selon le volume de sessions GA4 pour différencier les produits dès qu'il y a du trafic.
 - **Files created:** Aucun.

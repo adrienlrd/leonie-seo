@@ -6,8 +6,10 @@ Activation (same credentials for all APIs):
     DATAFORSEO_ENABLED=true
 
 APIs used:
-    1. POST /v3/keywords_data/google_ads/search_volume/live
-       → real search volume, CPC, ads competition per keyword (~$0.001/kw)
+    1. POST /v3/keywords_data/google_ads/search_volume/live  (OPT-IN, off by default)
+       → real search volume, CPC, ads competition per keyword. ~10x the cost of the
+         Labs endpoints and largely redundant with keyword_ideas (which already
+         returns volume/CPC). Enable with DATAFORSEO_SEARCH_VOLUME_ENABLED=true.
     2. POST /v3/dataforseo_labs/google/bulk_keyword_difficulty/live
        → true SEO difficulty 0–100 per keyword
     3. POST /v3/serp/google/organic/live/advanced
@@ -89,6 +91,12 @@ class DataForSEOProvider:
         self._login = os.getenv("DATAFORSEO_LOGIN", "").strip()
         self._password = os.getenv("DATAFORSEO_PASSWORD", "").strip()
         self._enabled = os.getenv("DATAFORSEO_ENABLED", "false").strip().lower() == "true"
+        # The Google Ads search-volume endpoint costs ~10x the Labs endpoints and is
+        # largely redundant: keyword_ideas already returns volume/CPC for discovered
+        # keywords. Off by default; enable only when exact Ads volume/CPC is needed.
+        self._search_volume_enabled = (
+            os.getenv("DATAFORSEO_SEARCH_VOLUME_ENABLED", "false").strip().lower() == "true"
+        )
         self._location_code = location_code
         self._language_code = language_code
 
@@ -109,10 +117,13 @@ class DataForSEOProvider:
         volumes: dict[str, dict[str, Any]] = {}
         difficulties: dict[str, int] = {}
 
-        try:
-            volumes = self._fetch_search_volumes(keywords)
-        except Exception as exc:
-            logger.warning("DataForSEO search volume call failed: %s", exc)
+        # Skip the costly Google Ads search-volume call unless explicitly enabled —
+        # keyword_ideas already carries volume/CPC for the keywords that matter.
+        if self._search_volume_enabled:
+            try:
+                volumes = self._fetch_search_volumes(keywords)
+            except Exception as exc:
+                logger.warning("DataForSEO search volume call failed: %s", exc)
 
         try:
             difficulties = self._fetch_keyword_difficulty(keywords)

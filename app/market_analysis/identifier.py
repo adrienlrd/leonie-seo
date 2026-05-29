@@ -35,11 +35,9 @@ def _extract_collections(product: dict[str, Any]) -> str:
         raw = items
     if not isinstance(raw, list):
         return ""
-    titles = [
-        c.get("title", "") if isinstance(c, dict) else str(c)
-        for c in raw if c
-    ]
+    titles = [c.get("title", "") if isinstance(c, dict) else str(c) for c in raw if c]
     return ", ".join(t for t in titles if t)[:100]
+
 
 _SYSTEM_PROMPT = (
     "Tu es un expert SEO pour boutiques Shopify. "
@@ -95,9 +93,7 @@ def generate_product_labels(
     except LLMError:
         router = None
 
-    fallback: dict[str, str] = {
-        str(p.get("id", "")): p.get("title", "") for p in products
-    }
+    fallback: dict[str, str] = {str(p.get("id", "")): p.get("title", "") for p in products}
 
     if router is None:
         return fallback
@@ -123,10 +119,14 @@ def generate_product_labels(
         prompt = _build_label_prompt(items, niche_summary)
 
         try:
+            # Deterministic: stable labels keep the downstream DataForSEO/Suggest
+            # seeds (and therefore keyword results) consistent run-to-run.
             completion = router.complete(
                 prompt,
                 system=_SYSTEM_PROMPT,
                 max_tokens=1024,
+                temperature=0.0,
+                json_mode=True,
             )
             raw = completion.text.strip()
             chunk_labels = _parse_labels(raw, chunk_fallback)

@@ -381,7 +381,9 @@ def _build_pass1_prompt(
             "(informational/commercial/transactional/navigational), product_fit_score (0-100) et reason. "
             "N'invente JAMAIS de demand_score/competition_score/volume : ils proviennent des données réelles.\n"
             "3. Écarte les candidats hors-sujet (ne les inclus pas). Mieux vaut 6 mots-clés pertinents "
-            "que 10 approximatifs.\n"
+            "que 10 approximatifs. Le mot-clé classé en premier doit cibler LE PRODUIT lui-même, "
+            "jamais un accessoire/consommable/pièce détachée (ex. 'filtre', 'recharge', 'pièce') "
+            "si le produit n'en est pas un.\n"
             "4. Tu peux ajouter AU PLUS 2 mots-clés longue traîne manquants SEULEMENT si une intention "
             'produit évidente n\'est couverte par aucun candidat ; marque-les avec "new": true.\n'
             "5. geo_questions (5-8) : appuie-toi en priorité sur les QUESTIONS DÉTECTÉES ci-dessous "
@@ -1493,7 +1495,41 @@ _HARD_DIFFICULTY = 85
 _TOUGH_DIFFICULTY = 70
 
 
-def _keyword_priority_score(keyword: dict[str, Any]) -> int:
+# Consumable / spare-part / accessory markers. A query containing one of these
+# targets a different buying intent (e.g. a replacement *filter*) than the product
+# itself (e.g. the *fountain*). When the product is not that accessory, such a query
+# must not become the primary target — it stays in the list as supporting content.
+_ACCESSORY_MARKERS = frozenset(
+    {
+        "filtre",
+        "filtres",
+        "recharge",
+        "recharges",
+        "cartouche",
+        "cartouches",
+        "piece",
+        "pieces",
+        "pièce",
+        "pièces",
+        "accessoire",
+        "accessoires",
+        "batterie",
+        "batteries",
+        "cable",
+        "câble",
+        "adaptateur",
+        "housse",
+        "embout",
+        "mousse",
+        "pompe",
+    }
+)
+
+
+def _keyword_priority_score(
+    keyword: dict[str, Any],
+    product_words: frozenset[str] | None = None,
+) -> int:
     """Score a keyword target on demand, *winnability*, and product specificity.
 
     Tuned for a small/premium store: difficulty is weighted more, very hard head
@@ -1501,16 +1537,31 @@ def _keyword_priority_score(keyword: dict[str, Any]) -> int:
     mid/long-tail queries get a specificity bonus — those convert better and are
     the ones a niche boutique can actually win. Evidence (GSC/DataForSEO) adds a
     small bonus without letting a low-fit keyword become primary on volume alone.
+
+    When ``product_words`` is provided, a query that introduces an accessory /
+    consumable intent the product itself is not (e.g. "filtre …" for a fountain)
+    is penalized so it cannot become the primary target.
     """
     demand = max(0.0, min(100.0, float(keyword.get("demand_score", 0) or 0)))
-    competition = max(0.0, min(100.0, float(keyword.get("competition_score", 50) or 50)))
     product_fit = max(0.0, min(100.0, float(keyword.get("product_fit_score", 0) or 0)))
+
+    # Only a REAL difficulty (from DataForSEO) is trusted for the winnability term.
+    # An estimated/zero difficulty means "unknown" — treat it as neutral instead of
+    # "easy to rank", otherwise low-volume terms with no difficulty data (e.g. spare
+    # parts) get a fake winnability boost and wrongly become the primary target.
+    has_real_difficulty = str(keyword.get("difficulty_source", "")) == "dataforseo"
+    competition = (
+        max(0.0, min(100.0, float(keyword.get("competition_score", 50) or 50)))
+        if has_real_difficulty
+        else 50.0
+    )
     score = 0.40 * demand + 0.25 * (100.0 - competition) + 0.35 * product_fit
 
     # Winnability: down-rank head terms a small store cannot realistically rank for.
-    if competition >= _HARD_DIFFICULTY:
+    # Only applies to real difficulty (unknown difficulty is neutral, never penalized).
+    if has_real_difficulty and competition >= _HARD_DIFFICULTY:
         score -= 25.0
-    elif competition >= _TOUGH_DIFFICULTY:
+    elif has_real_difficulty and competition >= _TOUGH_DIFFICULTY:
         score -= 12.0
 
     # Specificity: reward product-fitting mid/long-tail (the queries that convert).
@@ -1525,10 +1576,22 @@ def _keyword_priority_score(keyword: dict[str, Any]) -> int:
         score += 5.0
     elif source in {"dataforseo", "google_ads"}:
         score += 3.0
+
+    # Intent guard: penalize accessory/consumable queries when the product itself
+    # is not that accessory, so the primary target stays on the product.
+    if product_words is not None:
+        query_words = _content_words(str(keyword.get("query", "")))
+        accessory_terms = query_words & _ACCESSORY_MARKERS
+        if accessory_terms and not (accessory_terms & product_words):
+            score -= 20.0
+
     return max(0, min(100, round(score)))
 
 
-def _assign_keyword_targets(keywords: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _assign_keyword_targets(
+    keywords: list[dict[str, Any]],
+    product_words: frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
     """Rank final keyword targets and attach their intended content role."""
     ranked: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -1541,7 +1604,7 @@ def _assign_keyword_targets(keywords: list[dict[str, Any]]) -> list[dict[str, An
             continue
         seen.add(normalized_query)
         candidate = dict(keyword)
-        candidate["priority_score"] = _keyword_priority_score(candidate)
+        candidate["priority_score"] = _keyword_priority_score(candidate, product_words)
         ranked.append(candidate)
 
     ranked.sort(
@@ -2823,7 +2886,17 @@ def run_market_analysis(
 
     serp_keywords: list[str] = []
     for state in pass1_states:
-        ranked = _assign_keyword_targets(state["pack"].get("seo_keywords", []) or [])
+        fields = state["fields"]
+        product_words = _content_words(
+            " ".join(
+                [
+                    fields.get("source_product_text", "") or fields.get("product_title", ""),
+                    fields.get("merchant_label", ""),
+                    str(fields.get("handle", "")).replace("-", " "),
+                ]
+            )
+        )
+        ranked = _assign_keyword_targets(state["pack"].get("seo_keywords", []) or [], product_words)
         state["pack"]["seo_keywords"] = ranked
         for keyword in ranked[:2]:
             query = str(keyword.get("query", "")).strip()
