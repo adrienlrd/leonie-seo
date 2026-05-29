@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
@@ -14,10 +13,11 @@ from app.api.deps import ShopContext, get_shop_context
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.niche.understanding import get_validated_niche_hypothesis
 from app.opportunities.finder import find_opportunities_for_catalog
+from app.paths import data_dir
 
 router = APIRouter(prefix="/api", tags=["opportunities"])
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = data_dir()
 
 
 def _load_gsc_query_rows(shop: str) -> list[dict[str, Any]]:

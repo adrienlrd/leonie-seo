@@ -10,7 +10,9 @@ from typing import Any
 
 import pandas as pd
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+from app.paths import data_dir
+
+_DATA_DIR = data_dir()
 
 
 def _timestamp() -> str:

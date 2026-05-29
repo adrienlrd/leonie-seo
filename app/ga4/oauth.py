@@ -17,15 +17,16 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 
+from app.google_scopes import GOOGLE_OAUTH_SCOPES
 from app.gsc.token_store import delete_google_token, get_google_token, save_google_token
 
-# include_granted_scopes=true causes Google to return additional scopes already
-# granted (e.g. webmasters.readonly from GSC). requests-oauthlib raises a Warning
-# when returned scopes differ from requested ones — OAUTHLIB_RELAX_TOKEN_SCOPE
-# suppresses that error.
+# requests-oauthlib raises when the token's returned scopes differ from the
+# requested ones (Google may add/merge scopes) — relax that to a no-op.
 os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
-GA4_SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
+# Union scopes (GSC + GA4): both flows share one token row per shop, so connecting
+# GA4 must also carry the GSC scope (and vice versa) to avoid clobbering it.
+GA4_SCOPES = list(GOOGLE_OAUTH_SCOPES)
 
 _GA4_ADMIN_BASE = "https://analyticsadmin.googleapis.com/v1beta"
 

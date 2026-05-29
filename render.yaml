@@ -2,7 +2,7 @@ services:
   - type: web
     name: leonie-seo-pilot-web
     runtime: node
-    plan: free
+    plan: starter
     region: frankfurt
     rootDir: shopify-app
     buildCommand: npm ci && npm run build
@@ -34,15 +34,21 @@ services:
   - type: web
     name: leonie-seo-pilot-api
     runtime: python
-    plan: free
+    plan: starter
     region: frankfurt
     buildCommand: pip install -e ".[postgres,llm,niche]"
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     autoDeployTrigger: commit
     healthCheckPath: /health
+    disk:
+      name: leonie-data
+      mountPath: /app/data
+      sizeGB: 1
     envVars:
       - key: APP_URL
         value: https://pilot.leoniedelacroix.com
+      - key: DATA_DIR
+        value: /app/data/raw
       - key: SHOPIFY_SCOPES
         value: read_products,write_products,read_orders
       - key: LEONIE_REQUIRE_SESSION_TOKEN

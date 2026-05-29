@@ -10,11 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
+from app.paths import data_dir
 from scripts.audit.analyze_longtail import build_gap_report, load_keywords
 
 router = APIRouter(tags=["longtail"])
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = data_dir()
 _KEYWORDS_PATH = Path(__file__).parents[2] / "config" / "keywords.yaml"
 
 

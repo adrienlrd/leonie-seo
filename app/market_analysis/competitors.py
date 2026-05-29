@@ -18,10 +18,11 @@ from typing import Any
 from urllib.parse import urlparse
 
 from app.market_analysis.providers.types import CompetitorSignal
+from app.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = data_dir()
 
 
 # ── Persistence ──────────────────────────────────────────────────────────────

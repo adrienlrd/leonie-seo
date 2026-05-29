@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import traceback
-from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
@@ -21,12 +20,13 @@ from app.business_profile.jobs import (
 )
 from app.market_analysis.jobs import create_job, get_job, update_job
 from app.niche.understanding import get_validated_niche_hypothesis
+from app.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["business_profile"])
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = data_dir()
 
 
 def _load_gsc_query_rows(shop: str) -> list[dict[str, Any]]:

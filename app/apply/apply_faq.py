@@ -12,12 +12,12 @@ import json
 import logging
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 import requests
 
 from app.oauth.token_store import get_token
+from app.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
 }
 """
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = data_dir()
 
 
 class FaqApplyError(Exception):

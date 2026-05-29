@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-from pathlib import Path
 from typing import Any
+
+from app.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
-_DATA_DIR = Path(os.environ.get("DATA_DIR", str(Path(__file__).parents[2] / "data" / "raw")))
+_DATA_DIR = data_dir()
 
 
 def save_business_profile(shop: str, data: dict[str, Any]) -> None:

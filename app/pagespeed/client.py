@@ -8,10 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from app.api.snapshot_store import load_latest_snapshot_from_db
+from app.paths import data_dir
 from app.tenant_config import find_tenant_by_shop_domain
 from scripts.audit.fetch_pagespeed import fetch_scores_for_urls
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = data_dir()
 
 
 def _timestamp() -> str:

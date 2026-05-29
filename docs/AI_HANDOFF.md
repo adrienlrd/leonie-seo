@@ -12,6 +12,21 @@
 
 - **Date:** 2026-05-29
 - **Agent:** Claude (Opus 4.7)
+- **Goal:** Réparer GSC : import bloqué par un 403 « insufficient authentication scopes » + données GSC perdues au redéploiement (non écrites sur le disque persistant Render Starter monté en `/app/data`).
+- **Summary:** (1) **Union des scopes Google** : GSC et GA4 partagent une seule ligne `google_tokens` par shop ; chaque flux ne demandait que son scope, donc connecter GA4 écrasait le token avec `analytics.readonly` seul → 403 sur Search Console. Nouveau module `app/google_scopes.py` (`GOOGLE_OAUTH_SCOPES` = webmasters.readonly + analytics.readonly) utilisé par les deux flux → un consentement = un token valide pour les deux APIs. (2) **Chemin de données centralisé** : nouveau `app/paths.py:data_dir()` honorant `DATA_DIR` ; remplacé ~15 `_DATA_DIR` codés en dur (`Path(__file__).parents[2]/data/raw`) — GSC écrivait hors du disque monté. (3) **render.yaml** : services en `plan: starter`, bloc `disk` (name leonie-data, mountPath `/app/data`, 1 Go) + env `DATA_DIR=/app/data/raw` sur l'API.
+- **Files created:** `app/google_scopes.py`, `app/paths.py`, `tests/test_paths_and_scopes.py`.
+- **Files modified:** `app/gsc/client.py`, `app/ga4/oauth.py`, ~13 modules `app/api/*` + `app/*/client.py`/`jobs.py`/`competitors.py` (data_dir), `render.yaml`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Union des scopes plutôt que tokens séparés (les deux partagent google_tokens). `DATA_DIR` absolu (`/app/data/raw`) → pointe sur le disque quel que soit le cwd. render.yaml aligné sur la réalité Starter+disk pour éviter un downgrade au prochain deploy IaC.
+- **Validations run:** `pytest` complet — 1608 ✅ ; import sanity (GSC_SCOPES == GA4_SCOPES == union) ; `ruff check`/`--fix` ✅.
+- **Validations skipped:** Pas de test live OAuth (nécessite consentement Google réel).
+- **ACTION MARCHAND REQUISE après déploiement :** reconnecter Google **une seule fois** (un consentement couvre GSC+GA4), vérifier la propriété (`sc-domain:leoniedelacroix.com` côté import), puis lancer l'import GSC (90 j). Les données persisteront ensuite sur le disque.
+- **Open issues:** Le push de `render.yaml` déclenche un **redéploiement Render** (autoDeployTrigger: commit) avec changement de plan + attache disque — à pousser en connaissance de cause. Tokens existants à renouveler (re-consent).
+- **Next recommended action:** Après deploy + reconnexion, relancer une analyse et confirmer que `gsc` apparaît dans `sources_used` et que les requêtes réelles alimentent le pool de mots-clés.
+
+## Previous completed task
+
+- **Date:** 2026-05-29
+- **Agent:** Claude (Opus 4.7)
 - **Goal:** 3ᵉ run réel : le harnais reciblait le head term `harnais chien` (27 100/mois) car DataForSEO renvoyait `difficulty=0`/absente (difficulty_source=free_estimated) → le volume énorme gagnait faute de difficulté réelle.
 - **Summary:** (1) Quand la difficulté réelle est absente, `_keyword_priority_score` l'**infère du volume** : demande ≥85 → −25, ≥75 → −12 (un head term à fort volume est forcément concurrentiel ; la faible concurrence Ads n'est pas un proxy de difficulté SEO). (2) Le cache ne stocke plus les payloads entièrement vides (None) → une difficulté temporairement omise n'est plus figée 60 j. Vérifié sur l'export réel : les primaries deviennent `harnais chien cuir`, `fontaine à eau inox sans fil pour chat`, `pull en cachemire pour chien`. Les correctifs fontaine du commit précédent sont confirmés (intent « filtre » rétrogradé, confidence normalisée).
 - **Files created:** Aucun.

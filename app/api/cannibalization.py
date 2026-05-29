@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
 from app.api.deps import ShopContext, get_shop_context
+from app.paths import data_dir
 from scripts.audit.detect_cannibalization import (
     _recommendation,
     detect_cannibal_pairs,
@@ -16,7 +16,7 @@ from scripts.audit.detect_cannibalization import (
 
 router = APIRouter(tags=["cannibalization"])
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = data_dir()
 
 
 @router.get("/api/shops/{shop}/audit/cannibalization")

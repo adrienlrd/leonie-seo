@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -38,11 +37,12 @@ from app.market_analysis.jobs import (
 from app.market_analysis.providers.dataforseo_provider import DataForSEOProvider
 from app.market_analysis.providers.google_ads_provider import GoogleAdsKeywordProvider
 from app.niche.understanding import get_validated_niche_hypothesis
+from app.paths import data_dir
 from app.snapshot.scope import filter_products_by_scope
 
 router = APIRouter(prefix="/api", tags=["market_analysis"])
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = data_dir()
 _MERCHANT_FACT_KEYS = frozenset(
     {
         "materials",

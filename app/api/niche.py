@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,10 +20,11 @@ from app.niche.understanding import (
     get_niche_hypothesis_history,
     save_niche_hypothesis,
 )
+from app.paths import data_dir
 
 router = APIRouter(tags=["niche"])
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = data_dir()
 
 
 def _load_snapshot(shop: str) -> list[dict]:

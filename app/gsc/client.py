@@ -17,13 +17,17 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
+from app.google_scopes import GOOGLE_OAUTH_SCOPES
 from app.gsc.token_store import delete_google_token, get_google_token, save_google_token
+from app.paths import data_dir
 from app.tenant_config import find_tenant_by_shop_domain
 
 logger = logging.getLogger(__name__)
 
-GSC_SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+# Union scopes (GSC + GA4) — the two share one token row per shop, so both flows
+# must grant the same scopes to avoid one connection clobbering the other.
+GSC_SCOPES = list(GOOGLE_OAUTH_SCOPES)
+_DATA_DIR = data_dir()
 
 
 class GSCConfigurationError(RuntimeError):

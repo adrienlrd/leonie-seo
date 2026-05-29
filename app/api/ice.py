@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Annotated, Any
 
 import pandas as pd
@@ -11,12 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
+from app.paths import data_dir
 from scripts.models import Issue, Severity
 from scripts.report.ice_matrix import build_ice_matrix, score_issue
 
 router = APIRouter(tags=["ice"])
 
-_DATA_DIR = Path(__file__).parents[2] / "data" / "raw"
+_DATA_DIR = data_dir()
 
 _SEVERITY_MAP: dict[str, Severity] = {
     "critical": Severity.CRITICAL,

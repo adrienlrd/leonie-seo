@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
+
+from app.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
 _jobs: dict[str, dict[str, Any]] = {}
 
-_DATA_DIR = Path(os.environ.get("DATA_DIR", str(Path(__file__).parents[2] / "data" / "raw")))
+_DATA_DIR = data_dir()
 logger.info("Market analysis data directory: %s", _DATA_DIR)
 
 
