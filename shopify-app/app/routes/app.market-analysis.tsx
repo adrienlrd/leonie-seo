@@ -1551,6 +1551,30 @@ export default function MarketAnalysisPage() {
           locale={locale}
         />
 
+        {!gscConnected && (
+          <Banner
+            tone="warning"
+            title={
+              locale === "fr"
+                ? "Google n'est pas connecté"
+                : "Google is not connected"
+            }
+          >
+            <BlockStack gap="200">
+              <Text as="p">
+                {locale === "fr"
+                  ? "Sans Google, les recommandations seront basées sur le marché général, pas sur les vraies requêtes de vos clients."
+                  : "Without Google, recommendations will be based on the general market, not on your customers' real queries."}
+              </Text>
+              <InlineStack>
+                <Button url="/app/onboarding" variant="primary">
+                  {locale === "fr" ? "Connecter Google" : "Connect Google"}
+                </Button>
+              </InlineStack>
+            </BlockStack>
+          </Banner>
+        )}
+
         {/* Free-mode limits + paid recommendations — only when provider status is known */}
         {(() => {
           const ps = job?.provider_status ?? latestJob?.provider_status;

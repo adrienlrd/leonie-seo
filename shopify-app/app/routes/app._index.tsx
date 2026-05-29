@@ -2129,6 +2129,7 @@ function BusinessProfileSection({
 
 export default function IndexPage() {
   const { locale, plan, dashboard, activeProducts, productResults, competitorSignals, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
+  const gscConnected = activeProducts.some((p) => p.gsc_connected);
   const [profileForDashboard, setProfileForDashboard] = useState<BusinessProfile | null>(businessProfile);
 
   useEffect(() => {
@@ -2710,6 +2711,30 @@ export default function IndexPage() {
 
         {/* Zone 1 — Store health */}
         <Zone1 data={zone1} locale={locale} />
+
+        {!gscConnected && (
+          <Banner
+            tone="warning"
+            title={
+              locale === "fr"
+                ? "Google n'est pas connecté"
+                : "Google is not connected"
+            }
+          >
+            <BlockStack gap="200">
+              <Text as="p">
+                {locale === "fr"
+                  ? "Sans Google, les recommandations seront basées sur le marché général, pas sur les vraies requêtes de vos clients."
+                  : "Without Google, recommendations will be based on the general market, not on your customers' real queries."}
+              </Text>
+              <InlineStack>
+                <Button url="/app/onboarding" variant="primary">
+                  {locale === "fr" ? "Connecter Google" : "Connect Google"}
+                </Button>
+              </InlineStack>
+            </BlockStack>
+          </Banner>
+        )}
 
         <AnalysisControlPanel
           locale={locale}

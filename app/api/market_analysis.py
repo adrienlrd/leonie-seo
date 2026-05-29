@@ -14,6 +14,7 @@ from app.business_profile.context import (
     resolve_business_profile_context_status,
 )
 from app.business_profile.jobs import load_business_profile
+from app.gsc.client import ensure_fresh_gsc
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.market_analysis.competitors import load_competitors, save_competitors
 from app.market_analysis.engine import run_market_analysis
@@ -359,6 +360,11 @@ async def start_market_analysis_job(
     niche_hypothesis = get_validated_niche_hypothesis(ctx.shop)
     crawl_findings = _load_crawl_findings(ctx.shop)
 
+    # Auto-refresh GSC if connected + data missing or stale, so the merchant never
+    # needs to remember to re-import. Fail-open: if Google is down the analysis
+    # still runs without the freshest GSC data.
+    ensure_fresh_gsc(ctx.shop)
+
     gsc_page_rows: dict[str, dict[str, Any]] = {}
     gsc_path = _find_gsc_file(ctx.shop)
     if gsc_path:
@@ -503,6 +509,9 @@ async def run_market_analysis_endpoint(
 
     niche_hypothesis = get_validated_niche_hypothesis(ctx.shop)
     crawl_findings = _load_crawl_findings(ctx.shop)
+
+    # Auto-refresh GSC (same fail-open behaviour as the full-analysis endpoint).
+    ensure_fresh_gsc(ctx.shop)
 
     gsc_page_rows: dict[str, dict[str, Any]] = {}
     gsc_path = _find_gsc_file(ctx.shop)

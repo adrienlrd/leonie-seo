@@ -245,6 +245,49 @@ def latest_import_status(shop: str) -> dict:
     }
 
 
+_GSC_AUTO_REFRESH_MAX_AGE_DAYS = int(os.environ.get("GSC_AUTO_REFRESH_MAX_AGE_DAYS", "7"))
+
+
+def ensure_fresh_gsc(
+    shop: str,
+    *,
+    max_age_days: int | None = None,
+    days: int = 90,
+) -> dict[str, Any]:
+    """Refresh GSC data for ``shop`` if missing or older than ``max_age_days``.
+
+    Returns a status dict (``status`` ∈ ``fresh|refreshed|not_connected|failed``).
+    Fail-open: any error is logged and reported as ``failed`` without raising, so a
+    transient Google outage never blocks the analysis it precedes.
+    """
+    if max_age_days is None:
+        max_age_days = _GSC_AUTO_REFRESH_MAX_AGE_DAYS
+
+    if get_google_token(shop) is None:
+        return {"status": "not_connected", "age_days": None, "rows": 0, "error": None}
+
+    import time  # noqa: PLC0415
+
+    csv_path = _DATA_DIR / shop / "gsc_performance.csv"
+    age_days: float | None = None
+    if csv_path.exists():
+        age_days = (time.time() - csv_path.stat().st_mtime) / 86400.0
+        if age_days <= max_age_days:
+            return {"status": "fresh", "age_days": age_days, "rows": 0, "error": None}
+
+    try:
+        result = fetch_and_store_gsc_performance(shop, days=days)
+        return {
+            "status": "refreshed",
+            "age_days": age_days,
+            "rows": int(result.get("page_rows", 0) or 0),
+            "error": None,
+        }
+    except Exception as exc:  # fail-open
+        logger.warning("ensure_fresh_gsc failed for %s: %s", shop, exc)
+        return {"status": "failed", "age_days": age_days, "rows": 0, "error": str(exc)}
+
+
 def _cleanup_old_gsc_json(shop_dir: Path, keep: int = 5) -> None:
     """Remove oldest gsc_*.json files, keeping the most recent `keep`."""
     files = sorted(shop_dir.glob("gsc_*.json"), reverse=True)
