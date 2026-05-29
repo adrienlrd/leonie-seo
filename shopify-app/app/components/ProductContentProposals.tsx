@@ -13,7 +13,7 @@
  *    (dashboard active-products panel)
  */
 
-import { useFetcher } from "@remix-run/react";
+import { Form, useFetcher } from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -319,13 +319,15 @@ export function ProductContentProposals({
       ) : (
         <>
           <Text as="p" variant="bodySm"><strong>{highlightKeywords(editedPack.proposed_blog_title, kwQueries)}</strong></Text>
-          <InlineStack>
-            <Button
-              size="slim"
-              variant="primary"
-              url={`/app/blog-editor/${encodeURIComponent(product.product_id)}`}
-            >
-              {locale === "fr" ? "Ouvrir l'éditeur de blog" : "Open blog editor"}
+          <InlineStack gap="200">
+            <Form method="post" action={`/app/blog?productId=${encodeURIComponent(product.product_id)}`}>
+              <input type="hidden" name="intent" value="createFromProduct" />
+              <Button size="slim" variant="primary" submit>
+                {locale === "fr" ? "Générer l'article" : "Generate article"}
+              </Button>
+            </Form>
+            <Button size="slim" variant="plain" url="/app/blog">
+              {locale === "fr" ? "Voir tous les blogs" : "View all blogs"}
             </Button>
           </InlineStack>
           {editedPack.proposed_blog_intro && (

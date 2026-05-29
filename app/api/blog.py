@@ -16,6 +16,8 @@ from app.apply.shopify_writer import ShopifyWriteError
 from app.blog.schema import build_article_jsonld, build_faqpage_jsonld, render_jsonld_blocks
 from app.blog.section_generator import generate_all_sections, generate_section
 from app.blog.shopify_articles import BlogPublisher
+from app.blog.store import delete_draft, get_draft, list_drafts, save_draft
+from app.market_analysis.jobs import load_latest_result
 
 router = APIRouter(prefix="/api", tags=["blog"])
 
@@ -64,6 +66,149 @@ class PublishDraftRequest(BaseModel):
     image_url: str | None = None
     publisher_name: str = ""
     publisher_logo_url: str | None = None
+
+
+class DraftCreateRequest(BaseModel):
+    product_id: str
+    auto_generate: bool = True
+
+
+class DraftUpdateRequest(BaseModel):
+    blog_title: str | None = None
+    intro: str | None = None
+    summary: str | None = None
+    sections: list[BlogSection] | None = None
+    tags: list[str] | None = None
+    author_type: str | None = None
+    author_name: str | None = None
+    author_url: str | None = None
+    image_url: str | None = None
+
+
+def _draft_from_product(shop: str, product_id: str) -> dict[str, Any]:
+    """Pre-populate a draft from the latest market analysis result for ``product_id``."""
+    latest = load_latest_result(shop) or {}
+    product = next(
+        (p for p in (latest.get("products") or []) if p.get("product_id") == product_id),
+        None,
+    )
+    if not product:
+        raise HTTPException(
+            status_code=404, detail="Product not found in the latest market analysis"
+        )
+    pack = product.get("content_test_pack") or {}
+    return {
+        "product_id": product_id,
+        "product_title": product.get("product_title", ""),
+        "product_summary": product.get("product_summary", ""),
+        "target_customer": product.get("target_customer", ""),
+        "blog_title": pack.get("proposed_blog_title", ""),
+        "intro": pack.get("proposed_blog_intro", ""),
+        "summary": (pack.get("proposed_blog_intro") or "")[:200],
+        "outline": list(pack.get("proposed_blog_outline") or []),
+        "sections": [],
+        "confirmed_facts": pack.get("confirmed_facts") or [],
+        "tags": [],
+        "author_type": "Organization",
+        "author_name": "",
+    }
+
+
+@router.get("/shops/{shop}/blog/drafts")
+def list_blog_drafts(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict[str, Any]:
+    return {"shop": ctx.shop, "drafts": list_drafts(ctx.shop)}
+
+
+@router.get("/shops/{shop}/blog/drafts/{draft_id}")
+def get_blog_draft(
+    draft_id: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    draft = get_draft(ctx.shop, draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return draft
+
+
+@router.post("/shops/{shop}/blog/drafts", status_code=201)
+def create_blog_draft(
+    body: DraftCreateRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Create a draft from a product. Generates all sections synchronously by default."""
+    draft = _draft_from_product(ctx.shop, body.product_id)
+    if body.auto_generate and draft["outline"]:
+        draft["sections"] = generate_all_sections(
+            blog_title=draft["blog_title"],
+            h2_questions=draft["outline"],
+            product_title=draft["product_title"],
+            product_summary=draft["product_summary"],
+            confirmed_facts=draft["confirmed_facts"],
+            target_customer=draft["target_customer"],
+            shop=ctx.shop,
+        )
+    saved = save_draft(ctx.shop, draft)
+    return saved
+
+
+@router.put("/shops/{shop}/blog/drafts/{draft_id}")
+def update_blog_draft(
+    draft_id: str,
+    body: DraftUpdateRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    draft = get_draft(ctx.shop, draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    patch = body.model_dump(exclude_unset=True)
+    if "sections" in patch and patch["sections"] is not None:
+        patch["sections"] = [s.model_dump() if hasattr(s, "model_dump") else s for s in patch["sections"]]
+    draft.update(patch)
+    return save_draft(ctx.shop, draft)
+
+
+@router.delete("/shops/{shop}/blog/drafts/{draft_id}")
+def delete_blog_draft(
+    draft_id: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    if not delete_draft(ctx.shop, draft_id):
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return {"shop": ctx.shop, "deleted": draft_id}
+
+
+@router.post("/shops/{shop}/blog/drafts/{draft_id}/regenerate-section")
+def regenerate_draft_section(
+    draft_id: str,
+    body: SectionRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Regenerate one section of an existing draft and persist the result."""
+    draft = get_draft(ctx.shop, draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    section = generate_section(
+        blog_title=body.blog_title,
+        h2_question=body.h2_question,
+        product_title=body.product_title,
+        product_summary=body.product_summary,
+        confirmed_facts=[f.model_dump() for f in body.confirmed_facts],
+        target_customer=body.target_customer,
+        brand_voice=body.brand_voice,
+        shop=ctx.shop,
+    )
+    section["h2"] = body.h2_question
+    existing = [dict(s) for s in (draft.get("sections") or [])]
+    replaced = False
+    for idx, s in enumerate(existing):
+        if s.get("h2") == body.h2_question:
+            existing[idx] = section
+            replaced = True
+            break
+    if not replaced:
+        existing.append(section)
+    draft["sections"] = existing
+    return save_draft(ctx.shop, draft)
 
 
 @router.get("/shops/{shop}/blog/blogs")
@@ -140,6 +285,60 @@ def _build_faq_pairs(sections: list[BlogSection]) -> list[dict[str, str]]:
         for s in sections
         if s.h2.strip() and s.direct_answer.strip()
     ]
+
+
+class DraftPublishRequest(BaseModel):
+    blog_id: str
+    publisher_name: str = ""
+    publisher_logo_url: str | None = None
+
+
+@router.post("/shops/{shop}/blog/drafts/{draft_id}/publish")
+def publish_blog_draft(
+    draft_id: str,
+    body: DraftPublishRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Push a saved draft to Shopify as an unpublished article. Updates the draft status."""
+    draft = get_draft(ctx.shop, draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    sections = [BlogSection(**s) for s in (draft.get("sections") or []) if isinstance(s, dict)]
+    html = _assemble_body_html(draft.get("intro", ""), sections)
+    canonical_url = f"https://{ctx.shop}/blogs/blog/{draft.get('blog_title','')}"
+    article_ld = build_article_jsonld(
+        headline=draft.get("blog_title", ""),
+        description=draft.get("summary") or draft.get("intro", "")[:200],
+        url=canonical_url,
+        author_type=draft.get("author_type", "Organization"),
+        author_name=draft.get("author_name", ""),
+        author_url=draft.get("author_url"),
+        publisher_name=body.publisher_name or draft.get("author_name", "") or ctx.shop,
+        publisher_logo_url=body.publisher_logo_url,
+        image_url=draft.get("image_url"),
+    )
+    faq_ld = build_faqpage_jsonld(_build_faq_pairs(sections))
+    body_html = html + "\n" + render_jsonld_blocks(article_ld, faq_ld)
+
+    try:
+        created = BlogPublisher(ctx.shop, ctx.access_token).create_draft_article(
+            blog_id=body.blog_id,
+            title=draft.get("blog_title", ""),
+            body_html=body_html,
+            summary=draft.get("summary", ""),
+            tags=draft.get("tags") or [],
+            author_name=draft.get("author_name", ""),
+            image_url=draft.get("image_url"),
+        )
+    except ShopifyWriteError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    draft["status"] = "published_to_shopify"
+    draft["shopify_article_id"] = created.get("id")
+    draft["shopify_article_handle"] = created.get("handle")
+    draft["shopify_blog_id"] = body.blog_id
+    saved = save_draft(ctx.shop, draft)
+    return {"draft": saved, "article": created}
 
 
 @router.post("/shops/{shop}/blog/publish-draft")

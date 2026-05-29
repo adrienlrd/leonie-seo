@@ -29,6 +29,7 @@ export default function App() {
         </a>
         <a href={localizedPath("/app/optimization", locale)}>{t(locale, "hubOptimization")}</a>
         <a href={localizedPath("/app/insights", locale)}>{t(locale, "hubInsights")}</a>
+        <a href={localizedPath("/app/blog", locale)}>{locale === "fr" ? "Blog" : "Blog"}</a>
         <a href={localizedPath("/app/account", locale)}>{t(locale, "hubSettings")}</a>
       </NavMenu>
       <Outlet />
