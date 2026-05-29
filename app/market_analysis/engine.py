@@ -186,6 +186,40 @@ def _coerce_seo_keywords(value: Any) -> list[dict[str, Any]]:
     return out
 
 
+_CONFIDENCE_ALIASES = {
+    "high": "high",
+    "élevée": "high",
+    "elevee": "high",
+    "élevé": "high",
+    "eleve": "high",
+    "haute": "high",
+    "forte": "high",
+    "fort": "high",
+    "medium": "medium",
+    "moyenne": "medium",
+    "moyen": "medium",
+    "modérée": "medium",
+    "moderee": "medium",
+    "moderate": "medium",
+    "low": "low",
+    "faible": "low",
+    "basse": "low",
+    "bas": "low",
+}
+
+
+def _normalize_confidence(value: Any) -> str:
+    """Map any LLM confidence wording (incl. French) to high/medium/low.
+
+    The LLM sometimes returns localized values like "élevée" despite the prompt;
+    canonicalize so the frontend confidence colour mapping stays correct.
+    """
+    raw = _coerce_str(value).strip().lower()
+    if not raw:
+        return ""
+    return _CONFIDENCE_ALIASES.get(raw, "medium")
+
+
 def _coerce_geo_questions(value: Any) -> list[dict[str, Any]]:
     """Ensure every geo_question item has plain-string scalar fields."""
     if not isinstance(value, list):
@@ -195,8 +229,9 @@ def _coerce_geo_questions(value: Any) -> list[dict[str, Any]]:
         if not isinstance(q, dict):
             continue
         q = dict(q)
-        for field in ("question", "answer_angle", "content_block_type", "confidence"):
+        for field in ("question", "answer_angle", "content_block_type"):
             q[field] = _coerce_str(q.get(field, ""))
+        q["confidence"] = _normalize_confidence(q.get("confidence", ""))
         out.append(q)
     return out
 
@@ -1451,16 +1486,39 @@ def _merge_pass1_selection(
     return out
 
 
-def _keyword_priority_score(keyword: dict[str, Any]) -> int:
-    """Score a keyword target using demand, competition and product relevance.
+# A small/new store cannot realistically rank for very high-difficulty head terms,
+# so raw search volume must not let a generic head term outrank a specific,
+# winnable mid-tail that also converts better. These thresholds drive a penalty.
+_HARD_DIFFICULTY = 85
+_TOUGH_DIFFICULTY = 70
 
-    Evidence raises confidence slightly without allowing a low-fit keyword to
-    become the primary target only because a paid provider returned volume.
+
+def _keyword_priority_score(keyword: dict[str, Any]) -> int:
+    """Score a keyword target on demand, *winnability*, and product specificity.
+
+    Tuned for a small/premium store: difficulty is weighted more, very hard head
+    terms are penalized (they are not realistically rankable), and product-fitting
+    mid/long-tail queries get a specificity bonus — those convert better and are
+    the ones a niche boutique can actually win. Evidence (GSC/DataForSEO) adds a
+    small bonus without letting a low-fit keyword become primary on volume alone.
     """
     demand = max(0.0, min(100.0, float(keyword.get("demand_score", 0) or 0)))
     competition = max(0.0, min(100.0, float(keyword.get("competition_score", 50) or 50)))
     product_fit = max(0.0, min(100.0, float(keyword.get("product_fit_score", 0) or 0)))
-    score = 0.45 * demand + 0.20 * (100.0 - competition) + 0.35 * product_fit
+    score = 0.40 * demand + 0.25 * (100.0 - competition) + 0.35 * product_fit
+
+    # Winnability: down-rank head terms a small store cannot realistically rank for.
+    if competition >= _HARD_DIFFICULTY:
+        score -= 25.0
+    elif competition >= _TOUGH_DIFFICULTY:
+        score -= 12.0
+
+    # Specificity: reward product-fitting mid/long-tail (the queries that convert).
+    word_count = len(_content_words(str(keyword.get("query", ""))))
+    if word_count >= 3 and product_fit >= 60:
+        score += 8.0
+    elif word_count >= 2 and product_fit >= 70:
+        score += 4.0
 
     source = str(keyword.get("data_source", "llm_estimated"))
     if source == "gsc":
@@ -2213,14 +2271,15 @@ def _build_product_result(
             "confirmed_facts": llm_pack.get("confirmed_facts", []),
             "surface_plan": llm_pack.get("surface_plan", {}),
             "enrichment_questions": llm_pack.get("enrichment_questions", []),
-            "confidence": _coerce_str(llm_pack.get("confidence", "low"), "low"),
+            "confidence": _normalize_confidence(llm_pack.get("confidence", "")) or "low",
             "content_quality": llm_pack.get("content_quality", {}),
         },
         "recommended_content_actions": _coerce_str_list(
             llm_pack.get("recommended_content_actions", [])
         ),
-        "confidence": _coerce_str(
-            llm_pack.get("confidence", opportunity.get("confidence", "low")), "low"
+        "confidence": (
+            _normalize_confidence(llm_pack.get("confidence", ""))
+            or _coerce_str(opportunity.get("confidence", "low"), "low")
         ),
         "opportunity_score": opportunity.get("opportunity_score", 0),
         "sources_used": opportunity.get("sources_used", []),
@@ -2291,6 +2350,14 @@ def _score_active_products(
                 # Has some traffic but no conversions at all
                 if sessions > 0 and conv_rate == 0.0:
                     score += 15
+                # Graduated organic-traffic magnitude — differentiates products that
+                # otherwise share the same flags, so the score is not flat.
+                if sessions >= 500:
+                    score += 15
+                elif sessions >= 100:
+                    score += 10
+                elif sessions >= 20:
+                    score += 5
             else:
                 # No GA4 data for this page = completely untapped organically
                 score += 10

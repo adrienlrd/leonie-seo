@@ -158,6 +158,49 @@ def test_merge_pass1_selection_floor_readds_skipped_real_keywords():
     assert real_count >= 2
 
 
+def test_priority_prefers_winnable_specific_over_hard_head_term():
+    head = {
+        "query": "harnais chien",
+        "demand_score": 95,
+        "competition_score": 90,
+        "product_fit_score": 90,
+        "data_source": "dataforseo",
+    }
+    specific = {
+        "query": "harnais en cuir pour chien",
+        "demand_score": 35,
+        "competition_score": 30,
+        "product_fit_score": 80,
+        "data_source": "dataforseo",
+    }
+    # A small store should target the winnable, product-specific mid-tail, not the
+    # 27k-volume head term it cannot realistically rank for.
+    assert engine._keyword_priority_score(specific) > engine._keyword_priority_score(head)
+
+
+def test_normalize_confidence_maps_french_and_variants():
+    assert engine._normalize_confidence("élevée") == "high"
+    assert engine._normalize_confidence("HIGH") == "high"
+    assert engine._normalize_confidence("moyenne") == "medium"
+    assert engine._normalize_confidence("faible") == "low"
+    assert engine._normalize_confidence("") == ""
+    assert engine._normalize_confidence("inattendu") == "medium"
+
+
+def test_coerce_geo_questions_normalizes_french_confidence():
+    out = engine._coerce_geo_questions(
+        [
+            {
+                "question": "Quelle fontaine ?",
+                "answer_angle": "guide",
+                "content_block_type": "faq",
+                "confidence": "élevée",
+            }
+        ]
+    )
+    assert out[0]["confidence"] == "high"
+
+
 def test_complete_json_uses_deterministic_json_mode_by_default():
     router = MagicMock()
     router.complete.return_value = CompletionResult(
