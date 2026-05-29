@@ -21,7 +21,7 @@ from app.gsc.client import (
     save_credentials,
 )
 from app.gsc.oauth_state import GoogleOAuthStateError, create_state, verify_state
-from app.gsc.token_store import get_google_token
+from app.gsc.token_store import delete_google_token, get_google_token
 from app.jobs.store import enqueue
 from app.shop_config_store import delete_shop_config, get_shop_config, set_shop_config
 
@@ -65,6 +65,13 @@ async def gsc_authorize(ctx: Annotated[ShopContext, Depends(get_shop_context)]) 
     if code_verifier:
         set_shop_config(ctx.shop, _PKCE_CONFIG_KEY, code_verifier)
     return {"authorization_url": authorization_url}
+
+
+@router.delete("/api/shops/{shop}/gsc/disconnect")
+async def gsc_disconnect(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict:
+    """Delete the shop's Google token (shared by GSC + GA4)."""
+    delete_google_token(ctx.shop)
+    return {"shop": ctx.shop, "disconnected": True}
 
 
 @router.post("/api/shops/{shop}/gsc/import", status_code=202)
@@ -142,10 +149,33 @@ async def gsc_callback(
     return """
     <!doctype html>
     <html lang="fr">
-      <head><meta charset="utf-8"><title>Google Search Console connectée</title></head>
+      <head>
+        <meta charset="utf-8">
+        <title>Google connecté</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+                 max-width: 480px; margin: 64px auto; padding: 0 16px; color: #1f2937; }
+          h1 { font-size: 20px; margin: 0 0 12px; }
+          p  { color: #6b7280; line-height: 1.5; }
+          .ok { color: #047857; }
+        </style>
+      </head>
       <body>
-        <h1>Google Search Console connectée</h1>
-        <p>Vous pouvez fermer cet onglet et revenir dans Léonie SEO.</p>
+        <h1 class="ok">✓ Google connecté</h1>
+        <p>Search Console et Analytics sont autorisés.
+           Cette fenêtre va se fermer automatiquement…</p>
+        <script>
+          // When the consent was opened as a popup from the app, notify the parent
+          // window and close. Otherwise the user just closes the tab manually.
+          (function () {
+            try {
+              if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({ source: "leonie-google-oauth", ok: true }, "*");
+              }
+            } catch (_) { /* cross-origin: ignore */ }
+            setTimeout(function () { window.close(); }, 800);
+          })();
+        </script>
       </body>
     </html>
     """

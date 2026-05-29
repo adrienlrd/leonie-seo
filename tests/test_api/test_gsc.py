@@ -27,6 +27,23 @@ HEADERS = {
 }
 
 
+def test_gsc_disconnect_deletes_shared_google_token(monkeypatch) -> None:
+    """The disconnect endpoint clears the shop's Google token (shared by GSC + GA4)."""
+    monkeypatch.setenv("INTERNAL_API_SECRET", "internal")
+    with (
+        patch.dict("os.environ", ENV),
+        patch("app.api.gsc.delete_google_token") as delete_token,
+    ):
+        resp = TestClient(app).delete(
+            "/api/shops/store.myshopify.com/gsc/disconnect", headers=HEADERS
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body == {"shop": "store.myshopify.com", "disconnected": True}
+    delete_token.assert_called_once_with("store.myshopify.com")
+
+
 def test_gsc_status_reports_disconnected_when_no_google_token_exists(monkeypatch) -> None:
     monkeypatch.setenv("INTERNAL_API_SECRET", "internal")
     with (

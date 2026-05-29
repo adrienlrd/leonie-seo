@@ -69,5 +69,6 @@ export interface CrawlStatus {
 export interface OnboardingActionData {
   jobId?: string;
   authorizationUrl?: string;
+  disconnected?: boolean;
   error?: string;
 }

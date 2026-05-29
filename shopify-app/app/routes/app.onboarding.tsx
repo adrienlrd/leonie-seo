@@ -1,7 +1,13 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Form, useActionData, useLoaderData, useNavigation } from "@remix-run/react";
-import type { ReactNode } from "react";
+import {
+  Form,
+  useActionData,
+  useLoaderData,
+  useNavigation,
+  useRevalidator,
+} from "@remix-run/react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   Badge,
   Banner,
@@ -107,6 +113,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
       const data = (await resp.json()) as { authorization_url: string };
       return json<OnboardingActionData>({ authorizationUrl: data.authorization_url });
+    }
+
+    if (intent === "gsc_disconnect") {
+      const resp = await be(`/api/shops/${shop}/gsc/disconnect`, { method: "DELETE" });
+      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
+      return json<OnboardingActionData>({ disconnected: true });
     }
 
     if (intent === "gsc_import") {
@@ -307,17 +319,45 @@ function GuidedOnboardingFlow({
           active={activeStep === 1}
           locale={locale}
         >
-          <Form method="post">
-            <input type="hidden" name="intent" value="gsc_connect" />
-            <Button
-              submit
-              variant="primary"
-              disabled={!gsc?.configured}
-              loading={navigation.state !== "idle" && submittingAction === "gsc_connect"}
-            >
-              {fr ? "Connecter Google" : "Connect Google"}
-            </Button>
-          </Form>
+          {gsc?.connected ? (
+            <BlockStack gap="200">
+              <Text as="p" tone="subdued">
+                {fr ? "Connecté" : "Connected"}
+                {gsc.email ? ` : ${gsc.email}` : ""}
+              </Text>
+              <Form method="post">
+                <input type="hidden" name="intent" value="gsc_disconnect" />
+                <InlineStack gap="200">
+                  <Button
+                    submit
+                    tone="critical"
+                    loading={
+                      navigation.state !== "idle" && submittingAction === "gsc_disconnect"
+                    }
+                  >
+                    {fr ? "Déconnecter Google" : "Disconnect Google"}
+                  </Button>
+                  <Text as="span" tone="subdued" variant="bodySm">
+                    {fr
+                      ? "(libère le token — un nouveau consentement couvrira GSC + Analytics)"
+                      : "(clears the token — a new consent will cover GSC + Analytics)"}
+                  </Text>
+                </InlineStack>
+              </Form>
+            </BlockStack>
+          ) : (
+            <Form method="post">
+              <input type="hidden" name="intent" value="gsc_connect" />
+              <Button
+                submit
+                variant="primary"
+                disabled={!gsc?.configured}
+                loading={navigation.state !== "idle" && submittingAction === "gsc_connect"}
+              >
+                {fr ? "Connecter Google" : "Connect Google"}
+              </Button>
+            </Form>
+          )}
         </GuidedStep>
 
         <GuidedStep
@@ -386,6 +426,45 @@ export default function Onboarding() {
   const { locale, shop, health, status, gsc, pagespeed, crawl, niche, recentJobs } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
+  const revalidator = useRevalidator();
+  const openedUrlRef = useRef<string | null>(null);
+
+  // Auto-open Google's consent screen in a centered popup when the action returns
+  // an authorization URL. The OAuth callback posts a "leonie-google-oauth" message
+  // back to this window, so we revalidate status as soon as it succeeds.
+  useEffect(() => {
+    const url = actionData?.authorizationUrl;
+    if (!url || openedUrlRef.current === url) return;
+    if (typeof window === "undefined") return;
+    openedUrlRef.current = url;
+    const w = 520;
+    const h = 720;
+    const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+    const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+    window.open(
+      url,
+      "leonie-google-oauth",
+      `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no`,
+    );
+  }, [actionData?.authorizationUrl]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { source?: string; ok?: boolean } | null;
+      if (data?.source === "leonie-google-oauth" && data.ok) {
+        revalidator.revalidate();
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [revalidator]);
+
+  // Refresh status after a disconnect so the UI flips back to "Connect".
+  useEffect(() => {
+    if (actionData?.disconnected) revalidator.revalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actionData?.disconnected]);
 
   const nextAction = computeNextAction(locale, status, health, gsc, niche);
 
@@ -418,22 +497,23 @@ export default function Onboarding() {
           >
             <Text as="p">
               {locale === "fr"
-                ? "Ouvrez la page d'autorisation Google dans un nouvel onglet pour terminer la connexion."
-                : "Open the Google authorization page in a new tab to complete the connection."}
+                ? "Une fenêtre Google s'est ouverte. Termine le consentement, puis cette page se mettra à jour automatiquement."
+                : "A Google window opened. Complete the consent and this page will refresh automatically."}
             </Text>
-            <Link
-              url={actionData.authorizationUrl}
-              target="_blank"
-              accessibilityLabel={
-                locale === "fr"
-                  ? "Ouvrir l'autorisation Google dans un nouvel onglet"
-                  : "Open Google authorization in a new tab"
-              }
-            >
-              {locale === "fr"
-                ? "Ouvrir l'autorisation Google →"
-                : "Open Google authorization →"}
-            </Link>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {locale === "fr" ? "Si la fenêtre est bloquée :" : "If the popup is blocked:"}{" "}
+              <Link
+                url={actionData.authorizationUrl}
+                target="_blank"
+                accessibilityLabel={
+                  locale === "fr"
+                    ? "Ouvrir l'autorisation Google dans un nouvel onglet"
+                    : "Open Google authorization in a new tab"
+                }
+              >
+                {locale === "fr" ? "ouvrir l'autorisation Google →" : "open Google authorization →"}
+              </Link>
+            </Text>
           </Banner>
         )}
 
