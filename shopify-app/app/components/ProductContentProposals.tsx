@@ -319,6 +319,15 @@ export function ProductContentProposals({
       ) : (
         <>
           <Text as="p" variant="bodySm"><strong>{highlightKeywords(editedPack.proposed_blog_title, kwQueries)}</strong></Text>
+          <InlineStack>
+            <Button
+              size="slim"
+              variant="primary"
+              url={`/app/blog-editor/${encodeURIComponent(product.product_id)}`}
+            >
+              {locale === "fr" ? "Ouvrir l'éditeur de blog" : "Open blog editor"}
+            </Button>
+          </InlineStack>
           {editedPack.proposed_blog_intro && (
             <Text as="p" variant="bodySm" tone="subdued">{highlightKeywords(editedPack.proposed_blog_intro, kwQueries)}</Text>
           )}

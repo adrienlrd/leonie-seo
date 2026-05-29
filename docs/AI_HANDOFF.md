@@ -12,6 +12,20 @@
 
 - **Date:** 2026-05-29
 - **Agent:** Claude (Opus 4.7)
+- **Goal:** Sprint 1 du chantier blog SEO+GEO — publication d'articles en brouillon Shopify avec sections grounded sur les faits, schema Article + FAQPage, et éditeur hybride Auto/Manuel par section.
+- **Summary:** Nouvelle pipeline blog : `app/blog/section_generator.py` (par H2, 40-60 mots `direct_answer` + 150-300 mots `body`, `claims_used` pointant les faits Shopify confirmés ; température 0 + json_mode), `app/blog/schema.py` (Article — Org ou Person, FAQPage = signal GEO depuis que Google a abandonné les rich results FAQ en mai 2026), `app/blog/shopify_articles.py` (mutation `articleCreate` brouillon via Admin GraphQL 2025-01, retries 429/5xx hérités du pattern `ShopifyWriter`). Endpoints `POST /blog/section`, `POST /blog/generate-all`, `POST /blog/publish-draft`, `GET /blog/blogs`. Route Remix `app.blog-editor.$productId.tsx` : par section, toggle Auto/Manuel, bouton « Régénérer », « Tout générer », publication via modal (choix blog, auteur Org/Person). Scope Shopify `write_content` ajouté (re-consent merchants existants).
+- **Files created:** `app/blog/__init__.py`, `app/blog/section_generator.py`, `app/blog/schema.py`, `app/blog/shopify_articles.py`, `app/api/blog.py`, `shopify-app/app/routes/app.blog-editor.$productId.tsx`, `tests/test_blog/__init__.py`, `tests/test_blog/test_schema.py`, `tests/test_blog/test_section_generator.py`, `tests/test_blog/test_shopify_articles.py`.
+- **Files modified:** `app/main.py` (router blog), `shopify-app/app/components/ProductContentProposals.tsx` (bouton « Ouvrir l'éditeur de blog »), `.env`, `render.yaml` (×2), `shopify-app/shopify.app.toml` (scope `write_content`), `docs/AI_HANDOFF.md`.
+- **Decisions made:** Brouillon Shopify systématique en Sprint 1 (jamais d'auto-publication tant que confiance pas établie). Auteur `Organization` par défaut, `Person` optionnel pour E-E-A-T renforcé. Réponses-directes 40-60 mots = chunks LLM-citables (objectif GEO). FAQPage conservé pour GEO uniquement (rich results FAQ Google supprimés mai 2026).
+- **Validations run:** `pytest` complet — 1622 ✅ (8 nouveaux : schema Article/FAQPage, section generator déterministe, BlogPublisher isPublished=false) ; `ruff` ✅ ; frontend `typecheck` ✅ et `build` ✅.
+- **Validations skipped:** Test live Shopify articleCreate non effectué (nécessite shop pilote + re-consent du scope `write_content`).
+- **Open issues:** Action marchand requise après deploy : re-consentement Shopify (nouveau scope `write_content`). Sprint 2 prévu : maillage interne automatique (embeddings produits déjà en base) + page robots.txt (téléchargement + 2 phrases d'install, pas de `write_themes`).
+- **Next recommended action:** Tester en pilote : lancer une analyse → ouvrir l'éditeur de blog d'un produit → générer toutes les sections → publier en brouillon → vérifier l'article dans Shopify Admin. Puis enchaîner Sprint 2.
+
+## Previous completed task
+
+- **Date:** 2026-05-29
+- **Agent:** Claude (Opus 4.7)
 - **Goal:** Réparer GSC : import bloqué par un 403 « insufficient authentication scopes » + données GSC perdues au redéploiement (non écrites sur le disque persistant Render Starter monté en `/app/data`).
 - **Summary:** (1) **Union des scopes Google** : GSC et GA4 partagent une seule ligne `google_tokens` par shop ; chaque flux ne demandait que son scope, donc connecter GA4 écrasait le token avec `analytics.readonly` seul → 403 sur Search Console. Nouveau module `app/google_scopes.py` (`GOOGLE_OAUTH_SCOPES` = webmasters.readonly + analytics.readonly) utilisé par les deux flux → un consentement = un token valide pour les deux APIs. (2) **Chemin de données centralisé** : nouveau `app/paths.py:data_dir()` honorant `DATA_DIR` ; remplacé ~15 `_DATA_DIR` codés en dur (`Path(__file__).parents[2]/data/raw`) — GSC écrivait hors du disque monté. (3) **render.yaml** : services en `plan: starter`, bloc `disk` (name leonie-data, mountPath `/app/data`, 1 Go) + env `DATA_DIR=/app/data/raw` sur l'API.
 - **Files created:** `app/google_scopes.py`, `app/paths.py`, `tests/test_paths_and_scopes.py`.

@@ -21,6 +21,7 @@ logging.basicConfig(
 )
 
 from app.api.apply import router as apply_router  # noqa: E402
+from app.api.blog import router as blog_router  # noqa: E402
 from app.api.crawl import router as crawl_router  # noqa: E402
 from app.api.ice import router as ice_router  # noqa: E402
 from app.api.embeddings import router as embeddings_router  # noqa: E402
@@ -188,6 +189,7 @@ app.include_router(geo_router)
 app.include_router(alerts_router)
 app.include_router(hreflang_router)
 app.include_router(web_graph_router)
+app.include_router(blog_router)
 
 
 @app.get("/health")
