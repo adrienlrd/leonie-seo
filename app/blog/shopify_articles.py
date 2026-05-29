@@ -48,6 +48,28 @@ mutation CreateBlog($blog: BlogInput!) {
 """.strip()
 
 
+def _raise_for_graphql_errors(payload: dict[str, Any], context: str) -> None:
+    """Surface top-level GraphQL errors (scope/auth/field) as a clear write error.
+
+    Shopify returns 200 with ``{"errors": [...]}`` when a query references a missing
+    field or the token lacks the required access scope — those won't trip
+    raise_for_status. Bubbling them up here lets the merchant see the real cause
+    (typically: the new ``write_content`` scope was added but the merchant has not
+    reinstalled the app yet).
+    """
+    errors = payload.get("errors") or []
+    if errors:
+        joined = "; ".join(
+            str(e.get("message", e)) for e in errors if isinstance(e, dict)
+        ) or str(errors)
+        if "Access denied" in joined or "access" in joined.lower():
+            raise ShopifyWriteError(
+                f"{context} access denied by Shopify ({joined}). "
+                "Reinstall the app from Shopify Admin to grant the new write_content scope."
+            )
+        raise ShopifyWriteError(f"{context} GraphQL errors → {joined}")
+
+
 class BlogPublisher:
     """Publish blog articles (default: draft) to a merchant's Shopify store."""
 
@@ -57,7 +79,7 @@ class BlogPublisher:
         access_token: str,
         *,
         delay: float = 0.5,
-        max_retries: int = 3,
+        max_retries: int = 2,
     ) -> None:
         self._endpoint = f"https://{shop}{_GRAPHQL_PATH}"
         self._headers = {
@@ -104,18 +126,26 @@ class BlogPublisher:
         if existing and existing[0].get("id"):
             return str(existing[0]["id"])
         data = self._post(_CREATE_BLOG_MUTATION, {"blog": {"title": title}})
+        _raise_for_graphql_errors(data, "blogCreate")
         payload = ((data.get("data") or {}).get("blogCreate")) or {}
         errors = payload.get("userErrors") or []
         if errors:
-            raise ShopifyWriteError(f"blogCreate userErrors: {errors}")
+            joined = "; ".join(
+                f"{e.get('field')}: {e.get('message')}" for e in errors if isinstance(e, dict)
+            )
+            raise ShopifyWriteError(f"blogCreate userErrors → {joined}")
         created = payload.get("blog") or {}
         if not created.get("id"):
-            raise ShopifyWriteError(f"blogCreate returned no blog: {data}")
+            raise ShopifyWriteError(
+                "blogCreate returned no blog. Likely cause: the merchant has not "
+                "re-consented to the new Shopify scope `write_content`."
+            )
         return str(created["id"])
 
     def list_blogs(self, *, limit: int = 25) -> list[dict[str, Any]]:
         """Return the merchant's blogs so the editor can pick a destination."""
         data = self._post(_LIST_BLOGS_QUERY, {"n": max(1, min(limit, 250))})
+        _raise_for_graphql_errors(data, "blogs")
         nodes = (((data.get("data") or {}).get("blogs") or {}).get("nodes")) or []
         return [
             {"id": n.get("id"), "handle": n.get("handle"), "title": n.get("title")}
@@ -151,12 +181,20 @@ class BlogPublisher:
             article["image"] = {"url": image_url}
 
         data = self._post(_CREATE_ARTICLE_MUTATION, {"article": article})
+        _raise_for_graphql_errors(data, "articleCreate")
         payload = ((data.get("data") or {}).get("articleCreate")) or {}
         user_errors = payload.get("userErrors") or []
         if user_errors:
-            raise ShopifyWriteError(f"articleCreate userErrors: {user_errors}")
+            joined = "; ".join(
+                f"{e.get('field')}: {e.get('message')}" for e in user_errors if isinstance(e, dict)
+            )
+            raise ShopifyWriteError(f"articleCreate userErrors → {joined}")
         created = payload.get("article") or {}
         if not created.get("id"):
-            raise ShopifyWriteError(f"articleCreate returned no article: {data}")
+            raise ShopifyWriteError(
+                "articleCreate returned no article. Likely cause: the merchant has not "
+                "re-consented to the new Shopify scope `write_content` — reinstalling the "
+                "app from Shopify Admin should fix it."
+            )
         time.sleep(self._delay)
         return created

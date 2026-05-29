@@ -165,7 +165,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      if (!res.ok) return respond(false, null, `${res.status}`);
+      if (!res.ok) {
+        // Surface the FastAPI HTTPException detail so the merchant sees the real
+        // reason (scope issue, Shopify userError, GraphQL field rejected…).
+        const raw = await res.text();
+        let detail = `HTTP ${res.status}`;
+        try {
+          const j = JSON.parse(raw) as { detail?: string };
+          if (j.detail) detail = j.detail;
+        } catch { /* keep raw status */ }
+        return respond(false, null, detail);
+      }
       const data = (await res.json()) as { draft: Draft };
       return respond(true, data.draft);
     }
@@ -353,6 +363,11 @@ export default function BlogIndexPage() {
         )}
         {actionData?.error && (
           <Banner tone="critical"><p>{actionData.error}</p></Banner>
+        )}
+        {fetcher.data?.error && !fetcher.data.ok && (
+          <Banner tone="critical" title={fr ? "Publication échouée" : "Publish failed"}>
+            <p style={{ whiteSpace: "pre-wrap" }}>{fetcher.data.error}</p>
+          </Banner>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, alignItems: "start" }}>
           <Card padding="200">
