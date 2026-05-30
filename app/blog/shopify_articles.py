@@ -175,8 +175,7 @@ class BlogPublisher:
             article["summary"] = summary
         if tags:
             article["tags"] = list(tags)
-        if author_name:
-            article["author"] = {"name": author_name}
+        article["author"] = {"name": author_name or "Author"}
         if image_url:
             article["image"] = {"url": image_url}
 
