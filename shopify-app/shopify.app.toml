@@ -1,5 +1,5 @@
-name = "Léonie SEO"
-client_id = "53ff34f2abe2ab7e3a2cd334fbd84db8"
+name = "Organically"
+client_id = "75582863449b96c8a84ae4727397c108"
 application_url = "https://localhost:3458"
 embedded = true
 
@@ -8,8 +8,8 @@ scopes = "read_products,write_products,read_orders,write_content"
 
 [auth]
 redirect_urls = [
-  "https://localhost:3458/auth/callback",
-  "https://localhost:3458/auth/shopify/callback",
+  "https://pilot.leoniedelacroix.com/auth/callback",
+  "https://pilot.leoniedelacroix.com/auth/shopify/callback",
   "http://localhost:3000/auth/callback",
   "http://localhost:3000/auth/shopify/callback",
 ]
