@@ -172,3 +172,19 @@ def test_cannibalization_alert_emitted_at_job_level_when_two_products_share_prim
     assert alert["cluster_head"]
     assert len(alert["product_ids"]) == 2
     assert alert["winner_suggested"] in alert["product_ids"]
+
+
+def test_internal_linking_failure_does_not_block_product_analysis():
+    """Internal-linking suggestions are additive and must fail open."""
+    products = [_product("1", "Harnais chien cuir", "harnais-chien-cuir")]
+    router = _router(_pass1("harnais chien cuir"), _PASS2_JSON)
+
+    with patch(
+        "app.market_analysis.internal_linking.build_recommendations",
+        side_effect=ValueError("unexpected Shopify collection shape"),
+    ):
+        result = _run(products, router)
+
+    assert result["products"][0]["product_id"] == "gid://shopify/Product/1"
+    assert result["orphan_products"] == []
+    assert result["blog_gap_suggestions"] == []

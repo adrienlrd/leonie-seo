@@ -12,6 +12,20 @@
 
 - **Date:** 2026-05-30
 - **Agent:** Codex (GPT-5)
+- **Goal:** Empêcher les nouveaux enrichissements Analyse marché (JSON-LD / maillage interne) de bloquer l'analyse produit en production.
+- **Summary:** Le moteur Analyse marché est maintenant fail-open sur deux surfaces additives : génération JSON-LD et recommandations de maillage interne. Si un format de snapshot Shopify réel déclenche une exception dans ces modules, l'analyse produit continue et logge un warning au lieu de faire échouer tout le job.
+- **Files created:** Aucun.
+- **Files modified:** `app/market_analysis/engine.py`, `tests/market_analysis/test_engine_geo_eeat.py`, `tests/market_analysis/test_engine_intent_cluster_cannibalization.py`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Les nouveautés GEO/maillage sont des diagnostics additionnels : elles ne doivent jamais être une dépendance bloquante pour produire les recommandations SEO existantes.
+- **Validations run:** `ruff check app/market_analysis/engine.py tests/market_analysis/test_engine_geo_eeat.py tests/market_analysis/test_engine_intent_cluster_cannibalization.py` ✅ ; `pytest tests/market_analysis/test_engine_geo_eeat.py tests/market_analysis/test_engine_intent_cluster_cannibalization.py tests/test_api/test_market_analysis.py` ✅ (17 passed).
+- **Validations skipped:** Pas de test embedded Shopify live dans cette session.
+- **Open issues:** Si l'analyse plante encore après déploiement de ce correctif, la cause est probablement en amont du moteur (création du job, snapshot, auth backend, LLM/provider), et il faudra lire l'erreur exacte affichée ou les logs backend.
+- **Next recommended action:** Commit/push puis redéployer backend + frontend, relancer une analyse produit depuis Analyse marché.
+
+## Previous completed task
+
+- **Date:** 2026-05-30
+- **Agent:** Codex (GPT-5)
 - **Goal:** Corriger l'Analyse marché après signalement marchand : une analyse produit échouait avec une erreur UI opaque « 0 » et les nouveaux diagnostics SEO/GEO n'étaient pas visibles après relance.
 - **Summary:** Le job backend conserve désormais les nouveaux champs top-level `cannibalization_alerts`, `orphan_products` et `blog_gap_suggestions` dans la donnée complétée, sauvegardée et renvoyée au polling. Les échecs d'analyse produit individuelle sont maintenant affichés dans la bannière d'erreur de la page au lieu d'être effacés silencieusement. Le backend logge aussi la stacktrace complète d'un job Analyse marché échoué pour faciliter le diagnostic serveur.
 - **Files created:** Aucun.

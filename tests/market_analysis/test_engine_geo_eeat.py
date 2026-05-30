@@ -162,6 +162,17 @@ def test_product_schema_jsonld_is_built_from_confirmed_facts():
     assert product_schema["countryOfOrigin"] == "Fabriqué en France"
 
 
+def test_jsonld_failure_does_not_block_product_analysis():
+    """Schema generation is diagnostic and must never block analysis completion."""
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    with patch("app.market_analysis.schema_builder.build_product_schema", side_effect=ValueError("bad snapshot")):
+        result = _run(router)
+
+    pack = result["products"][0]["content_test_pack"]
+    assert pack["proposed_schema_jsonld"] == {}
+    assert pack["proposed_meta_title"]
+
+
 def test_faq_schema_jsonld_is_built_from_proposed_faq():
     router = _router(_PASS1_JSON, _PASS2_JSON)
     result = _run(router)

@@ -2366,21 +2366,25 @@ def _build_product_result(
     )
     description_summary = _strip_html(body_html)[:200]
 
-    from app.market_analysis import schema_builder as _sb  # noqa: PLC0415
-
     proposed_meta_description = _coerce_str(llm_pack.get("proposed_meta_description", ""))
     proposed_faq = _coerce_faq(llm_pack.get("proposed_faq", []))
     confirmed_facts_list = llm_pack.get("confirmed_facts", []) or []
-    product_schema = _sb.build_product_schema(
-        product=product,
-        confirmed_facts=confirmed_facts_list,
-        shop=shop,
-        meta_description=proposed_meta_description,
-    )
-    faq_schema = _sb.build_faq_schema(proposed_faq)
-    schema_jsonld: dict[str, Any] = {"product": product_schema}
-    if faq_schema is not None:
-        schema_jsonld["faq"] = faq_schema
+    schema_jsonld: dict[str, Any] = {}
+    try:
+        from app.market_analysis import schema_builder as _sb  # noqa: PLC0415
+
+        product_schema = _sb.build_product_schema(
+            product=product,
+            confirmed_facts=confirmed_facts_list,
+            shop=shop,
+            meta_description=proposed_meta_description,
+        )
+        faq_schema = _sb.build_faq_schema(proposed_faq)
+        schema_jsonld = {"product": product_schema}
+        if faq_schema is not None:
+            schema_jsonld["faq"] = faq_schema
+    except Exception as exc:
+        logger.warning("Skipping market analysis JSON-LD for product %s: %s", product_id, exc)
 
     return {
         "product_id": product_id,
@@ -3193,34 +3197,39 @@ def run_market_analysis(
 
     _apply_catalog_content_conflicts(product_results, active_products)
 
-    from app.market_analysis import internal_linking as _il  # noqa: PLC0415
+    orphan_products: list[str] = []
+    blog_gap_suggestions: list[dict[str, Any]] = []
+    try:
+        from app.market_analysis import internal_linking as _il  # noqa: PLC0415
 
-    collections_input = list(collections or [])
-    articles_input = list(articles or [])
-    link_recs = _il.build_recommendations(
-        products=product_results,
-        collections=collections_input,
-        articles=articles_input,
-        pages=[],
-        shop=shop,
-    )
-    for product in product_results:
-        pid = str(product.get("product_id") or "")
-        suggestions = link_recs.get(pid, [])
-        if suggestions:
-            pack = product.setdefault("content_test_pack", {})
-            pack["recommended_internal_links"] = suggestions
-    orphan_products = _il.detect_orphan_products(
-        products=product_results,
-        collections=collections_input,
-        articles=articles_input,
-    )
-    blog_gap_suggestions = _il.detect_blog_gaps(
-        products=product_results, articles=articles_input
-    )
-    if link_recs or orphan_products or blog_gap_suggestions:
-        if "internal_linking_engine" not in sources_used:
-            sources_used.append("internal_linking_engine")
+        collections_input = list(collections or [])
+        articles_input = list(articles or [])
+        link_recs = _il.build_recommendations(
+            products=product_results,
+            collections=collections_input,
+            articles=articles_input,
+            pages=[],
+            shop=shop,
+        )
+        for product in product_results:
+            pid = str(product.get("product_id") or "")
+            suggestions = link_recs.get(pid, [])
+            if suggestions:
+                pack = product.setdefault("content_test_pack", {})
+                pack["recommended_internal_links"] = suggestions
+        orphan_products = _il.detect_orphan_products(
+            products=product_results,
+            collections=collections_input,
+            articles=articles_input,
+        )
+        blog_gap_suggestions = _il.detect_blog_gaps(
+            products=product_results, articles=articles_input
+        )
+        if link_recs or orphan_products or blog_gap_suggestions:
+            if "internal_linking_engine" not in sources_used:
+                sources_used.append("internal_linking_engine")
+    except Exception as exc:
+        logger.warning("Skipping market analysis internal linking for %s: %s", shop, exc)
 
     total_opportunity_count = sum(
         len(r.get("seo_keywords", [])) + len(r.get("geo_questions", [])) for r in product_results
