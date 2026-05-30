@@ -49,6 +49,9 @@ _PASS2_KEYS = (
     "proposed_product_description",
     "proposed_faq",
     "proposed_geo_answer_block",
+    "proposed_geo_definition_block",
+    "proposed_geo_quick_facts",
+    "proposed_geo_comparison_table",
     "proposed_blog_title",
     "proposed_blog_outline",
     "proposed_blog_intro",
@@ -591,6 +594,8 @@ def _build_pass2_prompt(
     surface_plan: dict[str, Any] | None = None,
     forbidden_phrases: list[str] | None = None,
     business_context: str = "",
+    cannibalization_hint: dict[str, Any] | None = None,
+    eeat_signals: list[dict[str, Any]] | None = None,
 ) -> str:
     """Build the pass-2 (content) prompt with strict per-field rules.
 
@@ -756,6 +761,32 @@ def _build_pass2_prompt(
         parts.append("\n=== FORMULATIONS INTERDITES ===")
         parts.extend(f"  - {phrase}" for phrase in forbidden_phrases)
 
+    if eeat_signals:
+        from app.market_analysis import eeat as _eeat  # noqa: PLC0415
+
+        eeat_block = _eeat.format_prompt_block(eeat_signals)
+        if eeat_block:
+            parts.append("\n" + eeat_block)
+
+    if cannibalization_hint:
+        head = str(cannibalization_hint.get("cluster_head") or "")
+        pivots = cannibalization_hint.get("pivot_suggestions") or []
+        parts.append("\n=== CONFLIT DE CANNIBALISATION DÉTECTÉ ===")
+        parts.append(
+            f"  Le produit principal positionné sur \"{head}\" est un autre produit du catalogue."
+        )
+        parts.append(
+            "  Ce produit DOIT viser une variante longue traîne plus spécifique, pas le mot-clé tête."
+        )
+        if pivots:
+            parts.append("  Pivots suggérés (utiliser un de ceux-ci comme angle principal):")
+            parts.extend(f'    - "{p}"' for p in pivots[:5])
+        else:
+            parts.append(
+                "  Aucun pivot longue traîne disponible — propose une intention plus spécifique"
+                " liée à un fait confirmé (matériau, taille, usage particulier)."
+            )
+
     # ── Domain-level competitors (DataForSEO Competitors Domain) ────────────
     if domain_competitors:
         parts.append("\n=== CONCURRENTS DE DOMAINE PRIORITAIRES (DataForSEO) ===")
@@ -831,10 +862,25 @@ def _build_pass2_prompt(
         f"- Priorise les mots-clés à fort volume (>500/mois) dans les champs visibles seulement si l'intention correspond au produit.\n"
         f"- Si GSC réel montre un keyword en position 4-20 et que le blog est autorisé, traite cette intention en priorité.\n"
         f"- Si des CONCURRENTS DE DOMAINE sont listés : différencie uniquement les champs autorisés de leurs formulations.\n"
+        f"\n▶ proposed_geo_definition_block (≈25 mots) :\n"
+        f'   • Format extractible par IA : "{{Produit}} est {{catégorie}} qui {{bénéfice vérifié}}."\n'
+        f"   • Première phrase utilisable telle quelle dans un AI Overview / extrait Perplexity.\n"
+        f"   • Uniquement des faits confirmés ; pas d'adjectifs marketing.\n"
+        f"\n▶ proposed_geo_quick_facts (liste de 3-5 puces) :\n"
+        f"   • Phrases nominales courtes (≤15 mots), auto-suffisantes hors contexte.\n"
+        f"   • Chaque puce = un fait extractible par un LLM tiers (ChatGPT, Perplexity).\n"
+        f'   • Exemple : "Fabriqué en France depuis 2010" plutôt que "De qualité supérieure".\n'
+        f"   • Liste vide si moins de 3 faits confirmés disponibles.\n"
+        f"\n▶ proposed_geo_comparison_table (liste d'objets {{critère, valeur}}) :\n"
+        f"   • Active SEULEMENT si ≥3 critères factuels confirmés (dimensions, matériau, compatibilité, garantie…).\n"
+        f"   • Liste vide sinon ; n'invente pas de critères.\n"
         f"\nRéponds UNIQUEMENT en JSON valide avec ces clés exactes : "
         f"proposed_meta_title, proposed_meta_description, proposed_product_title_if_different, "
         f"proposed_product_description, proposed_faq (5-8 objets {{q, a}}), "
         f"proposed_geo_answer_block (40-80 mots, factuel, cite 1 mot-clé), "
+        f"proposed_geo_definition_block (≈25 mots, format extractible IA), "
+        f"proposed_geo_quick_facts (liste strings courtes), "
+        f"proposed_geo_comparison_table (liste objets {{critère, valeur}}), "
         f"proposed_blog_title, proposed_blog_outline (liste strings), proposed_blog_intro, "
         f"recommended_content_actions (liste strings), facts_used (liste strings), "
         f"facts_missing (liste strings), claims_used (liste d'objets {{claim, fact_keys}}), "
@@ -2320,6 +2366,22 @@ def _build_product_result(
     )
     description_summary = _strip_html(body_html)[:200]
 
+    from app.market_analysis import schema_builder as _sb  # noqa: PLC0415
+
+    proposed_meta_description = _coerce_str(llm_pack.get("proposed_meta_description", ""))
+    proposed_faq = _coerce_faq(llm_pack.get("proposed_faq", []))
+    confirmed_facts_list = llm_pack.get("confirmed_facts", []) or []
+    product_schema = _sb.build_product_schema(
+        product=product,
+        confirmed_facts=confirmed_facts_list,
+        shop=shop,
+        meta_description=proposed_meta_description,
+    )
+    faq_schema = _sb.build_faq_schema(proposed_faq)
+    schema_jsonld: dict[str, Any] = {"product": product_schema}
+    if faq_schema is not None:
+        schema_jsonld["faq"] = faq_schema
+
     return {
         "product_id": product_id,
         "product_title": product_title,
@@ -2336,7 +2398,7 @@ def _build_product_result(
             "current_meta_title": current_meta_title,
             "proposed_meta_title": _coerce_str(llm_pack.get("proposed_meta_title", "")),
             "current_meta_description": current_meta_description,
-            "proposed_meta_description": _coerce_str(llm_pack.get("proposed_meta_description", "")),
+            "proposed_meta_description": proposed_meta_description,
             "current_product_title": product_title,
             "proposed_product_title": _coerce_str(
                 llm_pack.get("proposed_product_title_if_different", product_title)
@@ -2345,8 +2407,25 @@ def _build_product_result(
             "proposed_product_description": _coerce_str(
                 llm_pack.get("proposed_product_description", "")
             ),
-            "proposed_faq": _coerce_faq(llm_pack.get("proposed_faq", [])),
+            "proposed_faq": proposed_faq,
             "proposed_geo_answer_block": _coerce_str(llm_pack.get("proposed_geo_answer_block", "")),
+            "proposed_geo_definition_block": _coerce_str(
+                llm_pack.get("proposed_geo_definition_block", "")
+            ),
+            "proposed_geo_quick_facts": _coerce_str_list(
+                llm_pack.get("proposed_geo_quick_facts", [])
+            ),
+            "proposed_geo_comparison_table": [
+                {
+                    "critère": _coerce_str(row.get("critère") or row.get("criterion") or ""),
+                    "valeur": _coerce_str(row.get("valeur") or row.get("value") or ""),
+                }
+                for row in (llm_pack.get("proposed_geo_comparison_table", []) or [])
+                if isinstance(row, dict)
+                and (row.get("critère") or row.get("criterion"))
+                and (row.get("valeur") or row.get("value"))
+            ],
+            "proposed_schema_jsonld": schema_jsonld,
             "proposed_blog_title": _coerce_str(llm_pack.get("proposed_blog_title", "")),
             "proposed_blog_outline": _coerce_str_list(llm_pack.get("proposed_blog_outline", [])),
             "proposed_blog_intro": _coerce_str(llm_pack.get("proposed_blog_intro", "")),
@@ -2356,7 +2435,8 @@ def _build_product_result(
             "facts_used": _coerce_str_list(llm_pack.get("facts_used", [])),
             "facts_missing": _coerce_str_list(llm_pack.get("facts_missing", [])),
             "claims_used": _coerce_claims(llm_pack.get("claims_used", [])),
-            "confirmed_facts": llm_pack.get("confirmed_facts", []),
+            "confirmed_facts": confirmed_facts_list,
+            "eeat_signals": llm_pack.get("eeat_signals", []),
             "surface_plan": llm_pack.get("surface_plan", {}),
             "enrichment_questions": llm_pack.get("enrichment_questions", []),
             "confidence": _normalize_confidence(llm_pack.get("confidence", "")) or "low",
@@ -2365,6 +2445,7 @@ def _build_product_result(
         "recommended_content_actions": _coerce_str_list(
             llm_pack.get("recommended_content_actions", [])
         ),
+        "keyword_clusters": llm_pack.get("keyword_clusters", []),
         "confidence": (
             _normalize_confidence(llm_pack.get("confidence", ""))
             or _coerce_str(opportunity.get("confidence", "low"), "low")
@@ -2723,6 +2804,8 @@ def run_market_analysis(
     merchant_facts_by_product: dict[str, dict[str, str]] | None = None,
     business_profile: dict[str, Any] | None = None,
     progress_callback: Callable[..., None] | None = None,
+    collections: list[dict[str, Any]] | None = None,
+    articles: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run a two-pass SEO/GEO market analysis for active products.
 
@@ -2934,6 +3017,10 @@ def run_market_analysis(
         if serp_intel:
             sources_used.append("dataforseo_serp")
 
+    from app.market_analysis import cannibalization as cn
+    from app.market_analysis import intent_classifier as ic
+    from app.market_analysis import keyword_normalization as kn
+
     for state in pass1_states:
         state["pack"]["seo_keywords"] = _attach_serp_evidence(
             state["pack"].get("seo_keywords", []) or [],
@@ -2948,6 +3035,42 @@ def run_market_analysis(
             state["fields"].get("missing_facts", []),
             state["pack"]["surface_plan"],
         )
+        for keyword in state["pack"].get("seo_keywords", []) or []:
+            query = str(keyword.get("query") or "").strip()
+            if not query:
+                continue
+            serp_entry = serp_intel.get(query.lower()) if serp_intel else None
+            classification = ic.classify_intent(
+                query=query,
+                serp=serp_entry,
+                llm_intent=str(keyword.get("intent_type") or "") or None,
+            )
+            keyword["intent_type"] = classification["intent_type"]
+            keyword["intent_type_source"] = classification["intent_type_source"]
+            keyword["serp_feature_targets"] = classification["serp_feature_targets"]
+        state["pack"]["keyword_clusters"] = kn.build_clusters(
+            state["pack"].get("seo_keywords", []) or []
+        )
+
+    pass1_product_views = [
+        {
+            "product_id": str(state["product"].get("id", "")),
+            "product_title": state["product"].get("title", ""),
+            "product_url": f"/products/{state['product'].get('handle', '')}",
+            "seo_keywords": state["pack"].get("seo_keywords", []) or [],
+            "opportunity_score": state["opp"].get("opportunity_score", 0),
+        }
+        for state in pass1_states
+    ]
+    cannibalization_alerts = cn.detect_alerts(pass1_product_views)
+    cannibalization_hints_by_product: dict[str, dict[str, Any]] = {}
+    for state in pass1_states:
+        pid = str(state["product"].get("id", ""))
+        hint = cn.get_reorientation_hint(cannibalization_alerts, product_id=pid)
+        if hint is not None:
+            cannibalization_hints_by_product[pid] = hint
+    if cannibalization_alerts and "cannibalization_detector" not in sources_used:
+        sources_used.append("cannibalization_detector")
 
     competitor_signals = build_competitor_signals(shop, keywords=serp_keywords or None)
     if competitor_signals:
@@ -2980,6 +3103,13 @@ def run_market_analysis(
         fields = state["fields"]
         pack = state["pack"]
         if run_pass2:
+            from app.market_analysis import eeat as _eeat_mod  # noqa: PLC0415
+
+            product_eeat_signals = _eeat_mod.detect_signals(
+                confirmed_facts=fields.get("confirmed_facts", []) or [],
+                business_profile=business_profile,
+            )
+            pack["eeat_signals"] = product_eeat_signals
             prompt = _build_pass2_prompt(
                 product_title=fields["product_title"],
                 handle=fields["handle"],
@@ -2998,6 +3128,10 @@ def run_market_analysis(
                 surface_plan=pack.get("surface_plan", {}),
                 forbidden_phrases=forbidden_phrases,
                 business_context=business_context,
+                cannibalization_hint=cannibalization_hints_by_product.get(
+                    str(state["product"].get("id", ""))
+                ),
+                eeat_signals=product_eeat_signals,
             )
             pack = _complete_json(
                 llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192
@@ -3059,6 +3193,35 @@ def run_market_analysis(
 
     _apply_catalog_content_conflicts(product_results, active_products)
 
+    from app.market_analysis import internal_linking as _il  # noqa: PLC0415
+
+    collections_input = list(collections or [])
+    articles_input = list(articles or [])
+    link_recs = _il.build_recommendations(
+        products=product_results,
+        collections=collections_input,
+        articles=articles_input,
+        pages=[],
+        shop=shop,
+    )
+    for product in product_results:
+        pid = str(product.get("product_id") or "")
+        suggestions = link_recs.get(pid, [])
+        if suggestions:
+            pack = product.setdefault("content_test_pack", {})
+            pack["recommended_internal_links"] = suggestions
+    orphan_products = _il.detect_orphan_products(
+        products=product_results,
+        collections=collections_input,
+        articles=articles_input,
+    )
+    blog_gap_suggestions = _il.detect_blog_gaps(
+        products=product_results, articles=articles_input
+    )
+    if link_recs or orphan_products or blog_gap_suggestions:
+        if "internal_linking_engine" not in sources_used:
+            sources_used.append("internal_linking_engine")
+
     total_opportunity_count = sum(
         len(r.get("seo_keywords", [])) + len(r.get("geo_questions", [])) for r in product_results
     )
@@ -3072,6 +3235,9 @@ def run_market_analysis(
         "sources_used": sources_used,
         "provider_status": provider_status,
         "competitor_signals": competitor_signals,
+        "cannibalization_alerts": cannibalization_alerts,
+        "orphan_products": orphan_products,
+        "blog_gap_suggestions": blog_gap_suggestions,
         "business_profile_context": business_profile_context,
         "products": product_results,
         "budget": budget_status,

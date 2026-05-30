@@ -24,6 +24,9 @@ export type KeywordSource =
   | "parent_estimated";
 export type DifficultySource = "free_estimated" | "dataforseo" | "google_ads";
 
+export type IntentTypeSource = "serp_classified" | "llm_guessed" | "unclassified";
+export type SerpFeatureTarget = "paa" | "featured_snippet" | "ai_overview";
+
 export interface SeoKeyword {
   query: string;
   intent_type: string;
@@ -48,6 +51,32 @@ export interface SeoKeyword {
   serp_evidence?: boolean;
   paa_questions?: string[];
   serp_competitor_count?: number;
+  intent_type_source?: IntentTypeSource;
+  serp_feature_targets?: SerpFeatureTarget[];
+}
+
+export interface KeywordCluster {
+  cluster_id: string;
+  head_keyword: string;
+  member_queries: string[];
+}
+
+export interface CannibalizationAlertProduct {
+  product_id: string;
+  product_title: string;
+  product_url: string;
+  primary_keyword: string;
+  gsc_impressions: number;
+  opportunity_score: number;
+}
+
+export interface CannibalizationAlert {
+  cluster_head: string;
+  cluster_key: string[];
+  product_ids: string[];
+  products: CannibalizationAlertProduct[];
+  winner_suggested: string;
+  action: "reorient_secondary";
 }
 
 export interface GeoQuestion {
@@ -127,6 +156,7 @@ export interface ProductResult {
   confidence: string;
   opportunity_score: number;
   sources_used: string[];
+  keyword_clusters?: KeywordCluster[];
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────

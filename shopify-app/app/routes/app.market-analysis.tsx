@@ -32,6 +32,9 @@ type KeywordSource = "gsc" | "ga4" | "trends" | "shopify" | "llm_estimated" | "l
 type DifficultySource = "free_estimated" | "dataforseo" | "google_ads";
 type BusinessProfileContextStatus = "current" | "stale" | "unknown" | "missing_profile";
 
+type IntentTypeSource = "serp_classified" | "llm_guessed" | "unclassified";
+type SerpFeatureTarget = "paa" | "featured_snippet" | "ai_overview";
+
 interface SeoKeyword {
   query: string;
   intent_type: string;
@@ -56,6 +59,32 @@ interface SeoKeyword {
   serp_evidence?: boolean;
   paa_questions?: string[];
   serp_competitor_count?: number;
+  intent_type_source?: IntentTypeSource;
+  serp_feature_targets?: SerpFeatureTarget[];
+}
+
+interface KeywordCluster {
+  cluster_id: string;
+  head_keyword: string;
+  member_queries: string[];
+}
+
+interface CannibalizationAlertProduct {
+  product_id: string;
+  product_title: string;
+  product_url: string;
+  primary_keyword: string;
+  gsc_impressions: number;
+  opportunity_score: number;
+}
+
+interface CannibalizationAlert {
+  cluster_head: string;
+  cluster_key: string[];
+  product_ids: string[];
+  products: CannibalizationAlertProduct[];
+  winner_suggested: string;
+  action: "reorient_secondary";
 }
 
 interface CompetitorSignal {
@@ -116,6 +145,40 @@ interface ConfirmedFact {
   confidence: string;
 }
 
+interface EeatSignal {
+  kind: string;
+  label: string;
+  source: string;
+  confidence: string;
+}
+
+interface ComparisonTableRow {
+  ["critère"]?: string;
+  criterion?: string;
+  valeur?: string;
+  value?: string;
+}
+
+interface SchemaJsonLd {
+  product?: Record<string, unknown>;
+  faq?: Record<string, unknown>;
+  breadcrumb?: Record<string, unknown>;
+}
+
+interface InternalLinkSuggestion {
+  target_url: string;
+  target_title: string;
+  anchors: string[];
+  reason: "sibling_product" | "collection_parent" | "informational_support";
+  confidence: "high" | "medium" | "low";
+}
+
+interface BlogGapSuggestion {
+  cluster_head: string;
+  suggested_title: string;
+  reason: string;
+}
+
 interface ContentTestPack {
   current_meta_title: string;
   proposed_meta_title: string;
@@ -127,6 +190,11 @@ interface ContentTestPack {
   proposed_product_description: string;
   proposed_faq: { q: string; a: string }[];
   proposed_geo_answer_block: string;
+  proposed_geo_definition_block?: string;
+  proposed_geo_quick_facts?: string[];
+  proposed_geo_comparison_table?: ComparisonTableRow[];
+  proposed_schema_jsonld?: SchemaJsonLd;
+  recommended_internal_links?: InternalLinkSuggestion[];
   proposed_blog_title: string;
   proposed_blog_outline: string[];
   proposed_blog_intro: string;
@@ -134,6 +202,7 @@ interface ContentTestPack {
   facts_missing: string[];
   confidence: string;
   confirmed_facts?: ConfirmedFact[];
+  eeat_signals?: EeatSignal[];
   content_quality?: ContentQuality;
   enrichment_questions?: EnrichmentQuestion[];
   faq_sync?: {
@@ -161,6 +230,7 @@ interface ProductResult {
   sources_used: string[];
   business_profile_context_hash?: string | null;
   business_profile_context_status?: BusinessProfileContextStatus;
+  keyword_clusters?: KeywordCluster[];
 }
 
 interface JobState {
@@ -177,6 +247,9 @@ interface JobState {
   sources_used: string[];
   provider_status?: ProviderStatus;
   competitor_signals?: CompetitorSignal[];
+  cannibalization_alerts?: CannibalizationAlert[];
+  orphan_products?: string[];
+  blog_gap_suggestions?: BlogGapSuggestion[];
   business_profile_context?: BusinessProfileContextMeta;
   current_business_profile_context?: BusinessProfileContextMeta;
   business_profile_context_status?: BusinessProfileContextStatus;
@@ -1087,8 +1160,125 @@ function ProductCard({
             </Collapsible>
           </Box>
         )}
+
+        {(pack.proposed_geo_definition_block ||
+          (pack.proposed_geo_quick_facts && pack.proposed_geo_quick_facts.length > 0) ||
+          (pack.proposed_geo_comparison_table && pack.proposed_geo_comparison_table.length > 0) ||
+          pack.proposed_schema_jsonld) && (
+          <Box>
+            <Button variant="plain" onClick={() => toggle("geopack")}>
+              {t(locale, "marketAnalysisGeoPack")}
+            </Button>
+            <Collapsible id={`geopack-${product.product_id}`} open={openSection === "geopack"}>
+              <Box paddingBlockStart="200">
+                <GeoPackSection pack={pack} locale={locale} />
+              </Box>
+            </Collapsible>
+          </Box>
+        )}
+
+        {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (
+          <Box>
+            <Button variant="plain" onClick={() => toggle("links")}>
+              {`${t(locale, "marketAnalysisInternalLinks")} (${pack.recommended_internal_links.length})`}
+            </Button>
+            <Collapsible id={`links-${product.product_id}`} open={openSection === "links"}>
+              <Box paddingBlockStart="200">
+                <InternalLinksSection
+                  links={pack.recommended_internal_links}
+                  locale={locale}
+                />
+              </Box>
+            </Collapsible>
+          </Box>
+        )}
       </BlockStack>
     </Card>
+  );
+}
+
+function GeoPackSection({
+  pack,
+  locale,
+}: {
+  pack: ContentTestPack;
+  locale: Locale;
+}) {
+  const jsonld = pack.proposed_schema_jsonld;
+  return (
+    <BlockStack gap="300">
+      {pack.proposed_geo_definition_block ? (
+        <Box>
+          <Text as="p" variant="headingXs">{t(locale, "marketAnalysisGeoDefinition")}</Text>
+          <Text as="p" variant="bodySm">{pack.proposed_geo_definition_block}</Text>
+        </Box>
+      ) : null}
+
+      {pack.proposed_geo_quick_facts && pack.proposed_geo_quick_facts.length > 0 ? (
+        <Box>
+          <Text as="p" variant="headingXs">{t(locale, "marketAnalysisGeoQuickFacts")}</Text>
+          <BlockStack gap="050">
+            {pack.proposed_geo_quick_facts.map((fact, i) => (
+              <Text key={i} as="p" variant="bodySm">• {fact}</Text>
+            ))}
+          </BlockStack>
+        </Box>
+      ) : null}
+
+      {pack.proposed_geo_comparison_table && pack.proposed_geo_comparison_table.length > 0 ? (
+        <Box>
+          <Text as="p" variant="headingXs">{t(locale, "marketAnalysisGeoComparisonTable")}</Text>
+          <BlockStack gap="050">
+            {pack.proposed_geo_comparison_table.map((row, i) => {
+              const crit = row["critère"] ?? row.criterion ?? "";
+              const val = row.valeur ?? row.value ?? "";
+              return (
+                <Text key={i} as="p" variant="bodySm">
+                  <strong>{crit}</strong> : {val}
+                </Text>
+              );
+            })}
+          </BlockStack>
+        </Box>
+      ) : null}
+
+      {pack.eeat_signals && pack.eeat_signals.length > 0 ? (
+        <Box>
+          <Text as="p" variant="headingXs">{t(locale, "marketAnalysisEeatSignals")}</Text>
+          <InlineStack gap="100" wrap>
+            {pack.eeat_signals.map((s, i) => (
+              <Badge key={i} tone="success">{s.label}</Badge>
+            ))}
+          </InlineStack>
+        </Box>
+      ) : null}
+
+      {jsonld && (jsonld.product || jsonld.faq || jsonld.breadcrumb) ? (
+        <Box>
+          <InlineStack gap="200" align="space-between" blockAlign="center">
+            <Text as="p" variant="headingXs">{t(locale, "marketAnalysisGeoJsonLd")}</Text>
+            <Button
+              size="slim"
+              onClick={() => {
+                if (typeof navigator !== "undefined" && navigator.clipboard) {
+                  navigator.clipboard.writeText(JSON.stringify(jsonld, null, 2));
+                }
+              }}
+            >
+              {t(locale, "marketAnalysisGeoCopyJsonLd")}
+            </Button>
+          </InlineStack>
+          <Box paddingBlockStart="100" background="bg-surface-secondary" borderRadius="200" padding="200">
+            <Text as="p" variant="bodySm" tone="subdued">
+              <code style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                {JSON.stringify(jsonld, null, 2).slice(0, 800)}
+                {JSON.stringify(jsonld, null, 2).length > 800 ? "…" : ""}
+              </code>
+            </Text>
+          </Box>
+        </Box>
+      ) : null}
+    </BlockStack>
   );
 }
 
@@ -1123,6 +1313,172 @@ function NewProductsBanner({
               </Button>
             </InlineStack>
           ))}
+        </BlockStack>
+      </BlockStack>
+    </Banner>
+  );
+}
+
+function InternalLinksSection({
+  links,
+  locale,
+}: {
+  links: InternalLinkSuggestion[];
+  locale: Locale;
+}) {
+  const reasonLabel = (reason: InternalLinkSuggestion["reason"]) => {
+    if (reason === "sibling_product") return t(locale, "marketAnalysisInternalLinksReasonSibling");
+    if (reason === "collection_parent") return t(locale, "marketAnalysisInternalLinksReasonCollection");
+    return t(locale, "marketAnalysisInternalLinksReasonArticle");
+  };
+  return (
+    <BlockStack gap="200">
+      {links.map((link, i) => (
+        <Box
+          key={`${link.target_url}-${i}`}
+          paddingBlock="200"
+          paddingInline="300"
+          background="bg-surface-secondary"
+          borderRadius="200"
+        >
+          <BlockStack gap="100">
+            <InlineStack gap="200" blockAlign="center">
+              <Text as="span" variant="bodySm">
+                <strong>{link.target_title || link.target_url}</strong>
+              </Text>
+              <Badge tone={link.confidence === "high" ? "success" : "info"}>
+                {reasonLabel(link.reason)}
+              </Badge>
+            </InlineStack>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {link.target_url}
+            </Text>
+            {link.anchors.length > 0 ? (
+              <InlineStack gap="100" wrap>
+                {link.anchors.map((anchor, j) => (
+                  <Badge key={j}>{anchor}</Badge>
+                ))}
+              </InlineStack>
+            ) : null}
+          </BlockStack>
+        </Box>
+      ))}
+    </BlockStack>
+  );
+}
+
+function OrphanGapsBanner({
+  orphanProducts,
+  blogGaps,
+  productsById,
+  locale,
+}: {
+  orphanProducts: string[];
+  blogGaps: BlogGapSuggestion[];
+  productsById: Record<string, ProductResult>;
+  locale: Locale;
+}) {
+  if (orphanProducts.length === 0 && blogGaps.length === 0) return null;
+  return (
+    <Banner tone="info">
+      <BlockStack gap="200">
+        {orphanProducts.length > 0 ? (
+          <BlockStack gap="050">
+            <Text as="p" variant="bodySm">
+              <strong>{t(locale, "marketAnalysisOrphanProducts")}</strong>
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {t(locale, "marketAnalysisOrphanProductsExplain")}
+            </Text>
+            {orphanProducts.map((pid) => {
+              const p = productsById[pid];
+              return (
+                <Text key={pid} as="p" variant="bodySm">
+                  • {p ? p.product_title : pid}
+                </Text>
+              );
+            })}
+          </BlockStack>
+        ) : null}
+        {blogGaps.length > 0 ? (
+          <BlockStack gap="050">
+            <Text as="p" variant="bodySm">
+              <strong>{t(locale, "marketAnalysisBlogGaps")}</strong>
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {t(locale, "marketAnalysisBlogGapsExplain")}
+            </Text>
+            {blogGaps.map((gap, i) => (
+              <Text key={i} as="p" variant="bodySm">
+                • {gap.suggested_title}
+              </Text>
+            ))}
+          </BlockStack>
+        ) : null}
+      </BlockStack>
+    </Banner>
+  );
+}
+
+function CannibalizationBanner({
+  alerts,
+  locale,
+}: {
+  alerts: CannibalizationAlert[];
+  locale: Locale;
+}) {
+  if (!alerts || alerts.length === 0) return null;
+  const heading = t(locale, "marketAnalysisCannibalizationHeading").replace(
+    "{count}",
+    String(alerts.length),
+  );
+  return (
+    <Banner tone="warning" title={heading}>
+      <BlockStack gap="200">
+        <Text as="p" variant="bodySm">
+          {t(locale, "marketAnalysisCannibalizationIntro")}
+        </Text>
+        <BlockStack gap="200">
+          {alerts.map((alert) => {
+            const winner = alert.products.find(
+              (p) => p.product_id === alert.winner_suggested,
+            );
+            const losers = alert.products.filter(
+              (p) => p.product_id !== alert.winner_suggested,
+            );
+            return (
+              <Box
+                key={`${alert.cluster_head}-${alert.product_ids.join("-")}`}
+                paddingBlock="200"
+                paddingInline="300"
+                background="bg-surface-secondary"
+                borderRadius="200"
+              >
+                <BlockStack gap="100">
+                  <InlineStack gap="200" blockAlign="center">
+                    <Text as="span" variant="bodySm">
+                      <strong>{alert.cluster_head}</strong>
+                    </Text>
+                    <Badge tone="warning">
+                      {t(locale, "marketAnalysisCannibalizationConflict")}
+                    </Badge>
+                  </InlineStack>
+                  {winner ? (
+                    <Text as="p" variant="bodySm">
+                      {t(locale, "marketAnalysisCannibalizationWinner")}{" "}
+                      <strong>{winner.product_title}</strong>
+                    </Text>
+                  ) : null}
+                  {losers.length > 0 ? (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {t(locale, "marketAnalysisCannibalizationReorient")}{" "}
+                      {losers.map((l) => l.product_title).join(", ")}
+                    </Text>
+                  ) : null}
+                </BlockStack>
+              </Box>
+            );
+          })}
         </BlockStack>
       </BlockStack>
     </Banner>
@@ -1732,6 +2088,26 @@ export default function MarketAnalysisPage() {
                 </Button>
               </InlineStack>
             )}
+
+            {/* Cannibalization alerts — two products sharing the same primary cluster */}
+            {job?.cannibalization_alerts && job.cannibalization_alerts.length > 0 ? (
+              <CannibalizationBanner alerts={job.cannibalization_alerts} locale={locale} />
+            ) : null}
+
+            {/* Orphan products + blog content gaps (internal linking engine) */}
+            {job && (
+              (job.orphan_products && job.orphan_products.length > 0) ||
+              (job.blog_gap_suggestions && job.blog_gap_suggestions.length > 0)
+            ) ? (
+              <OrphanGapsBanner
+                orphanProducts={job.orphan_products ?? []}
+                blogGaps={job.blog_gap_suggestions ?? []}
+                productsById={Object.fromEntries(
+                  (job.products ?? []).map((p) => [p.product_id, p]),
+                )}
+                locale={locale}
+              />
+            ) : null}
 
             {/* Delta banner — new products not yet analysed */}
             {(() => {

@@ -190,6 +190,8 @@ def _run_analysis_background(
     merchant_facts_by_product: dict[str, dict[str, str]] | None = None,
     persist_product_results: bool = False,
     business_profile: dict[str, Any] | None = None,
+    collections: list[dict[str, Any]] | None = None,
+    articles: list[dict[str, Any]] | None = None,
 ) -> None:
     """Background task: runs the full analysis and updates the job store incrementally."""
 
@@ -240,6 +242,8 @@ def _run_analysis_background(
             merchant_facts_by_product=merchant_facts_by_product,
             business_profile=business_profile,
             progress_callback=_on_progress,
+            collections=collections,
+            articles=articles,
         )
         completed_data: dict[str, Any] = {
             "job_id": job_id,
@@ -397,6 +401,8 @@ async def start_market_analysis_job(
         merchant_facts or None,
         persist_product_result,
         business_profile,
+        snapshot.get("collections") or [],
+        snapshot.get("articles") or [],
     )
 
     age = _snapshot_age_days(snapshot)
@@ -537,6 +543,8 @@ async def run_market_analysis_endpoint(
             plan=plan,
             merchant_facts_by_product=merchant_facts or None,
             business_profile=business_profile,
+            collections=snapshot.get("collections") or [],
+            articles=snapshot.get("articles") or [],
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erreur analyse marché : {exc}") from exc
