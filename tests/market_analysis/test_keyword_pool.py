@@ -18,8 +18,10 @@ class _FakeDataForSEO:
 
     def __init__(self, ideas=None):
         self._ideas = ideas or []
+        self.seeds = None
 
     def fetch_keyword_ideas(self, seeds, *, limit=25):  # noqa: ARG002
+        self.seeds = list(seeds)
         return list(self._ideas)
 
 
@@ -91,6 +93,56 @@ def test_pool_includes_dataforseo_ideas_and_ranks_them_first():
     assert pool[0]["search_volume"] == 2400
 
 
+def test_pool_adds_generic_product_seeds_for_commercial_titles():
+    provider = _FakeDataForSEO()
+    engine._build_keyword_candidate_pool(
+        _fields(
+            product_title="Le pull Le Léonie",
+            merchant_label="pull en cachemire pour chien",
+            handle="pull-pour-chien-en-cachemire",
+            source_product_text="Le pull Le Léonie cachemire chien vêtement élégant",
+        ),
+        [],
+        dataforseo=provider,
+        suggest_fetcher=lambda _s: [],
+    )
+
+    assert provider.seeds is not None
+    assert "pull chien" in provider.seeds
+    assert "pull pour chien" in provider.seeds
+
+
+def test_pool_keeps_dataforseo_idea_when_it_matches_product_not_long_seed():
+    idea = {
+        "query": "manteau chien",
+        "intent_type": "commercial",
+        "demand_score": 55,
+        "competition_score": 50,
+        "product_fit_score": 0,
+        "reason": "idée",
+        "data_source": "dataforseo",
+        "difficulty_source": "free_estimated",
+        "search_volume": 700,
+        "cpc": 0.8,
+        "ads_competition": 0.2,
+        "notes": [],
+    }
+
+    pool = engine._build_keyword_candidate_pool(
+        _fields(
+            product_title="Le pull Le Léonie",
+            merchant_label="pull en cachemire premium",
+            handle="pull-pour-chien-en-cachemire",
+            source_product_text="Le pull Le Léonie cachemire chien manteau vêtement élégant",
+        ),
+        [],
+        dataforseo=_FakeDataForSEO(ideas=[idea]),
+        suggest_fetcher=lambda _s: [],
+    )
+
+    assert any(c["query"] == "manteau chien" for c in pool)
+
+
 def test_pool_dedup_keeps_dataforseo_base_but_preserves_gsc_metrics():
     idea = {
         "query": "fontaine chat",
@@ -156,6 +208,20 @@ def test_merge_pass1_selection_floor_readds_skipped_real_keywords():
     assert "fontaine chat" in queries
     real_count = sum(1 for c in out if engine._is_real_keyword(c))
     assert real_count >= 2
+
+
+def test_merge_pass1_selection_floor_counts_google_suggest_as_real_keyword():
+    pool = [
+        {"query": "pull chien", "data_source": "google_suggest", "search_volume": None},
+        {"query": "pull pour chien", "data_source": "google_suggest", "search_volume": None},
+    ]
+    llm = [{"query": "mode animale", "product_fit_score": 80}]
+
+    out = engine._merge_pass1_selection(llm, pool, min_real_floor=2)
+    queries = {c["query"] for c in out}
+
+    assert "pull chien" in queries
+    assert "pull pour chien" in queries
 
 
 def test_priority_prefers_winnable_specific_over_hard_head_term():

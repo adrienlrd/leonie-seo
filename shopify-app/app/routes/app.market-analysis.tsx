@@ -128,6 +128,34 @@ interface ContentQuality {
   skipped_surfaces?: string[];
 }
 
+interface GuardrailReflectionQuestion {
+  key: string;
+  question: string;
+  score: number;
+  status: "pass" | "needs_review" | "blocked";
+  evidence: string[];
+  recommendation: string;
+}
+
+interface GuardrailReflectionAttempt {
+  attempt: number;
+  score: number;
+  status: "pass" | "needs_retry" | "blocked";
+  questions: GuardrailReflectionQuestion[];
+  quality_issues?: string[];
+}
+
+interface ContentGuardrailReflection {
+  enabled: boolean;
+  threshold: number;
+  max_retries: number;
+  retry_count: number;
+  final_score: number;
+  final_status: "pass" | "needs_retry" | "blocked";
+  questions: { key: string; question: string }[];
+  attempts: GuardrailReflectionAttempt[];
+}
+
 interface EnrichmentQuestion {
   key: string;
   question: string;
@@ -205,6 +233,7 @@ interface ContentTestPack {
   eeat_signals?: EeatSignal[];
   content_quality?: ContentQuality;
   enrichment_questions?: EnrichmentQuestion[];
+  content_guardrail_reflection?: ContentGuardrailReflection;
   faq_sync?: {
     applied: boolean;
     error: string | null;
@@ -253,6 +282,7 @@ interface JobState {
   business_profile_context?: BusinessProfileContextMeta;
   current_business_profile_context?: BusinessProfileContextMeta;
   business_profile_context_status?: BusinessProfileContextStatus;
+  reflection_test?: boolean;
   error: string | null;
   // identification job fields
   labels?: Record<string, string>;
@@ -456,6 +486,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const resp = await callBackendForShop(
         session.shop,
         `/api/shops/${session.shop}/market-analysis/jobs`,
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(30_000) },
+      );
+      if (!resp.ok) {
+        const err = await resp.text();
+        return json({ type: "start", jobId: null, error: `Erreur backend ${resp.status}: ${err}` });
+      }
+      const data = await resp.json() as { job_id: string };
+      return json({ type: "start", jobId: data.job_id, error: null });
+    } catch (err) {
+      return json({ type: "start", jobId: null, error: String(err) });
+    }
+  }
+
+  // ── Step 2: start experimental analysis with guardrail reflection ────────
+  if (intent === "startTest") {
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs?reflection_test=true`,
         { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(30_000) },
       );
       if (!resp.ok) {
@@ -1161,6 +1210,24 @@ function ProductCard({
           </Box>
         )}
 
+        {pack.content_guardrail_reflection?.enabled && (
+          <Box>
+            <Button variant="plain" onClick={() => toggle("reflection")}>
+              {locale === "fr"
+                ? `Réflexion qualité (${pack.content_guardrail_reflection.final_score}/100)`
+                : `Quality reflection (${pack.content_guardrail_reflection.final_score}/100)`}
+            </Button>
+            <Collapsible id={`reflection-${product.product_id}`} open={openSection === "reflection"}>
+              <Box paddingBlockStart="200">
+                <GuardrailReflectionSection
+                  reflection={pack.content_guardrail_reflection}
+                  locale={locale}
+                />
+              </Box>
+            </Collapsible>
+          </Box>
+        )}
+
         {(pack.proposed_geo_definition_block ||
           (pack.proposed_geo_quick_facts && pack.proposed_geo_quick_facts.length > 0) ||
           (pack.proposed_geo_comparison_table && pack.proposed_geo_comparison_table.length > 0) ||
@@ -1194,6 +1261,65 @@ function ProductCard({
         )}
       </BlockStack>
     </Card>
+  );
+}
+
+function GuardrailReflectionSection({
+  reflection,
+  locale,
+}: {
+  reflection: ContentGuardrailReflection;
+  locale: Locale;
+}) {
+  const finalTone =
+    reflection.final_status === "pass"
+      ? "success"
+      : reflection.final_status === "blocked"
+      ? "critical"
+      : "warning";
+  const lastAttempt = reflection.attempts[reflection.attempts.length - 1];
+  return (
+    <BlockStack gap="200">
+      <InlineStack gap="200" blockAlign="center" wrap>
+        <Badge tone={finalTone}>{reflection.final_status}</Badge>
+        <Text as="span" variant="bodySm">
+          {locale === "fr" ? "Score final" : "Final score"}:{" "}
+          <strong>{reflection.final_score}/100</strong>
+        </Text>
+        <Text as="span" variant="bodySm" tone="subdued">
+          {locale === "fr" ? "Retries" : "Retries"}: {reflection.retry_count}/{reflection.max_retries}
+        </Text>
+      </InlineStack>
+      {lastAttempt?.questions.map((item) => (
+        <Box
+          key={item.key}
+          padding="200"
+          borderWidth="025"
+          borderRadius="200"
+          borderColor="border"
+          background="bg-surface-secondary"
+        >
+          <BlockStack gap="100">
+            <InlineStack gap="200" align="space-between" blockAlign="center">
+              <Text as="p" variant="bodySm">
+                <strong>{item.question}</strong>
+              </Text>
+              <Badge tone={item.status === "pass" ? "success" : item.status === "blocked" ? "critical" : "warning"}>
+                {`${item.score}/100`}
+              </Badge>
+            </InlineStack>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {item.recommendation}
+            </Text>
+            {item.evidence.length > 0 && (
+              <Text as="p" variant="bodySm" tone="subdued">
+                {item.evidence.join(" · ")}
+              </Text>
+            )}
+          </BlockStack>
+        </Box>
+      ))}
+    </BlockStack>
   );
 }
 
@@ -1829,6 +1955,36 @@ export default function MarketAnalysisPage() {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportReflection = () => {
+    if (typeof document === "undefined" || !job) return;
+    const payload = {
+      exported_at: new Date().toISOString(),
+      source: "market-analysis-reflection-test",
+      analyzed_at: job.analyzed_at,
+      reflection_test: job.reflection_test === true,
+      threshold: job.products.find((product) => product.content_test_pack.content_guardrail_reflection)?.content_test_pack.content_guardrail_reflection?.threshold ?? null,
+      products: job.products.map((product) => ({
+        product_id: product.product_id,
+        product_title: product.product_title,
+        product_handle: product.product_handle,
+        primary_keyword: product.seo_keywords.find((keyword) => keyword.target_role === "primary")?.query ?? product.seo_keywords[0]?.query ?? null,
+        reflection: product.content_test_pack.content_guardrail_reflection ?? null,
+        content_quality: product.content_test_pack.content_quality ?? null,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `analyse-marche-reflection-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
   const handleStartIdentify = () => {
     setIdentifyJobId(null);
     setIdentifyJob(null);
@@ -1851,6 +2007,15 @@ export default function MarketAnalysisPage() {
     setPollError(null);
     const fd = new FormData();
     fd.set("intent", "start");
+    startFetcher.submit(fd, { method: "post" });
+  };
+
+  const handleTestRerun = () => {
+    setJobId(null);
+    setJob(null);
+    setPollError(null);
+    const fd = new FormData();
+    fd.set("intent", "startTest");
     startFetcher.submit(fd, { method: "post" });
   };
 
@@ -2096,6 +2261,9 @@ export default function MarketAnalysisPage() {
                 >
                   {t(locale, "marketAnalysisAnalyzeAll")}
                 </Button>
+                <Button onClick={handleTestRerun} loading={isInProgress} disabled={isInProgress}>
+                  {locale === "fr" ? "Analyse produit test" : "Product analysis test"}
+                </Button>
                 <Button variant="plain" onClick={handleEditIdentification} disabled={isInProgress}>
                   {t(locale, "marketAnalysisEditIdentification")}
                 </Button>
@@ -2148,16 +2316,21 @@ export default function MarketAnalysisPage() {
                 )}
 
                 {!job?.status || job.status === "failed" ? (
-                  <Button
-                    variant="primary"
-                    onClick={handleRerun}
-                    disabled={isInProgress}
-                    loading={isInProgress}
-                  >
-                    {isInProgress
-                      ? t(locale, "marketAnalysisRunning")
-                      : t(locale, "marketAnalysisRun")}
-                  </Button>
+                  <InlineStack gap="200" wrap>
+                    <Button
+                      variant="primary"
+                      onClick={handleRerun}
+                      disabled={isInProgress}
+                      loading={isInProgress}
+                    >
+                      {isInProgress
+                        ? t(locale, "marketAnalysisRunning")
+                        : t(locale, "marketAnalysisRun")}
+                    </Button>
+                    <Button onClick={handleTestRerun} disabled={isInProgress} loading={isInProgress}>
+                      {locale === "fr" ? "Analyse produit test" : "Product analysis test"}
+                    </Button>
+                  </InlineStack>
                 ) : null}
 
                 {isRunning && (
@@ -2190,9 +2363,17 @@ export default function MarketAnalysisPage() {
             {/* Summary + export */}
             {job && job.analyzed_product_count > 0 && (
               <>
-                <InlineStack align="end">
+                <InlineStack align="end" gap="200">
+                  {job.reflection_test === true && (
+                    <Badge tone="info">
+                      {locale === "fr" ? "Mode réflexion test" : "Reflection test mode"}
+                    </Badge>
+                  )}
                   <Button onClick={handleExportResults}>
                     {t(locale, "marketAnalysisExport")}
+                  </Button>
+                  <Button onClick={handleExportReflection}>
+                    {locale === "fr" ? "Télécharger la réflexion" : "Download reflection"}
                   </Button>
                 </InlineStack>
                 <SummaryCard job={job} locale={locale} />

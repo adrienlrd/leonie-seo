@@ -12,6 +12,34 @@
 
 - **Date:** 2026-05-30
 - **Agent:** Codex (GPT-5)
+- **Goal:** Ajouter une Analyse produit test dans Analyse marché avec réflexion garde-fou, retry contrôlé et export JSON de la réflexion.
+- **Summary:** Le backend accepte maintenant `reflection_test=true` sur le job Analyse marché. Dans ce mode, le pipeline reprend Pass 1 + Pass 2, puis score chaque proposition sur 5 questions garde-fou : cohérence entreprise, cohérence produit, potentiel SEO, potentiel GEO et actionnabilité marchand. Si le score final est inférieur à 75, si un critère critique bloque, ou si `content_quality.publish_ready` échoue, un seul retry ciblé est lancé avec la proposition précédente et les points faibles, puis le journal complet est attaché à `content_test_pack.content_guardrail_reflection`. L'UI ajoute un bouton `Analyse produit test`, affiche la réflexion par produit, et propose `Télécharger la réflexion` en JSON séparé.
+- **Files created:** Aucun.
+- **Files modified:** `app/market_analysis/engine.py`, `app/api/market_analysis.py`, `tests/market_analysis/test_two_pass_engine.py`, `tests/market_analysis/test_keyword_pool.py`, `shopify-app/app/routes/app.market-analysis.tsx`, `shopify-app/app/lib/marketAnalysisShared.tsx`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Boucle limitée à 1 retry pour contrôler coût et latence. La réflexion est expérimentale et traçable dans le JSON plutôt qu'un apprentissage permanent global. Le bouton test réutilise le job existant avec un flag afin de rester proche de l'analyse produit réelle.
+- **Validations run:** `ruff format app/market_analysis/engine.py app/api/market_analysis.py tests/market_analysis/test_two_pass_engine.py tests/market_analysis/test_keyword_pool.py` ✅ ; `ruff check app/market_analysis/engine.py app/api/market_analysis.py tests/market_analysis/test_two_pass_engine.py tests/market_analysis/test_keyword_pool.py` ✅ ; `pytest tests/market_analysis/test_two_pass_engine.py tests/market_analysis/test_keyword_pool.py` ✅ (36 passed) ; `pytest tests/market_analysis tests/test_api/test_market_analysis.py` ✅ (152 passed) ; `cd shopify-app && npm run typecheck` ✅ ; `cd shopify-app && npm run build` ✅.
+- **Validations skipped:** Pas de test live Shopify/DataForSEO depuis l'app embedded : nécessite boutique connectée et credentials réels.
+- **Open issues:** La réflexion est encore heuristique/déterministe avec retry LLM ciblé ; le prochain apprentissage devra venir de l'examen des exports `analyse-marche-reflection-*.json` sur des cas réels.
+- **Next recommended action:** Déployer, lancer `Analyse produit test` sur la boutique pilote, télécharger la réflexion, puis ajuster les seuils/questions à partir des cas réels.
+
+## Previous completed task
+
+- **Date:** 2026-05-30
+- **Agent:** Codex (GPT-5)
+- **Goal:** Réduire le biais de mots-clés IA dans Analyse marché pour les produits à titre commercial, observé sur `Le pull Le Léonie`.
+- **Summary:** Le pool de mots-clés réel ajoute désormais des seeds courts type produit + audience (`pull chien`, `pull pour chien`) à partir du texte produit/handle, afin de ne pas dépendre uniquement du label long ou du nom commercial. Le filtre DataForSEO garde aussi une idée si elle recouvre suffisamment le produit lui-même, même si elle ne recouvre pas assez le seed long. Google Suggest et Trends comptent maintenant comme signaux réels dans le plancher de fusion Pass 1, ce qui évite que le LLM remplace trop vite des suggestions observées par des mots-clés `llm_proposed`.
+- **Files created:** Aucun.
+- **Files modified:** `app/market_analysis/engine.py`, `tests/market_analysis/test_keyword_pool.py`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Correction ciblée sur le pool de candidats, sans élargir le prompt ni introduire de dépendance. Les seeds génériques restent limités à quelques types produit/audiences animaux pour préserver le coût et éviter le bruit.
+- **Validations run:** `ruff format app/market_analysis/engine.py tests/market_analysis/test_keyword_pool.py` ✅ ; `ruff check app/market_analysis/engine.py tests/market_analysis/test_keyword_pool.py` ✅ ; `pytest tests/market_analysis/test_keyword_pool.py` ✅ (22 passed) ; `pytest tests/market_analysis` ✅ (143 passed).
+- **Validations skipped:** Pas encore de smoke live DataForSEO/Shopify : nécessite les credentials et une analyse réelle boutique.
+- **Open issues:** À vérifier sur un nouvel export réel que le pull reçoit davantage de DataForSEO/Suggest (`pull chien`, `pull pour chien`, variantes vêtements/manteaux) et moins de `llm_proposed`.
+- **Next recommended action:** Relancer Analyse marché sur la boutique pilote puis comparer les sources du pull avec harnais/fontaine dans l'export JSON.
+
+## Previous completed task
+
+- **Date:** 2026-05-30
+- **Agent:** Codex (GPT-5)
 - **Goal:** Empêcher les nouveaux enrichissements Analyse marché (JSON-LD / maillage interne) de bloquer l'analyse produit en production.
 - **Summary:** Le moteur Analyse marché est maintenant fail-open sur deux surfaces additives : génération JSON-LD et recommandations de maillage interne. Si un format de snapshot Shopify réel déclenche une exception dans ces modules, l'analyse produit continue et logge un warning au lieu de faire échouer tout le job.
 - **Files created:** Aucun.

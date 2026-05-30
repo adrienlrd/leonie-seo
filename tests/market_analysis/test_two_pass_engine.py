@@ -163,7 +163,15 @@ def _router(*texts):
     return router
 
 
-def _run(router, *, dataforseo, over_budget=False, crawl_findings=None, business_profile=None):
+def _run(
+    router,
+    *,
+    dataforseo,
+    over_budget=False,
+    crawl_findings=None,
+    business_profile=None,
+    reflection_test=False,
+):
     budget = {
         "over_budget": over_budget,
         "budget_usd": 20.0,
@@ -186,6 +194,7 @@ def _run(router, *, dataforseo, over_budget=False, crawl_findings=None, business
             [],
             crawl_findings=crawl_findings,
             business_profile=business_profile,
+            reflection_test=reflection_test,
         )
 
 
@@ -215,6 +224,47 @@ def test_two_pass_feeds_serp_paa_volume_crawl_into_pass2_prompt():
     assert pack["proposed_meta_title"].startswith("Fontaine à chat silencieuse")
     assert pack["proposed_faq"]
     assert "dataforseo_serp" in result["sources_used"]
+
+
+def test_reflection_test_retries_low_quality_content_and_exports_attempts():
+    bad_pass2 = json.dumps(
+        {
+            **json.loads(_PASS2_JSON),
+            "proposed_meta_title": "Fontaine luxe",
+            "proposed_meta_description": "Belle fontaine premium.",
+            "proposed_product_description": "Belle fontaine premium pour la maison.",
+            "proposed_faq": [],
+            "proposed_geo_answer_block": "",
+            "proposed_blog_title": "",
+            "proposed_blog_outline": [],
+            "proposed_blog_intro": "",
+            "claims_used": [],
+            "confidence": "low",
+        }
+    )
+    improved_pass2 = json.dumps(
+        {
+            **json.loads(_PASS2_JSON),
+            "proposed_meta_title": "Fontaine à chat silencieuse 2L",
+            "proposed_meta_description": "Fontaine à chat 2L avec eau filtrée pour aider votre chat à boire plus souvent.",
+            "proposed_product_description": "Cette fontaine à chat 2L garde une eau filtrée accessible. Elle aide à créer un point d'hydratation clair pour les chats à la maison.",
+            "proposed_geo_answer_block": "Une fontaine à chat 2L maintient une eau filtrée disponible pour encourager l'hydratation quotidienne.",
+            "claims_used": [{"claim": "Fontaine 2L", "fact_keys": ["description"]}],
+            "confidence": "high",
+        }
+    )
+    router = _router(_PASS1_JSON, bad_pass2, improved_pass2)
+
+    result = _run(router, dataforseo=_FakeDataForSEO(), reflection_test=True)
+
+    pack = result["products"][0]["content_test_pack"]
+    reflection = pack["content_guardrail_reflection"]
+    assert router.complete.call_count == 3
+    assert reflection["enabled"] is True
+    assert reflection["retry_count"] == 1
+    assert len(reflection["attempts"]) == 2
+    assert reflection["attempts"][0]["score"] < reflection["threshold"]
+    assert "content_guardrail_reflection" in result["sources_used"]
 
 
 def test_free_mode_runs_pass2_without_serp_block():

@@ -105,6 +105,30 @@ export interface EnrichmentQuestion {
   unlocks_surfaces: string[];
 }
 
+export interface ContentGuardrailReflection {
+  enabled: boolean;
+  threshold: number;
+  max_retries: number;
+  retry_count: number;
+  final_score: number;
+  final_status: "pass" | "needs_retry" | "blocked";
+  questions: { key: string; question: string }[];
+  attempts: {
+    attempt: number;
+    score: number;
+    status: "pass" | "needs_retry" | "blocked";
+    questions: {
+      key: string;
+      question: string;
+      score: number;
+      status: "pass" | "needs_review" | "blocked";
+      evidence: string[];
+      recommendation: string;
+    }[];
+    quality_issues?: string[];
+  }[];
+}
+
 export interface ConfirmedFact {
   key: string;
   label: string;
@@ -133,6 +157,7 @@ export interface ContentTestPack {
   confirmed_facts?: ConfirmedFact[];
   content_quality?: ContentQuality;
   enrichment_questions?: EnrichmentQuestion[];
+  content_guardrail_reflection?: ContentGuardrailReflection;
   faq_sync?: {
     applied: boolean;
     error: string | null;

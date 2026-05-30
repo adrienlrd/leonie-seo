@@ -192,6 +192,7 @@ def _run_analysis_background(
     business_profile: dict[str, Any] | None = None,
     collections: list[dict[str, Any]] | None = None,
     articles: list[dict[str, Any]] | None = None,
+    reflection_test: bool = False,
 ) -> None:
     """Background task: runs the full analysis and updates the job store incrementally."""
 
@@ -244,6 +245,7 @@ def _run_analysis_background(
             progress_callback=_on_progress,
             collections=collections,
             articles=articles,
+            reflection_test=reflection_test,
         )
         completed_data: dict[str, Any] = {
             "job_id": job_id,
@@ -260,6 +262,7 @@ def _run_analysis_background(
             "orphan_products": result.get("orphan_products", []),
             "blog_gap_suggestions": result.get("blog_gap_suggestions", []),
             "business_profile_context": result.get("business_profile_context", {}),
+            "reflection_test": reflection_test,
             "products": result["products"],
             "progress": result["analyzed_product_count"],
             "total": result["analyzed_product_count"],
@@ -355,6 +358,7 @@ async def start_market_analysis_job(
     product_ids: list[str] | None = Query(default=None),
     plan: str | None = Query(default=None),
     persist_product_result: bool = Query(default=False),
+    reflection_test: bool = Query(default=False),
 ) -> dict[str, Any]:
     """Start an async market analysis job. Uses saved identifications if available."""
     snapshot = _load_snapshot(ctx)
@@ -409,10 +413,16 @@ async def start_market_analysis_job(
         business_profile,
         snapshot.get("collections") or [],
         snapshot.get("articles") or [],
+        reflection_test,
     )
 
     age = _snapshot_age_days(snapshot)
-    return {"job_id": job_id, "status": "pending", "snapshot_age_days": age}
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "snapshot_age_days": age,
+        "reflection_test": reflection_test,
+    }
 
 
 @router.get("/shops/{shop}/market-analysis/jobs/{job_id}")

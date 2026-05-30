@@ -123,6 +123,31 @@ _CLAIM_PATTERNS: tuple[tuple[str, str], ...] = (
     ),
 )
 
+_REFLECTION_THRESHOLD = 75
+_REFLECTION_MAX_RETRIES = 1
+_REFLECTION_QUESTIONS: tuple[dict[str, str], ...] = (
+    {
+        "key": "business_alignment",
+        "question": "Is the proposal coherent with the validated business analysis?",
+    },
+    {
+        "key": "product_consistency",
+        "question": "Is the proposal faithful to the product and its confirmed facts?",
+    },
+    {
+        "key": "seo_potential",
+        "question": "Can the proposal realistically generate SEO traffic?",
+    },
+    {
+        "key": "geo_potential",
+        "question": "Can the proposal answer extractable GEO/AI-search questions?",
+    },
+    {
+        "key": "merchant_actionability",
+        "question": "Can a merchant understand, review, and publish the proposal easily?",
+    },
+)
+
 
 def _strip_html(html: str) -> str:
     without_tags = re.sub(r"<[^>]+>", " ", str(html))
@@ -773,7 +798,7 @@ def _build_pass2_prompt(
         pivots = cannibalization_hint.get("pivot_suggestions") or []
         parts.append("\n=== CONFLIT DE CANNIBALISATION DÉTECTÉ ===")
         parts.append(
-            f"  Le produit principal positionné sur \"{head}\" est un autre produit du catalogue."
+            f'  Le produit principal positionné sur "{head}" est un autre produit du catalogue.'
         )
         parts.append(
             "  Ce produit DOIT viser une variante longue traîne plus spécifique, pas le mot-clé tête."
@@ -1155,6 +1180,30 @@ _FR_STOP_WORDS = frozenset(
     " je tu il elle nous vous ils elles".split()
 )
 
+_PET_AUDIENCE_WORDS = frozenset({"chien", "chiens", "chat", "chats"})
+_PRODUCT_TYPE_WORDS = frozenset(
+    {
+        "abreuvoir",
+        "arbre",
+        "bol",
+        "collier",
+        "couchette",
+        "coussin",
+        "fontaine",
+        "gamelle",
+        "harnais",
+        "laisse",
+        "lit",
+        "manteau",
+        "panier",
+        "pull",
+        "vêtement",
+        "vêtements",
+        "vetement",
+        "vetements",
+    }
+)
+
 
 def _content_words(text: str) -> frozenset[str]:
     """Extract meaningful lowercase words (≥3 chars, non-stop) from a keyword string."""
@@ -1163,6 +1212,15 @@ def _content_words(text: str) -> frozenset[str]:
         for w in re.findall(r"[a-zàâäéèêëîïôùûüç]+", text.lower())
         if len(w) >= 3 and w not in _FR_STOP_WORDS
     )
+
+
+def _content_word_sequence(text: str) -> list[str]:
+    """Extract meaningful lowercase words while preserving order."""
+    return [
+        w
+        for w in re.findall(r"[a-zàâäéèêëîïôùûüç]+", text.lower())
+        if len(w) >= 3 and w not in _FR_STOP_WORDS
+    ]
 
 
 def _content_word_count(text: str) -> int:
@@ -1174,7 +1232,12 @@ def _content_word_count(text: str) -> int:
     )
 
 
-def _idea_is_relevant(idea_query: str, seed_queries: list[str], min_overlap: int = 2) -> bool:
+def _idea_is_relevant(
+    idea_query: str,
+    seed_queries: list[str],
+    min_overlap: int = 2,
+    product_words: frozenset[str] | None = None,
+) -> bool:
     """Return True if the idea shares ≥min_overlap content words with any seed keyword.
 
     Filters out DataForSEO Keyword Ideas that are semantically unrelated to the
@@ -1184,7 +1247,33 @@ def _idea_is_relevant(idea_query: str, seed_queries: list[str], min_overlap: int
     if not idea_words:
         return False
     seed_words = frozenset().union(*(_content_words(s) for s in seed_queries))
-    return len(idea_words & seed_words) >= min_overlap
+    if len(idea_words & seed_words) >= min_overlap:
+        return True
+    if product_words is None:
+        return False
+    # Long, premium product seeds can be too narrow ("pull en cachemire pour chien")
+    # and hide broader real-market ideas ("manteau chien", "vêtement chien").
+    # Keep them when they match the product text itself on at least two words.
+    return len(idea_words & product_words) >= min_overlap
+
+
+def _generic_product_seeds(source_text: str, *, limit: int = 4) -> list[str]:
+    """Build short category seeds from product type + pet audience words."""
+    words = _content_word_sequence(source_text)
+    product_types: list[str] = []
+    audiences: list[str] = []
+    for word in words:
+        if word in _PRODUCT_TYPE_WORDS and word not in product_types:
+            product_types.append(word)
+        if word in _PET_AUDIENCE_WORDS and word not in audiences:
+            audiences.append(word)
+
+    seeds: list[str] = []
+    for product_type in product_types[:2]:
+        for audience in audiences[:2]:
+            seeds.append(f"{product_type} {audience}")
+            seeds.append(f"{product_type} pour {audience}")
+    return list(dict.fromkeys(seeds))[:limit]
 
 
 def _score_idea_fit(idea_query: str, product_words: frozenset[str]) -> int:
@@ -1220,7 +1309,7 @@ _SOURCE_PRIORITY = {
 }
 _POOL_MAX = 40
 _GSC_POOL_LIMIT = 12
-_SUGGEST_SEED_MAX = 3
+_SUGGEST_SEED_MAX = 5
 # Question prefixes used to harvest GEO/AEO intents from Google Suggest — these
 # mirror what shoppers type into Google and ask assistants like ChatGPT.
 _QUESTION_PREFIXES = ("comment", "pourquoi", "quelle", "quel", "combien")
@@ -1403,9 +1492,19 @@ def _build_keyword_candidate_pool(
 
     gsc_cands = _gsc_candidates(product_words, gsc_query_rows)
 
+    source_text = " ".join(
+        [
+            str(fields.get("source_product_text", "") or title),
+            label,
+            handle_words,
+        ]
+    )
     seeds: list[str] = []
     for seed in [label or title, title]:
         seed = seed.strip()
+        if seed and seed.lower() not in {s.lower() for s in seeds}:
+            seeds.append(seed)
+    for seed in _generic_product_seeds(source_text):
         if seed and seed.lower() not in {s.lower() for s in seeds}:
             seeds.append(seed)
     if gsc_cands and gsc_cands[0]["query"].lower() not in {s.lower() for s in seeds}:
@@ -1424,7 +1523,7 @@ def _build_keyword_candidate_pool(
         ideas = dataforseo.fetch_keyword_ideas(seeds, limit=ideas_limit)
         for idea in ideas or []:
             query = str(idea.get("query", "")).strip()
-            if not query or not _idea_is_relevant(query, seeds):
+            if not query or not _idea_is_relevant(query, seeds, product_words=product_words):
                 continue
             idea["product_fit_score"] = _score_idea_fit(query, product_words)
             _merge_pool_candidate(pool, idea)
@@ -1468,7 +1567,8 @@ def _enrich_keyword_dicts(
 def _is_real_keyword(keyword: dict[str, Any]) -> bool:
     """True when a keyword is backed by observed demand, not an LLM estimate."""
     return (
-        str(keyword.get("data_source", "")) in ("gsc", "dataforseo", "google_ads")
+        str(keyword.get("data_source", ""))
+        in ("gsc", "dataforseo", "google_ads", "google_suggest", "trends")
         or bool(keyword.get("search_volume"))
         or bool(keyword.get("gsc_impressions"))
     )
@@ -2206,6 +2306,383 @@ def _build_content_quality(
     }
 
 
+def _pack_generated_text(pack: dict[str, Any]) -> str:
+    """Flatten generated content surfaces for lightweight reflection checks."""
+    faq_text = " ".join(
+        f"{item.get('q', '')} {item.get('a', '')}"
+        for item in _coerce_faq(pack.get("proposed_faq", []))
+    )
+    return " ".join(
+        part
+        for part in [
+            _coerce_str(pack.get("proposed_meta_title", "")),
+            _coerce_str(pack.get("proposed_meta_description", "")),
+            _coerce_str(pack.get("proposed_product_description", "")),
+            faq_text,
+            _coerce_str(pack.get("proposed_geo_answer_block", "")),
+            _coerce_str(pack.get("proposed_geo_definition_block", "")),
+            " ".join(_coerce_str_list(pack.get("proposed_geo_quick_facts", []))),
+            _coerce_str(pack.get("proposed_blog_title", "")),
+            _coerce_str(pack.get("proposed_blog_intro", "")),
+            " ".join(_coerce_str_list(pack.get("proposed_blog_outline", []))),
+        ]
+        if part
+    )
+
+
+def _reflection_item(
+    *,
+    key: str,
+    question: str,
+    score: int,
+    status: str,
+    evidence: list[str],
+    recommendation: str,
+) -> dict[str, Any]:
+    return {
+        "key": key,
+        "question": question,
+        "score": max(0, min(100, int(score))),
+        "status": status,
+        "evidence": evidence[:5],
+        "recommendation": recommendation,
+    }
+
+
+def _build_content_reflection_attempt(
+    pack: dict[str, Any],
+    *,
+    fields: dict[str, Any],
+    business_context: str,
+    business_profile: dict[str, Any] | None,
+    niche_summary: str,
+) -> dict[str, Any]:
+    """Score generated content against business, product, SEO, GEO and actionability gates."""
+    quality = (
+        pack.get("content_quality")
+        if isinstance(pack.get("content_quality"), dict)
+        else _build_content_quality(
+            pack,
+            confirmed_facts=fields.get("confirmed_facts", []),
+            source_product_text=fields.get("source_product_text", ""),
+            surface_plan=pack.get("surface_plan", {}),
+        )
+    )
+    generated_text = _pack_generated_text(pack)
+    generated_words = _content_words(generated_text)
+    product_words = _content_words(
+        " ".join(
+            [
+                fields.get("source_product_text", ""),
+                fields.get("product_title", ""),
+                fields.get("merchant_label", ""),
+                str(fields.get("handle", "")).replace("-", " "),
+            ]
+        )
+    )
+    overlap = len(generated_words & product_words)
+
+    primary_keyword = next(
+        (
+            str(keyword.get("query", "")).strip()
+            for keyword in (pack.get("seo_keywords") or [])
+            if isinstance(keyword, dict) and keyword.get("target_role") == "primary"
+        ),
+        "",
+    ) or next(
+        (
+            str(keyword.get("query", "")).strip()
+            for keyword in (pack.get("seo_keywords") or [])
+            if isinstance(keyword, dict) and keyword.get("query")
+        ),
+        "",
+    )
+    target_count = int(quality.get("target_count", 0) or 0)
+    covered_count = int(quality.get("covered_target_count", 0) or 0)
+    coverage_ratio = covered_count / target_count if target_count else 0.0
+    issues = [str(issue) for issue in quality.get("issues", [])]
+    blocking_fact_issues = {
+        "missing_claim_evidence_ledger",
+        "unverified_claim_reference",
+        "unsupported_product_claims",
+        "forbidden_promise_detected",
+    }
+
+    business_terms = _content_words(
+        " ".join(
+            [
+                business_context,
+                niche_summary,
+                _coerce_str((business_profile or {}).get("brand_voice", "")),
+                " ".join(_coerce_str_list((business_profile or {}).get("key_themes", []))),
+            ]
+        )
+    )
+    business_overlap = len(generated_words & business_terms)
+    if not business_terms:
+        business_score = 70
+        business_status = "needs_review"
+        business_evidence = [
+            "No validated business context available for strong alignment scoring."
+        ]
+    else:
+        business_score = 85 if business_overlap >= 3 else 68 if business_overlap >= 1 else 45
+        business_status = "pass" if business_score >= _REFLECTION_THRESHOLD else "needs_review"
+        business_evidence = [
+            f"{business_overlap} business context terms found in generated content.",
+            f"Niche context: {niche_summary or 'not set'}",
+        ]
+
+    product_score = 88 if overlap >= 4 else 70 if overlap >= 2 else 45
+    if any(issue in blocking_fact_issues for issue in issues):
+        product_score = min(product_score, 45)
+    product_status = (
+        "blocked"
+        if any(issue in blocking_fact_issues for issue in issues)
+        else ("pass" if product_score >= _REFLECTION_THRESHOLD else "needs_review")
+    )
+
+    seo_score = round(45 + coverage_ratio * 45)
+    if primary_keyword and (
+        _keyword_is_covered(primary_keyword, _coerce_str(pack.get("proposed_meta_title", "")))
+        or _keyword_is_covered(
+            primary_keyword, _coerce_str(pack.get("proposed_meta_description", ""))
+        )
+    ):
+        seo_score += 10
+    seo_score = max(0, min(100, seo_score))
+
+    geo_surfaces = [
+        bool(_coerce_faq(pack.get("proposed_faq", []))),
+        bool(_coerce_str(pack.get("proposed_geo_answer_block", ""))),
+        bool(_coerce_str(pack.get("proposed_geo_definition_block", ""))),
+        bool(_coerce_str_list(pack.get("proposed_geo_quick_facts", []))),
+    ]
+    geo_score = 35 + sum(geo_surfaces) * 15
+    if any(
+        keyword.get("serp_feature_targets")
+        for keyword in (pack.get("seo_keywords") or [])
+        if isinstance(keyword, dict)
+    ):
+        geo_score += 5
+    geo_score = max(0, min(100, geo_score))
+
+    actionability_score = 50
+    if pack.get("proposed_meta_title") and pack.get("proposed_meta_description"):
+        actionability_score += 20
+    if pack.get("recommended_content_actions"):
+        actionability_score += 15
+    if not issues:
+        actionability_score += 15
+    actionability_score = max(0, min(100, actionability_score))
+
+    items = [
+        _reflection_item(
+            key="business_alignment",
+            question=_REFLECTION_QUESTIONS[0]["question"],
+            score=business_score,
+            status=business_status,
+            evidence=business_evidence,
+            recommendation=(
+                "Use the validated business profile vocabulary and strategic angles more explicitly."
+                if business_score < _REFLECTION_THRESHOLD
+                else "Business alignment is sufficient."
+            ),
+        ),
+        _reflection_item(
+            key="product_consistency",
+            question=_REFLECTION_QUESTIONS[1]["question"],
+            score=product_score,
+            status=product_status,
+            evidence=[
+                f"{overlap} product terms found in generated content.",
+                f"Quality issues: {', '.join(issues) if issues else 'none'}",
+            ],
+            recommendation=(
+                "Rewrite using only product facts and remove unsupported claims."
+                if product_score < _REFLECTION_THRESHOLD
+                else "Product consistency is sufficient."
+            ),
+        ),
+        _reflection_item(
+            key="seo_potential",
+            question=_REFLECTION_QUESTIONS[2]["question"],
+            score=seo_score,
+            status="pass" if seo_score >= _REFLECTION_THRESHOLD else "needs_review",
+            evidence=[
+                f"{covered_count}/{target_count} keyword targets covered.",
+                f"Primary keyword: {primary_keyword or 'missing'}",
+            ],
+            recommendation=(
+                "Place the primary target naturally in metadata and one content surface."
+                if seo_score < _REFLECTION_THRESHOLD
+                else "SEO target coverage is sufficient."
+            ),
+        ),
+        _reflection_item(
+            key="geo_potential",
+            question=_REFLECTION_QUESTIONS[3]["question"],
+            score=geo_score,
+            status="pass" if geo_score >= _REFLECTION_THRESHOLD else "needs_review",
+            evidence=[f"{sum(geo_surfaces)}/4 GEO surfaces present."],
+            recommendation=(
+                "Add extractable FAQ, definition, quick facts or answer blocks."
+                if geo_score < _REFLECTION_THRESHOLD
+                else "GEO extractability is sufficient."
+            ),
+        ),
+        _reflection_item(
+            key="merchant_actionability",
+            question=_REFLECTION_QUESTIONS[4]["question"],
+            score=actionability_score,
+            status="pass" if actionability_score >= _REFLECTION_THRESHOLD else "needs_review",
+            evidence=[
+                "Metadata present."
+                if pack.get("proposed_meta_title") and pack.get("proposed_meta_description")
+                else "Metadata incomplete.",
+                f"Recommended actions: {len(pack.get('recommended_content_actions') or [])}",
+            ],
+            recommendation=(
+                "Make the proposal more concrete and reviewable for the merchant."
+                if actionability_score < _REFLECTION_THRESHOLD
+                else "Merchant actionability is sufficient."
+            ),
+        ),
+    ]
+    final_score = round(sum(item["score"] for item in items) / len(items))
+    final_status = (
+        "blocked"
+        if any(item["status"] == "blocked" for item in items)
+        else "pass"
+        if final_score >= _REFLECTION_THRESHOLD
+        else "needs_retry"
+    )
+    return {
+        "score": final_score,
+        "status": final_status,
+        "questions": items,
+        "quality_issues": issues,
+    }
+
+
+def _build_reflection_retry_prompt(
+    *,
+    product_title: str,
+    niche_summary: str,
+    pack: dict[str, Any],
+    reflection_attempt: dict[str, Any],
+    confirmed_facts: list[dict[str, Any]],
+    surface_plan: dict[str, Any],
+) -> str:
+    """Build a targeted retry prompt from the failed reflection attempt."""
+    keywords = [
+        str(keyword.get("query", "")).strip()
+        for keyword in (pack.get("seo_keywords") or [])[:6]
+        if isinstance(keyword, dict) and keyword.get("query")
+    ]
+    failed_questions = [
+        item
+        for item in reflection_attempt.get("questions", [])
+        if isinstance(item, dict) and item.get("score", 100) < _REFLECTION_THRESHOLD
+    ]
+    failed_lines = [
+        f"- {item.get('key')}: score {item.get('score')}/100; {item.get('recommendation')}"
+        for item in failed_questions
+    ]
+    facts_text = (
+        "; ".join(
+            f"{fact.get('key')}: {_coerce_str(fact.get('value', ''))[:140]}"
+            for fact in confirmed_facts
+            if isinstance(fact, dict) and fact.get("key")
+        )
+        or "no confirmed facts"
+    )
+    return (
+        "You are improving an existing Shopify SEO/GEO content proposal after a quality reflection.\n"
+        f"PRODUCT: {product_title}\n"
+        f"NICHE: {niche_summary or 'not set'}\n"
+        f"TARGET KEYWORDS: {', '.join(keywords) if keywords else 'none'}\n"
+        f"CONFIRMED FACTS ONLY: {facts_text}\n"
+        f"SURFACE PLAN: {json.dumps(surface_plan, ensure_ascii=False)}\n\n"
+        "PREVIOUS PROPOSAL:\n"
+        f"{json.dumps({k: pack.get(k) for k in _PASS2_KEYS}, ensure_ascii=False)[:6000]}\n\n"
+        "FAILED REFLECTION POINTS TO FIX WITHOUT INTRODUCING NEW UNSUPPORTED CLAIMS:\n"
+        + ("\n".join(failed_lines) if failed_lines else "- Improve clarity and keyword coverage.")
+        + "\n\nReturn valid JSON only with the same content keys. Keep factual claims grounded in confirmed facts."
+    )
+
+
+def _run_reflection_test_loop(
+    pack: dict[str, Any],
+    *,
+    llm_router: Any,
+    fields: dict[str, Any],
+    business_context: str,
+    business_profile: dict[str, Any] | None,
+    niche_summary: str,
+    forbidden_phrases: list[str],
+) -> dict[str, Any]:
+    """Run post-generation reflection and at most one targeted regeneration."""
+    attempts: list[dict[str, Any]] = []
+    retry_count = 0
+
+    for attempt_idx in range(_REFLECTION_MAX_RETRIES + 1):
+        pack["content_quality"] = _build_content_quality(
+            pack,
+            confirmed_facts=fields.get("confirmed_facts", []),
+            source_product_text=fields.get("source_product_text", ""),
+            surface_plan=pack.get("surface_plan", {}),
+            forbidden_phrases=forbidden_phrases,
+        )
+        attempt = _build_content_reflection_attempt(
+            pack,
+            fields=fields,
+            business_context=business_context,
+            business_profile=business_profile,
+            niche_summary=niche_summary,
+        )
+        attempt["attempt"] = attempt_idx + 1
+        attempts.append(attempt)
+        needs_retry = (
+            attempt["status"] != "pass"
+            or attempt["score"] < _REFLECTION_THRESHOLD
+            or not pack["content_quality"].get("publish_ready", False)
+        )
+        if not needs_retry or attempt_idx >= _REFLECTION_MAX_RETRIES or llm_router is None:
+            break
+        retry_prompt = _build_reflection_retry_prompt(
+            product_title=fields["product_title"],
+            niche_summary=niche_summary,
+            pack=pack,
+            reflection_attempt=attempt,
+            confirmed_facts=fields.get("confirmed_facts", []),
+            surface_plan=pack.get("surface_plan", {}),
+        )
+        pack = _complete_json(
+            llm_router,
+            retry_prompt,
+            _PASS2_KEYS,
+            pack,
+            fields["product_title"],
+            max_tokens=8192,
+            temperature=0.0,
+        )
+        retry_count += 1
+
+    final_attempt = attempts[-1] if attempts else {"score": 0, "status": "blocked"}
+    pack["content_guardrail_reflection"] = {
+        "enabled": True,
+        "threshold": _REFLECTION_THRESHOLD,
+        "max_retries": _REFLECTION_MAX_RETRIES,
+        "retry_count": retry_count,
+        "final_score": final_attempt.get("score", 0),
+        "final_status": final_attempt.get("status", "blocked"),
+        "questions": list(_REFLECTION_QUESTIONS),
+        "attempts": attempts,
+    }
+    return pack
+
+
 def _apply_catalog_content_conflicts(
     product_results: list[dict[str, Any]],
     active_products: list[dict[str, Any]],
@@ -2445,6 +2922,7 @@ def _build_product_result(
             "enrichment_questions": llm_pack.get("enrichment_questions", []),
             "confidence": _normalize_confidence(llm_pack.get("confidence", "")) or "low",
             "content_quality": llm_pack.get("content_quality", {}),
+            "content_guardrail_reflection": llm_pack.get("content_guardrail_reflection", {}),
         },
         "recommended_content_actions": _coerce_str_list(
             llm_pack.get("recommended_content_actions", [])
@@ -2810,6 +3288,7 @@ def run_market_analysis(
     progress_callback: Callable[..., None] | None = None,
     collections: list[dict[str, Any]] | None = None,
     articles: list[dict[str, Any]] | None = None,
+    reflection_test: bool = False,
 ) -> dict[str, Any]:
     """Run a two-pass SEO/GEO market analysis for active products.
 
@@ -2830,6 +3309,8 @@ def run_market_analysis(
         plan: Merchant plan, used to resolve the monthly LLM budget. None → default.
         progress_callback: Called with (done, total, partial_results, phase) where
             phase is "targeting" (pass 1) or "content" (pass 2).
+        reflection_test: When true, run a post-generation guardrail reflection and
+            at most one targeted retry per product. Intended for experimental analysis.
     """
     active_products = filter_products_by_scope(products, "active")
     opportunities = _score_active_products(active_products, gsc_query_rows, ga4_page_rows)
@@ -2883,6 +3364,8 @@ def run_market_analysis(
         sources_used.append("dataforseo")
     if google_ads_provider.available:
         sources_used.append("google_ads")
+    if reflection_test:
+        sources_used.append("content_guardrail_reflection")
 
     # ── PASS 1: targeting (understanding + candidate keywords) ───────────────
     pass1_states: list[dict[str, Any]] = []
@@ -3173,13 +3656,24 @@ def run_market_analysis(
                     max_tokens=4096,
                 )
 
-        pack["content_quality"] = _build_content_quality(
-            pack,
-            confirmed_facts=fields.get("confirmed_facts", []),
-            source_product_text=fields.get("source_product_text", ""),
-            surface_plan=pack.get("surface_plan", {}),
-            forbidden_phrases=forbidden_phrases,
-        )
+        if reflection_test and run_pass2:
+            pack = _run_reflection_test_loop(
+                pack,
+                llm_router=llm_router,
+                fields=fields,
+                business_context=business_context,
+                business_profile=business_profile,
+                niche_summary=niche_summary,
+                forbidden_phrases=forbidden_phrases,
+            )
+        else:
+            pack["content_quality"] = _build_content_quality(
+                pack,
+                confirmed_facts=fields.get("confirmed_facts", []),
+                source_product_text=fields.get("source_product_text", ""),
+                surface_plan=pack.get("surface_plan", {}),
+                forbidden_phrases=forbidden_phrases,
+            )
         product_results.append(
             _build_product_result(
                 state["product"],
