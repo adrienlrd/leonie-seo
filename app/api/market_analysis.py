@@ -256,6 +256,9 @@ def _run_analysis_background(
             "sources_used": result["sources_used"],
             "provider_status": result.get("provider_status", {}),
             "competitor_signals": result.get("competitor_signals", []),
+            "cannibalization_alerts": result.get("cannibalization_alerts", []),
+            "orphan_products": result.get("orphan_products", []),
+            "blog_gap_suggestions": result.get("blog_gap_suggestions", []),
             "business_profile_context": result.get("business_profile_context", {}),
             "products": result["products"],
             "progress": result["analyzed_product_count"],
@@ -270,6 +273,9 @@ def _run_analysis_background(
                 replace_product_analysis(shop_domain, product_result, result["analyzed_at"])
         update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
     except Exception as exc:
+        import logging  # noqa: PLC0415
+
+        logging.getLogger(__name__).exception("Market analysis job %s failed", job_id)
         update_job(job_id, status="failed", error=str(exc))
 
 

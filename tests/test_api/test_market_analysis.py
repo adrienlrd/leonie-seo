@@ -24,6 +24,23 @@ def _analysis_result() -> dict:
         "sources_used": ["shopify_snapshot"],
         "provider_status": {"free": True},
         "competitor_signals": [],
+        "cannibalization_alerts": [
+            {
+                "cluster_head": "harnais chien",
+                "product_ids": ["gid://shopify/Product/1", "gid://shopify/Product/2"],
+                "products": [],
+                "winner_suggested": "gid://shopify/Product/1",
+                "action": "reorient_secondary",
+            }
+        ],
+        "orphan_products": ["gid://shopify/Product/1"],
+        "blog_gap_suggestions": [
+            {
+                "cluster_head": "comment choisir un harnais chien",
+                "suggested_title": "Comment choisir un harnais chien",
+                "reason": "informational_intent_uncovered",
+            }
+        ],
         "products": [
             {
                 "product_id": "gid://shopify/Product/1",
@@ -55,6 +72,32 @@ def test_faq_is_not_published_when_analysis_job_completes() -> None:
 
     persisted = save_result.call_args.args[1]
     assert "faq_sync" not in persisted["products"][0]["content_test_pack"]
+
+
+def test_analysis_background_persists_market_intelligence_fields() -> None:
+    """Top-level analysis diagnostics remain visible after job completion."""
+    with (
+        patch("app.api.market_analysis.run_market_analysis", return_value=_analysis_result()),
+        patch("app.api.market_analysis.save_latest_result") as save_result,
+        patch("app.api.market_analysis.update_job") as update_job,
+    ):
+        _run_analysis_background(
+            "job-intel",
+            [],
+            "shop.myshopify.com",
+            {},
+            [],
+            {},
+            None,
+            None,
+        )
+
+    persisted = save_result.call_args.args[1]
+    completed_update = update_job.call_args.kwargs
+    assert persisted["cannibalization_alerts"][0]["cluster_head"] == "harnais chien"
+    assert persisted["orphan_products"] == ["gid://shopify/Product/1"]
+    assert persisted["blog_gap_suggestions"][0]["reason"] == "informational_intent_uncovered"
+    assert completed_update["cannibalization_alerts"] == persisted["cannibalization_alerts"]
 
 
 def test_analysis_background_passes_validated_business_profile_to_engine() -> None:

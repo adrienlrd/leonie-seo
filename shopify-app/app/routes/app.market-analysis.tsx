@@ -1531,6 +1531,7 @@ export default function MarketAnalysisPage() {
   const [singleProductJobId, setSingleProductJobId] = useState<string | null>(null);
   const [singleProductId, setSingleProductId] = useState<string | null>(null);
   const [singleProductJob, setSingleProductJob] = useState<JobState | null>(null);
+  const [singleProductError, setSingleProductError] = useState<string | null>(null);
 
   // ── Fetchers ──────────────────────────────────────────────────────────────
   type ActionData = { type: string; jobId?: string | null; job?: JobState | null; error?: string | null; productId?: string | null };
@@ -1663,6 +1664,9 @@ export default function MarketAnalysisPage() {
       if (singleFetcher.data.jobId) {
         setSingleProductJobId(singleFetcher.data.jobId);
         setSingleProductJob(null);
+        setSingleProductError(null);
+      } else if (singleFetcher.data.error) {
+        setSingleProductError(singleFetcher.data.error);
       }
     }
   }, [singleFetcher.data]);
@@ -1692,15 +1696,18 @@ export default function MarketAnalysisPage() {
           setSingleProductJobId(null);
           setSingleProductId(null);
           setSingleProductJob(null);
+          setSingleProductError(null);
         }
         if (d.job.status === "failed") {
+          setSingleProductError(d.job.error || t(locale, "marketAnalysisSingleProductFailed"));
           setSingleProductJobId(null);
           setSingleProductId(null);
           setSingleProductJob(null);
         }
       }
+      if (d.error) setSingleProductError(d.error);
     }
-  }, [pollSingleFetcher.data]);
+  }, [pollSingleFetcher.data, locale]);
 
   // ── Polling loop: identification job ─────────────────────────────────────
   useEffect(() => {
@@ -1781,7 +1788,11 @@ export default function MarketAnalysisPage() {
 
   const startError =
     startFetcher.data?.type === "start" ? (startFetcher.data.error ?? null) : null;
-  const anyError = startError || pollError || (job?.status === "failed" ? job.error : null);
+  const anyError =
+    startError ||
+    pollError ||
+    singleProductError ||
+    (job?.status === "failed" ? job.error : null);
 
   const isSingleRunning =
     singleFetcher.state !== "idle" ||
@@ -1866,6 +1877,7 @@ export default function MarketAnalysisPage() {
     setSingleProductJobId(null);
     setSingleProductId(productId);
     setSingleProductJob(null);
+    setSingleProductError(null);
     const fd = new FormData();
     fd.set("intent", "startSingle");
     fd.set("productId", productId);
@@ -1876,6 +1888,7 @@ export default function MarketAnalysisPage() {
     setSingleProductJobId(null);
     setSingleProductId(productId);
     setSingleProductJob(null);
+    setSingleProductError(null);
     const fd = new FormData();
     fd.set("intent", "saveFactsAndStartSingle");
     fd.set("productId", productId);
