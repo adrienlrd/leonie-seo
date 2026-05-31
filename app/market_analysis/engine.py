@@ -199,6 +199,10 @@ _BLOCKING_REASON_LABELS = {
     "forbidden_promise_detected": "Bloqué : claims non justifiés",
     "faq_blocked_missing_evidence": "Bloqué : FAQ générée sans preuves suffisantes",
     "product_fact_conflict": "Bloqué : conflit dans les faits produit",
+    "keyword_guardrail_blocked": "Bloqué : mots-clés non alignés avec le besoin client",
+    "keyword_customer_need_alignment_low": "Bloqué : mots-clés non alignés avec le besoin client",
+    "insufficient_product_page_keyword_targets": "Bloqué : mots-clés produit insuffisants",
+    "keyword_targets_too_indirect": "Bloqué : trop de mots-clés indirects ou non prouvés",
 }
 
 _REFLECTION_THRESHOLD = 75
@@ -1278,30 +1282,6 @@ _FR_STOP_WORDS = frozenset(
     " je tu il elle nous vous ils elles".split()
 )
 
-_PET_AUDIENCE_WORDS = frozenset({"chien", "chiens", "chat", "chats"})
-_PRODUCT_TYPE_WORDS = frozenset(
-    {
-        "abreuvoir",
-        "arbre",
-        "bol",
-        "collier",
-        "couchette",
-        "coussin",
-        "fontaine",
-        "gamelle",
-        "harnais",
-        "laisse",
-        "lit",
-        "manteau",
-        "panier",
-        "pull",
-        "vêtement",
-        "vêtements",
-        "vetement",
-        "vetements",
-    }
-)
-
 
 def _content_words(text: str) -> frozenset[str]:
     """Extract meaningful lowercase words (≥3 chars, non-stop) from a keyword string."""
@@ -1330,6 +1310,13 @@ def _content_word_count(text: str) -> int:
     )
 
 
+def _seed_text_list(seed_texts: str | list[str]) -> list[str]:
+    """Normalize source texts used to discover product seed phrases."""
+    if isinstance(seed_texts, str):
+        return [seed_texts]
+    return [str(text) for text in seed_texts if str(text).strip()]
+
+
 def _idea_is_relevant(
     idea_query: str,
     seed_queries: list[str],
@@ -1355,23 +1342,30 @@ def _idea_is_relevant(
     return len(idea_words & product_words) >= min_overlap
 
 
-def _generic_product_seeds(source_text: str, *, limit: int = 4) -> list[str]:
-    """Build short category seeds from product type + pet audience words."""
-    words = _content_word_sequence(source_text)
-    product_types: list[str] = []
-    audiences: list[str] = []
-    for word in words:
-        if word in _PRODUCT_TYPE_WORDS and word not in product_types:
-            product_types.append(word)
-        if word in _PET_AUDIENCE_WORDS and word not in audiences:
-            audiences.append(word)
-
+def _generic_product_seeds(seed_texts: str | list[str], *, limit: int = 6) -> list[str]:
+    """Build short product seeds from observed text, without domain vocabularies."""
     seeds: list[str] = []
-    for product_type in product_types[:2]:
-        for audience in audiences[:2]:
-            seeds.append(f"{product_type} {audience}")
-            seeds.append(f"{product_type} pour {audience}")
-    return list(dict.fromkeys(seeds))[:limit]
+    for text in _seed_text_list(seed_texts):
+        raw_words = re.findall(r"[a-zàâäéèêëîïôùûüç]+", text.lower())
+        words = _content_word_sequence(text)
+        for idx, word in enumerate(raw_words):
+            if word != "pour":
+                continue
+            before = [w for w in raw_words[:idx] if len(w) >= 3 and w not in _FR_STOP_WORDS]
+            after = [w for w in raw_words[idx + 1 :] if len(w) >= 3 and w not in _FR_STOP_WORDS]
+            if before and after:
+                head = before[0]
+                audience_or_use = after[0]
+                seeds.append(f"{head} {audience_or_use}")
+                seeds.append(f"{head} pour {audience_or_use}")
+        if len(words) >= 3:
+            seeds.append(" ".join(words[:3]))
+            seeds.append(f"{words[0]} {words[-1]}")
+            seeds.append(f"{words[0]} pour {words[-1]}")
+        elif len(words) == 2:
+            seeds.append(" ".join(words))
+            seeds.append(f"{words[0]} pour {words[-1]}")
+    return list(dict.fromkeys(seed for seed in seeds if seed.strip()))[:limit]
 
 
 def _score_idea_fit(idea_query: str, product_words: frozenset[str]) -> int:
@@ -1402,6 +1396,7 @@ _SOURCE_PRIORITY = {
     "gsc": 3,
     "google_suggest": 2,
     "trends": 1,
+    "market_seed": 1,
     "llm_proposed": 0,
     "llm_estimated": 0,
 }
@@ -1411,6 +1406,100 @@ _SUGGEST_SEED_MAX = 5
 # Question prefixes used to harvest GEO/AEO intents from Google Suggest — these
 # mirror what shoppers type into Google and ask assistants like ChatGPT.
 _QUESTION_PREFIXES = ("comment", "pourquoi", "quelle", "quel", "combien")
+
+_CUSTOMER_PROBLEM_TERMS = frozenset(
+    {
+        "froid",
+        "froide",
+        "hiver",
+        "chaud",
+        "chaude",
+        "frileux",
+        "frileuse",
+        "tire",
+        "traction",
+        "boit",
+        "boire",
+        "hydratation",
+        "soif",
+        "silencieux",
+        "silencieuse",
+    }
+)
+
+_UNCONFIRMED_QUERY_MODIFIERS = frozenset(
+    {
+        "personnalisé",
+        "personnalise",
+        "personnalisée",
+        "personnalisee",
+        "custom",
+        "mesure",
+    }
+)
+
+
+def _market_need_seed_queries(
+    source_text: str | list[str],
+    *,
+    buying_intents: list[str] | None = None,
+    target_customer: str = "",
+    limit: int = 10,
+) -> list[str]:
+    """Build deterministic product/customer-need seeds from discovered context."""
+    seeds = list(_generic_product_seeds(source_text, limit=limit))
+    base_seeds = [seed for seed in seeds if len(_content_words(seed)) >= 2]
+    intent_words: list[str] = []
+    for intent in buying_intents or []:
+        for word in _content_word_sequence(str(intent)):
+            if word not in intent_words:
+                intent_words.append(word)
+    customer_words = _content_word_sequence(target_customer)
+
+    for base_seed in base_seeds[:2]:
+        base_words = _content_words(base_seed)
+        for intent_word in intent_words[:3]:
+            if intent_word not in base_words:
+                seeds.append(f"{base_seed} {intent_word}")
+    if customer_words and intent_words:
+        customer = customer_words[0]
+        for intent_word in intent_words[:2]:
+            if intent_word != customer:
+                seeds.append(f"{customer} {intent_word}")
+    return list(dict.fromkeys(seed for seed in seeds if seed.strip()))[:limit]
+
+
+def _seed_keyword_candidates(
+    queries: list[str],
+    product_words: frozenset[str],
+) -> list[dict[str, Any]]:
+    """Turn deterministic market-need seeds into enrichable keyword candidates."""
+    candidates: list[dict[str, Any]] = []
+    for query in queries:
+        query = _clean_keyword_query(query)
+        if not query:
+            continue
+        words = _content_words(query)
+        is_problem = bool(words & _CUSTOMER_PROBLEM_TERMS)
+        candidates.append(
+            {
+                "query": query,
+                "intent_type": "informational" if is_problem else "commercial",
+                "demand_score": 45 if is_problem else 50,
+                "competition_score": 50,
+                "product_fit_score": max(_score_idea_fit(query, product_words), 65),
+                "reason": (
+                    "Seed déterministe de besoin client"
+                    if is_problem
+                    else "Seed déterministe de catégorie produit"
+                ),
+                "data_source": "market_seed",
+                "difficulty_source": "free_estimated",
+                "search_volume": None,
+                "notes": ["Seed ajouté pour couvrir le besoin client avant génération"],
+            }
+        )
+    return candidates
 
 
 def _gsc_candidates(
@@ -1590,19 +1679,17 @@ def _build_keyword_candidate_pool(
 
     gsc_cands = _gsc_candidates(product_words, gsc_query_rows)
 
-    source_text = " ".join(
-        [
-            str(fields.get("source_product_text", "") or title),
-            label,
-            handle_words,
-        ]
-    )
+    seed_texts = [
+        label,
+        title,
+        handle_words,
+    ]
     seeds: list[str] = []
     for seed in [label or title, title]:
         seed = seed.strip()
         if seed and seed.lower() not in {s.lower() for s in seeds}:
             seeds.append(seed)
-    for seed in _generic_product_seeds(source_text):
+    for seed in _market_need_seed_queries(seed_texts):
         if seed and seed.lower() not in {s.lower() for s in seeds}:
             seeds.append(seed)
     if gsc_cands and gsc_cands[0]["query"].lower() not in {s.lower() for s in seeds}:
@@ -1615,6 +1702,8 @@ def _build_keyword_candidate_pool(
     for cand in _trend_candidates(
         fields.get("trend_top", []) or [], fields.get("trend_rising", []) or [], product_words
     ):
+        _merge_pool_candidate(pool, cand)
+    for cand in _seed_keyword_candidates(_market_need_seed_queries(seed_texts), product_words):
         _merge_pool_candidate(pool, cand)
 
     if dataforseo is not None and getattr(dataforseo, "available", False) and seeds:
@@ -1831,6 +1920,8 @@ def _classify_keyword_surface(keyword: dict[str, Any]) -> dict[str, Any]:
     intent = str(keyword.get("intent_type", "")).lower()
     is_question = "?" in query or bool(words & {"comment", "pourquoi", "quelle", "quelles", "quel"})
     is_diy_free = bool(words & _DIY_FREE_QUERY_MARKERS)
+    is_problem_need = bool(words & _CUSTOMER_PROBLEM_TERMS)
+    has_unconfirmed_modifier = bool(words & _UNCONFIRMED_QUERY_MODIFIERS)
     is_blog = (
         is_diy_free
         or bool(words & _BLOG_QUERY_MARKERS)
@@ -1846,7 +1937,23 @@ def _classify_keyword_surface(keyword: dict[str, Any]) -> dict[str, Any]:
             "question",
         }
     )
-    if is_question and not is_diy_free:
+    if has_unconfirmed_modifier:
+        surface = "blog"
+        reason = "unconfirmed_segment_or_modifier"
+    elif is_diy_free:
+        surface = "blog"
+        reason = "indirect_diy_or_free_query"
+    elif is_problem_need and intent in {
+        "informational",
+        "informationnel",
+        "informatif",
+        "informative",
+        "how-to",
+        "question",
+    }:
+        surface = "blog"
+        reason = "customer_problem_or_need"
+    elif is_question:
         surface = "faq"
         reason = "short_fact_question"
     elif is_blog:
@@ -1860,7 +1967,7 @@ def _classify_keyword_surface(keyword: dict[str, Any]) -> dict[str, Any]:
         "surface": surface,
         "reason": reason,
         "product_primary_allowed": surface == "product_page",
-        "is_indirect_acquisition": is_diy_free,
+        "is_indirect_acquisition": is_diy_free or has_unconfirmed_modifier,
     }
 
 
@@ -1873,8 +1980,165 @@ def _build_keyword_surface_mapping(keywords: list[dict[str, Any]]) -> list[dict[
         item = _classify_keyword_surface(keyword)
         if item["query"]:
             item["target_role"] = keyword.get("target_role", "supporting")
+            item["customer_need_alignment_score"] = keyword.get(
+                "customer_need_alignment_score",
+                _keyword_need_alignment_score(keyword, frozenset()),
+            )
             mapping.append(item)
     return mapping
+
+
+def _keyword_need_alignment_score(keyword: dict[str, Any], product_words: frozenset[str]) -> int:
+    """Score whether a keyword expresses the product category or a customer need."""
+    query = _clean_keyword_query(keyword.get("query", ""))
+    words = _content_words(query)
+    if not words:
+        return 0
+    product_overlap = len(words & product_words)
+    has_problem = bool(words & _CUSTOMER_PROBLEM_TERMS)
+    has_diy = bool(words & _DIY_FREE_QUERY_MARKERS)
+    has_unconfirmed_modifier = bool(words & _UNCONFIRMED_QUERY_MODIFIERS) and not (
+        words & product_words & _UNCONFIRMED_QUERY_MODIFIERS
+    )
+    product_fit_raw = keyword.get("product_fit_score")
+    product_fit = int(product_fit_raw) if isinstance(product_fit_raw, (int, float)) else None
+    if has_diy:
+        return 25
+    if has_unconfirmed_modifier:
+        return 35
+    if product_fit is not None and product_fit < 50:
+        return 45 if product_overlap >= 2 else 25
+    if product_overlap >= 3:
+        return 95
+    if product_overlap >= 2:
+        return 90
+    if product_overlap == 1 and has_problem:
+        return 75
+    if product_overlap == 1:
+        return 60
+    return 15
+
+
+def _merge_keyword_lists(*keyword_lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deduplicate keyword dicts while preserving first occurrence order."""
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for keyword_list in keyword_lists:
+        for keyword in keyword_list or []:
+            if not isinstance(keyword, dict):
+                continue
+            query = _clean_keyword_query(keyword.get("query", ""))
+            key = query.casefold()
+            if not query or key in seen:
+                continue
+            candidate = dict(keyword)
+            candidate["query"] = query
+            merged.append(candidate)
+            seen.add(key)
+    return merged
+
+
+def _repair_keyword_selection_for_customer_need(
+    selected_keywords: list[dict[str, Any]],
+    candidate_pool: list[dict[str, Any]],
+    *,
+    source_text: str | list[str],
+    product_words: frozenset[str],
+    buying_intents: list[str] | None = None,
+    target_customer: str = "",
+) -> list[dict[str, Any]]:
+    """Inject deterministic category/problem seeds before ranking keyword targets."""
+    seed_candidates = _seed_keyword_candidates(
+        _market_need_seed_queries(
+            source_text,
+            buying_intents=buying_intents,
+            target_customer=target_customer,
+        ),
+        product_words,
+    )
+    return _merge_keyword_lists(selected_keywords, seed_candidates, candidate_pool)
+
+
+def _build_keyword_guardrail(
+    keywords: list[dict[str, Any]],
+    *,
+    product_words: frozenset[str],
+) -> dict[str, Any]:
+    """Validate keyword targets before content generation starts."""
+    top_targets = [keyword for keyword in keywords[:5] if isinstance(keyword, dict)]
+    if not top_targets:
+        return {
+            "status": "blocked",
+            "score": 0,
+            "issues": ["missing_primary_keyword_target"],
+            "blocking_reasons": [_BLOCKING_REASON_LABELS["keyword_guardrail_blocked"]],
+            "recommended_next_actions": ["Regenerate keyword targets from product category seeds."],
+        }
+
+    evaluated: list[dict[str, Any]] = []
+    for keyword in top_targets:
+        surface = _classify_keyword_surface(keyword)
+        score = _keyword_need_alignment_score(keyword, product_words)
+        evaluated.append(
+            {
+                "query": surface["query"],
+                "target_role": keyword.get("target_role", "supporting"),
+                "surface": surface["surface"],
+                "need_alignment_score": score,
+                "product_primary_allowed": surface["product_primary_allowed"],
+                "reason": surface["reason"],
+            }
+        )
+
+    primary = next(
+        (item for item in evaluated if item["target_role"] == "primary"),
+        evaluated[0],
+    )
+    product_page_targets = [
+        item
+        for item in evaluated
+        if item["surface"] == "product_page" and item["need_alignment_score"] >= 70
+    ]
+    indirect_targets = [
+        item
+        for item in evaluated
+        if item["need_alignment_score"] < 50 or not item["product_primary_allowed"]
+    ]
+
+    issues: list[str] = []
+    if primary["need_alignment_score"] < 70 or not primary["product_primary_allowed"]:
+        issues.append("keyword_customer_need_alignment_low")
+    if len(product_page_targets) < 2:
+        issues.append("insufficient_product_page_keyword_targets")
+    if len(indirect_targets) > 2:
+        issues.append("keyword_targets_too_indirect")
+
+    score = max(
+        0,
+        min(
+            100,
+            round(
+                sum(item["need_alignment_score"] for item in evaluated) / len(evaluated)
+                + min(len(product_page_targets), 3) * 5
+                - max(0, len(indirect_targets) - 1) * 10
+            ),
+        ),
+    )
+    status = "blocked" if issues else "pass"
+    return {
+        "status": status,
+        "score": score,
+        "issues": issues,
+        "evaluated_keywords": evaluated,
+        "blocking_reasons": _blocking_reasons(
+            ["keyword_guardrail_blocked", *issues] if issues else []
+        ),
+        "recommended_next_actions": (
+            ["Regenerate keyword targets around category and customer-problem seeds."]
+            if issues
+            else []
+        ),
+    }
 
 
 def _keyword_priority_score(
@@ -1968,9 +2232,17 @@ def _assign_keyword_targets(
         candidate["keyword_surface"] = surface["surface"]
         candidate["surface_reason"] = surface["reason"]
         candidate["product_primary_allowed"] = surface["product_primary_allowed"]
+        alignment_score = (
+            _keyword_need_alignment_score(candidate, product_words)
+            if product_words is not None
+            else 50
+        )
+        candidate["customer_need_alignment_score"] = alignment_score
         priority_score = _keyword_priority_score(candidate, product_words)
         if not surface["product_primary_allowed"]:
             priority_score = max(0, priority_score - 20)
+        if alignment_score < 50:
+            priority_score = max(0, priority_score - 25)
         candidate["priority_score"] = priority_score
         ranked.append(candidate)
 
@@ -2581,6 +2853,9 @@ def _build_content_quality(
     fact_conflicts = [
         conflict for conflict in pack.get("fact_conflicts", []) if isinstance(conflict, dict)
     ]
+    keyword_guardrail = (
+        pack.get("keyword_guardrail") if isinstance(pack.get("keyword_guardrail"), dict) else {}
+    )
     targets = [
         keyword
         for keyword in (pack.get("seo_keywords") or [])[:5]
@@ -2634,6 +2909,13 @@ def _build_content_quality(
 
     issues: list[str] = []
     advisories: list[str] = []
+    if keyword_guardrail.get("status") == "blocked":
+        issues.append("keyword_guardrail_blocked")
+        issues.extend(
+            issue
+            for issue in _coerce_str_list(keyword_guardrail.get("issues", []))
+            if issue not in issues
+        )
     for surface, blocked_issue in _SURFACE_BLOCKED_ISSUES.items():
         if _enabled_surface(plan, surface, default=surface == "metadata"):
             continue
@@ -2767,6 +3049,10 @@ def _build_content_quality(
         "product_consistency_below_threshold",
         "product_fact_conflict",
         "faq_blocked_missing_evidence",
+        "keyword_guardrail_blocked",
+        "keyword_customer_need_alignment_low",
+        "insufficient_product_page_keyword_targets",
+        "keyword_targets_too_indirect",
     ):
         if critical_issue in issues and critical_issue not in publish_blockers:
             publish_blockers.append(critical_issue)
@@ -2817,6 +3103,7 @@ def _build_content_quality(
         "unsupported_claim_categories": claim_validation["unsupported_claim_categories"],
         "publish_blockers": publish_blockers,
         "fact_conflicts": fact_conflicts,
+        "keyword_guardrail": keyword_guardrail,
         "merchant_questions": merchant_questions,
         "pending_questions": merchant_questions,
         "recommended_next_actions": next_actions,
@@ -3483,6 +3770,7 @@ def _build_product_result(
         "merchant_questions": merchant_questions,
         "recommended_next_actions": content_quality.get("recommended_next_actions", []),
         "keyword_surface_mapping": keyword_surface_mapping,
+        "keyword_guardrail": llm_pack.get("keyword_guardrail", {}),
         "trend_signals": opportunity.get("trend_signals", []),
         "competitor_signals": opportunity.get("signals", []),
         "content_test_pack": {
@@ -3547,6 +3835,7 @@ def _build_product_result(
             "merchant_questions": merchant_questions,
             "pending_questions": merchant_questions,
             "keyword_surface_mapping": keyword_surface_mapping,
+            "keyword_guardrail": llm_pack.get("keyword_guardrail", {}),
             "confidence": _normalize_confidence(llm_pack.get("confidence", "")) or "low",
             "content_quality": content_quality,
             "content_guardrail_reflection": llm_pack.get("content_guardrail_reflection", {}),
@@ -4086,7 +4375,15 @@ def run_market_analysis(
                 pack["seo_keywords"], free_provider, paid_providers, shop=shop
             )
 
-        pass1_states.append({"product": product, "opp": opp, "fields": fields, "pack": pack})
+        pass1_states.append(
+            {
+                "product": product,
+                "opp": opp,
+                "fields": fields,
+                "pack": pack,
+                "candidate_pool": candidate_pool,
+            }
+        )
 
         if progress_callback is not None:
             try:
@@ -4121,7 +4418,23 @@ def run_market_analysis(
                 ]
             )
         )
-        ranked = _assign_keyword_targets(state["pack"].get("seo_keywords", []) or [], product_words)
+        repaired_keywords = _repair_keyword_selection_for_customer_need(
+            state["pack"].get("seo_keywords", []) or [],
+            state.get("candidate_pool", []) or [],
+            source_text=[
+                fields.get("merchant_label", ""),
+                fields.get("product_title", ""),
+                str(fields.get("handle", "")).replace("-", " "),
+            ],
+            product_words=product_words,
+            buying_intents=_coerce_str_list(state["pack"].get("buying_intents", [])),
+            target_customer=str(state["pack"].get("target_customer", "")),
+        )
+        ranked = _assign_keyword_targets(repaired_keywords, product_words)
+        state["pack"]["keyword_guardrail"] = _build_keyword_guardrail(
+            ranked,
+            product_words=product_words,
+        )
         state["pack"]["seo_keywords"] = ranked
         for keyword in ranked[:2]:
             query = str(keyword.get("query", "")).strip()
@@ -4230,7 +4543,13 @@ def run_market_analysis(
     for idx, state in enumerate(pass1_states):
         fields = state["fields"]
         pack = state["pack"]
-        if run_pass2:
+        keyword_guardrail_blocked = (
+            isinstance(pack.get("keyword_guardrail"), dict)
+            and pack["keyword_guardrail"].get("status") == "blocked"
+        )
+        if keyword_guardrail_blocked and "keyword_guardrail" not in sources_used:
+            sources_used.append("keyword_guardrail")
+        if run_pass2 and not keyword_guardrail_blocked:
             from app.market_analysis import eeat as _eeat_mod  # noqa: PLC0415
 
             product_eeat_signals = _eeat_mod.detect_signals(
@@ -4297,7 +4616,7 @@ def run_market_analysis(
                     max_tokens=4096,
                 )
 
-        if reflection_test and run_pass2:
+        if reflection_test and run_pass2 and not keyword_guardrail_blocked:
             pack = _run_reflection_test_loop(
                 pack,
                 llm_router=llm_router,

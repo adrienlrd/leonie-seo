@@ -12,6 +12,20 @@
 
 - **Date:** 2026-05-31
 - **Agent:** Codex (GPT-5)
+- **Goal:** Corriger la sélection de mots-clés produit sans hardcoder de niches marketing.
+- **Summary:** Le correctif retire le vocabulaire déterministe animaux/produits du moteur keyword et génère les seeds depuis le libellé marchand, le titre et le handle via des patrons linguistiques génériques (`X pour Y`, variantes courtes produit/usage). Les intentions découvertes par le Pass 1 (`buying_intents`, `target_customer`) peuvent enrichir la réparation, mais aucun segment métier type petfood/coiffure/mécanique n'est codé en dur. Une étape `keyword_guardrail` valide les cibles avant Pass 2 : le primary doit être aligné avec le produit/besoin client, il faut assez de cibles page produit, et trop de requêtes indirectes/DIY/avis/personnalisation non prouvée bloque la génération de contenu. Tests ajoutés sur un produit digital (`formation SEO pour Shopify`) et mécanique (`huile moteur synthétique pour moto`) pour prouver la découverte cross-niche. JSON-LD, maillage interne et publication Shopify restent inchangés.
+- **Files created:** Aucun.
+- **Files modified:** `app/market_analysis/engine.py`, `tests/market_analysis/test_keyword_pool.py`, `tests/market_analysis/test_two_pass_engine.py`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Garder des garde-fous génériques d'intention (`gratuit`, `avis`, `meilleur`, questions, personnalisation non prouvée) mais ne pas maintenir d'ontologie marketing par niche. Réparer déterministiquement la sélection keyword avant ranking, puis bloquer Pass 2 si les mots-clés restent non alignés.
+- **Validations run:** `ruff format app/market_analysis/engine.py tests/market_analysis/test_keyword_pool.py tests/market_analysis/test_two_pass_engine.py` ✅ ; `ruff check app/market_analysis/engine.py tests/market_analysis/test_keyword_pool.py tests/market_analysis/test_two_pass_engine.py` ✅ ; `pytest tests/market_analysis/test_keyword_pool.py tests/market_analysis/test_two_pass_engine.py` ✅ (44 passed) ; `pytest tests/market_analysis tests/test_geo/test_facts.py tests/test_api/test_market_analysis.py` ✅ (165 passed).
+- **Validations skipped:** Pas de run live DataForSEO/Shopify embedded ; nécessite une nouvelle analyse réelle boutique.
+- **Open issues:** Les exports déjà générés conservent l'ancienne sélection du pull. Il faut relancer Analyse marché pour voir le nouveau `keyword_guardrail` et la sélection réparée.
+- **Next recommended action:** Relancer l'analyse produit sur la boutique pilote et vérifier que les seeds/rankings du pull viennent bien du texte produit + données marché, pas d'un vocabulaire métier figé.
+
+## Previous completed task
+
+- **Date:** 2026-05-31
+- **Agent:** Codex (GPT-5)
 - **Goal:** Durcir l'analyse marché produit pour empêcher les contenus non fiables d'être proposés comme publiables.
 - **Summary:** Le moteur applique désormais strictement `surface_plan` côté code : une surface `generate=false` est exclue de `keyword_coverage`, ses champs proposés sont vidés dans le JSON publiable, et la FAQ bloquée remonte `faq_blocked_missing_evidence` avec questions marchand non publiables. La validation post-génération sort maintenant `valid_claims`, `unsupported_claims`, `unsupported_claim_categories`, `publish_blockers`, `product_consistency_score`, `seo_geo_score`, `publish_status`, `blocking_reasons`, `surface_statuses`, `merchant_questions`, `recommended_next_actions` et `keyword_surface_mapping`. Les claims sensibles non prouvés, les conflits de faits produit, `product_consistency_score < 70` et `publish_ready=false` bloquent `auto_apply_allowed`. Les mots-clés sont classés par surface : produit transactionnel, blog/guide informationnel ou comparatif, FAQ question factuelle ; les requêtes DIY/gratuites/tricot/crochet et `meilleur/meilleure` ne peuvent plus devenir primary keyword produit. L'extraction produit lit davantage d'attributs depuis options/variantes/metafields/description et détecte les conflits de matériaux.
 - **Files created:** Aucun.

@@ -112,6 +112,43 @@ def test_pool_adds_generic_product_seeds_for_commercial_titles():
     assert "pull pour chien" in provider.seeds
 
 
+def test_pool_discovers_product_seeds_without_hardcoded_niche_vocabularies():
+    pool = engine._build_keyword_candidate_pool(
+        _fields(
+            product_title="Formation SEO Shopify",
+            merchant_label="formation SEO pour Shopify",
+            handle="formation-seo-pour-shopify",
+            source_product_text="Formation SEO pour Shopify avec audit et plan d'action",
+        ),
+        [],
+        dataforseo=None,
+        suggest_fetcher=lambda _s: [],
+    )
+    queries = {candidate["query"] for candidate in pool}
+
+    assert "formation shopify" in queries
+    assert "formation pour shopify" in queries
+
+
+def test_pool_discovers_mechanical_product_seeds_without_segment_dictionary():
+    provider = _FakeDataForSEO()
+    engine._build_keyword_candidate_pool(
+        _fields(
+            product_title="Huile moteur synthétique",
+            merchant_label="huile moteur synthétique pour moto",
+            handle="huile-moteur-synthetique-pour-moto",
+            source_product_text="Huile moteur synthétique pour moto 10W40",
+        ),
+        [],
+        dataforseo=provider,
+        suggest_fetcher=lambda _s: [],
+    )
+
+    assert provider.seeds is not None
+    assert "huile moto" in provider.seeds
+    assert "huile pour moto" in provider.seeds
+
+
 def test_pool_keeps_dataforseo_idea_when_it_matches_product_not_long_seed():
     idea = {
         "query": "manteau chien",
@@ -277,6 +314,69 @@ def test_accessory_keyword_penalized_when_product_is_not_the_accessory():
     assert score_prod > score_acc  # the fountain term beats the spare-filter term
     # Penalty only applies with product context.
     assert engine._keyword_priority_score(accessory) > score_acc
+
+
+def test_customer_need_repair_promotes_pull_category_before_indirect_queries():
+    selected = [
+        {
+            "query": "pull en cachemire pour chien",
+            "intent_type": "commercial",
+            "demand_score": 40,
+            "competition_score": 50,
+            "product_fit_score": 90,
+            "data_source": "google_suggest",
+            "difficulty_source": "free_estimated",
+        },
+        {
+            "query": "modèle tricot pull chien gratuit",
+            "intent_type": "informational",
+            "demand_score": 55,
+            "competition_score": 50,
+            "product_fit_score": 40,
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+        },
+        {
+            "query": "léonie delacroix avis",
+            "intent_type": "informational",
+            "demand_score": 35,
+            "competition_score": 50,
+            "product_fit_score": 0,
+            "data_source": "gsc",
+            "difficulty_source": "free_estimated",
+        },
+        {
+            "query": "pull chien personnalisé",
+            "intent_type": "commercial",
+            "demand_score": 40,
+            "competition_score": 50,
+            "product_fit_score": 30,
+            "data_source": "google_suggest",
+            "difficulty_source": "free_estimated",
+        },
+    ]
+    source_text = [
+        "pull en cachemire pour chien",
+        "Le pull Le Léonie",
+        "pull-pour-chien-en-cachemire".replace("-", " "),
+    ]
+    product_words = engine._content_words(" ".join(source_text))
+
+    repaired = engine._repair_keyword_selection_for_customer_need(
+        selected,
+        [],
+        source_text=source_text,
+        product_words=product_words,
+    )
+    ranked = engine._assign_keyword_targets(repaired, product_words)
+    top_queries = [keyword["query"] for keyword in ranked[:5]]
+    guardrail = engine._build_keyword_guardrail(ranked, product_words=product_words)
+
+    assert "pull chien" in top_queries
+    assert "pull pour chien" in top_queries
+    assert "modèle tricot pull chien gratuit" not in top_queries
+    assert "léonie delacroix avis" not in top_queries
+    assert guardrail["status"] == "pass"
 
 
 def test_identifier_calls_llm_deterministically():

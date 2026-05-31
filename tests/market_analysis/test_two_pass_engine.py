@@ -619,6 +619,51 @@ def test_product_consistency_below_threshold_blocks_reflection_status() -> None:
     assert attempt["product_consistency_score"] < 70
 
 
+def test_keyword_guardrail_blocks_content_quality_before_content_generation() -> None:
+    pack = {
+        "seo_keywords": [
+            {"query": "léonie delacroix avis", "target_role": "primary", "paa_questions": []},
+            {"query": "modèle tricot pull chien gratuit", "target_role": "secondary"},
+        ],
+        "proposed_meta_title": "",
+        "proposed_meta_description": "",
+        "proposed_product_description": "",
+        "proposed_faq": [],
+        "proposed_geo_answer_block": "",
+        "proposed_blog_title": "",
+        "proposed_blog_intro": "",
+        "proposed_blog_outline": [],
+        "claims_used": [],
+        "confidence": "low",
+        "keyword_guardrail": {
+            "status": "blocked",
+            "issues": [
+                "keyword_customer_need_alignment_low",
+                "insufficient_product_page_keyword_targets",
+            ],
+        },
+    }
+
+    quality = engine._build_content_quality(
+        pack,
+        confirmed_facts=[],
+        surface_plan={
+            "metadata": {"generate": True},
+            "product_description": {"generate": False},
+            "faq": {"generate": False},
+            "geo_answer": {"generate": False},
+            "blog": {"generate": False},
+        },
+    )
+
+    assert quality["publish_ready"] is False
+    assert quality["auto_apply_allowed"] is False
+    assert quality["final_status"] == "blocked"
+    assert "keyword_guardrail_blocked" in quality["issues"]
+    assert "keyword_customer_need_alignment_low" in quality["publish_blockers"]
+    assert "Bloqué : mots-clés non alignés avec le besoin client" in quality["blocking_reasons"]
+
+
 def test_keyword_assignment_keeps_diy_free_queries_out_of_product_primary() -> None:
     keywords = [
         {
