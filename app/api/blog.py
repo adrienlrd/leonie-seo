@@ -71,6 +71,7 @@ class PublishDraftRequest(BaseModel):
 class DraftCreateRequest(BaseModel):
     product_id: str
     auto_generate: bool = True
+    blog_idea_index: int | None = None
 
 
 class DraftUpdateRequest(BaseModel):
@@ -85,7 +86,12 @@ class DraftUpdateRequest(BaseModel):
     image_url: str | None = None
 
 
-def _draft_from_product(shop: str, product_id: str) -> dict[str, Any]:
+def _draft_from_product(
+    shop: str,
+    product_id: str,
+    *,
+    blog_idea_index: int | None = None,
+) -> dict[str, Any]:
     """Pre-populate a draft from the latest market analysis result for ``product_id``."""
     latest = load_latest_result(shop) or {}
     product = next(
@@ -97,15 +103,25 @@ def _draft_from_product(shop: str, product_id: str) -> dict[str, Any]:
             status_code=404, detail="Product not found in the latest market analysis"
         )
     pack = product.get("content_test_pack") or {}
+    blog_ideas = [
+        item for item in (pack.get("proposed_blog_ideas") or []) if isinstance(item, dict)
+    ]
+    selected_idea: dict[str, Any] = {}
+    if blog_idea_index is not None and 0 <= blog_idea_index < len(blog_ideas):
+        selected_idea = blog_ideas[blog_idea_index]
+    blog_title = selected_idea.get("title") or pack.get("proposed_blog_title", "")
+    intro = selected_idea.get("intro") or pack.get("proposed_blog_intro", "")
+    outline = selected_idea.get("outline") or pack.get("proposed_blog_outline") or []
+
     return {
         "product_id": product_id,
         "product_title": product.get("product_title", ""),
         "product_summary": product.get("product_summary", ""),
         "target_customer": product.get("target_customer", ""),
-        "blog_title": pack.get("proposed_blog_title", ""),
-        "intro": pack.get("proposed_blog_intro", ""),
-        "summary": (pack.get("proposed_blog_intro") or "")[:200],
-        "outline": list(pack.get("proposed_blog_outline") or []),
+        "blog_title": blog_title,
+        "intro": intro,
+        "summary": (intro or "")[:200],
+        "outline": list(outline or []),
         "sections": [],
         "confirmed_facts": pack.get("confirmed_facts") or [],
         "tags": [],
@@ -136,7 +152,7 @@ def create_blog_draft(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict[str, Any]:
     """Create a draft from a product. Generates all sections synchronously by default."""
-    draft = _draft_from_product(ctx.shop, body.product_id)
+    draft = _draft_from_product(ctx.shop, body.product_id, blog_idea_index=body.blog_idea_index)
     if body.auto_generate and draft["outline"]:
         draft["sections"] = generate_all_sections(
             blog_title=draft["blog_title"],
@@ -162,7 +178,9 @@ def update_blog_draft(
         raise HTTPException(status_code=404, detail="Draft not found")
     patch = body.model_dump(exclude_unset=True)
     if "sections" in patch and patch["sections"] is not None:
-        patch["sections"] = [s.model_dump() if hasattr(s, "model_dump") else s for s in patch["sections"]]
+        patch["sections"] = [
+            s.model_dump() if hasattr(s, "model_dump") else s for s in patch["sections"]
+        ]
     draft.update(patch)
     return save_draft(ctx.shop, draft)
 
@@ -305,7 +323,7 @@ def publish_blog_draft(
         raise HTTPException(status_code=404, detail="Draft not found")
     sections = [BlogSection(**s) for s in (draft.get("sections") or []) if isinstance(s, dict)]
     html = _assemble_body_html(draft.get("intro", ""), sections)
-    canonical_url = f"https://{ctx.shop}/blogs/blog/{draft.get('blog_title','')}"
+    canonical_url = f"https://{ctx.shop}/blogs/blog/{draft.get('blog_title', '')}"
     article_ld = build_article_jsonld(
         headline=draft.get("blog_title", ""),
         description=draft.get("summary") or draft.get("intro", "")[:200],

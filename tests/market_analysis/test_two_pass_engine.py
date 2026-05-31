@@ -795,6 +795,165 @@ def test_commercial_modifier_keyword_is_covered_without_forcing_exact_buy_word()
     assert "secondary_keyword_coverage_low" not in quality["issues"]
 
 
+def test_generated_pack_adds_faq_blog_ideas_and_geo_pack_to_description() -> None:
+    pack = {
+        "seo_keywords": [
+            {
+                "query": "pull cachemire chien",
+                "target_role": "primary",
+                "keyword_surface": "product_page",
+            },
+            {
+                "query": "pull pour chien",
+                "target_role": "secondary",
+                "keyword_surface": "product_page",
+            },
+            {
+                "query": "chien qui a froid",
+                "target_role": "secondary",
+                "keyword_surface": "blog",
+            },
+            {
+                "query": "comment choisir pull chien",
+                "target_role": "secondary",
+                "keyword_surface": "blog",
+            },
+            {
+                "query": "pull chien hiver",
+                "target_role": "secondary",
+                "keyword_surface": "blog",
+            },
+        ],
+        "geo_questions": [
+            {
+                "question": "Comment choisir un pull pour chien ?",
+                "answer_angle": "Critères de choix à confirmer",
+                "content_block_type": "faq",
+                "confidence": "high",
+            }
+        ],
+        "proposed_product_description": "Le pull cachemire chien est présenté avec les faits confirmés.",
+        "proposed_faq": [],
+        "proposed_geo_answer_block": "Le pull cachemire chien est un vêtement décrit par la fiche produit.",
+        "proposed_geo_definition_block": "Le pull cachemire chien est un vêtement pour chien.",
+        "proposed_geo_quick_facts": ["Matière indiquée dans la fiche produit"],
+        "proposed_geo_comparison_table": [{"critère": "Matière", "valeur": "Cachemire"}],
+        "proposed_blog_title": "",
+        "proposed_blog_intro": "",
+        "proposed_blog_outline": [],
+        "proposed_blog_ideas": [],
+    }
+
+    normalized = engine._normalize_generated_content_pack(
+        pack,
+        confirmed_facts=[
+            {
+                "key": "description",
+                "value": "Pull en cachemire pour chien confirmé dans la fiche produit.",
+                "source": "shopify_snapshot",
+                "confidence": "confirmed",
+            }
+        ],
+    )
+
+    assert len(normalized["proposed_faq"]) >= 5
+    assert normalized["proposed_faq"][0]["q"] == "Comment choisir un pull pour chien ?"
+    assert len(normalized["proposed_blog_ideas"]) == 5
+    assert all(idea["target_keyword"] for idea in normalized["proposed_blog_ideas"])
+    assert "Réponse courte" in normalized["proposed_product_description"]
+    assert "Définition GEO/IA" in normalized["proposed_product_description"]
+
+
+def test_generated_pack_builds_five_blog_ideas_from_one_keyword_when_needed() -> None:
+    pack = {
+        "seo_keywords": [
+            {
+                "query": "pull pour chien",
+                "target_role": "primary",
+                "keyword_surface": "product_page",
+            }
+        ],
+        "geo_questions": [],
+        "proposed_product_description": "",
+        "proposed_faq": [],
+        "proposed_blog_title": "",
+        "proposed_blog_intro": "",
+        "proposed_blog_outline": [],
+        "proposed_blog_ideas": [],
+    }
+
+    normalized = engine._normalize_generated_content_pack(
+        pack,
+        confirmed_facts=[],
+    )
+
+    assert len(normalized["proposed_blog_ideas"]) == 5
+    assert all(
+        "pull pour chien" in idea["target_keyword"] for idea in normalized["proposed_blog_ideas"]
+    )
+    assert all(idea["outline"] for idea in normalized["proposed_blog_ideas"])
+
+
+def test_content_quality_requires_important_keywords_in_metadata() -> None:
+    description = (
+        "Cette fontaine chat inox est décrite dans la fiche produit. La description "
+        "couvre aussi fontaine chat sans fil avec les faits confirmés, mais les métadonnées "
+        "ne couvrent pas tous les mots-clés secondaires sélectionnés."
+    )
+    pack = {
+        "seo_keywords": [
+            {
+                "query": "fontaine chat inox",
+                "target_role": "primary",
+                "keyword_surface": "product_page",
+            },
+            {
+                "query": "fontaine chat sans fil",
+                "target_role": "secondary",
+                "keyword_surface": "product_page",
+            },
+        ],
+        "proposed_meta_title": "Fontaine chat inox pour la maison",
+        "proposed_meta_description": "Fontaine chat inox décrite avec les faits de la fiche produit.",
+        "proposed_product_description": description,
+        "proposed_faq": [
+            {"q": "Comment utiliser une fontaine chat inox ?", "a": "Avec les faits confirmés."}
+        ],
+        "proposed_geo_answer_block": "La fontaine chat inox est décrite par la fiche produit.",
+        "proposed_blog_title": "",
+        "proposed_blog_intro": "",
+        "proposed_blog_outline": [],
+        "claims_used": [{"claim": "Fontaine chat inox", "fact_keys": ["description"]}],
+        "confidence": "high",
+    }
+
+    quality = engine._build_content_quality(
+        pack,
+        confirmed_facts=[
+            {
+                "key": "description",
+                "value": description,
+                "source": "shopify_snapshot",
+                "confidence": "confirmed",
+            }
+        ],
+        source_product_text=description,
+        surface_plan={
+            "metadata": {"generate": True},
+            "product_description": {"generate": True},
+            "faq": {"generate": True},
+            "geo_answer": {"generate": True},
+            "blog": {"generate": False},
+        },
+    )
+
+    assert quality["keyword_content_guardrail"]["status"] == "blocked"
+    assert "important_keyword_missing_from_metadata" in quality["publish_blockers"]
+    assert quality["keyword_content_guardrail"]["metadata_uncovered_keywords"] == [
+        "fontaine chat sans fil"
+    ]
+
+
 def test_keyword_assignment_keeps_diy_free_queries_out_of_product_primary() -> None:
     keywords = [
         {
@@ -859,11 +1018,9 @@ def test_best_fountain_query_is_blog_not_product_primary() -> None:
     assert mapping["meilleure fontaine à eau chat"]["product_primary_allowed"] is False
 
 
-def test_surface_plan_skips_facts_surfaces_without_verified_value_but_allows_blog_with_paa() -> (
-    None
-):
-    # No confirmed facts → product_description/faq/geo blocked.
-    # PAA present → blog allowed (blog does not require confirmed facts).
+def test_surface_plan_keeps_mandatory_faq_but_blocks_fact_surfaces_without_verified_value() -> None:
+    # No confirmed facts → product_description/geo blocked.
+    # PAA present → FAQ/blog can be drafted, then content quality decides publishability.
     keywords = [
         {
             "query": "bol chat",
@@ -877,14 +1034,15 @@ def test_surface_plan_skips_facts_surfaces_without_verified_value_but_allows_blo
 
     assert plan["metadata"]["generate"] is True
     assert plan["product_description"]["generate"] is False
-    assert plan["faq"]["generate"] is False
+    assert plan["faq"]["generate"] is True
+    assert plan["faq"]["reason"] == "paa_questions_available_pending_fact_validation"
     assert plan["geo_answer"]["generate"] is False
     assert plan["blog"]["generate"] is True
 
 
 def test_surface_plan_does_not_treat_thin_description_as_evidence_for_fact_surfaces() -> None:
-    # Thin description (< 12 words, no NER facts) → product_description/faq/geo blocked.
-    # Informational intent + PAA → blog still allowed.
+    # Thin description (< 12 words, no NER facts) → product_description/geo blocked.
+    # Informational intent + PAA → FAQ/blog still drafted before publish validation.
     keywords = [
         {
             "query": "fontaine chat",
@@ -906,7 +1064,8 @@ def test_surface_plan_does_not_treat_thin_description_as_evidence_for_fact_surfa
 
     assert plan["metadata"]["generate"] is True
     assert plan["product_description"]["generate"] is False
-    assert plan["faq"]["generate"] is False
+    assert plan["faq"]["generate"] is True
+    assert plan["faq"]["reason"] == "paa_questions_available_pending_fact_validation"
     assert plan["geo_answer"]["generate"] is False
     assert plan["blog"]["generate"] is True
 

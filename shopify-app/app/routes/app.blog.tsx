@@ -129,9 +129,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const url = new URL(request.url);
       const productId = url.searchParams.get("productId") || String(form.get("productId") || "");
       if (!productId) return respond(false, null, "Missing productId");
+      const rawBlogIdeaIndex = String(form.get("blogIdeaIndex") ?? "");
+      const blogIdeaIndex = rawBlogIdeaIndex === "" ? null : Number(rawBlogIdeaIndex);
+      const body: { product_id: string; auto_generate: boolean; blog_idea_index?: number } = {
+        product_id: productId,
+        auto_generate: true,
+      };
+      if (blogIdeaIndex !== null && Number.isFinite(blogIdeaIndex)) {
+        body.blog_idea_index = blogIdeaIndex;
+      }
       const res = await proxy("/blog/drafts", {
         method: "POST",
-        body: JSON.stringify({ product_id: productId, auto_generate: true }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) return respond(false, null, `${res.status}`);
       const draft = (await res.json()) as Draft;

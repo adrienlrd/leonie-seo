@@ -55,6 +55,7 @@ _PASS2_KEYS = (
     "proposed_blog_title",
     "proposed_blog_outline",
     "proposed_blog_intro",
+    "proposed_blog_ideas",
     "recommended_content_actions",
     "facts_used",
     "facts_missing",
@@ -180,7 +181,12 @@ _SURFACE_OUTPUT_FIELDS: dict[str, tuple[str, ...]] = {
         "proposed_geo_quick_facts",
         "proposed_geo_comparison_table",
     ),
-    "blog": ("proposed_blog_title", "proposed_blog_intro", "proposed_blog_outline"),
+    "blog": (
+        "proposed_blog_title",
+        "proposed_blog_intro",
+        "proposed_blog_outline",
+        "proposed_blog_ideas",
+    ),
 }
 
 _SURFACE_BLOCKED_ISSUES = {
@@ -206,6 +212,7 @@ _BLOCKING_REASON_LABELS = {
     "primary_keyword_not_used_in_content": "Bloqué : mot-clé principal non utilisé dans le contenu",
     "secondary_keyword_coverage_low": "Bloqué : mots-clés secondaires trop peu utilisés",
     "important_keyword_coverage_low": "Bloqué : mots-clés sélectionnés peu exploités",
+    "important_keyword_missing_from_metadata": "Bloqué : mots-clés absents des métadonnées",
 }
 
 _REFLECTION_THRESHOLD = 75
@@ -374,6 +381,30 @@ def _coerce_faq(value: Any) -> list[dict[str, str]]:
             continue
         out.append({"q": _coerce_str(item.get("q", "")), "a": _coerce_str(item.get("a", ""))})
     return out
+
+
+def _coerce_blog_ideas(value: Any) -> list[dict[str, Any]]:
+    """Ensure every blog idea has title, target_keyword, intro and outline."""
+    if not isinstance(value, list):
+        return []
+    ideas: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        title = _coerce_str(item.get("title") or item.get("blog_title", "")).strip()
+        keyword = _clean_keyword_query(item.get("target_keyword") or item.get("keyword", ""))
+        intro = _coerce_str(item.get("intro") or item.get("summary", "")).strip()
+        outline = _coerce_str_list(item.get("outline") or item.get("h2_questions") or [])
+        if title:
+            ideas.append(
+                {
+                    "title": title,
+                    "target_keyword": keyword,
+                    "intro": intro,
+                    "outline": outline[:7],
+                }
+            )
+    return ideas
 
 
 def _coerce_claims(value: Any) -> list[dict[str, Any]]:
@@ -679,6 +710,7 @@ def _build_pass2_retry_prompt(
         "proposed_product_title_if_different, proposed_product_description (2-3 phrases), "
         "proposed_faq (3 objets {q, a}), proposed_geo_answer_block (1 phrase), "
         "proposed_blog_title, proposed_blog_outline (3 strings), proposed_blog_intro (1 phrase), "
+        "proposed_blog_ideas (5 objets {title, target_keyword, intro, outline}), "
         "recommended_content_actions (2 strings), facts_used (2 strings), "
         "facts_missing (1 string), claims_used (liste d'objets {claim, fact_keys}), "
         "confidence (high/medium/low)."
@@ -726,6 +758,11 @@ def _build_pass2_prompt(
     )
     top_kws = sorted_kws[:8]
     top_queries = [str(k.get("query", "")) for k in top_kws[:5] if k.get("query")]
+    geo_question_lines = [
+        f"  - {question.get('question', '')} | angle: {question.get('answer_angle', '')}"
+        for question in _coerce_geo_questions(pass1.get("geo_questions", []))
+        if question.get("question")
+    ]
 
     # ── Targeted keywords (real volume/difficulty + GSC perf inline) ────────
     target_lines: list[str] = []
@@ -854,6 +891,9 @@ def _build_pass2_prompt(
     if paa_questions:
         parts.append("\n=== QUESTIONS PAA Google (à REPRENDRE dans proposed_faq) ===")
         parts.extend(f"  - {q}" for q in paa_questions[:10])
+    if geo_question_lines:
+        parts.append("\n=== QUESTIONS GEO/IA DÉTECTÉES (base obligatoire pour proposed_faq) ===")
+        parts.extend(geo_question_lines[:10])
     if crawl_lines:
         parts.append("\n=== PROBLÈMES TECHNIQUES DÉTECTÉS (crawl) ===")
         parts.extend(crawl_lines)
@@ -941,20 +981,23 @@ def _build_pass2_prompt(
         f"Utilise uniquement les faits confirmés pour parler du produit.\n"
         f"\n▶ proposed_meta_title (45-60 caractères) :\n"
         f'   • Contient naturellement le mot-clé #1 ("{top_kw_1}") OU une variation proche.\n'
+        f"   • Chaque mot-clé primary/secondary du TOP 5 doit apparaître dans proposed_meta_title OU proposed_meta_description.\n"
         f"   • Différenciant vs CONCURRENTS SERP listés (jamais copier leur formulation).\n"
         f"\n▶ proposed_meta_description (120-160 caractères) :\n"
         f"   • Contient naturellement le mot-clé #1 ; ajoute une cible secondaire seulement si la phrase reste utile et lisible.\n"
+        f"   • Doit compléter proposed_meta_title pour couvrir les mots-clés primary/secondary absents du titre.\n"
         f"   • Bénéfice produit ou CTA seulement s'il est confirmé par les données produit fournies.\n"
         f"   • Si des concurrents sont listés, adopte une formulation propre sans prétendre couvrir un manque non vérifié.\n"
         f"\n▶ proposed_product_description (200-300 mots, plusieurs paragraphes) :\n"
         f"   • Si la surface est marquée NE PAS GÉNÉRER, retourne une chaîne vide.\n"
+        f"   • Doit intégrer le pack GEO dans la description : réponse courte, définition extractible, faits rapides et tableau comparatif si disponibles.\n"
         f"   • Couvre l'intention principale puis des sujets secondaires uniquement lorsqu'ils apportent une information vérifiée.\n"
         f"   • Première phrase peut contenir le mot-clé #1 si cela reste naturel.\n"
         f"   • Explique seulement les caractéristiques et usages confirmés dans le contexte produit.\n"
         f"\n▶ proposed_faq (5-8 entrées) :\n"
-        f"   • Si la surface est marquée NE PAS GÉNÉRER, retourne une liste vide.\n"
-        f"   • Si des QUESTIONS PAA Google sont présentes : reprends les plus pertinentes (reformulation autorisée).\n"
-        f"   • Sinon : réponds aux intentions utiles du produit sans inventer une question issue de Google.\n"
+        f"   • Génère toujours une FAQ dès qu'un mot-clé principal existe.\n"
+        f"   • Utilise en priorité les QUESTIONS GEO/IA DÉTECTÉES, puis les QUESTIONS PAA Google si présentes.\n"
+        f"   • Si une réponse manque de preuve produit, formule une réponse prudente et ajoute le fait manquant dans facts_missing.\n"
         f"   • Utilise les mots-clés naturellement, sans répétition forcée dans chaque question.\n"
         f"   • Réponses 2-4 phrases factuelles ; pas de blabla marketing.\n"
         f"\n▶ proposed_geo_answer_block :\n"
@@ -969,6 +1012,11 @@ def _build_pass2_prompt(
         f"\n▶ proposed_blog_outline (5-7 sections H2) :\n"
         f"   • Seulement si le blog est généré : chaque H2 couvre une intention ou question pertinente.\n"
         f"   • Si des concurrents sont présents, différencie le cadrage sans affirmer ce qu'ils ne traitent pas.\n"
+        f"\n▶ proposed_blog_ideas :\n"
+        f"   • Propose exactement 5 idées d'articles.\n"
+        f"   • Chaque objet contient title, target_keyword, intro, outline (5-7 H2).\n"
+        f"   • Chaque idée cible un mot-clé différent ou une intention très liée aux mots-clés sélectionnés.\n"
+        f"   • Ces idées doivent pouvoir être générées en article séparé par le marchand.\n"
         f"\n▶ recommended_content_actions :\n"
         f"   • Si des CONCURRENTS DE DOMAINE sont listés, propose au plus une analyse comparative fondée sur les titres observés ;\n"
         f"     n'affirme jamais qu'un sujet est absent ou qu'un produit est supérieur sans preuve fournie.\n"
@@ -1012,6 +1060,7 @@ def _build_pass2_prompt(
         f"proposed_geo_quick_facts (liste strings courtes), "
         f"proposed_geo_comparison_table (liste objets {{critère, valeur}}), "
         f"proposed_blog_title, proposed_blog_outline (liste strings), proposed_blog_intro, "
+        f"proposed_blog_ideas (5 objets {{title, target_keyword, intro, outline}}), "
         f"recommended_content_actions (liste strings), facts_used (liste strings), "
         f"facts_missing (liste strings), claims_used (liste d'objets {{claim, fact_keys}}), "
         f"confidence (high/medium/low)."
@@ -2305,6 +2354,7 @@ def _attach_serp_evidence(
 def _build_surface_plan(
     keywords: list[dict[str, Any]],
     confirmed_facts: list[dict[str, Any]],
+    geo_questions: list[dict[str, Any]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Decide which content surfaces can add reliable user value."""
     confirmed_keys = {
@@ -2334,6 +2384,10 @@ def _build_surface_plan(
         bool(confirmed_keys & _NARRATIVE_FACT_KEYS) or _content_word_count(description_fact) >= 12
     )
     has_paa = any(keyword.get("paa_questions") for keyword in keywords[:5])
+    has_geo_questions = any(
+        isinstance(question, dict) and _coerce_str(question.get("question", "")).strip()
+        for question in (geo_questions or [])
+    )
     has_informational_target = any(
         str(keyword.get("intent_type", "")).lower()
         in {
@@ -2366,13 +2420,19 @@ def _build_surface_plan(
             else "insufficient_verified_product_facts",
         },
         "faq": {
-            "generate": has_informative_fact and (has_paa or has_merchant_faq_basis),
+            "generate": has_primary_target,
             "reason": (
                 "verified_paa_and_product_facts_available"
                 if has_paa and has_informative_fact
+                else "geo_ai_questions_available"
+                if has_geo_questions and has_primary_target
                 else "merchant_confirmed_faq_basis_available"
                 if has_informative_fact and has_merchant_faq_basis
-                else "insufficient_question_or_fact_evidence"
+                else "paa_questions_available_pending_fact_validation"
+                if has_paa and has_primary_target
+                else "mandatory_faq_from_primary_keyword_pending_validation"
+                if has_primary_target
+                else "missing_primary_target"
             ),
         },
         "geo_answer": {
@@ -2757,6 +2817,11 @@ def _build_keyword_content_guardrail(
             or _classify_keyword_surface(target)["surface"]
         )
         covered_adapted_fields = _coerce_str_list(coverage_item.get("adapted_fields_covered", []))
+        meta_fields_covered = [
+            field
+            for field in _coerce_str_list(coverage_item.get("fields", []))
+            if field in {"meta_title", "meta_description"}
+        ]
         evaluated.append(
             {
                 "query": _coerce_str(target.get("query", "")),
@@ -2766,7 +2831,9 @@ def _build_keyword_content_guardrail(
                 "coverage_mode": _coerce_str(coverage_item.get("coverage_mode", "exact_terms")),
                 "adapted_fields": _coerce_str_list(coverage_item.get("adapted_fields", [])),
                 "covered_adapted_fields": covered_adapted_fields,
+                "meta_fields_covered": meta_fields_covered,
                 "is_covered": bool(covered_adapted_fields),
+                "is_metadata_covered": bool(meta_fields_covered),
                 "required": role in {"primary", "secondary"},
             }
         )
@@ -2794,6 +2861,9 @@ def _build_keyword_content_guardrail(
     important_ratio = covered_important_count / len(important_items) if important_items else 1.0
     if important_items and important_ratio < 0.8:
         issues.append("important_keyword_coverage_low")
+    metadata_uncovered = [item for item in important_items if not item["is_metadata_covered"]]
+    if metadata_uncovered:
+        issues.append("important_keyword_missing_from_metadata")
 
     score = round(important_ratio * 100)
     return {
@@ -2808,6 +2878,7 @@ def _build_keyword_content_guardrail(
         "uncovered_important_keywords": [
             item["query"] for item in important_items if not item["is_covered"]
         ],
+        "metadata_uncovered_keywords": [item["query"] for item in metadata_uncovered],
         "blocking_reasons": _blocking_reasons(issues),
         "recommended_next_actions": (
             [
@@ -2924,6 +2995,7 @@ def _recommended_next_actions(
             "primary_keyword_not_used_in_content",
             "secondary_keyword_coverage_low",
             "important_keyword_coverage_low",
+            "important_keyword_missing_from_metadata",
         )
     ):
         actions.append(
@@ -2958,6 +3030,236 @@ def _normalize_merchant_questions(questions: list[dict[str, Any]] | Any) -> list
             }
         )
     return normalized
+
+
+def _confirmed_fact_summary(confirmed_facts: list[dict[str, Any]]) -> str:
+    """Return a compact confirmed-fact summary for generated FAQ fallbacks."""
+    for fact in confirmed_facts:
+        if not isinstance(fact, dict) or fact.get("confidence") != "confirmed":
+            continue
+        if fact.get("key") == "description":
+            text = _coerce_str(fact.get("value", "")).strip()
+            if text:
+                return text[:220]
+    for fact in confirmed_facts:
+        if not isinstance(fact, dict) or fact.get("confidence") != "confirmed":
+            continue
+        key = _coerce_str(fact.get("key", "")).strip()
+        value = _coerce_str(fact.get("value", "")).strip()
+        if key and value:
+            return f"{key}: {value[:180]}"
+    return ""
+
+
+def _ensure_mandatory_faq(
+    pack: dict[str, Any],
+    *,
+    confirmed_facts: list[dict[str, Any]],
+) -> None:
+    """Generate a draft FAQ from GEO/AI questions when the LLM left it empty."""
+    existing = _coerce_faq(pack.get("proposed_faq", []))
+    questions: list[str] = []
+    for item in _coerce_geo_questions(pack.get("geo_questions", [])):
+        question = _coerce_str(item.get("question", "")).strip()
+        if question and question not in questions:
+            questions.append(question)
+    for keyword in pack.get("seo_keywords", []) or []:
+        if not isinstance(keyword, dict):
+            continue
+        for question in keyword.get("paa_questions", []) or []:
+            question = _coerce_str(question).strip()
+            if question and question not in questions:
+                questions.append(question)
+    primary = next(
+        (
+            _coerce_str(keyword.get("query", "")).strip()
+            for keyword in pack.get("seo_keywords", []) or []
+            if isinstance(keyword, dict) and keyword.get("query")
+        ),
+        "",
+    )
+    fallback_questions = [
+        f"Qu'est-ce que {primary} ?" if primary else "",
+        f"Comment choisir {primary} ?" if primary else "",
+        f"À qui s'adresse {primary} ?" if primary else "",
+        f"Quels faits vérifier avant d'acheter {primary} ?" if primary else "",
+        f"Comment utiliser {primary} au quotidien ?" if primary else "",
+    ]
+    for question in fallback_questions:
+        if question and question not in questions:
+            questions.append(question)
+
+    fact_summary = _confirmed_fact_summary(confirmed_facts)
+    answer_base = (
+        f"D'après les informations produit confirmées, {fact_summary}"
+        if fact_summary
+        else "Cette réponse doit être validée avec des faits produit confirmés avant publication."
+    )
+    while len(existing) < 5 and questions:
+        question = questions.pop(0)
+        if any(item["q"].casefold() == question.casefold() for item in existing):
+            continue
+        existing.append({"q": question, "a": answer_base})
+    pack["proposed_faq"] = existing[:8]
+
+
+def _compose_geo_pack_text(pack: dict[str, Any]) -> str:
+    """Flatten the GEO pack so it can be included in the product description."""
+    parts: list[str] = []
+    answer = _coerce_str(pack.get("proposed_geo_answer_block", "")).strip()
+    definition = _coerce_str(pack.get("proposed_geo_definition_block", "")).strip()
+    quick_facts = _coerce_str_list(pack.get("proposed_geo_quick_facts", []))
+    comparison_rows = [
+        row for row in (pack.get("proposed_geo_comparison_table") or []) if isinstance(row, dict)
+    ]
+    if answer:
+        parts.append(f"Réponse courte : {answer}")
+    if definition:
+        parts.append(f"Définition GEO/IA : {definition}")
+    if quick_facts:
+        parts.append("À retenir : " + " ; ".join(quick_facts[:5]) + ".")
+    if comparison_rows:
+        row_bits = []
+        for row in comparison_rows[:4]:
+            criterion = _coerce_str(row.get("critère") or row.get("criterion") or "").strip()
+            value = _coerce_str(row.get("valeur") or row.get("value") or "").strip()
+            if criterion and value:
+                row_bits.append(f"{criterion}: {value}")
+        if row_bits:
+            parts.append("Repères comparatifs : " + " ; ".join(row_bits) + ".")
+    return "\n\n".join(parts)
+
+
+def _ensure_product_description_contains_geo_pack(pack: dict[str, Any]) -> None:
+    """Append the generated GEO pack to the product description when available."""
+    description = _coerce_str(pack.get("proposed_product_description", "")).strip()
+    geo_pack = _compose_geo_pack_text(pack)
+    if not description or not geo_pack:
+        return
+    if geo_pack.casefold() in description.casefold():
+        return
+    pack["proposed_product_description"] = f"{description}\n\n{geo_pack}"
+
+
+def _default_blog_outline(keyword: str) -> list[str]:
+    """Build a reusable article outline around one keyword intent."""
+    label = keyword or "ce produit"
+    return [
+        f"Comprendre l'intention derrière {label}",
+        f"Quand {label} est pertinent",
+        "Les critères à vérifier avant de choisir",
+        "Les faits produit à confirmer",
+        "Questions fréquentes des clients",
+    ]
+
+
+def _ensure_blog_ideas(pack: dict[str, Any]) -> None:
+    """Ensure at least five blog ideas tied to selected keywords are available."""
+    ideas = _coerce_blog_ideas(pack.get("proposed_blog_ideas", []))
+    existing_keys = {idea["target_keyword"].casefold() for idea in ideas if idea["target_keyword"]}
+    if pack.get("proposed_blog_title"):
+        primary_keyword = next(
+            (
+                _coerce_str(keyword.get("query", "")).strip()
+                for keyword in pack.get("seo_keywords", []) or []
+                if isinstance(keyword, dict) and keyword.get("query")
+            ),
+            "",
+        )
+        if primary_keyword.casefold() not in existing_keys:
+            ideas.insert(
+                0,
+                {
+                    "title": _coerce_str(pack.get("proposed_blog_title", "")),
+                    "target_keyword": primary_keyword,
+                    "intro": _coerce_str(pack.get("proposed_blog_intro", "")),
+                    "outline": _coerce_str_list(pack.get("proposed_blog_outline", []))
+                    or _default_blog_outline(primary_keyword),
+                },
+            )
+            existing_keys.add(primary_keyword.casefold())
+    for keyword in pack.get("seo_keywords", []) or []:
+        if len(ideas) >= 5:
+            break
+        if not isinstance(keyword, dict):
+            continue
+        query = _clean_keyword_query(keyword.get("query", ""))
+        if not query or query.casefold() in existing_keys:
+            continue
+        ideas.append(
+            {
+                "title": f"Guide : {query}",
+                "target_keyword": query,
+                "intro": f"Un guide pour répondre aux questions autour de « {query} » avec des faits vérifiables.",
+                "outline": _default_blog_outline(query),
+            }
+        )
+        existing_keys.add(query.casefold())
+    for question in _coerce_geo_questions(pack.get("geo_questions", [])):
+        if len(ideas) >= 5:
+            break
+        query = _coerce_str(question.get("question", "")).strip()
+        if not query or query.casefold() in existing_keys:
+            continue
+        ideas.append(
+            {
+                "title": query.rstrip("?"),
+                "target_keyword": query,
+                "intro": _coerce_str(question.get("answer_angle", ""))
+                or f"Une réponse structurée à la question « {query} ».",
+                "outline": _default_blog_outline(query),
+            }
+        )
+        existing_keys.add(query.casefold())
+    primary_keyword = next(
+        (
+            _clean_keyword_query(keyword.get("query", ""))
+            for keyword in pack.get("seo_keywords", []) or []
+            if isinstance(keyword, dict) and keyword.get("query")
+        ),
+        "",
+    )
+    fallback_keywords = [
+        f"comment choisir {primary_keyword}" if primary_keyword else "",
+        f"{primary_keyword} guide d'achat" if primary_keyword else "",
+        f"{primary_keyword} critères de choix" if primary_keyword else "",
+        f"{primary_keyword} questions fréquentes" if primary_keyword else "",
+        f"{primary_keyword} pour quel besoin" if primary_keyword else "",
+    ]
+    for query in fallback_keywords:
+        if len(ideas) >= 5:
+            break
+        query = _clean_keyword_query(query)
+        if not query or query.casefold() in existing_keys:
+            continue
+        ideas.append(
+            {
+                "title": f"Guide : {query}",
+                "target_keyword": query,
+                "intro": f"Un angle éditorial pour capter l'intention « {query} » sans transformer ce contenu en cible produit principale.",
+                "outline": _default_blog_outline(query),
+            }
+        )
+        existing_keys.add(query.casefold())
+    pack["proposed_blog_ideas"] = ideas[:5]
+    if ideas and not pack.get("proposed_blog_title"):
+        first = ideas[0]
+        pack["proposed_blog_title"] = first["title"]
+        pack["proposed_blog_intro"] = first.get("intro", "")
+        pack["proposed_blog_outline"] = first.get("outline", [])
+
+
+def _normalize_generated_content_pack(
+    pack: dict[str, Any],
+    *,
+    confirmed_facts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Apply deterministic content surface requirements after LLM generation."""
+    pack.setdefault("_original_proposed_faq", _coerce_faq(pack.get("proposed_faq", [])))
+    _ensure_mandatory_faq(pack, confirmed_facts=confirmed_facts)
+    _ensure_product_description_contains_geo_pack(pack)
+    _ensure_blog_ideas(pack)
+    return pack
 
 
 def _safe_surface_value(pack: dict[str, Any], surface_plan: dict[str, Any], field: str) -> Any:
@@ -3014,6 +3316,17 @@ def _build_content_quality(
                 _coerce_str(pack.get("proposed_blog_title", "")),
                 _coerce_str(pack.get("proposed_blog_intro", "")),
                 *_coerce_str_list(pack.get("proposed_blog_outline", [])),
+                *[
+                    " ".join(
+                        [
+                            _coerce_str(idea.get("title", "")),
+                            _coerce_str(idea.get("target_keyword", "")),
+                            _coerce_str(idea.get("intro", "")),
+                            *_coerce_str_list(idea.get("outline", [])),
+                        ]
+                    )
+                    for idea in _coerce_blog_ideas(pack.get("proposed_blog_ideas", []))
+                ],
             ]
         ).strip(),
     }
@@ -3219,6 +3532,7 @@ def _build_content_quality(
         "primary_keyword_not_used_in_content",
         "secondary_keyword_coverage_low",
         "important_keyword_coverage_low",
+        "important_keyword_missing_from_metadata",
     ):
         if critical_issue in issues and critical_issue not in publish_blockers:
             publish_blockers.append(critical_issue)
@@ -3304,6 +3618,17 @@ def _pack_generated_text(pack: dict[str, Any]) -> str:
             _coerce_str(pack.get("proposed_blog_title", "")),
             _coerce_str(pack.get("proposed_blog_intro", "")),
             " ".join(_coerce_str_list(pack.get("proposed_blog_outline", []))),
+            " ".join(
+                " ".join(
+                    [
+                        _coerce_str(idea.get("title", "")),
+                        _coerce_str(idea.get("target_keyword", "")),
+                        _coerce_str(idea.get("intro", "")),
+                        " ".join(_coerce_str_list(idea.get("outline", []))),
+                    ]
+                )
+                for idea in _coerce_blog_ideas(pack.get("proposed_blog_ideas", []))
+            ),
         ]
         if part
     )
@@ -3393,6 +3718,7 @@ def _build_content_reflection_attempt(
         "primary_keyword_not_used_in_content",
         "secondary_keyword_coverage_low",
         "important_keyword_coverage_low",
+        "important_keyword_missing_from_metadata",
     }
 
     business_terms = _content_words(
@@ -3633,6 +3959,10 @@ def _run_reflection_test_loop(
     retry_count = 0
 
     for attempt_idx in range(_REFLECTION_MAX_RETRIES + 1):
+        pack = _normalize_generated_content_pack(
+            pack,
+            confirmed_facts=fields.get("confirmed_facts", []),
+        )
         pack["content_quality"] = _build_content_quality(
             pack,
             confirmed_facts=fields.get("confirmed_facts", []),
@@ -3672,6 +4002,10 @@ def _run_reflection_test_loop(
             fields["product_title"],
             max_tokens=8192,
             temperature=0.0,
+        )
+        pack = _normalize_generated_content_pack(
+            pack,
+            confirmed_facts=fields.get("confirmed_facts", []),
         )
         retry_count += 1
 
@@ -3904,6 +4238,9 @@ def _build_product_result(
         _safe_surface_value(llm_pack, surface_plan, "proposed_product_description")
     )
     proposed_faq = _coerce_faq(_safe_surface_value(llm_pack, surface_plan, "proposed_faq"))
+    proposed_blog_ideas = _coerce_blog_ideas(
+        _safe_surface_value(llm_pack, surface_plan, "proposed_blog_ideas")
+    )
     confirmed_facts_list = llm_pack.get("confirmed_facts", []) or []
     schema_jsonld: dict[str, Any] = {}
     try:
@@ -3915,7 +4252,9 @@ def _build_product_result(
             shop=shop,
             meta_description=proposed_meta_description,
         )
-        faq_schema = _sb.build_faq_schema(proposed_faq)
+        faq_schema = _sb.build_faq_schema(
+            _coerce_faq(llm_pack.get("_original_proposed_faq", proposed_faq))
+        )
         schema_jsonld = {"product": product_schema}
         if faq_schema is not None:
             schema_jsonld["faq"] = faq_schema
@@ -4002,6 +4341,7 @@ def _build_product_result(
             "proposed_blog_intro": _coerce_str(
                 _safe_surface_value(llm_pack, surface_plan, "proposed_blog_intro")
             ),
+            "proposed_blog_ideas": proposed_blog_ideas,
             "proposed_comparison_or_buying_guide": "",
             "recommended_internal_links": [],
             "content_risks": [],
@@ -4641,6 +4981,7 @@ def run_market_analysis(
         state["pack"]["surface_plan"] = _build_surface_plan(
             state["pack"].get("seo_keywords", []) or [],
             state["fields"].get("confirmed_facts", []),
+            state["pack"].get("geo_questions", []) or [],
         )
         merchant_questions = _build_enrichment_questions(
             state["pack"].get("seo_keywords", []) or [],
@@ -4765,6 +5106,10 @@ def run_market_analysis(
             pack = _complete_json(
                 llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192
             )
+            pack = _normalize_generated_content_pack(
+                pack,
+                confirmed_facts=fields.get("confirmed_facts", []),
+            )
 
             # Retry once when the essential content fields are missing — the LLM sometimes
             # returns a valid but incomplete JSON (e.g. only meta fields, no description/FAQ).
@@ -4797,6 +5142,10 @@ def run_market_analysis(
                     fields["product_title"],
                     max_tokens=4096,
                 )
+                pack = _normalize_generated_content_pack(
+                    pack,
+                    confirmed_facts=fields.get("confirmed_facts", []),
+                )
 
         if reflection_test and run_pass2 and not keyword_guardrail_blocked:
             pack = _run_reflection_test_loop(
@@ -4809,6 +5158,10 @@ def run_market_analysis(
                 forbidden_phrases=forbidden_phrases,
             )
         else:
+            pack = _normalize_generated_content_pack(
+                pack,
+                confirmed_facts=fields.get("confirmed_facts", []),
+            )
             pack["content_quality"] = _build_content_quality(
                 pack,
                 confirmed_facts=fields.get("confirmed_facts", []),

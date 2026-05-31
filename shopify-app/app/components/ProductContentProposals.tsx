@@ -139,6 +139,7 @@ export function ProductContentProposals({
       proposed_blog_title: editedPack.proposed_blog_title,
       proposed_blog_intro: editedPack.proposed_blog_intro,
       proposed_blog_outline: editedPack.proposed_blog_outline,
+      proposed_blog_ideas: editedPack.proposed_blog_ideas,
     };
     saveFetcher.submit(
       { intent: "saveProposals", productId: product.product_id, proposals: JSON.stringify(proposals) },
@@ -322,15 +323,55 @@ export function ProductContentProposals({
         </BlockStack>
       ) : (
         <>
-          <Text as="p" variant="bodySm"><strong>{highlightKeywords(editedPack.proposed_blog_title, kwQueries)}</strong></Text>
+          {(() => {
+            const blogIdeas = (editedPack.proposed_blog_ideas && editedPack.proposed_blog_ideas.length > 0)
+              ? editedPack.proposed_blog_ideas.slice(0, 5)
+              : editedPack.proposed_blog_title
+                ? [{
+                    title: editedPack.proposed_blog_title,
+                    target_keyword: kwQueries[0] ?? "",
+                    intro: editedPack.proposed_blog_intro,
+                    outline: editedPack.proposed_blog_outline,
+                  }]
+                : [];
+            return (
+              <BlockStack gap="200">
+                {blogIdeas.map((idea, index) => (
+                  <Box key={`${idea.title}-${index}`} padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+                    <BlockStack gap="150">
+                      <InlineStack gap="200" align="space-between" blockAlign="start">
+                        <BlockStack gap="050">
+                          <Text as="p" variant="bodySm"><strong>{highlightKeywords(idea.title, kwQueries)}</strong></Text>
+                          {idea.target_keyword && (
+                            <Badge tone="info" size="small">{idea.target_keyword}</Badge>
+                          )}
+                        </BlockStack>
+                        <Form method="post" action={generateAction}>
+                          <input type="hidden" name="intent" value="createFromProduct" />
+                          <input type="hidden" name="blogIdeaIndex" value={String(index)} />
+                          <Button size="slim" variant="primary" submit loading={isGenerating}>
+                            {locale === "fr" ? "Générer l'article" : "Generate article"}
+                          </Button>
+                        </Form>
+                      </InlineStack>
+                      {idea.intro && (
+                        <Text as="p" variant="bodySm" tone="subdued">{highlightKeywords(idea.intro, kwQueries)}</Text>
+                      )}
+                      {idea.outline && idea.outline.length > 0 && (
+                        <BlockStack gap="050">
+                          {idea.outline.map((line, i) => (
+                            <Text key={i} as="p" variant="bodySm" tone="subdued">• {highlightKeywords(line, kwQueries)}</Text>
+                          ))}
+                        </BlockStack>
+                      )}
+                    </BlockStack>
+                  </Box>
+                ))}
+              </BlockStack>
+            );
+          })()}
           <BlockStack gap="200">
             <InlineStack gap="200">
-              <Form method="post" action={generateAction}>
-                <input type="hidden" name="intent" value="createFromProduct" />
-                <Button size="slim" variant="primary" submit loading={isGenerating}>
-                  {locale === "fr" ? "Générer l'article" : "Generate article"}
-                </Button>
-              </Form>
               <Button size="slim" variant="plain" url="/app/blog">
                 {locale === "fr" ? "Voir tous les blogs" : "View all blogs"}
               </Button>
@@ -343,16 +384,6 @@ export function ProductContentProposals({
               </Text>
             )}
           </BlockStack>
-          {editedPack.proposed_blog_intro && (
-            <Text as="p" variant="bodySm" tone="subdued">{highlightKeywords(editedPack.proposed_blog_intro, kwQueries)}</Text>
-          )}
-          {editedPack.proposed_blog_outline.length > 0 && (
-            <BlockStack gap="050">
-              {editedPack.proposed_blog_outline.map((line, i) => (
-                <Text key={i} as="p" variant="bodySm" tone="subdued">• {highlightKeywords(line, kwQueries)}</Text>
-              ))}
-            </BlockStack>
-          )}
         </>
       )}
     </BlockStack>

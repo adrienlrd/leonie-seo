@@ -226,6 +226,7 @@ interface ContentTestPack {
   proposed_blog_title: string;
   proposed_blog_outline: string[];
   proposed_blog_intro: string;
+  proposed_blog_ideas?: BlogIdea[];
   facts_used: string[];
   facts_missing: string[];
   confidence: string;
@@ -240,6 +241,13 @@ interface ContentTestPack {
     entry_count: number;
     applied_at: string | null;
   } | null;
+}
+
+interface BlogIdea {
+  title: string;
+  target_keyword: string;
+  intro: string;
+  outline: string[];
 }
 
 interface ProductResult {

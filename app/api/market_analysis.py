@@ -463,6 +463,7 @@ async def patch_market_analysis_proposals(
         "proposed_blog_title",
         "proposed_blog_intro",
         "proposed_blog_outline",
+        "proposed_blog_ideas",
     }
     proposals = {k: v for k, v in body.items() if k in allowed_keys}
     if proposals:
