@@ -122,3 +122,45 @@ def test_status_reports_unpublished_by_default(client) -> None:
 def test_webhook_tick_requires_internal_secret() -> None:
     resp = TestClient(app).post(f"/api/shops/{SHOP}/llms-txt/webhook-tick", json={"shop": SHOP})
     assert resp.status_code == 403
+
+
+def test_webhook_tick_skips_when_not_published(monkeypatch) -> None:
+    monkeypatch.setenv("INTERNAL_API_SECRET", "s3cret")
+    monkeypatch.setattr("app.api.llms_txt.get_token", lambda shop: {"access_token": "t"})
+    monkeypatch.setattr(
+        "app.api.llms_txt.publisher.should_regenerate",
+        lambda shop: (False, "not_published"),
+    )
+    resp = TestClient(app).post(
+        f"/api/shops/{SHOP}/llms-txt/webhook-tick",
+        json={"shop": SHOP},
+        headers={"X-Internal-Secret": "s3cret"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"regenerated": False, "reason": "not_published"}
+
+
+def test_webhook_tick_schedules_recrawl_and_republish(monkeypatch) -> None:
+    monkeypatch.setenv("INTERNAL_API_SECRET", "s3cret")
+    monkeypatch.setattr("app.api.llms_txt.get_token", lambda shop: {"access_token": "tok"})
+    monkeypatch.setattr(
+        "app.api.llms_txt.publisher.should_regenerate", lambda shop: (True, "regenerate")
+    )
+    captured: dict = {}
+
+    async def fake_regen(shop, token):
+        captured["shop"] = shop
+        captured["token"] = token
+
+    monkeypatch.setattr("app.api.llms_txt._regenerate_published", fake_regen)
+
+    resp = TestClient(app).post(
+        f"/api/shops/{SHOP}/llms-txt/webhook-tick",
+        json={"shop": SHOP},
+        headers={"X-Internal-Secret": "s3cret"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"regenerated": True, "reason": "scheduled"}
+    # Background task ran the re-crawl + republish.
+    assert captured == {"shop": SHOP, "token": "tok"}

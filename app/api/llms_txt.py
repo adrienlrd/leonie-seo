@@ -7,7 +7,7 @@ import logging
 import re
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import ShopContext, get_shop_context, require_internal_secret
@@ -15,6 +15,7 @@ from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_theme_files import ShopifyThemeError, ShopifyThemeScopeError
 from app.business_profile.jobs import load_business_profile
 from app.geo.llms_txt import LlmsTxtGenerationError, build_llms_payload
+from app.jobs.audit_snapshot import crawl_shopify_catalog_for_job
 from app.llms_txt import publisher, store
 from app.oauth.token_store import get_token
 from app.paths import data_dir
@@ -128,12 +129,45 @@ class WebhookTickRequest(BaseModel):
     shop: str
 
 
+async def _regenerate_published(shop: str, access_token: str) -> None:
+    """Re-crawl the catalogue snapshot, then republish the AI templates.
+
+    Runs in the background so the webhook response stays fast. A re-crawl is
+    required because the generator reads the stored snapshot, not Shopify live —
+    without it a product rename would never propagate.
+    """
+    try:
+        await crawl_shopify_catalog_for_job(
+            shop, access_token, raw_dir=data_dir(), force=True
+        )
+    except Exception as exc:  # noqa: BLE001 — background task must never crash the worker
+        logger.warning("Webhook re-crawl failed for %s: %s", shop, exc)
+
+    snapshot_path = data_dir() / shop / "shopify_snapshot.json"
+    snapshot = load_snapshot_from_file_or_db(shop, snapshot_path)
+    if not snapshot:
+        logger.warning("No snapshot available after re-crawl for %s", shop)
+        return
+
+    business_profile = load_business_profile(shop)
+    try:
+        publisher.publish(shop, access_token, snapshot, business_profile)
+    except (LlmsTxtGenerationError, ShopifyThemeError, publisher.LlmsPublishError) as exc:
+        logger.warning("Webhook republish failed for %s: %s", shop, exc)
+
+
 @router.post(
     "/shops/{shop}/llms-txt/webhook-tick",
     dependencies=[Depends(require_internal_secret)],
 )
-def llms_txt_webhook_tick(shop: str, body: WebhookTickRequest) -> dict:
-    """Internal: debounced republish triggered by catalogue webhooks."""
+def llms_txt_webhook_tick(
+    shop: str, body: WebhookTickRequest, background_tasks: BackgroundTasks
+) -> dict:
+    """Internal: debounced re-crawl + republish triggered by catalogue webhooks.
+
+    Returns immediately after the debounce decision; the re-crawl and republish
+    run in the background so Shopify's webhook delivery does not time out.
+    """
     if body.shop != shop or not _SHOP_DOMAIN_RE.match(shop):
         raise HTTPException(status_code=400, detail="Invalid shop")
 
@@ -141,16 +175,9 @@ def llms_txt_webhook_tick(shop: str, body: WebhookTickRequest) -> dict:
     if not record:
         raise HTTPException(status_code=403, detail="Shop is not installed")
 
-    snapshot_path = data_dir() / shop / "shopify_snapshot.json"
-    snapshot = load_snapshot_from_file_or_db(shop, snapshot_path)
-    if not snapshot:
-        return {"regenerated": False, "reason": "no_snapshot"}
+    regenerate, reason = publisher.should_regenerate(shop)
+    if not regenerate:
+        return {"regenerated": False, "reason": reason}
 
-    business_profile = load_business_profile(shop)
-    try:
-        return publisher.handle_webhook_tick(
-            shop, record["access_token"], snapshot, business_profile
-        )
-    except (LlmsTxtGenerationError, publisher.LlmsPublishError) as exc:
-        logger.warning("Webhook tick republish failed for %s: %s", shop, exc)
-        return {"regenerated": False, "reason": "publish_failed", "error": str(exc)}
+    background_tasks.add_task(_regenerate_published, shop, record["access_token"])
+    return {"regenerated": True, "reason": "scheduled"}

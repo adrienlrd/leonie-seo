@@ -148,50 +148,26 @@ def test_unpublish_is_best_effort_on_delete_error(db: Path) -> None:
     assert store.get_publication(SHOP, db_path=db)["is_published"] == 0
 
 
-def test_webhook_tick_noop_when_not_published(db: Path) -> None:
-    result = publisher.handle_webhook_tick(
-        SHOP, "token", _snapshot(), _BUSINESS, db_path=db, theme_writer=FakeTheme()
-    )
-    assert result["reason"] == "not_published"
+def test_should_regenerate_false_when_not_published(db: Path) -> None:
+    regenerate, reason = publisher.should_regenerate(SHOP, db_path=db)
+    assert (regenerate, reason) == (False, "not_published")
 
 
-def test_webhook_tick_is_debounced_within_window(db: Path) -> None:
+def test_should_regenerate_debounced_within_window(db: Path) -> None:
     publisher.publish(SHOP, "token", _snapshot(), _BUSINESS, db_path=db, theme_writer=FakeTheme())
     t0 = datetime(2026, 5, 31, 12, 0, tzinfo=UTC)
-    publisher.handle_webhook_tick(
-        SHOP,
-        "token",
-        _snapshot(extra_product=True),
-        _BUSINESS,
-        now=t0,
-        db_path=db,
-        theme_writer=FakeTheme(),
+    publisher.should_regenerate(SHOP, now=t0, db_path=db)
+    regenerate, reason = publisher.should_regenerate(
+        SHOP, now=t0 + timedelta(minutes=2), db_path=db
     )
-    second = publisher.handle_webhook_tick(
-        SHOP,
-        "token",
-        _snapshot(extra_product=True),
-        _BUSINESS,
-        now=t0 + timedelta(minutes=2),
-        db_path=db,
-        theme_writer=FakeTheme(),
-    )
-    assert second == {"regenerated": False, "reason": "debounced"}
+    assert (regenerate, reason) == (False, "debounced")
 
 
-def test_webhook_tick_republishes_after_window(db: Path) -> None:
+def test_should_regenerate_true_after_window(db: Path) -> None:
     publisher.publish(SHOP, "token", _snapshot(), _BUSINESS, db_path=db, theme_writer=FakeTheme())
     t0 = datetime(2026, 5, 31, 12, 0, tzinfo=UTC)
     store.record_webhook_tick(SHOP, t0.isoformat(), db_path=db)
-    theme = FakeTheme()
-    result = publisher.handle_webhook_tick(
-        SHOP,
-        "token",
-        _snapshot(extra_product=True),
-        _BUSINESS,
-        now=t0 + timedelta(minutes=6),
-        db_path=db,
-        theme_writer=theme,
+    regenerate, reason = publisher.should_regenerate(
+        SHOP, now=t0 + timedelta(minutes=6), db_path=db
     )
-    assert result["regenerated"] is True
-    assert len(theme.upserts) == 1
+    assert (regenerate, reason) == (True, "regenerate")

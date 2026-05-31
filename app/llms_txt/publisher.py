@@ -155,34 +155,27 @@ def _parse_iso(value: str | None) -> datetime | None:
         return None
 
 
-def handle_webhook_tick(
+def should_regenerate(
     shop: str,
-    access_token: str,
-    snapshot: dict[str, Any],
-    business_profile: dict[str, Any] | None,
     *,
     now: datetime | None = None,
     db_path: Path | None = None,
-    theme_writer: _ThemeWriter | None = None,
-) -> dict[str, Any]:
-    """Debounced catalogue-change handler: republish at most once per window."""
+) -> tuple[bool, str]:
+    """Record a catalogue webhook tick and decide whether to republish.
+
+    Returns ``(regenerate, reason)``. Regeneration is warranted only when the
+    shop is already published and the previous tick is older than the debounce
+    window — so catalogue bursts trigger at most one republish per window.
+    """
     current = now or datetime.now(UTC)
     existing = store.get_publication(shop, db_path)
     previous_tick = store.record_webhook_tick(shop, current.isoformat(), db_path)
 
     if not existing or not existing.get("is_published"):
-        return {"regenerated": False, "reason": "not_published"}
+        return False, "not_published"
 
     last = _parse_iso(previous_tick)
     if last is not None and (current - last) < WEBHOOK_DEBOUNCE:
-        return {"regenerated": False, "reason": "debounced"}
+        return False, "debounced"
 
-    result = publish(
-        shop,
-        access_token,
-        snapshot,
-        business_profile,
-        db_path=db_path,
-        theme_writer=theme_writer,
-    )
-    return {"regenerated": not result.get("skipped"), "publish": result}
+    return True, "regenerate"
