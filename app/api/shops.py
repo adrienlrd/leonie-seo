@@ -1,19 +1,46 @@
 """Shop management endpoints."""
 
+import re
 from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.api.deps import ShopContext, get_shop_context, require_internal_secret
 from app.api.plans import plan_summary
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
-from app.oauth.token_store import list_tokens
+from app.oauth.token_store import list_tokens, save_token
 from app.safety import is_pilot_safe_mode
 from app.snapshot.scope import filter_products_by_scope
 
 router = APIRouter(prefix="/api", tags=["shops"])
+
+_SHOP_DOMAIN_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$")
+
+
+class ShopTokenSync(BaseModel):
+    access_token: str
+    scope: str = ""
+
+
+@router.post("/shops/{shop}/internal/token", dependencies=[Depends(require_internal_secret)])
+def sync_shop_token(shop: str, body: ShopTokenSync) -> dict:
+    """Internal: persist the Remix-issued offline access token for a shop.
+
+    The embedded app authenticates via shopify-app-remix (token exchange) and
+    stores its token in the Remix session storage. The Python backend reads
+    ``shop_tokens`` for admin writes and webhook-triggered jobs, so the Remix
+    ``afterAuth`` hook calls this endpoint to keep that token current. Without
+    it, the backend relies on a stale/empty token and Shopify writes 401.
+    """
+    if not _SHOP_DOMAIN_RE.match(shop):
+        raise HTTPException(status_code=400, detail="Invalid shop domain")
+    if not body.access_token:
+        raise HTTPException(status_code=400, detail="Missing access_token")
+    save_token(shop, body.access_token, body.scope)
+    return {"saved": True}
 
 # Level-1 indexing diagnosis tuning.
 _RECENT_PUBLISH_DAYS = 14  # below this, Google may simply not have crawled yet

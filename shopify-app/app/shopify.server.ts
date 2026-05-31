@@ -8,6 +8,7 @@ import {
 } from "@shopify/shopify-app-remix/server";
 import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
 import { PostgreSQLSessionStorage } from "@shopify/shopify-app-session-storage-postgresql";
+import { callBackendForShop } from "./lib/api.server";
 
 // Use Postgres session storage when DATABASE_URL is configured (production + staging).
 // The same Neon database provisioned in task 54 stores both app data and OAuth sessions.
@@ -79,9 +80,28 @@ const shopify = shopifyApp({
         console.info(
           "[shopify.server] Skipping webhook registration for localhost development."
         );
-        return;
+      } else {
+        await shopify.registerWebhooks({ session });
       }
-      await shopify.registerWebhooks({ session });
+      // Sync the freshly issued offline token to the Python backend so its admin
+      // writes — and webhook-triggered jobs that read shop_tokens directly —
+      // always use a valid token. Without this the backend relies on a stale
+      // token and every Shopify write 401s.
+      try {
+        await callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/internal/token`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              access_token: session.accessToken ?? "",
+              scope: session.scope ?? "",
+            }),
+          },
+        );
+      } catch (err) {
+        console.error("[shopify.server] token sync to backend failed:", err);
+      }
     },
   },
   future: {
