@@ -115,6 +115,43 @@ def test_summary_falls_back_to_factual_counts_without_profile() -> None:
     assert "is an online store" in text
 
 
+def test_excludes_draft_and_unpublished_products() -> None:
+    snapshot = _snapshot()
+    snapshot["products"].append(
+        {
+            "id": "9",
+            "title": "Produit brouillon",
+            "handle": "produit-brouillon",
+            "status": "DRAFT",
+            "description": "Un brouillon avec assez de mots pour passer le filtre de copie.",
+        }
+    )
+    snapshot["products"].append(
+        {
+            "id": "10",
+            "title": "Produit dépublié",
+            "handle": "produit-depublie",
+            "status": "ACTIVE",
+            "onlineStoreUrl": None,
+            "description": "Un produit actif mais non publié sur le canal Online Store ici.",
+        }
+    )
+    text = build_llms_txt("leonie.myshopify.com", snapshot, _business_profile())
+    assert "/products/harnais-chien-cuir" in text  # active + published stays
+    assert "/products/produit-brouillon" not in text
+    assert "/products/produit-depublie" not in text
+
+
+def test_excludes_frontpage_collection() -> None:
+    snapshot = _snapshot()
+    snapshot["collections"].append(
+        {"id": "99", "title": "Home page", "handle": "frontpage"}
+    )
+    text = build_llms_txt("leonie.myshopify.com", snapshot, _business_profile())
+    assert "/collections/harnais-chien" in text
+    assert "/collections/frontpage" not in text
+
+
 def test_raises_when_no_listable_content() -> None:
     empty = {"shop": {"name": "Empty"}, "products": [], "collections": [], "pages": []}
     with pytest.raises(LlmsTxtGenerationError):

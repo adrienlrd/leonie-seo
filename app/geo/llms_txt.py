@@ -26,8 +26,11 @@ from app.geo._shared import (
     shop_domain,
     strip_html,
 )
+from app.snapshot.scope import filter_products_by_scope
 
 SPEC_VERSION = "2024-09"
+# The Online Store homepage collection — not a real category, excluded from listings.
+_EXCLUDED_COLLECTION_HANDLES = {"frontpage"}
 DEFAULT_FULL_BUDGET_BYTES = 500_000
 _ONE_LINER_MAX_CHARS = 120
 _SUMMARY_MAX_CHARS = 320
@@ -129,6 +132,25 @@ def _summary_line(
     return " ".join(parts) + "."
 
 
+def _active_products(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return only products that are live on the storefront (ACTIVE + published).
+
+    Drafts, archived and unpublished products (including test duplicates that the
+    merchant has unpublished) are excluded, so the AI files mirror what shoppers
+    and crawlers actually see — and self-heal when a product is archived.
+    """
+    return filter_products_by_scope(snapshot.get("products", []), "active")
+
+
+def _listable_collections(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return catalog collections, excluding the homepage (`frontpage`)."""
+    return [
+        collection
+        for collection in snapshot.get("collections", [])
+        if str(collection.get("handle") or "").strip() not in _EXCLUDED_COLLECTION_HANDLES
+    ]
+
+
 def _optional_pages(snapshot: dict[str, Any]) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     policy_handles = {path.rsplit("/", 1)[-1] for path, _ in POLICY_PATHS}
@@ -173,8 +195,8 @@ def build_llms_txt(
     """
     domain = shop_domain(shop, snapshot)
     shop_name = _resolve_shop_name(shop, snapshot, business_profile)
-    included_products, _ = product_rows(snapshot.get("products", []))
-    included_collections, _ = collection_rows(snapshot.get("collections", []))
+    included_products, _ = product_rows(_active_products(snapshot))
+    included_collections, _ = collection_rows(_listable_collections(snapshot))
     optional_pages = _optional_pages(snapshot)
 
     included_products = included_products[:top_products]
@@ -186,7 +208,7 @@ def build_llms_txt(
         )
 
     product_by_handle = {
-        str(p.get("handle") or "").strip(): p for p in snapshot.get("products", [])
+        str(p.get("handle") or "").strip(): p for p in _active_products(snapshot)
     }
 
     summary = _summary_line(
@@ -211,7 +233,7 @@ def build_llms_txt(
                 next(
                     (
                         c
-                        for c in snapshot.get("collections", [])
+                        for c in _listable_collections(snapshot)
                         if f"/collections/{str(c.get('handle') or '').strip()}" == row["path"]
                     ),
                     {},
@@ -246,10 +268,10 @@ def _full_sections(
 ) -> list[tuple[str, str]]:
     """Return (heading, body) markdown blocks for every listable page."""
     sections: list[tuple[str, str]] = []
-    included_products, _ = product_rows(snapshot.get("products", []))
-    included_collections, _ = collection_rows(snapshot.get("collections", []))
+    included_products, _ = product_rows(_active_products(snapshot))
+    included_collections, _ = collection_rows(_listable_collections(snapshot))
     product_by_handle = {
-        str(p.get("handle") or "").strip(): p for p in snapshot.get("products", [])
+        str(p.get("handle") or "").strip(): p for p in _active_products(snapshot)
     }
 
     for row in included_products:
@@ -263,7 +285,7 @@ def _full_sections(
             next(
                 (
                     c
-                    for c in snapshot.get("collections", [])
+                    for c in _listable_collections(snapshot)
                     if f"/collections/{str(c.get('handle') or '').strip()}" == row["path"]
                 ),
                 {},
@@ -344,8 +366,8 @@ def _build_full_with_omitted(
         raise LlmsTxtGenerationError(
             "Snapshot contains no product, collection, or page content for llms-full.txt."
         )
-    included_products, _ = product_rows(snapshot.get("products", []))
-    included_collections, _ = collection_rows(snapshot.get("collections", []))
+    included_products, _ = product_rows(_active_products(snapshot))
+    included_collections, _ = collection_rows(_listable_collections(snapshot))
     summary = _summary_line(
         shop_name,
         snapshot,
@@ -387,8 +409,8 @@ def build_llms_payload(
     llms_full_txt, omitted = _build_full_with_omitted(
         shop, snapshot, business_profile, budget_bytes=budget_bytes
     )
-    included_products, _ = product_rows(snapshot.get("products", []))
-    included_collections, _ = collection_rows(snapshot.get("collections", []))
+    included_products, _ = product_rows(_active_products(snapshot))
+    included_collections, _ = collection_rows(_listable_collections(snapshot))
     optional_pages = _optional_pages(snapshot)
 
     warnings: list[str] = []
