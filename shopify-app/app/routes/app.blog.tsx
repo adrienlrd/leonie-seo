@@ -40,6 +40,12 @@ import { getLocale, type Locale } from "../lib/i18n";
 import { authenticate } from "../shopify.server";
 
 interface Section { h2: string; direct_answer: string; body: string }
+interface InternalLink {
+  target_url: string;
+  anchor: string;
+  target_title?: string;
+  reason?: string;
+}
 interface Draft {
   id: string;
   product_id?: string;
@@ -48,6 +54,7 @@ interface Draft {
   intro: string;
   summary?: string;
   sections: Section[];
+  internal_links?: InternalLink[];
   outline?: string[];
   tags?: string[];
   author_type?: "Organization" | "Person";
@@ -315,6 +322,7 @@ export default function BlogIndexPage() {
           intro: draft.intro,
           summary: draft.summary,
           sections: draft.sections,
+          internal_links: draft.internal_links ?? [],
           tags: draft.tags ?? [],
           author_type: draft.author_type ?? "Organization",
           author_name: draft.author_name ?? "",
@@ -340,6 +348,14 @@ export default function BlogIndexPage() {
       { method: "post" },
     );
   };
+
+  const setInternalLink = (idx: number, patch: Partial<InternalLink>) =>
+    setDraft((prev) => prev ? {
+      ...prev,
+      internal_links: (prev.internal_links ?? []).map((link, i) =>
+        i === idx ? { ...link, ...patch } : link,
+      ),
+    } : prev);
 
   const onOpenPublish = () => {
     setPublishOpen(true);
@@ -478,6 +494,48 @@ export default function BlogIndexPage() {
                         </BlockStack>
                       </Card>
                     ))}
+
+                    {(draft.internal_links ?? []).length > 0 && (
+                      <Box
+                        padding="400"
+                        background="bg-surface-secondary"
+                        borderRadius="200"
+                        borderColor="border"
+                        borderWidth="025"
+                      >
+                        <BlockStack gap="300">
+                          <BlockStack gap="050">
+                            <Text as="h3" variant="headingSm">
+                              {fr ? "Liens internes ajoutés à l'article" : "Internal links added to the article"}
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {fr
+                                ? "Ces liens viennent d'Analyse marché. Ajuste l'ancre si besoin avant publication."
+                                : "These links come from Market analysis. Adjust anchors before publishing if needed."}
+                            </Text>
+                          </BlockStack>
+                          {(draft.internal_links ?? []).map((link, idx) => (
+                            <div
+                              key={`${link.target_url}-${idx}`}
+                              style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+                            >
+                              <TextField
+                                label={fr ? "Ancre" : "Anchor"}
+                                value={link.anchor}
+                                onChange={(v) => setInternalLink(idx, { anchor: v })}
+                                autoComplete="off"
+                              />
+                              <TextField
+                                label="URL"
+                                value={link.target_url}
+                                onChange={(v) => setInternalLink(idx, { target_url: v })}
+                                autoComplete="off"
+                              />
+                            </div>
+                          ))}
+                        </BlockStack>
+                      </Box>
+                    )}
                   </>
                 ) : (
                   <Box
@@ -509,6 +567,20 @@ export default function BlogIndexPage() {
                           )}
                         </section>
                       ))}
+                      {(draft.internal_links ?? []).length > 0 && (
+                        <aside style={{ marginTop: 32, borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
+                          <h2 style={{ fontSize: 20, marginBottom: 10 }}>
+                            {fr ? "À lire aussi" : "Related reading"}
+                          </h2>
+                          <ul>
+                            {(draft.internal_links ?? []).map((link, idx) => (
+                              <li key={`${link.target_url}-${idx}`}>
+                                <a href={link.target_url}>{link.anchor || link.target_title || link.target_url}</a>
+                              </li>
+                            ))}
+                          </ul>
+                        </aside>
+                      )}
                     </article>
                   </Box>
                 )}

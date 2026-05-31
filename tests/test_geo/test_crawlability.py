@@ -27,6 +27,9 @@ def test_build_ai_crawlability_advisor_includes_ready_products_and_policies() ->
     assert data["summary"]["included_pages"] >= 3
     assert "/products/harnais-chien" in data["llms_txt"]
     assert "does not guarantee ranking" in data["llms_txt"]
+    assert "robots.default_groups" in data["robots_txt_liquid"]
+    assert "User-agent: GPTBot" in data["robots_txt_liquid"]
+    assert data["robots_install_steps"][0].startswith("Online Store")
 
 
 def test_build_ai_crawlability_advisor_excludes_thin_products() -> None:

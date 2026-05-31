@@ -127,7 +127,10 @@ def test_get_geo_priorities_returns_revenue_aware_rows(client, snapshot_file, tm
     with (
         patch("app.api.deps.get_token", return_value=None),
         patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
-        patch("app.api.geo.load_snapshot_from_file_or_db", return_value={**_SNAPSHOT, "shop": {"domain": "example.com"}}),
+        patch(
+            "app.api.geo.load_snapshot_from_file_or_db",
+            return_value={**_SNAPSHOT, "shop": {"domain": "example.com"}},
+        ),
         patch("app.api.geo._find_gsc_file", return_value=gsc_path),
     ):
         resp = client.get(f"/api/shops/{SHOP}/geo/priorities?top=1&conversion_rate=0.05")
@@ -167,7 +170,10 @@ def test_get_geo_weekly_actions_returns_action_cards(client, snapshot_file, tmp_
     with (
         patch("app.api.deps.get_token", return_value=None),
         patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
-        patch("app.api.geo.load_snapshot_from_file_or_db", return_value={**_SNAPSHOT, "shop": {"domain": "example.com"}}),
+        patch(
+            "app.api.geo.load_snapshot_from_file_or_db",
+            return_value={**_SNAPSHOT, "shop": {"domain": "example.com"}},
+        ),
         patch("app.api.geo._find_gsc_file", return_value=gsc_path),
     ):
         resp = client.get(f"/api/shops/{SHOP}/geo/weekly-actions")
@@ -344,7 +350,10 @@ def test_get_geo_validation_timeline_returns_event_windows(client, tmp_path) -> 
                 "status": "applied",
                 "score_before": 60,
                 "measurement_status": "baseline_captured",
-                "before_snapshot": {"path": "/products/harnais-chien", "scores": {"readiness_score": 60}},
+                "before_snapshot": {
+                    "path": "/products/harnais-chien",
+                    "scores": {"readiness_score": 60},
+                },
                 "metrics_before": {"gsc": {"impressions": 300, "position": 8}},
             },
         )
@@ -371,7 +380,10 @@ def test_get_geo_risk_guard_returns_protection_rows(client, snapshot_file, tmp_p
     with (
         patch("app.api.deps.get_token", return_value=None),
         patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
-        patch("app.api.geo.load_snapshot_from_file_or_db", return_value={**_SNAPSHOT, "shop": {"domain": "example.com"}}),
+        patch(
+            "app.api.geo.load_snapshot_from_file_or_db",
+            return_value={**_SNAPSHOT, "shop": {"domain": "example.com"}},
+        ),
         patch("app.api.geo._find_gsc_file", return_value=gsc_path),
     ):
         resp = client.get(f"/api/shops/{SHOP}/geo/risk-guard")
@@ -482,7 +494,9 @@ def test_get_geo_crawlability_returns_llms_preview(client, snapshot_file) -> Non
     snapshot = {
         **_SNAPSHOT,
         "shop": {"domain": "example.com"},
-        "collections": [{"id": "gid://shopify/Collection/1", "title": "Harnais", "handle": "harnais"}],
+        "collections": [
+            {"id": "gid://shopify/Collection/1", "title": "Harnais", "handle": "harnais"}
+        ],
     }
     with (
         patch("app.api.deps.get_token", return_value=None),
@@ -497,6 +511,7 @@ def test_get_geo_crawlability_returns_llms_preview(client, snapshot_file) -> Non
     assert data["domain"] == "example.com"
     assert data["summary"]["dry_run"] is True
     assert "llms.txt preview" in data["llms_txt"]
+    assert "User-agent: GPTBot" in data["robots_txt_liquid"]
     assert data["included_pages"]
 
 
@@ -527,7 +542,9 @@ def test_get_geo_competitors_returns_query_monitor(client, snapshot_file, tmp_pa
         patch("app.api.geo.load_snapshot_from_file_or_db", return_value=_SNAPSHOT),
         patch("app.api.geo._find_gsc_query_page_file", return_value=query_path),
     ):
-        resp = client.get(f"/api/shops/{SHOP}/geo/competitors?competitors=miacara.com,zara.com&top=5")
+        resp = client.get(
+            f"/api/shops/{SHOP}/geo/competitors?competitors=miacara.com,zara.com&top=5"
+        )
 
     assert resp.status_code == 200
     data = resp.json()
@@ -572,7 +589,10 @@ def test_create_and_list_geo_optimization_snapshot(client, snapshot_file, tmp_pa
         patch("app.api.deps.get_token", return_value=None),
         patch("app.api.deps._SNAPSHOT_DEFAULT", snapshot_file),
         patch("app.api.geo.DB_PATH", db),
-        patch("app.api.geo.load_snapshot_from_file_or_db", return_value={**_SNAPSHOT, "shop": {"domain": "example.com"}}),
+        patch(
+            "app.api.geo.load_snapshot_from_file_or_db",
+            return_value={**_SNAPSHOT, "shop": {"domain": "example.com"}},
+        ),
         patch("app.api.geo._find_gsc_file", return_value=gsc_path),
     ):
         created = client.post(f"/api/shops/{SHOP}/geo/optimization-snapshots", json=payload)
@@ -586,7 +606,9 @@ def test_create_and_list_geo_optimization_snapshot(client, snapshot_file, tmp_pa
     assert listed.json()["snapshots"][0]["action_type"] == "add_answer_blocks"
 
 
-def test_create_geo_ledger_event_from_snapshot_and_update_status(client, snapshot_file, tmp_path) -> None:
+def test_create_geo_ledger_event_from_snapshot_and_update_status(
+    client, snapshot_file, tmp_path
+) -> None:
     db = tmp_path / "geo-events.db"
     init_db(db)
     with (
@@ -639,7 +661,9 @@ def test_create_geo_ledger_event_from_snapshot_and_update_status(client, snapsho
     assert [entry["status"] for entry in event["status_history"]] == ["applied", "measured"]
 
 
-def test_create_geo_optimization_snapshot_returns_404_for_missing_resource(client, snapshot_file, tmp_path) -> None:
+def test_create_geo_optimization_snapshot_returns_404_for_missing_resource(
+    client, snapshot_file, tmp_path
+) -> None:
     db = tmp_path / "geo-snapshots.db"
     init_db(db)
     with (

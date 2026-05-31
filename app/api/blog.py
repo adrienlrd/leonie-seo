@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from app.api.deps import ShopContext, get_shop_context
 from app.apply.shopify_writer import ShopifyWriteError
+from app.blog.internal_links import render_internal_links_html, select_blog_internal_links
 from app.blog.schema import build_article_jsonld, build_faqpage_jsonld, render_jsonld_blocks
 from app.blog.section_generator import generate_all_sections, generate_section
 from app.blog.shopify_articles import BlogPublisher
@@ -53,12 +54,20 @@ class BlogSection(BaseModel):
     body: str
 
 
+class BlogInternalLink(BaseModel):
+    target_url: str
+    anchor: str
+    target_title: str = ""
+    reason: str = ""
+
+
 class PublishDraftRequest(BaseModel):
     blog_id: str
     title: str
     intro: str = ""
     summary: str = ""
     sections: list[BlogSection]
+    internal_links: list[BlogInternalLink] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     author_type: str = "Organization"  # or "Person"
     author_name: str = ""
@@ -79,6 +88,7 @@ class DraftUpdateRequest(BaseModel):
     intro: str | None = None
     summary: str | None = None
     sections: list[BlogSection] | None = None
+    internal_links: list[BlogInternalLink] | None = None
     tags: list[str] | None = None
     author_type: str | None = None
     author_name: str | None = None
@@ -123,6 +133,11 @@ def _draft_from_product(
         "summary": (intro or "")[:200],
         "outline": list(outline or []),
         "sections": [],
+        "internal_links": select_blog_internal_links(
+            pack.get("recommended_internal_links")
+            or product.get("recommended_internal_links")
+            or []
+        ),
         "confirmed_facts": pack.get("confirmed_facts") or [],
         "tags": [],
         "author_type": "Organization",
@@ -180,6 +195,11 @@ def update_blog_draft(
     if "sections" in patch and patch["sections"] is not None:
         patch["sections"] = [
             s.model_dump() if hasattr(s, "model_dump") else s for s in patch["sections"]
+        ]
+    if "internal_links" in patch and patch["internal_links"] is not None:
+        patch["internal_links"] = [
+            link.model_dump() if hasattr(link, "model_dump") else link
+            for link in patch["internal_links"]
         ]
     draft.update(patch)
     return save_draft(ctx.shop, draft)
@@ -278,7 +298,11 @@ def generate_all(
     return {"blog_title": body.blog_title, "sections": sections}
 
 
-def _assemble_body_html(intro: str, sections: list[BlogSection]) -> str:
+def _assemble_body_html(
+    intro: str,
+    sections: list[BlogSection],
+    internal_links: list[BlogInternalLink | dict[str, Any]] | None = None,
+) -> str:
     parts: list[str] = []
     if intro.strip():
         parts.append(f"<p>{intro.strip()}</p>")
@@ -293,6 +317,13 @@ def _assemble_body_html(intro: str, sections: list[BlogSection]) -> str:
             parts.append(f"<p><strong>{direct}</strong></p>")
         if body:
             parts.append(f"<div>{body}</div>")
+    link_dicts = [
+        link.model_dump() if hasattr(link, "model_dump") else dict(link)
+        for link in (internal_links or [])
+    ]
+    links_html = render_internal_links_html(link_dicts)
+    if links_html:
+        parts.append(links_html)
     return "\n".join(parts)
 
 
@@ -322,7 +353,11 @@ def publish_blog_draft(
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     sections = [BlogSection(**s) for s in (draft.get("sections") or []) if isinstance(s, dict)]
-    html = _assemble_body_html(draft.get("intro", ""), sections)
+    html = _assemble_body_html(
+        draft.get("intro", ""),
+        sections,
+        draft.get("internal_links") or [],
+    )
     canonical_url = f"https://{ctx.shop}/blogs/blog/{draft.get('blog_title', '')}"
     article_ld = build_article_jsonld(
         headline=draft.get("blog_title", ""),
@@ -367,7 +402,7 @@ def publish_draft(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict[str, Any]:
     """Assemble the article (HTML + Article + FAQPage JSON-LD) and create it as a draft."""
-    html = _assemble_body_html(body.intro, body.sections)
+    html = _assemble_body_html(body.intro, body.sections, body.internal_links)
     # Mount the article on the merchant's storefront URL so JSON-LD ``mainEntityOfPage``
     # points at the eventual public URL — Shopify substitutes the real handle on save.
     canonical_url = f"https://{ctx.shop}/blogs/blog/{body.title}"

@@ -1,6 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
+- Session 2026-05-31 : **Blog SEO+GEO Sprint 2 livré** — les brouillons blog réutilisent le maillage interne d'Analyse marché (`internal_links` éditables + bloc « À lire aussi » publié dans Shopify) et la page Crawlabilité IA fournit un template `robots.txt.liquid` manuel avec bouton copier. Validations : `ruff check` ciblé ✅, `pytest tests/test_blog tests/test_geo/test_crawlability.py tests/test_api/test_geo.py` **51 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅, `git diff --check` ✅.
 - Dernière session : **2026-05-29** (Fiabilisation algo Analyse produit : pipeline « données réelles d'abord », pool de mots-clés GSC/DataForSEO/Suggest/Trends avant l'IA, mode JSON déterministe, transparence des sources en UI ; `pytest` 1583 ✅, typecheck/build ✅)
 - Session 2026-05-25 (DataForSEO 5 APIs actives + migration infra prod planifiée Phase 12)
 - Phase 1 : **15/15** ✅

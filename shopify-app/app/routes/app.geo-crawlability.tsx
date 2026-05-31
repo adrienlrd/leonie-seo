@@ -5,12 +5,14 @@ import {
   Badge,
   Banner,
   BlockStack,
+  Button,
   Card,
   InlineStack,
   List,
   Page,
   Text,
 } from "@shopify/polaris";
+import { useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
@@ -40,6 +42,8 @@ interface CrawlabilityData {
   excluded_pages: CrawlabilityPage[];
   warnings: string[];
   llms_txt: string;
+  robots_txt_liquid: string;
+  robots_install_steps: string[];
 }
 
 interface LoaderData {
@@ -104,6 +108,13 @@ function PageList({ title, pages, locale }: { title: string; pages: Crawlability
 
 export default function GeoCrawlability() {
   const { locale, data, error } = useLoaderData<typeof loader>();
+  const [robotsCopied, setRobotsCopied] = useState(false);
+
+  const copyRobotsTemplate = async () => {
+    if (!data?.robots_txt_liquid || typeof navigator === "undefined") return;
+    await navigator.clipboard.writeText(data.robots_txt_liquid);
+    setRobotsCopied(true);
+  };
 
   return (
     <Page
@@ -149,6 +160,39 @@ export default function GeoCrawlability() {
                 </List>
               </Banner>
             )}
+
+            <Card>
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center" wrap>
+                  <BlockStack gap="050">
+                    <Text as="h2" variant="headingMd">
+                      {locale === "fr" ? "Template robots.txt.liquid" : "robots.txt.liquid template"}
+                    </Text>
+                    <Text as="p" tone="subdued">
+                      {locale === "fr"
+                        ? "À coller dans le thème uniquement si le marchand veut personnaliser robots.txt."
+                        : "Paste into the theme only if the merchant wants to customize robots.txt."}
+                    </Text>
+                  </BlockStack>
+                  <Button onClick={copyRobotsTemplate}>
+                    {robotsCopied
+                      ? locale === "fr" ? "Copié" : "Copied"
+                      : locale === "fr" ? "Copier" : "Copy"}
+                  </Button>
+                </InlineStack>
+                <List type="number">
+                  {(data.robots_install_steps ?? []).map((step) => (
+                    <List.Item key={step}>{step}</List.Item>
+                  ))}
+                </List>
+                <pre
+                  aria-label="robots.txt.liquid template"
+                  style={{ fontSize: 12, overflowX: "auto", margin: 0, whiteSpace: "pre-wrap" }}
+                >
+                  {data.robots_txt_liquid}
+                </pre>
+              </BlockStack>
+            </Card>
 
             <Card>
               <BlockStack gap="200">

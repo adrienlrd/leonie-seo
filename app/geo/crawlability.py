@@ -13,6 +13,33 @@ from app.geo._shared import (
     shop_domain,
 )
 
+_AI_ROBOTS_TEMPLATE = """{% for group in robots.default_groups %}
+  {{- group.user_agent }}
+  {% for rule in group.rules %}
+    {{- rule }}
+  {% endfor %}
+  {%- if group.sitemap != blank -%}
+    {{ group.sitemap }}
+  {%- endif -%}
+{% endfor %}
+
+# AI discovery crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+"""
+
 
 def _llms_text(domain: str, included: list[dict[str, str]], excluded: list[dict[str, str]]) -> str:
     lines = [
@@ -92,4 +119,10 @@ def build_ai_crawlability_advisor(
         "excluded_pages": excluded,
         "warnings": warnings,
         "llms_txt": _llms_text(domain, included, excluded),
+        "robots_txt_liquid": _AI_ROBOTS_TEMPLATE,
+        "robots_install_steps": [
+            "Online Store > Themes > Edit code",
+            "Templates > Add a new template > robots.txt",
+            "Paste this content, save, then open /robots.txt to verify the AI crawler groups.",
+        ],
     }
