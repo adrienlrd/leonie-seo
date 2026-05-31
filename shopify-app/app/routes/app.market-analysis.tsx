@@ -499,25 +499,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  // ── Step 2: start experimental analysis with guardrail reflection ────────
-  if (intent === "startTest") {
-    try {
-      const resp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/market-analysis/jobs?reflection_test=true`,
-        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(30_000) },
-      );
-      if (!resp.ok) {
-        const err = await resp.text();
-        return json({ type: "start", jobId: null, error: `Erreur backend ${resp.status}: ${err}` });
-      }
-      const data = await resp.json() as { job_id: string };
-      return json({ type: "start", jobId: data.job_id, error: null });
-    } catch (err) {
-      return json({ type: "start", jobId: null, error: String(err) });
-    }
-  }
-
   // ── Step 2: poll analysis job ─────────────────────────────────────────────
   if (intent === "poll") {
     const jobId = formData.get("jobId") as string;
@@ -2010,15 +1991,6 @@ export default function MarketAnalysisPage() {
     startFetcher.submit(fd, { method: "post" });
   };
 
-  const handleTestRerun = () => {
-    setJobId(null);
-    setJob(null);
-    setPollError(null);
-    const fd = new FormData();
-    fd.set("intent", "startTest");
-    startFetcher.submit(fd, { method: "post" });
-  };
-
   const handleEditIdentification = () => {
     setStep("identification");
     setEditMode(true);
@@ -2261,9 +2233,6 @@ export default function MarketAnalysisPage() {
                 >
                   {t(locale, "marketAnalysisAnalyzeAll")}
                 </Button>
-                <Button onClick={handleTestRerun} loading={isInProgress} disabled={isInProgress}>
-                  {locale === "fr" ? "Analyse produit test" : "Product analysis test"}
-                </Button>
                 <Button variant="plain" onClick={handleEditIdentification} disabled={isInProgress}>
                   {t(locale, "marketAnalysisEditIdentification")}
                 </Button>
@@ -2316,21 +2285,16 @@ export default function MarketAnalysisPage() {
                 )}
 
                 {!job?.status || job.status === "failed" ? (
-                  <InlineStack gap="200" wrap>
-                    <Button
-                      variant="primary"
-                      onClick={handleRerun}
-                      disabled={isInProgress}
-                      loading={isInProgress}
-                    >
-                      {isInProgress
-                        ? t(locale, "marketAnalysisRunning")
-                        : t(locale, "marketAnalysisRun")}
-                    </Button>
-                    <Button onClick={handleTestRerun} disabled={isInProgress} loading={isInProgress}>
-                      {locale === "fr" ? "Analyse produit test" : "Product analysis test"}
-                    </Button>
-                  </InlineStack>
+                  <Button
+                    variant="primary"
+                    onClick={handleRerun}
+                    disabled={isInProgress}
+                    loading={isInProgress}
+                  >
+                    {isInProgress
+                      ? t(locale, "marketAnalysisRunning")
+                      : t(locale, "marketAnalysisRun")}
+                  </Button>
                 ) : null}
 
                 {isRunning && (

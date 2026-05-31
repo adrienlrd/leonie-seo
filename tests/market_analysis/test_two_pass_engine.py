@@ -513,8 +513,174 @@ def test_content_quality_blocks_unverified_product_claim() -> None:
     )
 
     assert quality["publish_ready"] is False
+    assert quality["auto_apply_allowed"] is False
+    assert quality["final_status"] == "blocked"
     assert "unsupported_product_claims" in quality["issues"]
+    assert quality["unsupported_claims"]
     assert "performance" in quality["unsupported_claim_categories"]
+
+
+def test_content_quality_blocks_faq_when_surface_plan_disables_it() -> None:
+    pack = {
+        "seo_keywords": [
+            {
+                "query": "fontaine chat",
+                "target_role": "primary",
+                "paa_questions": ["Comment nettoyer une fontaine chat ?"],
+            }
+        ],
+        "proposed_meta_title": "Fontaine chat pour le quotidien",
+        "proposed_meta_description": "Fontaine chat pratique pour aménager un point d'eau à la maison.",
+        "proposed_product_description": "",
+        "proposed_faq": [
+            {"q": "Comment nettoyer une fontaine chat ?", "a": "Rincez chaque élément."}
+        ],
+        "proposed_geo_answer_block": "",
+        "proposed_blog_title": "",
+        "proposed_blog_intro": "",
+        "proposed_blog_outline": [],
+        "claims_used": [{"claim": "Produit pour chat", "fact_keys": ["description"]}],
+        "confidence": "high",
+    }
+    surface_plan = {
+        "metadata": {"generate": True},
+        "product_description": {"generate": False},
+        "faq": {"generate": False, "reason": "insufficient_question_or_fact_evidence"},
+        "geo_answer": {"generate": False},
+        "blog": {"generate": False},
+    }
+
+    quality = engine._build_content_quality(
+        pack,
+        confirmed_facts=[
+            {
+                "key": "description",
+                "value": "Fontaine pour chat.",
+                "source": "shopify_snapshot",
+                "confidence": "confirmed",
+            }
+        ],
+        surface_plan=surface_plan,
+    )
+    pack["content_quality"] = quality
+    pack["surface_plan"] = surface_plan
+    result = engine._build_product_result(_product(), {"opportunity_score": 10}, pack, _SHOP)
+
+    assert quality["publish_ready"] is False
+    assert quality["auto_apply_allowed"] is False
+    assert quality["final_status"] == "blocked"
+    assert "faq_blocked_missing_evidence" in quality["issues"]
+    assert all("faq" not in item["fields"] for item in quality["keyword_coverage"])
+    assert result["content_test_pack"]["proposed_faq"] == []
+    assert result["surface_statuses"]["faq"]["status"] == "blocked"
+
+
+def test_product_consistency_below_threshold_blocks_reflection_status() -> None:
+    pack = {
+        "seo_keywords": [{"query": "fontaine chat", "target_role": "primary"}],
+        "proposed_meta_title": "Fontaine chat pour le quotidien",
+        "proposed_meta_description": "Fontaine chat pratique pour la maison.",
+        "proposed_product_description": "Fontaine chat pour le quotidien.",
+        "claims_used": [{"claim": "Produit pour chat", "fact_keys": ["description"]}],
+        "content_quality": {
+            "publish_ready": True,
+            "issues": [],
+            "covered_target_count": 1,
+            "target_count": 1,
+            "product_consistency_score": 65,
+            "seo_geo_score": 90,
+            "publish_status": "publish_ready",
+            "publish_blockers": [],
+        },
+    }
+
+    attempt = engine._build_content_reflection_attempt(
+        pack,
+        fields={
+            "confirmed_facts": [
+                {
+                    "key": "description",
+                    "value": "Fontaine pour chat.",
+                    "source": "shopify_snapshot",
+                    "confidence": "confirmed",
+                }
+            ],
+            "source_product_text": "Fontaine chat pour le quotidien.",
+            "product_title": "Fontaine à chat",
+            "merchant_label": "",
+            "handle": "fontaine-chat",
+        },
+        business_context="Fontaine chat premium pour chats urbains.",
+        business_profile={},
+        niche_summary="Accessoires chat premium",
+    )
+
+    assert attempt["status"] == "blocked"
+    assert attempt["product_consistency_score"] < 70
+
+
+def test_keyword_assignment_keeps_diy_free_queries_out_of_product_primary() -> None:
+    keywords = [
+        {
+            "query": "modèle tricot pull chien gratuit",
+            "intent_type": "informational",
+            "demand_score": 95,
+            "competition_score": 20,
+            "product_fit_score": 90,
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+        },
+        {
+            "query": "pull en cachemire pour chien",
+            "intent_type": "commercial",
+            "demand_score": 55,
+            "competition_score": 35,
+            "product_fit_score": 95,
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+        },
+    ]
+
+    ranked = engine._assign_keyword_targets(keywords, frozenset({"pull", "chien", "cachemire"}))
+    primary = next(keyword for keyword in ranked if keyword.get("target_role") == "primary")
+    mapping = engine._build_keyword_surface_mapping(ranked)
+
+    assert primary["query"] == "pull en cachemire pour chien"
+    assert ranked[1]["query"] == "modèle tricot pull chien gratuit"
+    assert ranked[1]["target_role"] != "primary"
+    assert mapping[1]["surface"] == "blog"
+    assert mapping[1]["product_primary_allowed"] is False
+
+
+def test_best_fountain_query_is_blog_not_product_primary() -> None:
+    keywords = [
+        {
+            "query": "meilleure fontaine à eau chat",
+            "intent_type": "commercial",
+            "demand_score": 95,
+            "competition_score": 30,
+            "product_fit_score": 95,
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+        },
+        {
+            "query": "fontaine eau chat sans fil",
+            "intent_type": "commercial",
+            "demand_score": 70,
+            "competition_score": 40,
+            "product_fit_score": 92,
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+        },
+    ]
+
+    ranked = engine._assign_keyword_targets(keywords, frozenset({"fontaine", "eau", "chat"}))
+    primary = next(keyword for keyword in ranked if keyword.get("target_role") == "primary")
+    mapping = {item["query"]: item for item in engine._build_keyword_surface_mapping(ranked)}
+
+    assert primary["query"] == "fontaine eau chat sans fil"
+    assert mapping["meilleure fontaine à eau chat"]["surface"] == "blog"
+    assert mapping["meilleure fontaine à eau chat"]["product_primary_allowed"] is False
 
 
 def test_surface_plan_skips_facts_surfaces_without_verified_value_but_allows_blog_with_paa() -> (

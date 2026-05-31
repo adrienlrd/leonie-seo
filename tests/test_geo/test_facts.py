@@ -63,3 +63,25 @@ def test_analyze_catalog_facts_sorts_low_completeness_first() -> None:
     assert result["total"] == 2
     assert result["products"][0]["handle"] == "produit-pauvre"
     assert result["summary"]["avg_completeness_score"] >= 0
+
+
+def test_analyze_product_facts_detects_material_conflict_between_description_and_metafield() -> (
+    None
+):
+    product = {
+        "id": "gid://shopify/Product/1",
+        "title": "Pull chien cachemire",
+        "handle": "pull-chien-cachemire",
+        "description": "Pull en cachemire doux pour chien.",
+        "metafields": {
+            "edges": [{"node": {"namespace": "custom", "key": "material", "value": "corde"}}]
+        },
+        "variants": [{"price": "89.00"}],
+    }
+
+    result = analyze_product_facts(product)
+
+    assert result["fact_conflict"] is True
+    assert result["fact_conflicts"][0]["field_key"] == "materials"
+    assert "cachemire" in result["fact_conflicts"][0]["description_values"]
+    assert "corde" in result["fact_conflicts"][0]["extracted_values"]

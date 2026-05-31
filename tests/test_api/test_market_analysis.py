@@ -125,6 +125,30 @@ def test_analysis_background_passes_validated_business_profile_to_engine() -> No
     assert run.call_args.kwargs["business_profile"] == profile
 
 
+def test_analysis_background_enables_reflection_by_default_for_product_analysis() -> None:
+    """Standard product analysis now uses the guardrail reflection loop."""
+    with (
+        patch(
+            "app.api.market_analysis.run_market_analysis", return_value=_analysis_result()
+        ) as run,
+        patch("app.api.market_analysis.save_latest_result") as save_result,
+        patch("app.api.market_analysis.update_job"),
+    ):
+        _run_analysis_background(
+            "job-reflection",
+            [],
+            "shop.myshopify.com",
+            {},
+            [],
+            {},
+            None,
+            None,
+        )
+
+    assert run.call_args.kwargs["reflection_test"] is True
+    assert save_result.call_args.args[1]["reflection_test"] is True
+
+
 def test_faq_is_not_published_when_edited_proposal_is_saved() -> None:
     """The existing edit button persists a proposal without becoming a push."""
     ctx = SimpleNamespace(shop="shop.myshopify.com")

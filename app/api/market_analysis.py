@@ -192,7 +192,7 @@ def _run_analysis_background(
     business_profile: dict[str, Any] | None = None,
     collections: list[dict[str, Any]] | None = None,
     articles: list[dict[str, Any]] | None = None,
-    reflection_test: bool = False,
+    reflection_test: bool = True,
 ) -> None:
     """Background task: runs the full analysis and updates the job store incrementally."""
 
@@ -358,7 +358,7 @@ async def start_market_analysis_job(
     product_ids: list[str] | None = Query(default=None),
     plan: str | None = Query(default=None),
     persist_product_result: bool = Query(default=False),
-    reflection_test: bool = Query(default=False),
+    reflection_test: bool = Query(default=True),
 ) -> dict[str, Any]:
     """Start an async market analysis job. Uses saved identifications if available."""
     snapshot = _load_snapshot(ctx)

@@ -79,35 +79,70 @@ _INFORMATIVE_FACT_KEYS = frozenset(
         "materials",
         "certifications",
         "origins",
+        "origin",
         "targets",
         "properties",
         "warranty",
         "delivery",
         "returns",
         "care",
+        "care_instructions",
         "dimensions",
+        "capacity",
+        "battery_autonomy",
         "compatibility",
         "size_recommendation",
+        "color",
+        "size",
+        "product_status",
         "use_cases",
         "selection_criteria",
     }
 )
 _NARRATIVE_FACT_KEYS = _INFORMATIVE_FACT_KEYS - {"description", "price"}
+_STRICT_CLAIM_FACT_KEYS = frozenset(
+    {
+        "materials",
+        "origins",
+        "origin",
+        "certifications",
+        "warranty",
+        "delivery",
+        "returns",
+        "care",
+        "care_instructions",
+        "dimensions",
+        "compatibility",
+        "size_recommendation",
+        "health_benefit",
+        "anti_pull",
+        "durability",
+        "sustainability",
+    }
+)
 _MERCHANT_FACT_LABELS = {
     "materials": "Materials",
     "origins": "Manufacturing origin",
     "certifications": "Certifications",
     "warranty": "Warranty",
     "care": "Care instructions",
+    "care_instructions": "Care instructions",
     "dimensions": "Dimensions",
+    "capacity": "Capacity",
+    "battery_autonomy": "Battery or autonomy",
     "compatibility": "Compatibility",
+    "color": "Color",
+    "size": "Size",
     "size_recommendation": "Size recommendation",
     "use_cases": "Confirmed use cases",
     "selection_criteria": "Selection criteria",
 }
 
 _CLAIM_PATTERNS: tuple[tuple[str, str], ...] = (
-    ("materials", r"\b(coton|nylon|cuir|acier|inox|bois|silicone|bambou|polyester)\b"),
+    (
+        "materials",
+        r"\b(cachemire|laine|coton|nylon|cuir|acier|inox|bois|silicone|bambou|polyester|corde)\b",
+    ),
     ("origins", r"\b(fabriqu[ée]?\s+en|made\s+in|origine|france|europ[ée]en)\b"),
     ("certifications", r"\b(certifi[ée]?|bio|organic|fsc|oeko|gots)\b"),
     ("warranty", r"\b(garantie|garanti|warranty|satisfait\s+ou\s+rembours)\b"),
@@ -115,13 +150,56 @@ _CLAIM_PATTERNS: tuple[tuple[str, str], ...] = (
     ("returns", r"\b(retours?|remboursement|refund|returns?)\b"),
     ("care", r"\b(lavable|nettoyage|entretien|washable|cleaning)\b"),
     ("dimensions", r"\b\d+(?:[.,]\d+)?\s?(?:cm|mm|ml|l|kg|g)\b"),
-    ("compatibility", r"\b(compatible|adapt[ée]\s+[àa]|convient\s+[àa])\b"),
+    (
+        "compatibility",
+        r"\b(compatible|adapt[ée]\s+[àa]|convient\s+[àa]|taille|race|petits?\s+chiens?|grands?\s+chiens?)\b",
+    ),
     ("performance", r"\b(silencieu(?:x|se)|ultra[- ]?silencieu(?:x|se)|anti[- ]?fuite)\b"),
+    ("anti_pull", r"\b(anti[- ]?traction|no[- ]?pull|empêche\s+de\s+tirer)\b"),
+    (
+        "health_benefit",
+        r"\b(sant[ée]|v[ée]t[ée]rinaire|douleurs?|arthrose|anxi[ée]t[ée]|anti[- ]?stress|maladie|pr[ée]vient)\b",
+    ),
+    (
+        "durability",
+        r"\b(r[ée]sistant|robuste|indestructible|longue\s+dur[ée]e|qualit[ée]\s+sup[ée]rieure)\b",
+    ),
     (
         "sustainability",
         r"\b([ée]cologique|[ée]co[- ]?responsable|durable|recycl[ée]?|biod[ée]gradable)\b",
     ),
 )
+
+_SURFACE_OUTPUT_FIELDS: dict[str, tuple[str, ...]] = {
+    "metadata": ("proposed_meta_title", "proposed_meta_description"),
+    "product_description": ("proposed_product_description",),
+    "faq": ("proposed_faq",),
+    "geo_answer": (
+        "proposed_geo_answer_block",
+        "proposed_geo_definition_block",
+        "proposed_geo_quick_facts",
+        "proposed_geo_comparison_table",
+    ),
+    "blog": ("proposed_blog_title", "proposed_blog_intro", "proposed_blog_outline"),
+}
+
+_SURFACE_BLOCKED_ISSUES = {
+    "metadata": "metadata_blocked_missing_evidence",
+    "product_description": "product_description_blocked_missing_evidence",
+    "faq": "faq_blocked_missing_evidence",
+    "geo_answer": "geo_answer_blocked_missing_evidence",
+    "blog": "blog_blocked_missing_evidence",
+}
+
+_BLOCKING_REASON_LABELS = {
+    "product_consistency_below_threshold": "Bloqué : cohérence produit insuffisante",
+    "unsupported_product_claims": "Bloqué : claims non justifiés",
+    "unverified_claim_reference": "Bloqué : claims non justifiés",
+    "missing_claim_evidence_ledger": "Bloqué : claims non justifiés",
+    "forbidden_promise_detected": "Bloqué : claims non justifiés",
+    "faq_blocked_missing_evidence": "Bloqué : FAQ générée sans preuves suffisantes",
+    "product_fact_conflict": "Bloqué : conflit dans les faits produit",
+}
 
 _REFLECTION_THRESHOLD = 75
 _REFLECTION_MAX_RETRIES = 1
@@ -752,7 +830,7 @@ def _build_pass2_prompt(
         parts.extend(target_lines)
     if related_ideas:
         parts.append(
-            "\nAUTRES MOTS-CLÉS LIÉS (utilise-en au moins 2 dans description/FAQ/blog): "
+            "\nAUTRES MOTS-CLÉS LIÉS (utilise-les seulement dans la surface qui correspond à leur intention): "
             + ", ".join(related_ideas[:15])
         )
     if ga4_line:
@@ -827,12 +905,30 @@ def _build_pass2_prompt(
     # ── Strict per-field rules — every paid signal above MUST be used ──────
     top_kw_1 = top_queries[0] if top_queries else "le mot-clé principal"
     top_kw_list = ", ".join(f'"{q}"' for q in top_queries) if top_queries else "—"
+    product_page_queries = [
+        str(kw.get("query", ""))
+        for kw in sorted_kws
+        if kw.get("keyword_surface") == "product_page" and kw.get("query")
+    ][:5]
+    blog_queries = [
+        str(kw.get("query", ""))
+        for kw in sorted_kws
+        if kw.get("keyword_surface") == "blog" and kw.get("query")
+    ][:5]
+    faq_queries = [
+        str(kw.get("query", ""))
+        for kw in sorted_kws
+        if kw.get("keyword_surface") == "faq" and kw.get("query")
+    ][:5]
 
     parts.append(
         f"\n═══════════════════════════════════════════════════════════════════\n"
         f"ÉTAPE 2/2 — RÈGLES STRICTES PAR CHAMP (RESPECT OBLIGATOIRE)\n"
         f"═══════════════════════════════════════════════════════════════════\n"
         f"\nTOP 5 mots-clés à utiliser : {top_kw_list}\n"
+        f"Mots-clés page produit : {', '.join(product_page_queries) or 'aucun'}\n"
+        f"Mots-clés blog/guide : {', '.join(blog_queries) or 'aucun'}\n"
+        f"Mots-clés FAQ : {', '.join(faq_queries) or 'aucun'}\n"
         f"Les cibles sont classées selon demande, concurrence, adéquation produit et niveau de preuve. "
         f"Les mots-clés guident l'intention, jamais des affirmations. "
         f"Utilise uniquement les faits confirmés pour parler du produit.\n"
@@ -885,6 +981,8 @@ def _build_pass2_prompt(
         f"- Ne reprends aucune formulation listée dans FORMULATIONS INTERDITES.\n"
         f"- N'ajoute jamais un champ uniquement pour répéter un mot-clé : un contenu générique doit rester vide.\n"
         f"- Priorise les mots-clés à fort volume (>500/mois) dans les champs visibles seulement si l'intention correspond au produit.\n"
+        f"- Les requêtes DIY/gratuites/tricot/crochet ne doivent JAMAIS être la cible principale de la page produit premium ; utilise-les seulement en blog indirect si le blog est autorisé.\n"
+        f"- Les requêtes 'meilleur/meilleure/comment choisir/avis/comparatif' vont en blog ou guide, pas en primary keyword produit.\n"
         f"- Si GSC réel montre un keyword en position 4-20 et que le blog est autorisé, traite cette intention en priorité.\n"
         f"- Si des CONCURRENTS DE DOMAINE sont listés : différencie uniquement les champs autorisés de leurs formulations.\n"
         f"\n▶ proposed_geo_definition_block (≈25 mots) :\n"
@@ -1687,6 +1785,97 @@ _ACCESSORY_MARKERS = frozenset(
     }
 )
 
+_DIY_FREE_QUERY_MARKERS = frozenset(
+    {
+        "gratuit",
+        "gratuite",
+        "gratuits",
+        "gratuits",
+        "modele",
+        "modèle",
+        "patron",
+        "crochet",
+        "tricot",
+        "tricoter",
+        "facile",
+        "tuto",
+        "diy",
+    }
+)
+
+_BLOG_QUERY_MARKERS = frozenset(
+    {
+        "meilleur",
+        "meilleure",
+        "meilleurs",
+        "meilleures",
+        "comment",
+        "choisir",
+        "guide",
+        "comparatif",
+        "comparaison",
+        "avis",
+        "pourquoi",
+        "quelle",
+        "quelles",
+        "quel",
+        "quels",
+    }
+)
+
+
+def _classify_keyword_surface(keyword: dict[str, Any]) -> dict[str, Any]:
+    """Classify the safest content surface for a keyword target."""
+    query = _clean_keyword_query(keyword.get("query", ""))
+    words = _content_words(query)
+    intent = str(keyword.get("intent_type", "")).lower()
+    is_question = "?" in query or bool(words & {"comment", "pourquoi", "quelle", "quelles", "quel"})
+    is_diy_free = bool(words & _DIY_FREE_QUERY_MARKERS)
+    is_blog = (
+        is_diy_free
+        or bool(words & _BLOG_QUERY_MARKERS)
+        or intent
+        in {
+            "informational",
+            "informationnel",
+            "informatif",
+            "informative",
+            "comparison",
+            "comparative",
+            "how-to",
+            "question",
+        }
+    )
+    if is_question and not is_diy_free:
+        surface = "faq"
+        reason = "short_fact_question"
+    elif is_blog:
+        surface = "blog"
+        reason = "informational_or_indirect_acquisition"
+    else:
+        surface = "product_page"
+        reason = "transactional_or_commercial_product_fit"
+    return {
+        "query": query,
+        "surface": surface,
+        "reason": reason,
+        "product_primary_allowed": surface == "product_page",
+        "is_indirect_acquisition": is_diy_free,
+    }
+
+
+def _build_keyword_surface_mapping(keywords: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return a stable keyword-to-surface map for JSON transparency."""
+    mapping: list[dict[str, Any]] = []
+    for keyword in keywords:
+        if not isinstance(keyword, dict):
+            continue
+        item = _classify_keyword_surface(keyword)
+        if item["query"]:
+            item["target_role"] = keyword.get("target_role", "supporting")
+            mapping.append(item)
+    return mapping
+
 
 def _keyword_priority_score(
     keyword: dict[str, Any],
@@ -1775,20 +1964,30 @@ def _assign_keyword_targets(
             continue
         seen.add(normalized_query)
         candidate = dict(keyword)
-        candidate["priority_score"] = _keyword_priority_score(candidate, product_words)
+        surface = _classify_keyword_surface(candidate)
+        candidate["keyword_surface"] = surface["surface"]
+        candidate["surface_reason"] = surface["reason"]
+        candidate["product_primary_allowed"] = surface["product_primary_allowed"]
+        priority_score = _keyword_priority_score(candidate, product_words)
+        if not surface["product_primary_allowed"]:
+            priority_score = max(0, priority_score - 20)
+        candidate["priority_score"] = priority_score
         ranked.append(candidate)
 
     ranked.sort(
         key=lambda keyword: (
+            not bool(keyword.get("product_primary_allowed", True)),
             -int(keyword.get("priority_score", 0)),
             -int(keyword.get("product_fit_score", 0) or 0),
             -int(keyword.get("demand_score", 0) or 0),
         )
     )
+    primary_assigned = False
     for index, keyword in enumerate(ranked, start=1):
         keyword["target_rank"] = index
-        if index == 1:
+        if not primary_assigned and keyword.get("product_primary_allowed", True):
             keyword["target_role"] = "primary"
+            primary_assigned = True
         elif index <= 5:
             keyword["target_role"] = "secondary"
         else:
@@ -1992,6 +2191,7 @@ def _build_enrichment_questions(
         questions.append(
             {
                 "key": key,
+                "field_key": key,
                 "question": question,
                 "placeholder": placeholder,
                 "why_it_matters": (
@@ -2007,6 +2207,7 @@ def _build_enrichment_questions(
         [
             {
                 "key": "use_cases",
+                "field_key": "use_cases",
                 "question": f"Quel bénéfice concret « {primary_query} » apporte-t-il à vos clients, et quel problème résout-il ?",
                 "placeholder": "Ex. tient chaud aux petits chiens frileux en hiver, évite les frissons après le bain.",
                 "why_it_matters": "Fournit l'angle éditorial central pour un article ou une FAQ qui accroche.",
@@ -2015,6 +2216,7 @@ def _build_enrichment_questions(
             },
             {
                 "key": "selection_criteria",
+                "field_key": "selection_criteria",
                 "question": f"Comment un client non-expert devrait-il choisir entre plusieurs « {primary_query} » ?",
                 "placeholder": "Ex. selon la race, le poids, la météo ou le niveau d'activité.",
                 "why_it_matters": "Structure un guide d'achat naturellement optimisé pour les requêtes de comparaison.",
@@ -2095,14 +2297,88 @@ def _detect_unsupported_claim_categories(
         for fact in confirmed_facts
         if isinstance(fact, dict) and fact.get("confidence") == "confirmed"
     }
+    aliases = {
+        "origin": {"origin", "origins"},
+        "origins": {"origin", "origins"},
+        "care": {"care", "care_instructions"},
+        "care_instructions": {"care", "care_instructions"},
+    }
     unsupported: list[str] = []
     for category, pattern in _CLAIM_PATTERNS:
         if not re.search(pattern, generated_text, flags=re.IGNORECASE):
             continue
         supported_by_source = bool(re.search(pattern, source_text, flags=re.IGNORECASE))
-        if category not in confirmed_keys and not supported_by_source:
+        supported_keys = aliases.get(category, {category})
+        if not (confirmed_keys & supported_keys) and not supported_by_source:
             unsupported.append(category)
     return unsupported
+
+
+def _claim_category_mentions(
+    generated_text: str,
+    unsupported_categories: list[str],
+) -> list[str]:
+    """Return short unsupported claim excerpts for the merchant-facing ledger."""
+    mentions: list[str] = []
+    seen: set[str] = set()
+    for category in unsupported_categories:
+        pattern = next((p for c, p in _CLAIM_PATTERNS if c == category), "")
+        if not pattern:
+            continue
+        match = re.search(pattern, generated_text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        value = f"{category}: {match.group(0)}"
+        if value not in seen:
+            mentions.append(value)
+            seen.add(value)
+    return mentions
+
+
+def _validate_claims(
+    *,
+    claims: list[dict[str, Any]],
+    confirmed_facts: list[dict[str, Any]],
+    evidence_ledger: list[dict[str, Any]],
+    invalid_claims: list[str],
+    generated_text: str,
+    source_product_text: str,
+) -> dict[str, Any]:
+    """Validate generated claims against confirmed facts and source evidence."""
+    valid_claims = [str(entry.get("claim", "")) for entry in evidence_ledger if entry.get("claim")]
+    unsupported_categories = _detect_unsupported_claim_categories(
+        generated_text,
+        source_product_text,
+        confirmed_facts,
+    )
+    unsupported_claims = [claim for claim in invalid_claims if claim] + _claim_category_mentions(
+        generated_text, unsupported_categories
+    )
+    publish_blockers: list[str] = []
+    if invalid_claims:
+        publish_blockers.append("unverified_claim_reference")
+    if unsupported_categories:
+        publish_blockers.append("unsupported_product_claims")
+    if generated_text and not claims:
+        publish_blockers.append("missing_claim_evidence_ledger")
+
+    consistency_score = 100
+    if invalid_claims:
+        consistency_score -= min(40, 20 * len(invalid_claims))
+    if unsupported_categories:
+        consistency_score -= min(50, 25 * len(unsupported_categories))
+    if generated_text and not claims:
+        consistency_score -= 35
+    if claims and not valid_claims:
+        consistency_score -= 25
+
+    return {
+        "valid_claims": valid_claims,
+        "unsupported_claims": unsupported_claims,
+        "unsupported_claim_categories": unsupported_categories,
+        "publish_blockers": publish_blockers,
+        "product_consistency_score": max(0, min(100, consistency_score)),
+    }
 
 
 def _add_quality_issue(quality: dict[str, Any], issue: str) -> None:
@@ -2111,6 +2387,17 @@ def _add_quality_issue(quality: dict[str, Any], issue: str) -> None:
     if issue not in issues:
         issues.append(issue)
     quality["publish_ready"] = False
+    quality["auto_apply_allowed"] = False
+    if issue in _BLOCKING_REASON_LABELS:
+        quality["final_status"] = "blocked"
+        quality["publish_status"] = "blocked"
+        reasons = quality.setdefault("blocking_reasons", [])
+        reason = _BLOCKING_REASON_LABELS[issue]
+        if reason not in reasons:
+            reasons.append(reason)
+    elif quality.get("final_status") == "publish_ready":
+        quality["final_status"] = "ready_for_review"
+        quality["publish_status"] = "ready_for_review"
 
 
 def _keyword_is_covered(query: str, text: str) -> bool:
@@ -2132,6 +2419,147 @@ def _keyword_is_covered(query: str, text: str) -> bool:
     return True
 
 
+def _has_content(value: Any) -> bool:
+    """Return whether a generated field contains publishable content."""
+    if isinstance(value, list):
+        return any(_has_content(item) for item in value)
+    if isinstance(value, dict):
+        return any(_has_content(item) for item in value.values())
+    return bool(_coerce_str(value).strip())
+
+
+def _surface_has_content(pack: dict[str, Any], surface: str) -> bool:
+    """Check whether a content pack has generated output for one surface."""
+    return any(_has_content(pack.get(field)) for field in _SURFACE_OUTPUT_FIELDS.get(surface, ()))
+
+
+def _surface_issue_prefixes(surface: str) -> tuple[str, ...]:
+    """Return issue prefixes tied to one content surface."""
+    return {
+        "metadata": ("meta_", "metadata_"),
+        "product_description": ("description_", "product_description_"),
+        "faq": ("faq_", "unjustified_faq"),
+        "geo_answer": ("geo_",),
+        "blog": ("blog_",),
+    }.get(surface, (surface,))
+
+
+def _build_surface_statuses(
+    *,
+    plan: dict[str, Any],
+    pack: dict[str, Any],
+    issues: list[str],
+    publish_blockers: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Assign review/publish/block status to each generated surface."""
+    statuses: dict[str, dict[str, Any]] = {}
+    blocker_set = set(publish_blockers)
+    for surface in _SURFACE_OUTPUT_FIELDS:
+        enabled = _enabled_surface(plan, surface, default=surface == "metadata")
+        has_content = _surface_has_content(pack, surface)
+        reason = ""
+        decision = plan.get(surface)
+        if isinstance(decision, dict):
+            reason = _coerce_str(decision.get("reason", ""))
+        surface_issues = [
+            issue
+            for issue in issues
+            if issue.startswith(_surface_issue_prefixes(surface))
+            or issue == _SURFACE_BLOCKED_ISSUES.get(surface)
+        ]
+        if not enabled:
+            status = "blocked"
+        elif blocker_set:
+            status = "blocked"
+        elif has_content and not surface_issues:
+            status = "publish_ready"
+        elif has_content:
+            status = "ready_for_review"
+        else:
+            status = "draft_only"
+        statuses[surface] = {
+            "status": status,
+            "generate": enabled,
+            "has_content": has_content,
+            "reason": reason,
+            "issues": surface_issues,
+        }
+    return statuses
+
+
+def _blocking_reasons(issues: list[str]) -> list[str]:
+    """Translate blocking issue codes into concise merchant-readable reasons."""
+    reasons: list[str] = []
+    for issue in issues:
+        reason = _BLOCKING_REASON_LABELS.get(issue)
+        if reason and reason not in reasons:
+            reasons.append(reason)
+    return reasons
+
+
+def _recommended_next_actions(
+    *,
+    issues: list[str],
+    merchant_questions: list[dict[str, Any]],
+) -> list[str]:
+    """Suggest concrete next actions that can unblock publication readiness."""
+    actions: list[str] = []
+    if any(
+        issue in issues for issue in ("unsupported_product_claims", "unverified_claim_reference")
+    ):
+        actions.append(
+            "Remove unsupported product claims or attach them to confirmed Shopify facts."
+        )
+    if "faq_blocked_missing_evidence" in issues:
+        actions.append("Answer the merchant questions needed before publishing a FAQ.")
+    if "product_fact_conflict" in issues:
+        actions.append(
+            "Validate the conflicting product attributes before generating publishable copy."
+        )
+    if "product_consistency_below_threshold" in issues:
+        actions.append("Regenerate the proposal using only confirmed product facts.")
+    for question in merchant_questions[:3]:
+        field_key = _coerce_str(question.get("field_key") or question.get("key", ""))
+        if field_key:
+            actions.append(f"Complete merchant field: {field_key}.")
+    return actions[:6]
+
+
+def _normalize_merchant_questions(questions: list[dict[str, Any]] | Any) -> list[dict[str, Any]]:
+    """Normalize merchant questions with both legacy key and field_key."""
+    normalized: list[dict[str, Any]] = []
+    source_questions = questions if isinstance(questions, list) else []
+    for item in source_questions:
+        if not isinstance(item, dict):
+            continue
+        field_key = _coerce_str(item.get("field_key") or item.get("key", "")).strip()
+        if not field_key:
+            continue
+        normalized.append(
+            {
+                "key": field_key,
+                "field_key": field_key,
+                "question": _coerce_str(item.get("question", "")),
+                "placeholder": _coerce_str(item.get("placeholder", "")),
+                "why_it_matters": _coerce_str(item.get("why_it_matters", "")),
+                "target_keyword": _coerce_str(item.get("target_keyword", "")),
+                "unlocks_surfaces": _coerce_str_list(item.get("unlocks_surfaces", [])),
+            }
+        )
+    return normalized
+
+
+def _safe_surface_value(pack: dict[str, Any], surface_plan: dict[str, Any], field: str) -> Any:
+    """Return field content only when its surface is allowed by the plan."""
+    surface = next(
+        (name for name, fields in _SURFACE_OUTPUT_FIELDS.items() if field in fields),
+        "",
+    )
+    if surface and not _enabled_surface(surface_plan, surface, default=surface == "metadata"):
+        return [] if isinstance(pack.get(field), list) else ""
+    return pack.get(field)
+
+
 def _build_content_quality(
     pack: dict[str, Any],
     *,
@@ -2145,6 +2573,14 @@ def _build_content_quality(
         confirmed_facts if confirmed_facts is not None else list(pack.get("confirmed_facts") or [])
     )
     plan = surface_plan if surface_plan is not None else dict(pack.get("surface_plan") or {})
+    merchant_questions = _normalize_merchant_questions(
+        pack.get("merchant_questions")
+        or pack.get("pending_questions")
+        or pack.get("enrichment_questions", [])
+    )
+    fact_conflicts = [
+        conflict for conflict in pack.get("fact_conflicts", []) if isinstance(conflict, dict)
+    ]
     targets = [
         keyword
         for keyword in (pack.get("seo_keywords") or [])[:5]
@@ -2169,6 +2605,18 @@ def _build_content_quality(
     }
     claims = _coerce_claims(pack.get("claims_used", []))
     evidence_ledger, invalid_claims = _build_evidence_ledger(claims, facts)
+    coverage_fields = dict(fields)
+    if not _enabled_surface(plan, "metadata", default=True):
+        coverage_fields.pop("meta_title", None)
+        coverage_fields.pop("meta_description", None)
+    if not _enabled_surface(plan, "product_description"):
+        coverage_fields.pop("description", None)
+    if not _enabled_surface(plan, "faq"):
+        coverage_fields.pop("faq", None)
+    if not _enabled_surface(plan, "geo_answer"):
+        coverage_fields.pop("geo", None)
+    if not _enabled_surface(plan, "blog"):
+        coverage_fields.pop("blog", None)
     coverage: list[dict[str, Any]] = []
     for target in targets:
         query = str(target["query"])
@@ -2178,7 +2626,7 @@ def _build_content_quality(
                 "target_role": target.get("target_role", "supporting"),
                 "fields": [
                     field_name
-                    for field_name, field_text in fields.items()
+                    for field_name, field_text in coverage_fields.items()
                     if _keyword_is_covered(query, field_text)
                 ],
             }
@@ -2186,6 +2634,12 @@ def _build_content_quality(
 
     issues: list[str] = []
     advisories: list[str] = []
+    for surface, blocked_issue in _SURFACE_BLOCKED_ISSUES.items():
+        if _enabled_surface(plan, surface, default=surface == "metadata"):
+            continue
+        if surface == "faq" or _surface_has_content(pack, surface):
+            issues.append(blocked_issue)
+
     primary_query = str(targets[0]["query"]) if targets else ""
     if not primary_query:
         issues.append("missing_primary_keyword_target")
@@ -2205,7 +2659,8 @@ def _build_content_quality(
         elif _content_word_count(fields["description"]) < 35:
             issues.append("product_description_too_generic")
     elif fields["description"]:
-        issues.append("unjustified_product_description_surface")
+        if "product_description_blocked_missing_evidence" not in issues:
+            issues.append("product_description_blocked_missing_evidence")
 
     paa_questions = [
         question for target in targets for question in target.get("paa_questions", []) if question
@@ -2220,11 +2675,13 @@ def _build_content_quality(
         ):
             issues.append("faq_missing_available_paa_question")
     elif fields["faq"]:
-        issues.append("unjustified_faq_surface")
+        if "faq_blocked_missing_evidence" not in issues:
+            issues.append("faq_blocked_missing_evidence")
     if _enabled_surface(plan, "geo_answer") and not fields["geo"]:
         issues.append("missing_geo_answer_block")
     if not _enabled_surface(plan, "geo_answer") and fields["geo"]:
-        issues.append("unjustified_geo_answer_surface")
+        if "geo_answer_blocked_missing_evidence" not in issues:
+            issues.append("geo_answer_blocked_missing_evidence")
     if _enabled_surface(plan, "blog") and not fields["blog"]:
         issues.append("missing_recommended_blog_support")
     if (
@@ -2235,17 +2692,25 @@ def _build_content_quality(
     ):
         issues.append("blog_missing_primary_target")
     if not _enabled_surface(plan, "blog") and fields["blog"]:
-        issues.append("unjustified_blog_surface")
+        if "blog_blocked_missing_evidence" not in issues:
+            issues.append("blog_blocked_missing_evidence")
 
     generated_factual_text = " ".join(
         fields[field_name]
         for field_name in ("meta_title", "meta_description", "description", "faq", "geo", "blog")
         if fields[field_name]
     )
-    if generated_factual_text and not claims:
-        issues.append("missing_claim_evidence_ledger")
-    if invalid_claims:
-        issues.append("unverified_claim_reference")
+    claim_validation = _validate_claims(
+        claims=claims,
+        confirmed_facts=facts,
+        evidence_ledger=evidence_ledger,
+        invalid_claims=invalid_claims,
+        generated_text=generated_factual_text,
+        source_product_text=source_product_text,
+    )
+    for blocker in claim_validation["publish_blockers"]:
+        if blocker not in issues:
+            issues.append(blocker)
     ledger_fact_keys = {str(fact["key"]) for entry in evidence_ledger for fact in entry["facts"]}
     factual_surfaces_enabled = any(
         _enabled_surface(plan, surface)
@@ -2265,13 +2730,13 @@ def _build_content_quality(
     if factual_surfaces_enabled and not has_narrative_evidence:
         issues.append("missing_informative_confirmed_fact")
 
-    unsupported_claims = _detect_unsupported_claim_categories(
-        generated_factual_text,
-        source_product_text,
-        facts,
-    )
-    if unsupported_claims:
+    if (
+        claim_validation["unsupported_claim_categories"]
+        and "unsupported_product_claims" not in issues
+    ):
         issues.append("unsupported_product_claims")
+    if fact_conflicts:
+        issues.append("product_fact_conflict")
     if primary_query and fields["description"].lower().count(primary_query.lower()) > 3:
         issues.append("keyword_stuffing_risk")
     if any(
@@ -2287,21 +2752,79 @@ def _build_content_quality(
     if _coerce_str(pack.get("confidence", "low"), "low") == "low":
         issues.append("low_generation_confidence")
 
+    product_consistency_score = int(claim_validation["product_consistency_score"])
+    if any(issue.endswith("_blocked_missing_evidence") for issue in issues):
+        product_consistency_score = max(0, product_consistency_score - 15)
+    if "missing_informative_confirmed_fact" in issues:
+        product_consistency_score = max(0, product_consistency_score - 20)
+    if fact_conflicts:
+        product_consistency_score = max(0, product_consistency_score - 45)
+    if product_consistency_score < 70 and "product_consistency_below_threshold" not in issues:
+        issues.append("product_consistency_below_threshold")
+
+    publish_blockers = list(claim_validation["publish_blockers"])
+    for critical_issue in (
+        "product_consistency_below_threshold",
+        "product_fact_conflict",
+        "faq_blocked_missing_evidence",
+    ):
+        if critical_issue in issues and critical_issue not in publish_blockers:
+            publish_blockers.append(critical_issue)
+
+    coverage_ratio = (
+        sum(1 for item in coverage if item["fields"]) / len(coverage) if coverage else 0.0
+    )
+    geo_surface_count = sum(
+        1
+        for field_name in ("faq", "geo", "blog")
+        if fields.get(field_name) and field_name in coverage_fields
+    )
+    seo_geo_score = max(0, min(100, round(coverage_ratio * 70 + geo_surface_count * 10)))
+    publish_ready = not issues
+    publish_status = (
+        "blocked" if publish_blockers else "publish_ready" if publish_ready else "ready_for_review"
+    )
+    surface_statuses = _build_surface_statuses(
+        plan=plan,
+        pack=pack,
+        issues=issues,
+        publish_blockers=publish_blockers,
+    )
+    blocking_reasons = _blocking_reasons(issues)
+    next_actions = _recommended_next_actions(
+        issues=issues,
+        merchant_questions=merchant_questions,
+    )
+
     return {
-        "publish_ready": not issues,
+        "publish_ready": publish_ready,
+        "auto_apply_allowed": publish_ready and publish_status == "publish_ready",
+        "final_status": publish_status,
+        "publish_status": publish_status,
+        "blocking_reasons": blocking_reasons,
         "issues": issues,
         "advisories": advisories,
         "covered_target_count": sum(1 for item in coverage if item["fields"]),
         "target_count": len(targets),
         "keyword_coverage": coverage,
+        "seo_geo_score": seo_geo_score,
+        "product_consistency_score": product_consistency_score,
+        "surface_statuses": surface_statuses,
+        "valid_claims": claim_validation["valid_claims"],
+        "unsupported_claims": claim_validation["unsupported_claims"],
         "evidence_ledger": evidence_ledger,
         "invalid_claims": invalid_claims,
-        "unsupported_claim_categories": unsupported_claims,
+        "unsupported_claim_categories": claim_validation["unsupported_claim_categories"],
+        "publish_blockers": publish_blockers,
+        "fact_conflicts": fact_conflicts,
+        "merchant_questions": merchant_questions,
+        "pending_questions": merchant_questions,
+        "recommended_next_actions": next_actions,
         "surface_plan": plan,
         "skipped_surfaces": [
             surface
-            for surface in ("product_description", "faq", "geo_answer", "blog")
-            if not _enabled_surface(plan, surface)
+            for surface in ("metadata", "product_description", "faq", "geo_answer", "blog")
+            if not _enabled_surface(plan, surface, default=surface == "metadata")
         ],
     }
 
@@ -2406,6 +2929,9 @@ def _build_content_reflection_attempt(
         "unverified_claim_reference",
         "unsupported_product_claims",
         "forbidden_promise_detected",
+        "product_consistency_below_threshold",
+        "product_fact_conflict",
+        "faq_blocked_missing_evidence",
     }
 
     business_terms = _content_words(
@@ -2434,11 +2960,14 @@ def _build_content_reflection_attempt(
         ]
 
     product_score = 88 if overlap >= 4 else 70 if overlap >= 2 else 45
+    product_score = min(product_score, int(quality.get("product_consistency_score", product_score)))
     if any(issue in blocking_fact_issues for issue in issues):
+        product_score = min(product_score, 45)
+    if product_score < 70:
         product_score = min(product_score, 45)
     product_status = (
         "blocked"
-        if any(issue in blocking_fact_issues for issue in issues)
+        if any(issue in blocking_fact_issues for issue in issues) or product_score < 70
         else ("pass" if product_score >= _REFLECTION_THRESHOLD else "needs_review")
     )
 
@@ -2550,9 +3079,14 @@ def _build_content_reflection_attempt(
         ),
     ]
     final_score = round(sum(item["score"] for item in items) / len(items))
+    critical_block = (
+        product_score < 70
+        or quality.get("publish_status") == "blocked"
+        or bool(quality.get("publish_blockers"))
+    )
     final_status = (
         "blocked"
-        if any(item["status"] == "blocked" for item in items)
+        if critical_block or any(item["status"] == "blocked" for item in items)
         else "pass"
         if final_score >= _REFLECTION_THRESHOLD
         else "needs_retry"
@@ -2562,6 +3096,11 @@ def _build_content_reflection_attempt(
         "status": final_status,
         "questions": items,
         "quality_issues": issues,
+        "seo_geo_score": quality.get("seo_geo_score", seo_score),
+        "product_consistency_score": product_score,
+        "publish_status": quality.get("publish_status", "blocked"),
+        "blocking_reasons": quality.get("blocking_reasons", []),
+        "next_actions": quality.get("recommended_next_actions", []),
     }
 
 
@@ -2677,6 +3216,11 @@ def _run_reflection_test_loop(
         "retry_count": retry_count,
         "final_score": final_attempt.get("score", 0),
         "final_status": final_attempt.get("status", "blocked"),
+        "seo_geo_score": final_attempt.get("seo_geo_score", 0),
+        "product_consistency_score": final_attempt.get("product_consistency_score", 0),
+        "publish_status": final_attempt.get("publish_status", "blocked"),
+        "blocking_reasons": final_attempt.get("blocking_reasons", []),
+        "next_actions": final_attempt.get("next_actions", []),
         "questions": list(_REFLECTION_QUESTIONS),
         "attempts": attempts,
     }
@@ -2761,6 +3305,32 @@ def _apply_catalog_content_conflicts(
         seen_descriptions.append((product_id, words))
 
 
+def _sync_result_quality_fields(product_results: list[dict[str, Any]]) -> None:
+    """Mirror content quality gates onto stable top-level product output fields."""
+    for product in product_results:
+        pack = product.get("content_test_pack")
+        if not isinstance(pack, dict):
+            continue
+        quality = pack.get("content_quality")
+        if not isinstance(quality, dict):
+            continue
+        publish_ready = bool(quality.get("publish_ready", False))
+        final_status = _coerce_str(quality.get("final_status", "blocked"), "blocked")
+        if not publish_ready and final_status == "publish_ready":
+            final_status = "ready_for_review"
+            quality["final_status"] = final_status
+            quality["publish_status"] = final_status
+        auto_apply_allowed = bool(quality.get("auto_apply_allowed", False)) and publish_ready
+        quality["auto_apply_allowed"] = auto_apply_allowed
+        product["publish_ready"] = publish_ready
+        product["auto_apply_allowed"] = auto_apply_allowed
+        product["final_status"] = final_status
+        product["blocking_reasons"] = quality.get("blocking_reasons", [])
+        product["surface_statuses"] = quality.get("surface_statuses", {})
+        product["unsupported_claims"] = quality.get("unsupported_claims", [])
+        product["recommended_next_actions"] = quality.get("recommended_next_actions", [])
+
+
 def _impressions_bucket(impressions: int) -> int:
     """Quick demand-score bucket from GSC impressions (free proxy)."""
     if impressions >= 10000:
@@ -2843,8 +3413,30 @@ def _build_product_result(
     )
     description_summary = _strip_html(body_html)[:200]
 
-    proposed_meta_description = _coerce_str(llm_pack.get("proposed_meta_description", ""))
-    proposed_faq = _coerce_faq(llm_pack.get("proposed_faq", []))
+    surface_plan = dict(llm_pack.get("surface_plan") or {})
+    content_quality = (
+        llm_pack.get("content_quality") if isinstance(llm_pack.get("content_quality"), dict) else {}
+    )
+    merchant_questions = _normalize_merchant_questions(
+        llm_pack.get("merchant_questions")
+        or llm_pack.get("pending_questions")
+        or llm_pack.get("enrichment_questions", [])
+    )
+    keyword_surface_mapping = (
+        llm_pack.get("keyword_surface_mapping")
+        if isinstance(llm_pack.get("keyword_surface_mapping"), list)
+        else _build_keyword_surface_mapping(_coerce_seo_keywords(llm_pack.get("seo_keywords", [])))
+    )
+    proposed_meta_title = _coerce_str(
+        _safe_surface_value(llm_pack, surface_plan, "proposed_meta_title")
+    )
+    proposed_meta_description = _coerce_str(
+        _safe_surface_value(llm_pack, surface_plan, "proposed_meta_description")
+    )
+    proposed_product_description = _coerce_str(
+        _safe_surface_value(llm_pack, surface_plan, "proposed_product_description")
+    )
+    proposed_faq = _coerce_faq(_safe_surface_value(llm_pack, surface_plan, "proposed_faq"))
     confirmed_facts_list = llm_pack.get("confirmed_facts", []) or []
     schema_jsonld: dict[str, Any] = {}
     try:
@@ -2863,6 +3455,14 @@ def _build_product_result(
     except Exception as exc:
         logger.warning("Skipping market analysis JSON-LD for product %s: %s", product_id, exc)
 
+    publish_ready = bool(content_quality.get("publish_ready", False))
+    final_status = _coerce_str(content_quality.get("final_status", "blocked"), "blocked")
+    auto_apply_allowed = bool(content_quality.get("auto_apply_allowed", False)) and publish_ready
+    blocking_reasons = _coerce_str_list(content_quality.get("blocking_reasons", []))
+    fact_conflicts = [
+        conflict for conflict in llm_pack.get("fact_conflicts", []) if isinstance(conflict, dict)
+    ]
+
     return {
         "product_id": product_id,
         "product_title": product_title,
@@ -2873,11 +3473,21 @@ def _build_product_result(
         "buying_intents": _coerce_str_list(llm_pack.get("buying_intents", [])),
         "seo_keywords": _coerce_seo_keywords(llm_pack.get("seo_keywords", [])),
         "geo_questions": _coerce_geo_questions(llm_pack.get("geo_questions", [])),
+        "publish_ready": publish_ready,
+        "auto_apply_allowed": auto_apply_allowed,
+        "final_status": final_status,
+        "blocking_reasons": blocking_reasons,
+        "surface_statuses": content_quality.get("surface_statuses", {}),
+        "unsupported_claims": content_quality.get("unsupported_claims", []),
+        "fact_conflicts": fact_conflicts,
+        "merchant_questions": merchant_questions,
+        "recommended_next_actions": content_quality.get("recommended_next_actions", []),
+        "keyword_surface_mapping": keyword_surface_mapping,
         "trend_signals": opportunity.get("trend_signals", []),
         "competitor_signals": opportunity.get("signals", []),
         "content_test_pack": {
             "current_meta_title": current_meta_title,
-            "proposed_meta_title": _coerce_str(llm_pack.get("proposed_meta_title", "")),
+            "proposed_meta_title": proposed_meta_title,
             "current_meta_description": current_meta_description,
             "proposed_meta_description": proposed_meta_description,
             "current_product_title": product_title,
@@ -2885,31 +3495,44 @@ def _build_product_result(
                 llm_pack.get("proposed_product_title_if_different", product_title)
             ),
             "current_product_description_summary": description_summary,
-            "proposed_product_description": _coerce_str(
-                llm_pack.get("proposed_product_description", "")
-            ),
+            "proposed_product_description": proposed_product_description,
             "proposed_faq": proposed_faq,
-            "proposed_geo_answer_block": _coerce_str(llm_pack.get("proposed_geo_answer_block", "")),
+            "proposed_geo_answer_block": _coerce_str(
+                _safe_surface_value(llm_pack, surface_plan, "proposed_geo_answer_block")
+            ),
             "proposed_geo_definition_block": _coerce_str(
-                llm_pack.get("proposed_geo_definition_block", "")
+                _safe_surface_value(llm_pack, surface_plan, "proposed_geo_definition_block")
             ),
             "proposed_geo_quick_facts": _coerce_str_list(
-                llm_pack.get("proposed_geo_quick_facts", [])
+                _safe_surface_value(llm_pack, surface_plan, "proposed_geo_quick_facts")
             ),
             "proposed_geo_comparison_table": [
                 {
                     "critère": _coerce_str(row.get("critère") or row.get("criterion") or ""),
                     "valeur": _coerce_str(row.get("valeur") or row.get("value") or ""),
                 }
-                for row in (llm_pack.get("proposed_geo_comparison_table", []) or [])
+                for row in (
+                    _safe_surface_value(
+                        llm_pack,
+                        surface_plan,
+                        "proposed_geo_comparison_table",
+                    )
+                    or []
+                )
                 if isinstance(row, dict)
                 and (row.get("critère") or row.get("criterion"))
                 and (row.get("valeur") or row.get("value"))
             ],
             "proposed_schema_jsonld": schema_jsonld,
-            "proposed_blog_title": _coerce_str(llm_pack.get("proposed_blog_title", "")),
-            "proposed_blog_outline": _coerce_str_list(llm_pack.get("proposed_blog_outline", [])),
-            "proposed_blog_intro": _coerce_str(llm_pack.get("proposed_blog_intro", "")),
+            "proposed_blog_title": _coerce_str(
+                _safe_surface_value(llm_pack, surface_plan, "proposed_blog_title")
+            ),
+            "proposed_blog_outline": _coerce_str_list(
+                _safe_surface_value(llm_pack, surface_plan, "proposed_blog_outline")
+            ),
+            "proposed_blog_intro": _coerce_str(
+                _safe_surface_value(llm_pack, surface_plan, "proposed_blog_intro")
+            ),
             "proposed_comparison_or_buying_guide": "",
             "recommended_internal_links": [],
             "content_risks": [],
@@ -2918,10 +3541,14 @@ def _build_product_result(
             "claims_used": _coerce_claims(llm_pack.get("claims_used", [])),
             "confirmed_facts": confirmed_facts_list,
             "eeat_signals": llm_pack.get("eeat_signals", []),
-            "surface_plan": llm_pack.get("surface_plan", {}),
-            "enrichment_questions": llm_pack.get("enrichment_questions", []),
+            "surface_plan": surface_plan,
+            "surface_statuses": content_quality.get("surface_statuses", {}),
+            "enrichment_questions": merchant_questions,
+            "merchant_questions": merchant_questions,
+            "pending_questions": merchant_questions,
+            "keyword_surface_mapping": keyword_surface_mapping,
             "confidence": _normalize_confidence(llm_pack.get("confidence", "")) or "low",
-            "content_quality": llm_pack.get("content_quality", {}),
+            "content_quality": content_quality,
             "content_guardrail_reflection": llm_pack.get("content_guardrail_reflection", {}),
         },
         "recommended_content_actions": _coerce_str_list(
@@ -3199,6 +3826,7 @@ def _extract_product_fields(
             "opportunity_score": opp.get("opportunity_score", 0),
             "confirmed_facts": confirmed_facts,
             "missing_facts": missing_facts,
+            "fact_conflicts": facts_analysis.get("fact_conflicts", []),
             "fact_completeness_score": facts_analysis.get("completeness_score", 0.0),
             "source_product_text": " ".join(
                 value
@@ -3236,6 +3864,7 @@ def _extract_product_fields(
             "opportunity_score": opp.get("opportunity_score", 0) if isinstance(opp, dict) else 0,
             "confirmed_facts": [],
             "missing_facts": [],
+            "fact_conflicts": [],
             "fact_completeness_score": 0.0,
             "source_product_text": title,
         }
@@ -3436,6 +4065,7 @@ def run_market_analysis(
             temperature=0.0,
         )
         pack["confirmed_facts"] = fields["confirmed_facts"]
+        pack["fact_conflicts"] = fields.get("fact_conflicts", [])
 
         if candidate_pool:
             # Map the LLM selection back onto the real metrics; enrich any LLM-added gaps.
@@ -3517,11 +4147,15 @@ def run_market_analysis(
             state["pack"].get("seo_keywords", []) or [],
             state["fields"].get("confirmed_facts", []),
         )
-        state["pack"]["enrichment_questions"] = _build_enrichment_questions(
+        merchant_questions = _build_enrichment_questions(
             state["pack"].get("seo_keywords", []) or [],
             state["fields"].get("missing_facts", []),
             state["pack"]["surface_plan"],
         )
+        state["pack"]["enrichment_questions"] = merchant_questions
+        state["pack"]["merchant_questions"] = merchant_questions
+        state["pack"]["pending_questions"] = merchant_questions
+        state["pack"]["fact_conflicts"] = state["fields"].get("fact_conflicts", [])
         for keyword in state["pack"].get("seo_keywords", []) or []:
             query = str(keyword.get("query") or "").strip()
             if not query:
@@ -3535,7 +4169,14 @@ def run_market_analysis(
             keyword["intent_type"] = classification["intent_type"]
             keyword["intent_type_source"] = classification["intent_type_source"]
             keyword["serp_feature_targets"] = classification["serp_feature_targets"]
+            surface = _classify_keyword_surface(keyword)
+            keyword["keyword_surface"] = surface["surface"]
+            keyword["surface_reason"] = surface["reason"]
+            keyword["product_primary_allowed"] = surface["product_primary_allowed"]
         state["pack"]["keyword_clusters"] = kn.build_clusters(
+            state["pack"].get("seo_keywords", []) or []
+        )
+        state["pack"]["keyword_surface_mapping"] = _build_keyword_surface_mapping(
             state["pack"].get("seo_keywords", []) or []
         )
 
@@ -3690,6 +4331,7 @@ def run_market_analysis(
                 pass
 
     _apply_catalog_content_conflicts(product_results, active_products)
+    _sync_result_quality_fields(product_results)
 
     orphan_products: list[str] = []
     blog_gap_suggestions: list[dict[str, Any]] = []

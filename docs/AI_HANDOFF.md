@@ -10,6 +10,34 @@
 
 ## Last completed task
 
+- **Date:** 2026-05-31
+- **Agent:** Codex (GPT-5)
+- **Goal:** Durcir l'analyse marché produit pour empêcher les contenus non fiables d'être proposés comme publiables.
+- **Summary:** Le moteur applique désormais strictement `surface_plan` côté code : une surface `generate=false` est exclue de `keyword_coverage`, ses champs proposés sont vidés dans le JSON publiable, et la FAQ bloquée remonte `faq_blocked_missing_evidence` avec questions marchand non publiables. La validation post-génération sort maintenant `valid_claims`, `unsupported_claims`, `unsupported_claim_categories`, `publish_blockers`, `product_consistency_score`, `seo_geo_score`, `publish_status`, `blocking_reasons`, `surface_statuses`, `merchant_questions`, `recommended_next_actions` et `keyword_surface_mapping`. Les claims sensibles non prouvés, les conflits de faits produit, `product_consistency_score < 70` et `publish_ready=false` bloquent `auto_apply_allowed`. Les mots-clés sont classés par surface : produit transactionnel, blog/guide informationnel ou comparatif, FAQ question factuelle ; les requêtes DIY/gratuites/tricot/crochet et `meilleur/meilleure` ne peuvent plus devenir primary keyword produit. L'extraction produit lit davantage d'attributs depuis options/variantes/metafields/description et détecte les conflits de matériaux.
+- **Files created:** Aucun.
+- **Files modified:** `app/market_analysis/engine.py`, `app/geo/facts.py`, `tests/market_analysis/test_two_pass_engine.py`, `tests/test_geo/test_facts.py`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Ne pas modifier le schema JSON-LD, le maillage interne, ni aucun chemin qui écrit/publie sur Shopify. Ne pas ajouter de fallback LLM pour extraire des faits produit afin de rester déterministe et éviter d'introduire de nouvelles hallucinations dans la source de vérité.
+- **Validations run:** `ruff format app/market_analysis/engine.py app/geo/facts.py tests/market_analysis/test_two_pass_engine.py tests/test_geo/test_facts.py` ✅ ; `ruff check app/market_analysis/engine.py app/geo/facts.py tests/market_analysis/test_two_pass_engine.py tests/test_geo/test_facts.py` ✅ ; `pytest tests/market_analysis/test_two_pass_engine.py` ✅ (18 passed) ; `pytest tests/test_geo/test_facts.py` ✅ (4 passed) ; `pytest tests/market_analysis tests/test_geo/test_facts.py tests/test_api/test_market_analysis.py` ✅ (161 passed) ; `git diff --check` ✅.
+- **Validations skipped:** Pas de typecheck/build frontend : aucun fichier TypeScript n'a été modifié pour ce durcissement. Pas de run live Shopify/DataForSEO depuis l'app embedded.
+- **Open issues:** Les champs JSON-LD et maillage interne existent encore dans le produit mais n'ont pas été modifiés sur cette tâche, conformément à la consigne. Les exports historiques doivent être régénérés pour bénéficier des nouveaux statuts et blockers.
+- **Next recommended action:** Relancer une Analyse marché produit avec `reflection_test=true` puis inspecter le JSON d'un produit bloqué : `surface_statuses`, `blocking_reasons`, `merchant_questions` et `keyword_surface_mapping` doivent expliquer quoi compléter avant publication.
+
+## Previous completed task
+
+- **Date:** 2026-05-31
+- **Agent:** Codex (GPT-5)
+- **Goal:** Remplacer l'ancienne Analyse produit par le mode validé avec réflexion garde-fou.
+- **Summary:** Le job Analyse marché active désormais `reflection_test=True` par défaut côté backend, donc les analyses produits standards, les relances depuis Analyse marché, l'accueil et les analyses mono-produit utilisent toutes la boucle réflexion + retry contrôlé. Le bouton séparé `Analyse produit test` a été retiré de la page Analyse marché afin que le chemin normal soit le chemin validé. Le téléchargement de la réflexion reste disponible lorsque l'analyse contient le journal garde-fou.
+- **Files created:** Aucun.
+- **Files modified:** `app/api/market_analysis.py`, `shopify-app/app/routes/app.market-analysis.tsx`, `tests/test_api/test_market_analysis.py`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Garder `reflection_test` comme flag technique pour compatibilité/override éventuel, mais le défaut produit est maintenant activé. Pas de changement sur le moteur de réflexion lui-même.
+- **Validations run:** `ruff format app/api/market_analysis.py tests/test_api/test_market_analysis.py` ✅ ; `ruff check app/api/market_analysis.py tests/test_api/test_market_analysis.py` ✅ ; `pytest tests/test_api/test_market_analysis.py` ✅ (9 passed) ; `pytest tests/market_analysis tests/test_api/test_market_analysis.py` ✅ (153 passed) ; `cd shopify-app && npm run typecheck` ✅ ; `cd shopify-app && npm run build` ✅.
+- **Validations skipped:** Pas de test live Shopify/DataForSEO depuis l'app embedded.
+- **Open issues:** Les anciennes analyses sans `reflection_test` peuvent encore ne pas afficher le badge/réflexion tant qu'elles ne sont pas régénérées.
+- **Next recommended action:** Déployer puis relancer une analyse produit standard pour confirmer que la réflexion est attachée sans utiliser de bouton séparé.
+
+## Previous completed task
+
 - **Date:** 2026-05-30
 - **Agent:** Codex (GPT-5)
 - **Goal:** Ajouter une Analyse produit test dans Analyse marché avec réflexion garde-fou, retry contrôlé et export JSON de la réflexion.
