@@ -4,7 +4,7 @@ application_url = "https://localhost:3458"
 embedded = true
 
 [access_scopes]
-scopes = "read_products,write_products,read_orders,write_content"
+scopes = "read_products,write_products,read_orders,write_content,read_themes,write_themes"
 
 [auth]
 redirect_urls = [
@@ -19,6 +19,19 @@ api_version = "2025-01"
 
   [[webhooks.subscriptions]]
   topics = [ "app/uninstalled" ]
+  uri = "/webhooks"
+
+  # Catalogue changes trigger a debounced llms.txt / llms-full.txt regeneration.
+  # Covered by the existing read_products scope — NOT an OAuth scope change.
+  # Requires `shopify app deploy` to update the Shopify-side manifest.
+  [[webhooks.subscriptions]]
+  topics = [
+    "products/create",
+    "products/update",
+    "products/delete",
+    "collections/update",
+    "collections/delete",
+  ]
   uri = "/webhooks"
 
   [[webhooks.subscriptions]]

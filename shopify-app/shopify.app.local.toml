@@ -4,7 +4,7 @@ application_url = "https://localhost:3458"
 embedded = true
 
 [access_scopes]
-scopes = "read_products,write_products,read_orders"
+scopes = "read_products,write_products,read_orders,read_themes,write_themes"
 
 [auth]
 redirect_urls = [

@@ -1,19 +1,47 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
-import { callBackend } from "../lib/api.server";
+import { callBackend, callBackendForShop } from "../lib/api.server";
+
+/**
+ * Catalogue topics that should trigger an llms.txt / llms-full.txt regeneration.
+ * The backend debounces (5 min) and only republishes content that is already
+ * public, so a redundant trigger is cheap and safe.
+ */
+const CATALOG_TOPICS = new Set([
+  "products/create",
+  "products/update",
+  "products/delete",
+  "collections/update",
+  "collections/delete",
+]);
 
 /**
  * Webhook relay — Shopify calls this endpoint for all subscribed topics.
- * We forward each webhook to the Python backend with its original HMAC headers
- * so the Python HMAC validator can re-verify the signature independently.
  *
- * Topics handled: app/uninstalled, customers/data_request,
- *                 customers/redact, shop/redact
+ * - Catalogue topics (products/*, collections/*) → POST the llms-txt webhook-tick
+ *   so the backend can debounce-regenerate the published files.
+ * - All other topics (app/uninstalled, compliance) are forwarded to the Python
+ *   backend with their original HMAC headers so Python re-verifies the signature.
+ *
+ * Always returns 200 so Shopify does not retry/duplicate deliveries.
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
   const topic = request.headers.get("x-shopify-topic") ?? "";
   const shop = request.headers.get("x-shopify-shop-domain") ?? "";
   const hmac = request.headers.get("x-shopify-hmac-sha256") ?? "";
   const rawBody = await request.text();
+
+  if (CATALOG_TOPICS.has(topic) && shop) {
+    try {
+      await callBackendForShop(
+        shop,
+        `/api/shops/${shop}/llms-txt/webhook-tick`,
+        { method: "POST", body: JSON.stringify({ shop }) },
+      );
+    } catch (err) {
+      console.error(`[webhooks] llms-txt tick failed for shop=${shop}:`, err);
+    }
+    return new Response(null, { status: 200 });
+  }
 
   // Map Shopify topic format (customers/data_request) to Python path segment
   const path = `/shopify/webhooks/${topic}`;

@@ -56,6 +56,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import { LlmsTxtPanel } from "../components/LlmsTxtPanel";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
 import { qualityWarningText, type ProductResult } from "../lib/marketAnalysisShared";
@@ -2778,6 +2779,9 @@ export default function IndexPage() {
           analyzingProductId={isAnalyzingSingle ? singleProductId : null}
           isAnalyzingSingle={isAnalyzingSingle}
         />
+
+        {/* AI files (llms.txt + llms-full.txt) — one-click publish */}
+        <LlmsTxtPanel locale={locale} />
 
         {/* Zone 3 — Ongoing optimizations */}
         <Zone3 data={zone3} locale={locale} />

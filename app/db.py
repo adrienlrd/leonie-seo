@@ -246,6 +246,18 @@ _SQLITE_DDL = [
         rejected_reason TEXT,
         retry_index     INTEGER NOT NULL DEFAULT 0
     )""",
+    # AI discovery templates (agents.md / llms.txt / llms-full.txt) publication
+    # state, one row per shop. The files are written to the published theme.
+    """CREATE TABLE IF NOT EXISTS llms_txt_publications (
+        shop                 TEXT PRIMARY KEY,
+        theme_id             TEXT,
+        agents_hash          TEXT,
+        llms_hash            TEXT,
+        full_hash            TEXT,
+        last_published_at    TEXT,
+        last_webhook_tick_at TEXT,
+        is_published         INTEGER NOT NULL DEFAULT 0
+    )""",
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
@@ -448,6 +460,16 @@ _PG_DDL = [
         severity      TEXT NOT NULL,
         detail        TEXT NOT NULL,
         metadata_json TEXT NOT NULL DEFAULT '{}'
+    )""",
+    """CREATE TABLE IF NOT EXISTS llms_txt_publications (
+        shop                 TEXT PRIMARY KEY,
+        theme_id             TEXT,
+        agents_hash          TEXT,
+        llms_hash            TEXT,
+        full_hash            TEXT,
+        last_published_at    TEXT,
+        last_webhook_tick_at TEXT,
+        is_published         INTEGER NOT NULL DEFAULT 0
     )""",
 ]
 

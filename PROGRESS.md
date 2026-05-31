@@ -41,6 +41,10 @@
 **Prérequis tâche 169** : créer le projet Supabase, récupérer `SUPABASE_URL` + `SUPABASE_ANON_KEY`, ajouter `supabase-py` aux dépendances.
 **Coût cible prod** : ~$5/mois infra (Vercel free + Railway Hobby $5 + Supabase free).
 
+### Checklist déploiement (à exécuter au déploiement Phase 12)
+- **Re-consent marchand OBLIGATOIRE (`read_themes` + `write_themes`)** : la feature « Fichiers IA » (agents.md / llms.txt / llms-full.txt) écrit désormais des **templates de thème** (`templates/*.liquid`) sur le thème publié — Shopify sert ces routes nativement depuis le thème depuis le [changelog du 28 mai 2026](https://shopify.dev/changelog/customize-llmstxt-llms-fulltxt-and-agentsmd) ; l'ancienne approche Files API + URL Redirect est **silencieusement ignorée**. Scopes ajoutés dans les 3 tomls + `render.yaml`. Au déploiement : `shopify app deploy` **puis réinstallation/re-consent** de chaque boutique pour accorder les nouveaux scopes. Tant que ce n'est pas fait, `POST /llms-txt/publish` renvoie **403** avec un message « réinstaller l'app ».
+- **`shopify app deploy` requis** aussi pour activer les abonnements webhook catalogue (`products/create|update|delete`, `collections/update|delete`) qui déclenchent la régénération automatique (debounce 5 min). Ces topics ne deviennent actifs qu'après mise à jour du manifest Shopify.
+
 ---
 
 ## Phase 11.9 — Merchant Journey Unification & Friction Reduction le 2026-05-21

@@ -564,6 +564,32 @@ const FR: Dictionary = {
   businessProfileKeyThemes: "Thèmes éditoriaux",
   businessProfileInsights: "Observations concurrents",
   businessProfileValidated: "Profil validé",
+  llmsTxtTitle: "Fichiers IA (llms.txt)",
+  llmsTxtNavLabel: "Fichiers IA llms.txt",
+  llmsTxtIntro:
+    "Publiez automatiquement les fichiers llms.txt et llms-full.txt qui aident ChatGPT, Claude, Perplexity et Gemini à comprendre et citer votre boutique. Aucune action technique requise.",
+  llmsTxtStatusPublished: "Publié",
+  llmsTxtStatusNotPublished: "Non publié",
+  llmsTxtStatusDivergent: "Mise à jour disponible",
+  llmsTxtGenerate: "Générer l'aperçu",
+  llmsTxtPublish: "Publier les fichiers",
+  llmsTxtRepublish: "Mettre à jour les fichiers",
+  llmsTxtUnpublish: "Dépublier",
+  llmsTxtPublishing: "Publication en cours…",
+  llmsTxtGenerating: "Génération de l'aperçu…",
+  llmsTxtPublished: "Vos fichiers IA sont en ligne.",
+  llmsTxtOpenFile: "Ouvrir llms.txt",
+  llmsTxtOpenFullFile: "Ouvrir llms-full.txt",
+  llmsTxtOpenAgents: "Ouvrir agents.md",
+  llmsTxtPreviewTitle: "Aperçu du llms.txt",
+  llmsTxtManage: "Gérer les fichiers IA",
+  llmsTxtLastPublished: "Dernière publication",
+  llmsTxtAutoUpdate:
+    "Les fichiers sont régénérés automatiquement quand votre catalogue change.",
+  llmsTxtWarnings: "Points d'attention",
+  llmsTxtError: "Une erreur est survenue. Réessayez dans quelques instants.",
+  llmsTxtNoSnapshot:
+    "Lancez d'abord un audit de la boutique pour générer les fichiers.",
 };
 
 const EN: Dictionary = {
@@ -1128,6 +1154,31 @@ const EN: Dictionary = {
   businessProfileKeyThemes: "Editorial themes",
   businessProfileInsights: "Competitor insights",
   businessProfileValidated: "Profile validated",
+  llmsTxtTitle: "AI files (llms.txt)",
+  llmsTxtNavLabel: "AI llms.txt files",
+  llmsTxtIntro:
+    "Automatically publish the llms.txt and llms-full.txt files that help ChatGPT, Claude, Perplexity and Gemini understand and cite your store. No technical work required.",
+  llmsTxtStatusPublished: "Published",
+  llmsTxtStatusNotPublished: "Not published",
+  llmsTxtStatusDivergent: "Update available",
+  llmsTxtGenerate: "Generate preview",
+  llmsTxtPublish: "Publish files",
+  llmsTxtRepublish: "Update files",
+  llmsTxtUnpublish: "Unpublish",
+  llmsTxtPublishing: "Publishing…",
+  llmsTxtGenerating: "Generating preview…",
+  llmsTxtPublished: "Your AI files are live.",
+  llmsTxtOpenFile: "Open llms.txt",
+  llmsTxtOpenFullFile: "Open llms-full.txt",
+  llmsTxtOpenAgents: "Open agents.md",
+  llmsTxtPreviewTitle: "llms.txt preview",
+  llmsTxtManage: "Manage AI files",
+  llmsTxtLastPublished: "Last published",
+  llmsTxtAutoUpdate:
+    "Files are regenerated automatically whenever your catalog changes.",
+  llmsTxtWarnings: "Things to review",
+  llmsTxtError: "Something went wrong. Please try again in a moment.",
+  llmsTxtNoSnapshot: "Run a store audit first to generate the files.",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };
