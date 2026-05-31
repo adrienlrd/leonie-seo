@@ -94,6 +94,11 @@ class ShopifyThemeWriter:
             if resp.status_code >= 500:
                 time.sleep(min(2.0**attempt, 30.0))
                 continue
+            if resp.status_code in (401, 403):
+                raise ShopifyThemeScopeError(
+                    f"Shopify rejected the access token (HTTP {resp.status_code}). "
+                    "Reinstall the app from Shopify Admin to refresh permissions."
+                )
             resp.raise_for_status()
             data = resp.json()
             self._raise_for_top_level_errors(data)

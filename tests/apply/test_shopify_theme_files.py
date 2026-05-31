@@ -114,6 +114,13 @@ def test_scope_denied_maps_to_scope_error(mocker):
         writer.upsert_templates("gid://t/1", {"templates/llms.txt.liquid": "x"})
 
 
+def test_http_401_maps_to_scope_error(mocker):
+    writer = _writer()
+    mocker.patch.object(writer._session, "post", return_value=_Resp({}, 401))
+    with pytest.raises(ShopifyThemeScopeError, match="Reinstall"):
+        writer.get_published_theme_id()
+
+
 def test_delete_templates_returns_filenames(mocker):
     writer = _writer()
     mocker.patch.object(
