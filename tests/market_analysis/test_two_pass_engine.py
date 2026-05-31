@@ -664,6 +664,137 @@ def test_keyword_guardrail_blocks_content_quality_before_content_generation() ->
     assert "Bloqué : mots-clés non alignés avec le besoin client" in quality["blocking_reasons"]
 
 
+def test_content_quality_blocks_when_top_secondary_keywords_are_not_used() -> None:
+    description = (
+        "Cette fontaine chat est décrite comme une fontaine pour le point d'eau du foyer. "
+        "La fiche produit confirme son usage comme accessoire d'eau pour chat et permet "
+        "de présenter la page sans ajouter de promesse non vérifiée. Le texte explique "
+        "simplement le rôle du produit, son contexte d'utilisation et la façon dont le "
+        "marchand peut le présenter sur une page produit."
+    )
+    pack = {
+        "seo_keywords": [
+            {"query": "fontaine chat", "target_role": "primary", "keyword_surface": "product_page"},
+            {
+                "query": "fontaine chat inox",
+                "target_role": "secondary",
+                "keyword_surface": "product_page",
+            },
+            {
+                "query": "fontaine chat sans fil",
+                "target_role": "secondary",
+                "keyword_surface": "product_page",
+            },
+            {
+                "query": "fontaine chat design",
+                "target_role": "secondary",
+                "keyword_surface": "product_page",
+            },
+        ],
+        "proposed_meta_title": "Fontaine chat pour le point d'eau du foyer",
+        "proposed_meta_description": "Fontaine chat pour présenter un point d'eau dédié dans la maison.",
+        "proposed_product_description": description,
+        "proposed_faq": [
+            {"q": "Comment utiliser une fontaine chat ?", "a": "Suivez la fiche produit."}
+        ],
+        "proposed_geo_answer_block": "Une fontaine chat est un point d'eau décrit dans la fiche produit.",
+        "proposed_blog_title": "",
+        "proposed_blog_intro": "",
+        "proposed_blog_outline": [],
+        "claims_used": [{"claim": "Produit pour chat", "fact_keys": ["description"]}],
+        "confidence": "high",
+    }
+
+    quality = engine._build_content_quality(
+        pack,
+        confirmed_facts=[
+            {
+                "key": "description",
+                "value": description,
+                "source": "shopify_snapshot",
+                "confidence": "confirmed",
+            }
+        ],
+        source_product_text=description,
+        surface_plan={
+            "metadata": {"generate": True},
+            "product_description": {"generate": True},
+            "faq": {"generate": True},
+            "geo_answer": {"generate": True},
+            "blog": {"generate": False},
+        },
+    )
+
+    assert quality["publish_ready"] is False
+    assert quality["keyword_content_guardrail"]["status"] == "blocked"
+    assert "secondary_keyword_coverage_low" in quality["issues"]
+    assert "important_keyword_coverage_low" in quality["publish_blockers"]
+    assert quality["keyword_content_guardrail"]["uncovered_important_keywords"] == [
+        "fontaine chat inox",
+        "fontaine chat sans fil",
+        "fontaine chat design",
+    ]
+
+
+def test_commercial_modifier_keyword_is_covered_without_forcing_exact_buy_word() -> None:
+    description = (
+        "Ce pull en cachemire pour chien est présenté dans la fiche produit comme un "
+        "vêtement en cachemire pour chien. La page décrit le produit, sa matière et son "
+        "usage comme vêtement pour chien, sans ajouter de promesse non vérifiée. Cette "
+        "présentation permet de couvrir l'intention d'achat avec une formulation naturelle "
+        "de page produit."
+    )
+    pack = {
+        "seo_keywords": [
+            {"query": "pull chien", "target_role": "primary", "keyword_surface": "product_page"},
+            {
+                "query": "pull chien acheter",
+                "target_role": "secondary",
+                "keyword_surface": "product_page",
+            },
+        ],
+        "proposed_meta_title": "Pull chien en cachemire pour page produit",
+        "proposed_meta_description": "Pull en cachemire pour chien présenté clairement dans la fiche produit.",
+        "proposed_product_description": description,
+        "proposed_faq": [
+            {"q": "Comment présenter un pull chien ?", "a": "Avec les faits confirmés."}
+        ],
+        "proposed_geo_answer_block": "Un pull chien est un vêtement décrit par la fiche produit.",
+        "proposed_blog_title": "",
+        "proposed_blog_intro": "",
+        "proposed_blog_outline": [],
+        "claims_used": [{"claim": "Pull en cachemire pour chien", "fact_keys": ["description"]}],
+        "confidence": "high",
+    }
+
+    quality = engine._build_content_quality(
+        pack,
+        confirmed_facts=[
+            {
+                "key": "description",
+                "value": description,
+                "source": "shopify_snapshot",
+                "confidence": "confirmed",
+            }
+        ],
+        source_product_text=description,
+        surface_plan={
+            "metadata": {"generate": True},
+            "product_description": {"generate": True},
+            "faq": {"generate": True},
+            "geo_answer": {"generate": True},
+            "blog": {"generate": False},
+        },
+    )
+
+    coverage = {item["query"]: item for item in quality["keyword_coverage"]}
+    assert coverage["pull chien acheter"]["coverage_query"] == "pull chien"
+    assert coverage["pull chien acheter"]["coverage_mode"] == "commercial_intent_normalized"
+    assert coverage["pull chien acheter"]["adapted_fields_covered"]
+    assert quality["keyword_content_guardrail"]["status"] == "pass"
+    assert "secondary_keyword_coverage_low" not in quality["issues"]
+
+
 def test_keyword_assignment_keeps_diy_free_queries_out_of_product_primary() -> None:
     keywords = [
         {

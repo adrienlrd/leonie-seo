@@ -203,6 +203,9 @@ _BLOCKING_REASON_LABELS = {
     "keyword_customer_need_alignment_low": "Bloqué : mots-clés non alignés avec le besoin client",
     "insufficient_product_page_keyword_targets": "Bloqué : mots-clés produit insuffisants",
     "keyword_targets_too_indirect": "Bloqué : trop de mots-clés indirects ou non prouvés",
+    "primary_keyword_not_used_in_content": "Bloqué : mot-clé principal non utilisé dans le contenu",
+    "secondary_keyword_coverage_low": "Bloqué : mots-clés secondaires trop peu utilisés",
+    "important_keyword_coverage_low": "Bloqué : mots-clés sélectionnés peu exploités",
 }
 
 _REFLECTION_THRESHOLD = 75
@@ -1912,6 +1915,21 @@ _BLOG_QUERY_MARKERS = frozenset(
     }
 )
 
+_COMMERCIAL_INTENT_TERMS = frozenset(
+    {
+        "acheter",
+        "achat",
+        "achats",
+        "commande",
+        "commander",
+        "boutique",
+        "vente",
+        "prix",
+        "tarif",
+        "tarifs",
+    }
+)
+
 
 def _classify_keyword_surface(keyword: dict[str, Any]) -> dict[str, Any]:
     """Classify the safest content surface for a keyword target."""
@@ -2691,6 +2709,116 @@ def _keyword_is_covered(query: str, text: str) -> bool:
     return True
 
 
+def _keyword_coverage_query(query: str) -> tuple[str, str]:
+    """Return the query to check in content and the coverage mode used."""
+    words = _content_word_sequence(query)
+    stripped_words = [word for word in words if word not in _COMMERCIAL_INTENT_TERMS]
+    if len(stripped_words) >= 2 and len(stripped_words) < len(words):
+        return " ".join(stripped_words), "commercial_intent_normalized"
+    return query, "exact_terms"
+
+
+def _keyword_is_naturally_covered(query: str, text: str) -> bool:
+    """Return whether content naturally covers a query or its commercial intent."""
+    if _keyword_is_covered(query, text):
+        return True
+    coverage_query, _mode = _keyword_coverage_query(query)
+    return coverage_query != query and _keyword_is_covered(coverage_query, text)
+
+
+def _adapted_keyword_fields(
+    keyword: dict[str, Any],
+    coverage_fields: dict[str, str],
+) -> list[str]:
+    """Return the generated fields that match a keyword's intended surface."""
+    surface = _coerce_str(keyword.get("keyword_surface", "")).strip()
+    if not surface:
+        surface = _classify_keyword_surface(keyword)["surface"]
+    candidates = {
+        "product_page": ("meta_title", "meta_description", "description", "geo"),
+        "blog": ("blog",),
+        "faq": ("faq", "geo"),
+    }.get(surface, ("meta_title", "meta_description", "description", "geo", "blog"))
+    return [field for field in candidates if field in coverage_fields]
+
+
+def _build_keyword_content_guardrail(
+    *,
+    targets: list[dict[str, Any]],
+    keyword_coverage: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Validate that selected keyword targets are actually used in generated content."""
+    evaluated: list[dict[str, Any]] = []
+    for index, target in enumerate(targets[:5]):
+        coverage_item = keyword_coverage[index] if index < len(keyword_coverage) else {}
+        role = _coerce_str(target.get("target_role", "supporting"), "supporting")
+        surface = (
+            _coerce_str(target.get("keyword_surface", "")).strip()
+            or _classify_keyword_surface(target)["surface"]
+        )
+        covered_adapted_fields = _coerce_str_list(coverage_item.get("adapted_fields_covered", []))
+        evaluated.append(
+            {
+                "query": _coerce_str(target.get("query", "")),
+                "target_role": role,
+                "surface": surface,
+                "coverage_query": _coerce_str(coverage_item.get("coverage_query", "")),
+                "coverage_mode": _coerce_str(coverage_item.get("coverage_mode", "exact_terms")),
+                "adapted_fields": _coerce_str_list(coverage_item.get("adapted_fields", [])),
+                "covered_adapted_fields": covered_adapted_fields,
+                "is_covered": bool(covered_adapted_fields),
+                "required": role in {"primary", "secondary"},
+            }
+        )
+
+    primary = next((item for item in evaluated if item["target_role"] == "primary"), None)
+    secondary_items = [
+        item for item in evaluated if item["target_role"] == "secondary" and item["required"]
+    ]
+    important_items = [item for item in evaluated if item["required"]]
+    covered_secondary = [item for item in secondary_items if item["is_covered"]]
+    required_secondary_count = min(3, len(secondary_items))
+    if len(secondary_items) >= 3:
+        required_secondary_count = 3
+    elif len(secondary_items) == 2:
+        required_secondary_count = 2
+    elif len(secondary_items) == 1:
+        required_secondary_count = 1
+
+    issues: list[str] = []
+    if primary and not primary["is_covered"]:
+        issues.append("primary_keyword_not_used_in_content")
+    if len(covered_secondary) < required_secondary_count:
+        issues.append("secondary_keyword_coverage_low")
+    covered_important_count = sum(1 for item in important_items if item["is_covered"])
+    important_ratio = covered_important_count / len(important_items) if important_items else 1.0
+    if important_items and important_ratio < 0.8:
+        issues.append("important_keyword_coverage_low")
+
+    score = round(important_ratio * 100)
+    return {
+        "status": "blocked" if issues else "pass",
+        "score": max(0, min(100, score)),
+        "issues": issues,
+        "evaluated_keywords": evaluated,
+        "covered_important_count": covered_important_count,
+        "important_keyword_count": len(important_items),
+        "required_secondary_count": required_secondary_count,
+        "covered_secondary_count": len(covered_secondary),
+        "uncovered_important_keywords": [
+            item["query"] for item in important_items if not item["is_covered"]
+        ],
+        "blocking_reasons": _blocking_reasons(issues),
+        "recommended_next_actions": (
+            [
+                "Regenerate content so the primary and top secondary keyword targets appear naturally in their intended surfaces."
+            ]
+            if issues
+            else []
+        ),
+    }
+
+
 def _has_content(value: Any) -> bool:
     """Return whether a generated field contains publishable content."""
     if isinstance(value, list):
@@ -2790,6 +2918,17 @@ def _recommended_next_actions(
         )
     if "product_consistency_below_threshold" in issues:
         actions.append("Regenerate the proposal using only confirmed product facts.")
+    if any(
+        issue in issues
+        for issue in (
+            "primary_keyword_not_used_in_content",
+            "secondary_keyword_coverage_low",
+            "important_keyword_coverage_low",
+        )
+    ):
+        actions.append(
+            "Regenerate content so selected keywords are naturally covered in matching surfaces."
+        )
     for question in merchant_questions[:3]:
         field_key = _coerce_str(question.get("field_key") or question.get("key", ""))
         if field_key:
@@ -2895,15 +3034,29 @@ def _build_content_quality(
     coverage: list[dict[str, Any]] = []
     for target in targets:
         query = str(target["query"])
+        coverage_query, coverage_mode = _keyword_coverage_query(query)
+        all_covered_fields = [
+            field_name
+            for field_name, field_text in coverage_fields.items()
+            if _keyword_is_naturally_covered(query, field_text)
+        ]
+        adapted_fields = _adapted_keyword_fields(target, coverage_fields)
+        adapted_fields_covered = [
+            field_name
+            for field_name in adapted_fields
+            if _keyword_is_naturally_covered(query, coverage_fields.get(field_name, ""))
+        ]
         coverage.append(
             {
                 "query": query,
+                "coverage_query": coverage_query,
+                "coverage_mode": coverage_mode,
                 "target_role": target.get("target_role", "supporting"),
-                "fields": [
-                    field_name
-                    for field_name, field_text in coverage_fields.items()
-                    if _keyword_is_covered(query, field_text)
-                ],
+                "surface": target.get("keyword_surface")
+                or _classify_keyword_surface(target)["surface"],
+                "fields": all_covered_fields,
+                "adapted_fields": adapted_fields,
+                "adapted_fields_covered": adapted_fields_covered,
             }
         )
 
@@ -2921,16 +3074,26 @@ def _build_content_quality(
             continue
         if surface == "faq" or _surface_has_content(pack, surface):
             issues.append(blocked_issue)
+    keyword_content_guardrail = _build_keyword_content_guardrail(
+        targets=targets,
+        keyword_coverage=coverage,
+    )
+    if keyword_content_guardrail.get("status") == "blocked":
+        issues.extend(
+            issue
+            for issue in _coerce_str_list(keyword_content_guardrail.get("issues", []))
+            if issue not in issues
+        )
 
     primary_query = str(targets[0]["query"]) if targets else ""
     if not primary_query:
         issues.append("missing_primary_keyword_target")
     else:
-        if not _keyword_is_covered(primary_query, fields["meta_title"]):
+        if not _keyword_is_naturally_covered(primary_query, fields["meta_title"]):
             issues.append("meta_title_missing_primary_target")
-        if not _keyword_is_covered(primary_query, fields["meta_description"]):
+        if not _keyword_is_naturally_covered(primary_query, fields["meta_description"]):
             issues.append("meta_description_missing_primary_target")
-        if _enabled_surface(plan, "product_description") and not _keyword_is_covered(
+        if _enabled_surface(plan, "product_description") and not _keyword_is_naturally_covered(
             primary_query, fields["description"]
         ):
             issues.append("description_missing_primary_target")
@@ -2950,10 +3113,10 @@ def _build_content_quality(
     if _enabled_surface(plan, "faq"):
         if not fields["faq"]:
             issues.append("missing_recommended_faq")
-        elif primary_query and not _keyword_is_covered(primary_query, fields["faq"]):
+        elif primary_query and not _keyword_is_naturally_covered(primary_query, fields["faq"]):
             issues.append("faq_missing_primary_target")
         elif paa_questions and not any(
-            _keyword_is_covered(question, fields["faq"]) for question in paa_questions
+            _keyword_is_naturally_covered(question, fields["faq"]) for question in paa_questions
         ):
             issues.append("faq_missing_available_paa_question")
     elif fields["faq"]:
@@ -2970,7 +3133,7 @@ def _build_content_quality(
         _enabled_surface(plan, "blog")
         and fields["blog"]
         and primary_query
-        and not _keyword_is_covered(primary_query, fields["blog"])
+        and not _keyword_is_naturally_covered(primary_query, fields["blog"])
     ):
         issues.append("blog_missing_primary_target")
     if not _enabled_surface(plan, "blog") and fields["blog"]:
@@ -3053,12 +3216,17 @@ def _build_content_quality(
         "keyword_customer_need_alignment_low",
         "insufficient_product_page_keyword_targets",
         "keyword_targets_too_indirect",
+        "primary_keyword_not_used_in_content",
+        "secondary_keyword_coverage_low",
+        "important_keyword_coverage_low",
     ):
         if critical_issue in issues and critical_issue not in publish_blockers:
             publish_blockers.append(critical_issue)
 
     coverage_ratio = (
-        sum(1 for item in coverage if item["fields"]) / len(coverage) if coverage else 0.0
+        sum(1 for item in coverage if item["adapted_fields_covered"]) / len(coverage)
+        if coverage
+        else 0.0
     )
     geo_surface_count = sum(
         1
@@ -3090,9 +3258,10 @@ def _build_content_quality(
         "blocking_reasons": blocking_reasons,
         "issues": issues,
         "advisories": advisories,
-        "covered_target_count": sum(1 for item in coverage if item["fields"]),
+        "covered_target_count": sum(1 for item in coverage if item["adapted_fields_covered"]),
         "target_count": len(targets),
         "keyword_coverage": coverage,
+        "keyword_content_guardrail": keyword_content_guardrail,
         "seo_geo_score": seo_geo_score,
         "product_consistency_score": product_consistency_score,
         "surface_statuses": surface_statuses,
@@ -3220,6 +3389,11 @@ def _build_content_reflection_attempt(
         "product_fact_conflict",
         "faq_blocked_missing_evidence",
     }
+    blocking_keyword_issues = {
+        "primary_keyword_not_used_in_content",
+        "secondary_keyword_coverage_low",
+        "important_keyword_coverage_low",
+    }
 
     business_terms = _content_words(
         " ".join(
@@ -3260,12 +3434,16 @@ def _build_content_reflection_attempt(
 
     seo_score = round(45 + coverage_ratio * 45)
     if primary_keyword and (
-        _keyword_is_covered(primary_keyword, _coerce_str(pack.get("proposed_meta_title", "")))
-        or _keyword_is_covered(
+        _keyword_is_naturally_covered(
+            primary_keyword, _coerce_str(pack.get("proposed_meta_title", ""))
+        )
+        or _keyword_is_naturally_covered(
             primary_keyword, _coerce_str(pack.get("proposed_meta_description", ""))
         )
     ):
         seo_score += 10
+    if any(issue in blocking_keyword_issues for issue in issues):
+        seo_score = min(seo_score, 60)
     seo_score = max(0, min(100, seo_score))
 
     geo_surfaces = [
@@ -3330,7 +3508,7 @@ def _build_content_reflection_attempt(
                 f"Primary keyword: {primary_keyword or 'missing'}",
             ],
             recommendation=(
-                "Place the primary target naturally in metadata and one content surface."
+                "Use the primary and top secondary targets naturally in their intended surfaces."
                 if seo_score < _REFLECTION_THRESHOLD
                 else "SEO target coverage is sufficient."
             ),
@@ -3428,6 +3606,8 @@ def _build_reflection_retry_prompt(
         f"PRODUCT: {product_title}\n"
         f"NICHE: {niche_summary or 'not set'}\n"
         f"TARGET KEYWORDS: {', '.join(keywords) if keywords else 'none'}\n"
+        "KEYWORD COVERAGE RULE: use the primary and top secondary targets naturally in their intended surfaces. "
+        "For commercial modifiers like 'acheter', cover the buying intent with product-page copy instead of forcing the exact word.\n"
         f"CONFIRMED FACTS ONLY: {facts_text}\n"
         f"SURFACE PLAN: {json.dumps(surface_plan, ensure_ascii=False)}\n\n"
         "PREVIOUS PROPOSAL:\n"
@@ -3771,6 +3951,7 @@ def _build_product_result(
         "recommended_next_actions": content_quality.get("recommended_next_actions", []),
         "keyword_surface_mapping": keyword_surface_mapping,
         "keyword_guardrail": llm_pack.get("keyword_guardrail", {}),
+        "keyword_content_guardrail": content_quality.get("keyword_content_guardrail", {}),
         "trend_signals": opportunity.get("trend_signals", []),
         "competitor_signals": opportunity.get("signals", []),
         "content_test_pack": {
@@ -3836,6 +4017,7 @@ def _build_product_result(
             "pending_questions": merchant_questions,
             "keyword_surface_mapping": keyword_surface_mapping,
             "keyword_guardrail": llm_pack.get("keyword_guardrail", {}),
+            "keyword_content_guardrail": content_quality.get("keyword_content_guardrail", {}),
             "confidence": _normalize_confidence(llm_pack.get("confidence", "")) or "low",
             "content_quality": content_quality,
             "content_guardrail_reflection": llm_pack.get("content_guardrail_reflection", {}),

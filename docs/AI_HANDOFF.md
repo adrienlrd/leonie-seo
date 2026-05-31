@@ -12,6 +12,20 @@
 
 - **Date:** 2026-05-31
 - **Agent:** Codex (GPT-5)
+- **Goal:** Vérifier que les mots-clés sélectionnés sont réellement utilisés dans les propositions de contenu.
+- **Summary:** Le validateur post-génération ajoute désormais un `keyword_content_guardrail` distinct du garde-fou de sélection keyword. Il vérifie que le primary et les meilleurs secondary sont couverts dans les surfaces adaptées (`product_page`, `blog`, `faq`) avant de laisser une proposition devenir publiable. Les requêtes commerciales comme `pull chien acheter` sont normalisées en intention (`pull chien`) pour éviter de forcer des formulations artificielles, tout en exigeant une couverture naturelle dans la page produit. Les sorties JSON exposent les champs couverts, les champs adaptés, le mode de couverture (`exact_terms` ou `commercial_intent_normalized`) et les mots-clés importants non couverts. Si la couverture est insuffisante, la réflexion SEO baisse sous le seuil et déclenche la régénération contrôlée.
+- **Files created:** Aucun.
+- **Files modified:** `app/market_analysis/engine.py`, `tests/market_analysis/test_two_pass_engine.py`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Garder les supporting keywords optionnels ; rendre le primary obligatoire ; exiger une couverture suffisante des top secondary sans imposer l'exact match des modificateurs commerciaux. Ne pas toucher JSON-LD, maillage interne, ni publication Shopify.
+- **Validations run:** `ruff format app/market_analysis/engine.py tests/market_analysis/test_two_pass_engine.py` ✅ ; `ruff check app/market_analysis/engine.py tests/market_analysis/test_two_pass_engine.py` ✅ ; `pytest tests/market_analysis/test_two_pass_engine.py tests/market_analysis/test_keyword_pool.py` ✅ (46 passed) ; `pytest tests/market_analysis tests/test_geo/test_facts.py tests/test_api/test_market_analysis.py` ✅ (167 passed).
+- **Validations skipped:** Pas de run live DataForSEO/Shopify embedded ; nécessite une nouvelle analyse réelle boutique.
+- **Open issues:** Les exports existants doivent être régénérés pour voir `keyword_content_guardrail` et la nouvelle réflexion SEO.
+- **Next recommended action:** Relancer Analyse marché sur la boutique pilote et vérifier que les mots-clés secondaires produit ont des `adapted_fields_covered` non vides ou déclenchent une régénération.
+
+## Previous completed task
+
+- **Date:** 2026-05-31
+- **Agent:** Codex (GPT-5)
 - **Goal:** Corriger la sélection de mots-clés produit sans hardcoder de niches marketing.
 - **Summary:** Le correctif retire le vocabulaire déterministe animaux/produits du moteur keyword et génère les seeds depuis le libellé marchand, le titre et le handle via des patrons linguistiques génériques (`X pour Y`, variantes courtes produit/usage). Les intentions découvertes par le Pass 1 (`buying_intents`, `target_customer`) peuvent enrichir la réparation, mais aucun segment métier type petfood/coiffure/mécanique n'est codé en dur. Une étape `keyword_guardrail` valide les cibles avant Pass 2 : le primary doit être aligné avec le produit/besoin client, il faut assez de cibles page produit, et trop de requêtes indirectes/DIY/avis/personnalisation non prouvée bloque la génération de contenu. Tests ajoutés sur un produit digital (`formation SEO pour Shopify`) et mécanique (`huile moteur synthétique pour moto`) pour prouver la découverte cross-niche. JSON-LD, maillage interne et publication Shopify restent inchangés.
 - **Files created:** Aucun.
