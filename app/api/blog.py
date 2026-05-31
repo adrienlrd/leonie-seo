@@ -96,6 +96,29 @@ class DraftUpdateRequest(BaseModel):
     image_url: str | None = None
 
 
+def _source_product_link(
+    product: dict[str, Any],
+    selected_idea: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Build the guaranteed blog-to-product link for the generated draft."""
+    target_url = str(product.get("product_url") or "").strip()
+    if not target_url:
+        handle = str(product.get("product_handle") or "").strip()
+        target_url = f"/products/{handle}" if handle else ""
+    if not target_url:
+        return None
+    title = str(product.get("product_title") or "").strip()
+    anchor = str(selected_idea.get("target_keyword") or "").strip() or title
+    if not anchor:
+        return None
+    return {
+        "target_url": target_url,
+        "target_title": title or anchor,
+        "anchors": [anchor],
+        "reason": "source_product",
+    }
+
+
 def _draft_from_product(
     shop: str,
     product_id: str,
@@ -122,6 +145,18 @@ def _draft_from_product(
     blog_title = selected_idea.get("title") or pack.get("proposed_blog_title", "")
     intro = selected_idea.get("intro") or pack.get("proposed_blog_intro", "")
     outline = selected_idea.get("outline") or pack.get("proposed_blog_outline") or []
+    raw_internal_links = [
+        link
+        for link in [
+            _source_product_link(product, selected_idea),
+            *(
+                pack.get("recommended_internal_links")
+                or product.get("recommended_internal_links")
+                or []
+            ),
+        ]
+        if link
+    ]
 
     return {
         "product_id": product_id,
@@ -133,11 +168,7 @@ def _draft_from_product(
         "summary": (intro or "")[:200],
         "outline": list(outline or []),
         "sections": [],
-        "internal_links": select_blog_internal_links(
-            pack.get("recommended_internal_links")
-            or product.get("recommended_internal_links")
-            or []
-        ),
+        "internal_links": select_blog_internal_links(raw_internal_links),
         "confirmed_facts": pack.get("confirmed_facts") or [],
         "tags": [],
         "author_type": "Organization",

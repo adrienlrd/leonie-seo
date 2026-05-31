@@ -87,7 +87,14 @@ def test_draft_from_product_carries_market_analysis_internal_links() -> None:
                 "content_test_pack": {
                     "proposed_blog_title": "Comment choisir un harnais chien cuir",
                     "proposed_blog_intro": "Intro",
-                    "proposed_blog_outline": ["Pourquoi le cuir ?"],
+                    "proposed_blog_ideas": [
+                        {
+                            "title": "Comment choisir un harnais chien cuir",
+                            "target_keyword": "harnais chien cuir",
+                            "intro": "Intro",
+                            "outline": ["Pourquoi le cuir ?"],
+                        }
+                    ],
                     "confirmed_facts": [{"key": "material", "value": "cuir"}],
                     "recommended_internal_links": [
                         {
@@ -98,6 +105,47 @@ def test_draft_from_product_carries_market_analysis_internal_links() -> None:
                         }
                     ],
                 },
+                "product_url": "/products/harnais-cuir",
+            }
+        ]
+    }
+
+    with patch("app.api.blog.load_latest_result", return_value=latest):
+        draft = _draft_from_product(
+            "shop.myshopify.com",
+            "gid://shopify/Product/1",
+            blog_idea_index=0,
+        )
+
+    assert draft["internal_links"] == [
+        {
+            "target_url": "/products/harnais-cuir",
+            "anchor": "harnais chien cuir",
+            "target_title": "Harnais cuir",
+            "reason": "source_product",
+        },
+        {
+            "target_url": "/collections/chien",
+            "anchor": "accessoires chien",
+            "target_title": "Collection chien",
+            "reason": "collection_parent",
+        },
+    ]
+
+
+def test_draft_from_product_adds_source_product_link_without_recommendations() -> None:
+    latest = {
+        "products": [
+            {
+                "product_id": "gid://shopify/Product/1",
+                "product_title": "Fontaine chat inox",
+                "product_handle": "fontaine-chat-inox",
+                "content_test_pack": {
+                    "proposed_blog_title": "Pourquoi choisir une fontaine chat inox",
+                    "proposed_blog_intro": "Intro",
+                    "proposed_blog_outline": ["Pourquoi l'inox ?"],
+                    "confirmed_facts": [{"key": "material", "value": "inox"}],
+                },
             }
         ]
     }
@@ -107,9 +155,9 @@ def test_draft_from_product_carries_market_analysis_internal_links() -> None:
 
     assert draft["internal_links"] == [
         {
-            "target_url": "/collections/chien",
-            "anchor": "accessoires chien",
-            "target_title": "Collection chien",
-            "reason": "collection_parent",
+            "target_url": "/products/fontaine-chat-inox",
+            "anchor": "Fontaine chat inox",
+            "target_title": "Fontaine chat inox",
+            "reason": "source_product",
         }
     ]
