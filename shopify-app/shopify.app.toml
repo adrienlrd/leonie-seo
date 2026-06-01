@@ -1,6 +1,6 @@
 name = "Organically"
 client_id = "bfdee818e5750cdf0a6b699eb914b87e"
-application_url = "https://localhost:3458"
+application_url = "https://pilot.leoniedelacroix.com"
 embedded = true
 
 [access_scopes]
