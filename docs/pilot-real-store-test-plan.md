@@ -48,7 +48,7 @@ Run these checks from the Shopify Admin for `287c4a-bb.myshopify.com`.
 
 | Area | Steps | Expected result | Notes to capture |
 |---|---|---|---|
-| Install/session | Open the Léonie SEO Pilot app from Shopify Admin. Refresh once. Navigate away and back. | App loads embedded without OAuth loop; session persists. | Load time, any Shopify frame/session warning. |
+| Install/session | Open the Organically app from Shopify Admin. Refresh once. Navigate away and back. | App loads embedded without OAuth loop; session persists. | Load time, any Shopify frame/session warning. |
 | Navigation | Click Dashboard, Review IA, Niche, Onboarding, Jobs SEO, Facturation, Réglages, Confidentialité. | Each route loads on the first click and keeps the Shopify embedded context. | Broken route, route needing multiple clicks, blank page. |
 | Settings | Open Réglages. Check backend, shop, snapshot, budget and mode pilote cards. | Backend OK; shop is the real shop; mode pilote shows `Pilot-safe actif`. | Missing env vars, wrong shop, stale snapshot. |
 | Onboarding | Open Onboarding. Launch an audit SEO. | Audit job is created; page shows Shopify OK and crawl status updates after completion. | Job ID, duration, product/collection counts. |
