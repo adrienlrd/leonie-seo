@@ -15,6 +15,18 @@ api_version = "2025-01"
   topics = [ "app/uninstalled" ]
   uri = "/webhooks"
 
+  # Catalogue changes trigger a debounced llms.txt / llms-full.txt regeneration.
+  # Covered by the existing read_products scope — NOT an OAuth scope change.
+  [[webhooks.subscriptions]]
+  topics = [
+    "products/create",
+    "products/update",
+    "products/delete",
+    "collections/update",
+    "collections/delete",
+  ]
+  uri = "/webhooks"
+
   [[webhooks.subscriptions]]
   compliance_topics = [
     "customers/data_request",
