@@ -975,6 +975,10 @@ function ProductCard({
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
   const pack = product.content_test_pack;
+  // Hide keywords with zero product fit — they are noise for the merchant.
+  const displayedKeywords = product.seo_keywords.filter(
+    (keyword) => (keyword.product_fit_score ?? 0) > 0,
+  );
   const selectedTargets = product.seo_keywords
     .filter((keyword) => (keyword.target_rank ?? 999) <= 5)
     .slice(0, 5);
@@ -1071,12 +1075,13 @@ function ProductCard({
           onEnrichAndAnalyze={onEnrichAndAnalyze}
           analyzeDisabled={analyzeDisabled}
           layout="buttons"
+          showKeywordSources={false}
         />
 
         <InlineStack gap="150" wrap>
-          {product.seo_keywords.length > 0 && (
+          {displayedKeywords.length > 0 && (
             <Button size="slim" pressed={openSection === "keywords"} onClick={() => toggle("keywords")}>
-              {`${t(locale, "marketAnalysisSeoKeywords")} (${product.seo_keywords.length})`}
+              {`${t(locale, "marketAnalysisSeoKeywords")} (${displayedKeywords.length})`}
             </Button>
           )}
           {product.geo_questions.length > 0 && (
@@ -1103,11 +1108,11 @@ function ProductCard({
           )}
         </InlineStack>
 
-        {product.seo_keywords.length > 0 && (
+        {displayedKeywords.length > 0 && (
           <Collapsible id={`kw-${product.product_id}`} open={openSection === "keywords"}>
               <Box paddingBlockStart="200">
                 <BlockStack gap="200">
-                  {product.seo_keywords.map((k, idx) => (
+                  {displayedKeywords.map((k, idx) => (
                     <Box
                       key={`${k.query}-${idx}`}
                       padding="200"

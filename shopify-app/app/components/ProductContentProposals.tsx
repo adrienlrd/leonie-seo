@@ -50,6 +50,7 @@ export function ProductContentProposals({
   onEnrichAndAnalyze,
   analyzeDisabled,
   layout,
+  showKeywordSources = true,
 }: {
   product: ProductResult;
   locale: Locale;
@@ -57,6 +58,7 @@ export function ProductContentProposals({
   onEnrichAndAnalyze: (answers: Record<string, string>) => void;
   analyzeDisabled: boolean;
   layout: "sections" | "buttons";
+  showKeywordSources?: boolean;
 }) {
   const pack = product.content_test_pack;
   const seoKeywords = product.seo_keywords ?? [];
@@ -560,7 +562,7 @@ export function ProductContentProposals({
     .sort((a, b) => (a.target_rank ?? 999) - (b.target_rank ?? 999))
     .slice(0, 8);
 
-  const keywordSourcesPanel = targetedKeywords.length > 0 ? (
+  const keywordSourcesPanel = showKeywordSources && targetedKeywords.length > 0 ? (
     <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
       <BlockStack gap="200">
         <Text as="h4" variant="headingXs">
