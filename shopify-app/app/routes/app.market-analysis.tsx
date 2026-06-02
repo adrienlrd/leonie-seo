@@ -993,11 +993,11 @@ function ProductCard({
   );
 
   return (
-    <Card>
-      <BlockStack gap="300">
+    <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
+      <BlockStack gap="200">
         <InlineStack gap="200" align="space-between" wrap>
           <BlockStack gap="100">
-            <Text as="h3" variant="headingSm">{product.product_title}</Text>
+            <Text as="p" variant="bodyMd" fontWeight="semibold">{product.product_title}</Text>
             <Text as="p" variant="bodySm" tone="subdued">/{product.product_handle}</Text>
           </BlockStack>
           <InlineStack gap="200">
@@ -1204,7 +1204,7 @@ function ProductCard({
                   isAnalyzing={isAnalyzing}
                   onEnrichAndAnalyze={onEnrichAndAnalyze}
                   analyzeDisabled={analyzeDisabled}
-                  layout="sections"
+                  layout="buttons"
                 />
               </Box>
             </Collapsible>
@@ -1278,7 +1278,7 @@ function ProductCard({
           </Box>
         )}
       </BlockStack>
-    </Card>
+    </Box>
   );
 }
 
