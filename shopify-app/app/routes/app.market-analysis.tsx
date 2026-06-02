@@ -10,7 +10,6 @@ import {
   Button,
   Card,
   Collapsible,
-  DataTable,
   Icon,
   InlineStack,
   Modal,
@@ -1003,7 +1002,7 @@ function ProductCard({
   const hasStructuredData = Boolean(jsonld && (jsonld.product || jsonld.faq || jsonld.breadcrumb));
 
   return (
-    <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
+    <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface">
       <BlockStack gap="200">
         <InlineStack gap="200" align="space-between" wrap>
           <BlockStack gap="100">
@@ -1017,7 +1016,6 @@ function ProductCard({
                 </Tooltip>
               )}
             </InlineStack>
-            <Text as="p" variant="bodySm" tone="subdued">/{product.product_handle}</Text>
           </BlockStack>
           <InlineStack gap="200">
             <Badge tone={scoreTone(100 - product.opportunity_score)}>
@@ -1082,18 +1080,6 @@ function ProductCard({
           {displayedKeywords.length > 0 && (
             <Button size="slim" pressed={openSection === "keywords"} onClick={() => toggle("keywords")}>
               {`${t(locale, "marketAnalysisSeoKeywords")} (${displayedKeywords.length})`}
-            </Button>
-          )}
-          {product.geo_questions.length > 0 && (
-            <Button size="slim" pressed={openSection === "geo"} onClick={() => toggle("geo")}>
-              {`${t(locale, "marketAnalysisGeoQuestions")} (${product.geo_questions.length})`}
-            </Button>
-          )}
-          {pack.content_guardrail_reflection?.enabled && (
-            <Button size="slim" pressed={openSection === "reflection"} onClick={() => toggle("reflection")}>
-              {locale === "fr"
-                ? `Réflexion qualité (${pack.content_guardrail_reflection.final_score}/100)`
-                : `Quality reflection (${pack.content_guardrail_reflection.final_score}/100)`}
             </Button>
           )}
           {hasStructuredData && (
@@ -1222,33 +1208,6 @@ function ProductCard({
             </Collapsible>
         )}
 
-        {product.geo_questions.length > 0 && (
-          <Collapsible id={`geo-${product.product_id}`} open={openSection === "geo"}>
-              <Box paddingBlockStart="200">
-                <DataTable
-                  columnContentTypes={["text", "text", "text"]}
-                  headings={[
-                    "Question",
-                    locale === "fr" ? "Angle de réponse" : "Answer angle",
-                    locale === "fr" ? "Type de bloc" : "Block type",
-                  ]}
-                  rows={product.geo_questions.map((q) => [q.question, q.answer_angle, q.content_block_type])}
-                />
-              </Box>
-            </Collapsible>
-        )}
-
-        {pack.content_guardrail_reflection?.enabled && (
-          <Collapsible id={`reflection-${product.product_id}`} open={openSection === "reflection"}>
-              <Box paddingBlockStart="200">
-                <GuardrailReflectionSection
-                  reflection={pack.content_guardrail_reflection}
-                  locale={locale}
-                />
-              </Box>
-            </Collapsible>
-        )}
-
         {hasStructuredData && (
           <Collapsible id={`structured-${product.product_id}`} open={openSection === "structured"}>
             <Box paddingBlockStart="200">
@@ -1269,65 +1228,6 @@ function ProductCard({
         )}
       </BlockStack>
     </Box>
-  );
-}
-
-function GuardrailReflectionSection({
-  reflection,
-  locale,
-}: {
-  reflection: ContentGuardrailReflection;
-  locale: Locale;
-}) {
-  const finalTone =
-    reflection.final_status === "pass"
-      ? "success"
-      : reflection.final_status === "blocked"
-      ? "critical"
-      : "warning";
-  const lastAttempt = reflection.attempts[reflection.attempts.length - 1];
-  return (
-    <BlockStack gap="200">
-      <InlineStack gap="200" blockAlign="center" wrap>
-        <Badge tone={finalTone}>{reflection.final_status}</Badge>
-        <Text as="span" variant="bodySm">
-          {locale === "fr" ? "Score final" : "Final score"}:{" "}
-          <strong>{reflection.final_score}/100</strong>
-        </Text>
-        <Text as="span" variant="bodySm" tone="subdued">
-          {locale === "fr" ? "Retries" : "Retries"}: {reflection.retry_count}/{reflection.max_retries}
-        </Text>
-      </InlineStack>
-      {lastAttempt?.questions.map((item) => (
-        <Box
-          key={item.key}
-          padding="200"
-          borderWidth="025"
-          borderRadius="200"
-          borderColor="border"
-          background="bg-surface-secondary"
-        >
-          <BlockStack gap="100">
-            <InlineStack gap="200" align="space-between" blockAlign="center">
-              <Text as="p" variant="bodySm">
-                <strong>{item.question}</strong>
-              </Text>
-              <Badge tone={item.status === "pass" ? "success" : item.status === "blocked" ? "critical" : "warning"}>
-                {`${item.score}/100`}
-              </Badge>
-            </InlineStack>
-            <Text as="p" variant="bodySm" tone="subdued">
-              {item.recommendation}
-            </Text>
-            {item.evidence.length > 0 && (
-              <Text as="p" variant="bodySm" tone="subdued">
-                {item.evidence.join(" · ")}
-              </Text>
-            )}
-          </BlockStack>
-        </Box>
-      ))}
-    </BlockStack>
   );
 }
 
