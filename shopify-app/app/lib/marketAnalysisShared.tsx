@@ -349,9 +349,9 @@ export function qualityWarningText(pack: ContentTestPack, locale: Locale): strin
   const quality = pack.content_quality;
   if (!quality) return "";
   const parts: string[] = [];
-  if (!quality.publish_ready && quality.issues.length > 0) {
+  if (!quality.publish_ready && (quality.issues?.length ?? 0) > 0) {
     const prefix = locale === "fr" ? "À corriger avant publication" : "Fix before publishing";
-    parts.push(`${prefix} : ${quality.issues.map((issue) => qualityIssueLabel(issue, locale)).join(" · ")}`);
+    parts.push(`${prefix} : ${(quality.issues ?? []).map((issue) => qualityIssueLabel(issue, locale)).join(" · ")}`);
   }
   if ((quality.skipped_surfaces?.length ?? 0) > 0) {
     const prefix = locale === "fr"
