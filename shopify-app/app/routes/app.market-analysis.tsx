@@ -11,6 +11,7 @@ import {
   Card,
   Collapsible,
   DataTable,
+  Icon,
   InlineStack,
   Modal,
   Page,
@@ -18,7 +19,9 @@ import {
   Spinner,
   Text,
   TextField,
+  Tooltip,
 } from "@shopify/polaris";
+import { AlertTriangleIcon } from "@shopify/polaris-icons";
 import { Component, useEffect, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
@@ -992,12 +995,24 @@ function ProductCard({
       .map(([query]) => query),
   );
 
+  const jsonld = pack.proposed_schema_jsonld;
+  const hasStructuredData = Boolean(jsonld && (jsonld.product || jsonld.faq || jsonld.breadcrumb));
+
   return (
     <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
       <BlockStack gap="200">
         <InlineStack gap="200" align="space-between" wrap>
           <BlockStack gap="100">
-            <Text as="p" variant="bodyMd" fontWeight="semibold">{product.product_title}</Text>
+            <InlineStack gap="150" blockAlign="center">
+              <Text as="p" variant="bodyMd" fontWeight="semibold">{product.product_title}</Text>
+              {pack.facts_missing.length > 0 && (
+                <Tooltip content={`${t(locale, "marketAnalysisFactsMissing")} : ${pack.facts_missing.join(" · ")}`}>
+                  <span style={{ display: "inline-flex", cursor: "help" }}>
+                    <Icon source={AlertTriangleIcon} tone="warning" />
+                  </span>
+                </Tooltip>
+              )}
+            </InlineStack>
             <Text as="p" variant="bodySm" tone="subdued">/{product.product_handle}</Text>
           </BlockStack>
           <InlineStack gap="200">
@@ -1049,12 +1064,47 @@ function ProductCard({
           </Text>
         )}
 
-        {product.seo_keywords.length > 0 && (
-          <Box>
-            <Button variant="plain" onClick={() => toggle("keywords")}>
+        <ProductContentProposals
+          product={product}
+          locale={locale}
+          isAnalyzing={isAnalyzing}
+          onEnrichAndAnalyze={onEnrichAndAnalyze}
+          analyzeDisabled={analyzeDisabled}
+          layout="buttons"
+        />
+
+        <InlineStack gap="150" wrap>
+          {product.seo_keywords.length > 0 && (
+            <Button size="slim" pressed={openSection === "keywords"} onClick={() => toggle("keywords")}>
               {`${t(locale, "marketAnalysisSeoKeywords")} (${product.seo_keywords.length})`}
             </Button>
-            <Collapsible id={`kw-${product.product_id}`} open={openSection === "keywords"}>
+          )}
+          {product.geo_questions.length > 0 && (
+            <Button size="slim" pressed={openSection === "geo"} onClick={() => toggle("geo")}>
+              {`${t(locale, "marketAnalysisGeoQuestions")} (${product.geo_questions.length})`}
+            </Button>
+          )}
+          {pack.content_guardrail_reflection?.enabled && (
+            <Button size="slim" pressed={openSection === "reflection"} onClick={() => toggle("reflection")}>
+              {locale === "fr"
+                ? `Réflexion qualité (${pack.content_guardrail_reflection.final_score}/100)`
+                : `Quality reflection (${pack.content_guardrail_reflection.final_score}/100)`}
+            </Button>
+          )}
+          {hasStructuredData && (
+            <Button size="slim" pressed={openSection === "structured"} onClick={() => toggle("structured")}>
+              {t(locale, "marketAnalysisStructuredData")}
+            </Button>
+          )}
+          {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (
+            <Button size="slim" pressed={openSection === "links"} onClick={() => toggle("links")}>
+              {`${t(locale, "marketAnalysisInternalLinks")} (${pack.recommended_internal_links.length})`}
+            </Button>
+          )}
+        </InlineStack>
+
+        {product.seo_keywords.length > 0 && (
+          <Collapsible id={`kw-${product.product_id}`} open={openSection === "keywords"}>
               <Box paddingBlockStart="200">
                 <BlockStack gap="200">
                   {product.seo_keywords.map((k, idx) => (
@@ -1165,15 +1215,10 @@ function ProductCard({
                 </BlockStack>
               </Box>
             </Collapsible>
-          </Box>
         )}
 
         {product.geo_questions.length > 0 && (
-          <Box>
-            <Button variant="plain" onClick={() => toggle("geo")}>
-              {`${t(locale, "marketAnalysisGeoQuestions")} (${product.geo_questions.length})`}
-            </Button>
-            <Collapsible id={`geo-${product.product_id}`} open={openSection === "geo"}>
+          <Collapsible id={`geo-${product.product_id}`} open={openSection === "geo"}>
               <Box paddingBlockStart="200">
                 <DataTable
                   columnContentTypes={["text", "text", "text"]}
@@ -1186,56 +1231,10 @@ function ProductCard({
                 />
               </Box>
             </Collapsible>
-          </Box>
-        )}
-
-        {(pack.proposed_meta_title || pack.proposed_meta_description ||
-          pack.proposed_product_description || pack.proposed_faq.length > 0 ||
-          pack.proposed_blog_title) && (
-          <Box>
-            <Button variant="plain" onClick={() => toggle("proposals")}>
-              {t(locale, "marketAnalysisProposals")}
-            </Button>
-            <Collapsible id={`prop-${product.product_id}`} open={openSection === "proposals"}>
-              <Box paddingBlockStart="200">
-                <ProductContentProposals
-                  product={product}
-                  locale={locale}
-                  isAnalyzing={isAnalyzing}
-                  onEnrichAndAnalyze={onEnrichAndAnalyze}
-                  analyzeDisabled={analyzeDisabled}
-                  layout="buttons"
-                />
-              </Box>
-            </Collapsible>
-          </Box>
-        )}
-
-        {pack.facts_missing.length > 0 && (
-          <Box>
-            <Button variant="plain" onClick={() => toggle("facts")}>
-              {`${t(locale, "marketAnalysisFactsMissing")} (${pack.facts_missing.length})`}
-            </Button>
-            <Collapsible id={`facts-${product.product_id}`} open={openSection === "facts"}>
-              <Box paddingBlockStart="100">
-                <BlockStack gap="050">
-                  {pack.facts_missing.map((f, i) => (
-                    <Text key={i} as="p" variant="bodySm" tone="subdued">• {f}</Text>
-                  ))}
-                </BlockStack>
-              </Box>
-            </Collapsible>
-          </Box>
         )}
 
         {pack.content_guardrail_reflection?.enabled && (
-          <Box>
-            <Button variant="plain" onClick={() => toggle("reflection")}>
-              {locale === "fr"
-                ? `Réflexion qualité (${pack.content_guardrail_reflection.final_score}/100)`
-                : `Quality reflection (${pack.content_guardrail_reflection.final_score}/100)`}
-            </Button>
-            <Collapsible id={`reflection-${product.product_id}`} open={openSection === "reflection"}>
+          <Collapsible id={`reflection-${product.product_id}`} open={openSection === "reflection"}>
               <Box paddingBlockStart="200">
                 <GuardrailReflectionSection
                   reflection={pack.content_guardrail_reflection}
@@ -1243,39 +1242,25 @@ function ProductCard({
                 />
               </Box>
             </Collapsible>
-          </Box>
         )}
 
-        {(pack.proposed_geo_definition_block ||
-          (pack.proposed_geo_quick_facts && pack.proposed_geo_quick_facts.length > 0) ||
-          (pack.proposed_geo_comparison_table && pack.proposed_geo_comparison_table.length > 0) ||
-          pack.proposed_schema_jsonld) && (
-          <Box>
-            <Button variant="plain" onClick={() => toggle("geopack")}>
-              {t(locale, "marketAnalysisGeoPack")}
-            </Button>
-            <Collapsible id={`geopack-${product.product_id}`} open={openSection === "geopack"}>
-              <Box paddingBlockStart="200">
-                <GeoPackSection productId={product.product_id} pack={pack} locale={locale} />
-              </Box>
-            </Collapsible>
-          </Box>
+        {hasStructuredData && (
+          <Collapsible id={`structured-${product.product_id}`} open={openSection === "structured"}>
+            <Box paddingBlockStart="200">
+              <GeoPackSection productId={product.product_id} pack={pack} locale={locale} />
+            </Box>
+          </Collapsible>
         )}
 
         {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (
-          <Box>
-            <Button variant="plain" onClick={() => toggle("links")}>
-              {`${t(locale, "marketAnalysisInternalLinks")} (${pack.recommended_internal_links.length})`}
-            </Button>
-            <Collapsible id={`links-${product.product_id}`} open={openSection === "links"}>
-              <Box paddingBlockStart="200">
-                <InternalLinksSection
-                  links={pack.recommended_internal_links}
-                  locale={locale}
-                />
-              </Box>
-            </Collapsible>
-          </Box>
+          <Collapsible id={`links-${product.product_id}`} open={openSection === "links"}>
+            <Box paddingBlockStart="200">
+              <InternalLinksSection
+                links={pack.recommended_internal_links}
+                locale={locale}
+              />
+            </Box>
+          </Collapsible>
         )}
       </BlockStack>
     </Box>
@@ -1376,41 +1361,6 @@ function GeoPackSection({
 
   return (
     <BlockStack gap="300">
-      {pack.proposed_geo_definition_block ? (
-        <Box>
-          <Text as="p" variant="headingXs">{t(locale, "marketAnalysisGeoDefinition")}</Text>
-          <Text as="p" variant="bodySm">{pack.proposed_geo_definition_block}</Text>
-        </Box>
-      ) : null}
-
-      {pack.proposed_geo_quick_facts && pack.proposed_geo_quick_facts.length > 0 ? (
-        <Box>
-          <Text as="p" variant="headingXs">{t(locale, "marketAnalysisGeoQuickFacts")}</Text>
-          <BlockStack gap="050">
-            {pack.proposed_geo_quick_facts.map((fact, i) => (
-              <Text key={i} as="p" variant="bodySm">• {fact}</Text>
-            ))}
-          </BlockStack>
-        </Box>
-      ) : null}
-
-      {pack.proposed_geo_comparison_table && pack.proposed_geo_comparison_table.length > 0 ? (
-        <Box>
-          <Text as="p" variant="headingXs">{t(locale, "marketAnalysisGeoComparisonTable")}</Text>
-          <BlockStack gap="050">
-            {pack.proposed_geo_comparison_table.map((row, i) => {
-              const crit = row["critère"] ?? row.criterion ?? "";
-              const val = row.valeur ?? row.value ?? "";
-              return (
-                <Text key={i} as="p" variant="bodySm">
-                  <strong>{crit}</strong> : {val}
-                </Text>
-              );
-            })}
-          </BlockStack>
-        </Box>
-      ) : null}
-
       {pack.eeat_signals && pack.eeat_signals.length > 0 ? (
         <Box>
           <Text as="p" variant="headingXs">{t(locale, "marketAnalysisEeatSignals")}</Text>
