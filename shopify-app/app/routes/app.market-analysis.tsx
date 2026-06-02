@@ -1005,8 +1005,8 @@ function ProductCard({
           <BlockStack gap="100">
             <InlineStack gap="150" blockAlign="center">
               <Text as="p" variant="bodyMd" fontWeight="semibold">{product.product_title}</Text>
-              {pack.facts_missing.length > 0 && (
-                <Tooltip content={`${t(locale, "marketAnalysisFactsMissing")} : ${pack.facts_missing.join(" · ")}`}>
+              {(pack.facts_missing?.length ?? 0) > 0 && (
+                <Tooltip content={`${t(locale, "marketAnalysisFactsMissing")} : ${(pack.facts_missing ?? []).join(" · ")}`}>
                   <span style={{ display: "inline-flex", cursor: "help" }}>
                     <Icon source={AlertTriangleIcon} tone="warning" />
                   </span>

@@ -251,9 +251,9 @@ export function keywordCoverage(keyword: string, pack: ContentTestPack): string[
     ["Meta title", pack.proposed_meta_title],
     ["Meta description", pack.proposed_meta_description],
     ["Description", pack.proposed_product_description],
-    ["FAQ", pack.proposed_faq.map((item) => `${item.q} ${item.a}`).join(" ")],
+    ["FAQ", (pack.proposed_faq ?? []).map((item) => `${item.q} ${item.a}`).join(" ")],
     ["GEO", pack.proposed_geo_answer_block],
-    ["Blog", [pack.proposed_blog_title, pack.proposed_blog_intro, ...pack.proposed_blog_outline].join(" ")],
+    ["Blog", [pack.proposed_blog_title, pack.proposed_blog_intro, ...(pack.proposed_blog_outline ?? [])].join(" ")],
     ["Image alts", (pack.proposed_image_alts ?? []).map((a) => a.proposed_alt).join(" ")],
   ];
   return fields

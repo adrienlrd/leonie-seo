@@ -58,11 +58,12 @@ export function ProductContentProposals({
   layout: "sections" | "buttons";
 }) {
   const pack = product.content_test_pack;
+  const seoKeywords = product.seo_keywords ?? [];
   const coverageTargets = (() => {
-    const primary = product.seo_keywords
+    const primary = seoKeywords
       .filter((keyword) => (keyword.target_rank ?? 999) <= 5)
       .slice(0, 5);
-    return primary.length > 0 ? primary : product.seo_keywords.slice(0, 5);
+    return primary.length > 0 ? primary : seoKeywords.slice(0, 5);
   })();
   const kwQueries = coverageTargets.map((keyword) => keyword.query);
 
@@ -121,7 +122,7 @@ export function ProductContentProposals({
 
   const updateFaq = (idx: number, field: "q" | "a", value: string) =>
     setEditedPack((prev) => {
-      const faq = [...prev.proposed_faq];
+      const faq = [...(prev.proposed_faq ?? [])];
       faq[idx] = { ...faq[idx], [field]: value };
       return { ...prev, proposed_faq: faq };
     });
@@ -129,13 +130,13 @@ export function ProductContentProposals({
   const addFaqItem = () =>
     setEditedPack((prev) => ({
       ...prev,
-      proposed_faq: [...prev.proposed_faq, { q: "", a: "" }],
+      proposed_faq: [...(prev.proposed_faq ?? []), { q: "", a: "" }],
     }));
 
   const removeFaqItem = (idx: number) =>
     setEditedPack((prev) => ({
       ...prev,
-      proposed_faq: prev.proposed_faq.filter((_, i) => i !== idx),
+      proposed_faq: (prev.proposed_faq ?? []).filter((_, i) => i !== idx),
     }));
 
   const handleSaveProposals = () => {
@@ -143,10 +144,10 @@ export function ProductContentProposals({
       proposed_meta_title: editedPack.proposed_meta_title,
       proposed_meta_description: editedPack.proposed_meta_description,
       proposed_product_description: editedPack.proposed_product_description,
-      proposed_faq: editedPack.proposed_faq,
+      proposed_faq: editedPack.proposed_faq ?? [],
       proposed_blog_title: editedPack.proposed_blog_title,
       proposed_blog_intro: editedPack.proposed_blog_intro,
-      proposed_blog_outline: editedPack.proposed_blog_outline,
+      proposed_blog_outline: editedPack.proposed_blog_outline ?? [],
       proposed_blog_ideas: editedPack.proposed_blog_ideas,
       proposed_image_alts: editedPack.proposed_image_alts ?? [],
     };
@@ -255,7 +256,7 @@ export function ProductContentProposals({
           </Badge>
         )}
       </InlineStack>
-      {editedPack.proposed_faq.map((item, i) => (
+      {(editedPack.proposed_faq ?? []).map((item, i) => (
         <Box key={i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
           <BlockStack gap="150">
             {editing ? (
@@ -322,7 +323,7 @@ export function ProductContentProposals({
           />
           <TextField
             label={locale === "fr" ? "Plan (une section par ligne)" : "Outline (one section per line)"}
-            value={editedPack.proposed_blog_outline.join("\n")}
+            value={(editedPack.proposed_blog_outline ?? []).join("\n")}
             onChange={(v) =>
               setEditedPack((prev) => ({ ...prev, proposed_blog_outline: v.split("\n") }))
             }
@@ -340,7 +341,7 @@ export function ProductContentProposals({
                     title: editedPack.proposed_blog_title,
                     target_keyword: kwQueries[0] ?? "",
                     intro: editedPack.proposed_blog_intro,
-                    outline: editedPack.proposed_blog_outline,
+                    outline: editedPack.proposed_blog_outline ?? [],
                   }]
                 : [];
             return (
@@ -439,7 +440,7 @@ export function ProductContentProposals({
     { key: "meta_description", labelKey: "proposalFieldMetaDescription", has: Boolean(editedPack.proposed_meta_description), render: renderMetaDescription },
     { key: "alt_text", labelKey: "proposalFieldAltText", has: (editedPack.proposed_image_alts ?? []).length > 0, render: renderAltText },
     { key: "description", labelKey: "proposalFieldDescription", has: Boolean(editedPack.proposed_product_description), render: renderProductDescription },
-    { key: "faq", labelKey: "proposalFieldFaq", has: editedPack.proposed_faq.length > 0 || editMode, render: renderFaq },
+    { key: "faq", labelKey: "proposalFieldFaq", has: (editedPack.proposed_faq?.length ?? 0) > 0 || editMode, render: renderFaq },
     { key: "blog", labelKey: "proposalFieldBlog", has: Boolean(editedPack.proposed_blog_title), render: renderBlog },
   ];
 
@@ -542,7 +543,7 @@ export function ProductContentProposals({
 
   // Transparency: where each targeted keyword comes from and where it is used.
   // Directly answers the merchant's "which keywords were actually used?" question.
-  const targetedKeywords = [...product.seo_keywords]
+  const targetedKeywords = [...seoKeywords]
     .sort((a, b) => (a.target_rank ?? 999) - (b.target_rank ?? 999))
     .slice(0, 8);
 
