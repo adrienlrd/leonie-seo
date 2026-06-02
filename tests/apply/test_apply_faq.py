@@ -109,3 +109,44 @@ def test_apply_faq_returns_error_on_shopify_user_errors():
 
     assert out["applied"] is False
     assert "Invalid JSON" in out["error"]
+
+
+def test_apply_schema_facts_writes_only_supported_confirmed_facts(tmp_path):
+    captured: dict = {}
+
+    def _fake_post(url, headers=None, json=None, timeout=None):  # noqa: A002, ARG001
+        captured["payload"] = json
+        return _ok_response()
+
+    with (
+        patch.object(apply_faq, "get_token", return_value={"access_token": "shpat_xxx"}),
+        patch.object(apply_faq, "requests") as fake_requests,
+        patch.object(apply_faq, "_DATA_DIR", tmp_path),
+    ):
+        fake_requests.post.side_effect = _fake_post
+        fake_requests.RequestException = Exception
+        out = apply_faq.apply_schema_facts_to_shopify(
+            "shop.myshopify.com",
+            "gid://shopify/Product/42",
+            [
+                {
+                    "key": "materials",
+                    "value": ["cuir", "laiton"],
+                    "confidence": "confirmed",
+                },
+                {"key": "origins", "value": "France", "confidence": "confirmed"},
+                {"key": "aggregateRating", "value": "5", "confidence": "confirmed"},
+                {"key": "warranty", "value": "2 ans", "confidence": "guessed"},
+            ],
+        )
+
+    assert out["applied"] is True
+    assert out["entry_count"] == 2
+    metafield = captured["payload"]["variables"]["metafields"][0]
+    assert metafield["namespace"] == "leonie"
+    assert metafield["key"] == "schema_facts"
+    assert metafield["type"] == "json"
+    assert json.loads(metafield["value"]) == {
+        "materials": "cuir, laiton",
+        "origins": "France",
+    }

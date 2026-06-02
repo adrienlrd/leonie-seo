@@ -10,6 +10,21 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-02
+- **Agent:** Codex (GPT-5)
+- **Goal:** Relier l'enrichissement schema à Analyse marché/profil sans sur-ingénierie et simplifier l'activation Theme App Extension.
+- **Summary:** L'app embed de la Theme App Extension est désormais le point d'activation unifié « Léonie SEO » avec deux coches : afficher la FAQ produit et activer les JSON-LD produit/collection/organisation. Le bloc injecte `Product`, `CollectionPage` ou `Organization` selon le template, et enrichit `Product` avec `material`, `countryOfOrigin` et `additionalProperty` seulement si un metafield marchand `leonie.schema_facts` existe. Les anciens blocs séparés Product/Collection/Organization/FAQ section ont été supprimés pour éviter les doublons. Analyse marché gagne une action explicite « Synchroniser avec le thème » dans le pack GEO : elle écrit les faits confirmés autorisés dans `leonie.schema_facts` via Admin GraphQL, sans écrire automatiquement lors d'une sauvegarde de proposition. La page `/app/jsonld` reste inchangée comme écran de vérification/preview.
+- **Files created:** Aucun.
+- **Files modified:** `shopify-app/extensions/leonie-seo-jsonld/blocks/faq_embed.liquid`, `app/apply/apply_faq.py`, `app/api/market_analysis.py`, `shopify-app/app/routes/app.market-analysis.tsx`, `shopify-app/app/lib/marketAnalysisShared.tsx`, `tests/apply/test_apply_faq.py`, `tests/test_api/test_market_analysis.py`, `docs/AI_HANDOFF.md`.
+- **Files deleted:** `shopify-app/extensions/leonie-seo-jsonld/blocks/product_jsonld.liquid`, `shopify-app/extensions/leonie-seo-jsonld/blocks/collection_jsonld.liquid`, `shopify-app/extensions/leonie-seo-jsonld/blocks/organization_jsonld.liquid`, `shopify-app/extensions/leonie-seo-jsonld/blocks/faq_in_product.liquid`.
+- **Decisions made:** Supprimer les anciens blocs séparés pour que le marchand n'ait qu'un seul bloc à activer. Ne pas connecter le storefront au backend : Liquid lit Shopify live + metafields. Ne pas publier les faits à la sauvegarde d'une proposition ; la synchronisation schema est une action explicite. Filtrer strictement les facts autorisées (`materials`, `origins`, certifications, warranty, care, dimensions, compatibility, use cases, selection criteria) pour éviter ratings/reviews/certifications hallucines.
+- **Validations run:** `ruff format app/apply/apply_faq.py app/api/market_analysis.py tests/apply/test_apply_faq.py tests/test_api/test_market_analysis.py` ✅ ; `ruff check app/apply/apply_faq.py app/api/market_analysis.py tests/apply/test_apply_faq.py tests/test_api/test_market_analysis.py` ✅ ; `pytest tests/apply/test_apply_faq.py tests/test_api/test_market_analysis.py` → **15 passed** ✅ ; `cd shopify-app && npm run typecheck` ✅ ; `cd shopify-app && npm run build` ✅.
+- **Validations skipped:** Pas de test live dans l'éditeur de thème Shopify ni de Rich Results Test après déploiement ; nécessite `shopify app deploy`, activation de l'app embed sur une boutique et test d'une URL publique.
+- **Open issues:** Le statut `/app/jsonld` vérifie encore le snapshot d'audit, pas le HTML live du storefront après activation. Le nouveau metafield `leonie.schema_facts` est écrit uniquement depuis Analyse marché, pas depuis la page profil boutique.
+- **Next recommended action:** Déployer l'extension, activer uniquement l'app embed « Léonie SEO » dans le thème pilote, cocher FAQ + JSON-LD, synchroniser un produit depuis Analyse marché, puis comparer `/app/jsonld`, le HTML source produit et Google Rich Results.
+
+## Previous completed task
+
 - **Date:** 2026-05-31
 - **Agent:** Codex (GPT-5)
 - **Goal:** Continuer le chantier blog SEO+GEO — Sprint 2 : maillage interne dans les brouillons blog + surface robots.txt/crawlabilité IA sans écriture thème.

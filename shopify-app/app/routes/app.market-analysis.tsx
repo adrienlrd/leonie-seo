@@ -241,6 +241,12 @@ interface ContentTestPack {
     entry_count: number;
     applied_at: string | null;
   } | null;
+  schema_facts_sync?: {
+    applied: boolean;
+    error: string | null;
+    entry_count: number;
+    applied_at: string | null;
+  } | null;
 }
 
 interface BlogIdea {
@@ -622,6 +628,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ type: "saveProposals", error: null });
     } catch (err) {
       return json({ type: "saveProposals", error: String(err) });
+    }
+  }
+
+  if (intent === "syncSchemaFacts") {
+    const productId = formData.get("productId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/proposals/${encodeURIComponent(productId)}/schema-facts/sync`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      if (!resp.ok) {
+        const err = await resp.text();
+        return json({ type: "syncSchemaFacts", error: `Erreur ${resp.status}: ${err}` });
+      }
+      const data = await resp.json();
+      return json({ type: "syncSchemaFacts", error: null, data });
+    } catch (err) {
+      return json({ type: "syncSchemaFacts", error: String(err) });
     }
   }
 
@@ -1227,7 +1256,7 @@ function ProductCard({
             </Button>
             <Collapsible id={`geopack-${product.product_id}`} open={openSection === "geopack"}>
               <Box paddingBlockStart="200">
-                <GeoPackSection pack={pack} locale={locale} />
+                <GeoPackSection productId={product.product_id} pack={pack} locale={locale} />
               </Box>
             </Collapsible>
           </Box>
@@ -1313,13 +1342,38 @@ function GuardrailReflectionSection({
 }
 
 function GeoPackSection({
+  productId,
   pack,
   locale,
 }: {
+  productId: string;
   pack: ContentTestPack;
   locale: Locale;
 }) {
   const jsonld = pack.proposed_schema_jsonld;
+  const syncFetcher = useFetcher<{
+    type: string;
+    error: string | null;
+    data?: {
+      saved?: boolean;
+      schema_facts_sync?: {
+        applied: boolean;
+        error: string | null;
+        entry_count: number;
+        applied_at: string | null;
+      };
+    };
+  }>();
+  const syncState = syncFetcher.data?.data?.schema_facts_sync ?? pack.schema_facts_sync;
+  const canSyncFacts = (pack.confirmed_facts ?? []).length > 0;
+
+  const syncSchemaFacts = () => {
+    const form = new FormData();
+    form.set("intent", "syncSchemaFacts");
+    form.set("productId", productId);
+    syncFetcher.submit(form, { method: "post" });
+  };
+
   return (
     <BlockStack gap="300">
       {pack.proposed_geo_definition_block ? (
@@ -1372,17 +1426,46 @@ function GeoPackSection({
         <Box>
           <InlineStack gap="200" align="space-between" blockAlign="center">
             <Text as="p" variant="headingXs">{t(locale, "marketAnalysisGeoJsonLd")}</Text>
-            <Button
-              size="slim"
-              onClick={() => {
-                if (typeof navigator !== "undefined" && navigator.clipboard) {
-                  navigator.clipboard.writeText(JSON.stringify(jsonld, null, 2));
-                }
-              }}
-            >
-              {t(locale, "marketAnalysisGeoCopyJsonLd")}
-            </Button>
+            <InlineStack gap="150" blockAlign="center">
+              {syncState?.applied && syncState.applied_at ? (
+                <Badge tone="success">
+                  {locale === "fr" ? "Faits synchronisés" : "Facts synced"}
+                </Badge>
+              ) : null}
+              <Button
+                size="slim"
+                disabled={!canSyncFacts}
+                loading={syncFetcher.state !== "idle"}
+                onClick={syncSchemaFacts}
+              >
+                {locale === "fr" ? "Synchroniser avec le thème" : "Sync to theme"}
+              </Button>
+              <Button
+                size="slim"
+                onClick={() => {
+                  if (typeof navigator !== "undefined" && navigator.clipboard) {
+                    navigator.clipboard.writeText(JSON.stringify(jsonld, null, 2));
+                  }
+                }}
+              >
+                {t(locale, "marketAnalysisGeoCopyJsonLd")}
+              </Button>
+            </InlineStack>
           </InlineStack>
+          {syncFetcher.data?.error ? (
+            <Box paddingBlockStart="100">
+              <Banner tone="warning">
+                <Text as="p" variant="bodySm">{syncFetcher.data.error}</Text>
+              </Banner>
+            </Box>
+          ) : null}
+          {syncState?.applied === false && syncState.error ? (
+            <Box paddingBlockStart="100">
+              <Banner tone="warning">
+                <Text as="p" variant="bodySm">{syncState.error}</Text>
+              </Banner>
+            </Box>
+          ) : null}
           <Box paddingBlockStart="100" background="bg-surface-secondary" borderRadius="200" padding="200">
             <Text as="p" variant="bodySm" tone="subdued">
               <code style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>

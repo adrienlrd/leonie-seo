@@ -1,13 +1,207 @@
 {%- comment -%}
-  Léonie SEO — FAQ embed (App Embed Block)
-  Auto-injected on product pages at the position chosen by the merchant.
-  Renders the FAQ stored in the `leonie.faq` metafield + FAQPage JSON-LD.
-  Activate via Theme Editor → App embeds.
+  Léonie SEO — unified storefront embed
+  One merchant activation controls:
+  - visible product FAQ from `leonie.faq`
+  - JSON-LD for Product, CollectionPage, and Organization
+  Product JSON-LD stays Shopify-first and enriches from `leonie.schema_facts`
+  only when merchant-approved facts have been synced by the app.
 {%- endcomment -%}
 
 {%- assign placement = block.settings.placement | default: 'above_footer' -%}
+{%- assign enable_faq = true -%}
+{%- if block.settings.enable_faq == false -%}
+  {%- assign enable_faq = false -%}
+{%- endif -%}
+{%- assign enable_jsonld = true -%}
+{%- if block.settings.enable_jsonld == false -%}
+  {%- assign enable_jsonld = false -%}
+{%- endif -%}
 
-{%- if placement != 'none' and template contains 'product' and product and product.metafields.leonie.faq -%}
+{%- if enable_jsonld -%}
+  {%- if template contains 'product' and product -%}
+    {%- assign variant = product.selected_or_first_available_variant -%}
+    {%- assign shop_url = shop.secure_url | default: shop.url -%}
+    {%- assign product_url = shop_url | append: product.url -%}
+    {%- assign schema_facts = product.metafields.leonie.schema_facts.value -%}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org/",
+  "@type": "Product",
+  "name": {{ product.title | json }},
+  "url": {{ product_url | json }},
+  "description": {{ product.description | strip_html | truncate: 500 | json }},
+  "brand": {
+    "@type": "Brand",
+    "name": {{ shop.name | json }}
+  },
+  {%- if product.images.size > 0 -%}
+  "image": [
+    {%- for image in product.images -%}
+      {{ image.src | image_url: width: 5760 | prepend: 'https:' | json }}{% unless forloop.last %},{% endunless %}
+    {%- endfor -%}
+  ],
+  {%- endif -%}
+  {%- if variant.sku != blank -%}
+  "sku": {{ variant.sku | json }},
+  {%- endif -%}
+  {%- if schema_facts.materials != blank -%}
+  "material": {{ schema_facts.materials | json }},
+  {%- endif -%}
+  {%- if schema_facts.origins != blank -%}
+  "countryOfOrigin": {{ schema_facts.origins | json }},
+  {%- endif -%}
+  "offers": {
+    "@type": "Offer",
+    "priceCurrency": {{ shop.currency | json }},
+    "price": {{ variant.price | times: 0.01 }},
+    "availability": {%- if product.available -%}"https://schema.org/InStock"{%- else -%}"https://schema.org/OutOfStock"{%- endif -%},
+    "url": {{ product_url | json }}
+  },
+  {%- if schema_facts.certifications != blank or schema_facts.warranty != blank or schema_facts.care != blank or schema_facts.dimensions != blank or schema_facts.compatibility != blank or schema_facts.use_cases != blank or schema_facts.selection_criteria != blank -%}
+  "additionalProperty": [
+    {%- assign property_count = 0 -%}
+    {%- if schema_facts.certifications != blank -%}
+      {%- if property_count > 0 -%},{%- endif -%}
+      {"@type":"PropertyValue","name":"Certifications","value":{{ schema_facts.certifications | json }}}
+      {%- assign property_count = property_count | plus: 1 -%}
+    {%- endif -%}
+    {%- if schema_facts.warranty != blank -%}
+      {%- if property_count > 0 -%},{%- endif -%}
+      {"@type":"PropertyValue","name":"Warranty","value":{{ schema_facts.warranty | json }}}
+      {%- assign property_count = property_count | plus: 1 -%}
+    {%- endif -%}
+    {%- if schema_facts.care != blank -%}
+      {%- if property_count > 0 -%},{%- endif -%}
+      {"@type":"PropertyValue","name":"Care","value":{{ schema_facts.care | json }}}
+      {%- assign property_count = property_count | plus: 1 -%}
+    {%- endif -%}
+    {%- if schema_facts.dimensions != blank -%}
+      {%- if property_count > 0 -%},{%- endif -%}
+      {"@type":"PropertyValue","name":"Dimensions","value":{{ schema_facts.dimensions | json }}}
+      {%- assign property_count = property_count | plus: 1 -%}
+    {%- endif -%}
+    {%- if schema_facts.compatibility != blank -%}
+      {%- if property_count > 0 -%},{%- endif -%}
+      {"@type":"PropertyValue","name":"Compatibility","value":{{ schema_facts.compatibility | json }}}
+      {%- assign property_count = property_count | plus: 1 -%}
+    {%- endif -%}
+    {%- if schema_facts.use_cases != blank -%}
+      {%- if property_count > 0 -%},{%- endif -%}
+      {"@type":"PropertyValue","name":"Use cases","value":{{ schema_facts.use_cases | json }}}
+      {%- assign property_count = property_count | plus: 1 -%}
+    {%- endif -%}
+    {%- if schema_facts.selection_criteria != blank -%}
+      {%- if property_count > 0 -%},{%- endif -%}
+      {"@type":"PropertyValue","name":"Selection criteria","value":{{ schema_facts.selection_criteria | json }}}
+    {%- endif -%}
+  ],
+  {%- endif -%}
+  "breadcrumb": {
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": {{ 'general.breadcrumbs.home' | t | default: 'Accueil' | json }},
+        "item": {{ shop_url | json }}
+      }
+      {%- if collection -%}
+      ,{
+        "@type": "ListItem",
+        "position": 2,
+        "name": {{ collection.title | json }},
+        "item": {{ shop_url | append: collection.url | json }}
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": {{ product.title | json }},
+        "item": {{ product_url | json }}
+      }
+      {%- else -%}
+      ,{
+        "@type": "ListItem",
+        "position": 2,
+        "name": {{ product.title | json }},
+        "item": {{ product_url | json }}
+      }
+      {%- endif -%}
+    ]
+  }
+}
+</script>
+  {%- elsif template contains 'collection' and collection -%}
+    {%- assign shop_url = shop.secure_url | default: shop.url -%}
+    {%- assign collection_url = shop_url | append: collection.url -%}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org/",
+  "@type": "CollectionPage",
+  "name": {{ collection.title | json }},
+  "url": {{ collection_url | json }},
+  {%- if collection.description != blank -%}
+  "description": {{ collection.description | strip_html | truncate: 300 | json }},
+  {%- endif -%}
+  {%- if collection.image -%}
+  "image": {{ collection.image.src | image_url: width: 5760 | prepend: 'https:' | json }},
+  {%- endif -%}
+  "breadcrumb": {
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": {{ 'general.breadcrumbs.home' | t | default: 'Accueil' | json }},
+        "item": {{ shop_url | json }}
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": {{ collection.title | json }},
+        "item": {{ collection_url | json }}
+      }
+    ]
+  }
+}
+</script>
+  {%- elsif template.name == 'index' -%}
+    {%- assign shop_url = shop.secure_url | default: shop.url -%}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": {{ shop.name | json }},
+  "url": {{ shop_url | json }}
+  {%- if shop.email != blank -%}
+  ,"email": {{ shop.email | json }}
+  {%- endif -%}
+  {%- if shop.phone != blank -%}
+  ,"telephone": {{ shop.phone | json }}
+  {%- endif -%}
+  {%- if shop.address.country_code != blank -%}
+  ,"address": {
+    "@type": "PostalAddress",
+    {%- if shop.address.street != blank -%}
+    "streetAddress": {{ shop.address.street | json }},
+    {%- endif -%}
+    {%- if shop.address.city != blank -%}
+    "addressLocality": {{ shop.address.city | json }},
+    {%- endif -%}
+    {%- if shop.address.zip != blank -%}
+    "postalCode": {{ shop.address.zip | json }},
+    {%- endif -%}
+    "addressCountry": {{ shop.address.country_code | json }}
+  }
+  {%- endif -%}
+}
+</script>
+  {%- endif -%}
+{%- endif -%}
+
+{%- if enable_faq and placement != 'none' and template contains 'product' and product and product.metafields.leonie.faq -%}
 {%- assign faq_entries = product.metafields.leonie.faq.value -%}
 {%- if faq_entries.size > 0 -%}
 
@@ -208,9 +402,21 @@
 
 {% schema %}
 {
-  "name": "FAQ produit (Léonie)",
+  "name": "Léonie SEO",
   "target": "body",
   "settings": [
+    {
+      "type": "checkbox",
+      "id": "enable_faq",
+      "label": "Afficher la FAQ produit",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_jsonld",
+      "label": "Activer les JSON-LD produit, collection et organisation",
+      "default": true
+    },
     {
       "type": "text",
       "id": "heading",

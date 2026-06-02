@@ -165,6 +165,12 @@ export interface ContentTestPack {
     entry_count: number;
     applied_at: string | null;
   } | null;
+  schema_facts_sync?: {
+    applied: boolean;
+    error: string | null;
+    entry_count: number;
+    applied_at: string | null;
+  } | null;
 }
 
 export interface BlogIdea {

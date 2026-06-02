@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Annotated, Any
 
@@ -9,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_days
 from app.api.deps import ShopContext, get_shop_context
+from app.apply.apply_faq import apply_schema_facts_to_shopify
 from app.business_profile.context import (
     build_business_profile_context_meta,
     resolve_business_profile_context_status,
@@ -478,6 +480,41 @@ async def patch_market_analysis_proposals(
         )
 
     return {"saved": True, "faq_sync": None}
+
+
+@router.post("/shops/{shop}/market-analysis/proposals/{product_id:path}/schema-facts/sync")
+async def sync_market_analysis_schema_facts(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    product_id: str,
+) -> dict[str, Any]:
+    """Publish confirmed market-analysis facts to the storefront schema metafield."""
+    result = load_latest_result(ctx.shop)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Aucune analyse précédente disponible")
+    product = next(
+        (p for p in (result.get("products") or []) if p.get("product_id") == product_id),
+        None,
+    )
+    if not isinstance(product, dict):
+        raise HTTPException(
+            status_code=404, detail=f"Product {product_id} not found in latest analysis"
+        )
+    pack = (
+        product.get("content_test_pack")
+        if isinstance(product.get("content_test_pack"), dict)
+        else {}
+    )
+    confirmed_facts = pack.get("confirmed_facts") if isinstance(pack, dict) else []
+    sync_result = await asyncio.to_thread(
+        apply_schema_facts_to_shopify,
+        ctx.shop,
+        product_id,
+        confirmed_facts if isinstance(confirmed_facts, list) else [],
+    )
+    if not sync_result.get("applied"):
+        return {"saved": False, "schema_facts_sync": sync_result}
+    patch_product_proposals(ctx.shop, product_id, {"schema_facts_sync": sync_result})
+    return {"saved": True, "schema_facts_sync": sync_result}
 
 
 @router.post("/shops/{shop}/market-analysis/products/remove")

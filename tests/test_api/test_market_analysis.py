@@ -11,6 +11,7 @@ from app.api.market_analysis import (
     get_latest_market_analysis,
     patch_market_analysis_proposals,
     save_market_analysis_facts,
+    sync_market_analysis_schema_facts,
 )
 from app.business_profile.context import build_business_profile_context_meta
 
@@ -46,6 +47,13 @@ def _analysis_result() -> dict:
                 "product_id": "gid://shopify/Product/1",
                 "content_test_pack": {
                     "proposed_faq": [{"q": "Question ?", "a": "Réponse factuelle."}],
+                    "confirmed_facts": [
+                        {
+                            "key": "materials",
+                            "value": "cuir",
+                            "confidence": "confirmed",
+                        }
+                    ],
                 },
             }
         ],
@@ -170,6 +178,36 @@ def test_faq_is_not_published_when_edited_proposal_is_saved() -> None:
         "publish_ready": False,
         "issues": ["merchant_edit_requires_revalidation"],
     }
+
+
+def test_schema_facts_sync_is_explicit_shopify_write() -> None:
+    ctx = SimpleNamespace(shop="shop.myshopify.com")
+    with (
+        patch("app.api.market_analysis.load_latest_result", return_value=_analysis_result()),
+        patch(
+            "app.api.market_analysis.apply_schema_facts_to_shopify",
+            return_value={
+                "applied": True,
+                "error": None,
+                "entry_count": 1,
+                "applied_at": "2026-06-02T10:00:00+00:00",
+            },
+        ) as sync,
+        patch("app.api.market_analysis.patch_product_proposals", return_value=True) as patch_pack,
+    ):
+        result = asyncio.run(
+            sync_market_analysis_schema_facts(
+                ctx=ctx,
+                product_id="gid://shopify/Product/1",
+            )
+        )
+
+    assert result["saved"] is True
+    assert result["schema_facts_sync"]["applied"] is True
+    sync.assert_called_once()
+    assert sync.call_args.args[0] == "shop.myshopify.com"
+    assert sync.call_args.args[1] == "gid://shopify/Product/1"
+    patch_pack.assert_called_once()
 
 
 def test_merchant_answers_are_saved_without_shopify_write() -> None:
