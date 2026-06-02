@@ -159,6 +159,8 @@ export interface ContentTestPack {
   content_quality?: ContentQuality;
   enrichment_questions?: EnrichmentQuestion[];
   content_guardrail_reflection?: ContentGuardrailReflection;
+  current_product_images?: { id: string; url: string; current_alt: string | null }[];
+  proposed_image_alts?: { image_id: string; proposed_alt: string }[];
   faq_sync?: {
     applied: boolean;
     error: string | null;
@@ -252,6 +254,7 @@ export function keywordCoverage(keyword: string, pack: ContentTestPack): string[
     ["FAQ", pack.proposed_faq.map((item) => `${item.q} ${item.a}`).join(" ")],
     ["GEO", pack.proposed_geo_answer_block],
     ["Blog", [pack.proposed_blog_title, pack.proposed_blog_intro, ...pack.proposed_blog_outline].join(" ")],
+    ["Image alts", (pack.proposed_image_alts ?? []).map((a) => a.proposed_alt).join(" ")],
   ];
   return fields
     .filter(([, text]) => keywordIsUsed(keyword, contentWords(text)))

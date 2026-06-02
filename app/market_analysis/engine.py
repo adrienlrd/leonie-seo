@@ -45,6 +45,7 @@ _PASS1_KEYS = (
 _PASS2_KEYS = (
     "proposed_meta_title",
     "proposed_meta_description",
+    "proposed_image_alts",
     "proposed_product_title_if_different",
     "proposed_product_description",
     "proposed_faq",
@@ -407,6 +408,53 @@ def _coerce_blog_ideas(value: Any) -> list[dict[str, Any]]:
     return ideas
 
 
+def _extract_product_images(product: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return up to 5 images from a Shopify product (GraphQL edges/node or flat list)."""
+    raw = product.get("images")
+    if isinstance(raw, dict):
+        edges: list[Any] = raw.get("edges", [])
+    elif isinstance(raw, list):
+        edges = raw
+    else:
+        return []
+    result: list[dict[str, Any]] = []
+    for edge in edges[:5]:
+        if not isinstance(edge, dict):
+            continue
+        node = edge.get("node", edge)
+        if not isinstance(node, dict):
+            continue
+        result.append({
+            "id": str(node.get("id") or ""),
+            "url": str(node.get("url") or node.get("src") or ""),
+            "current_alt": node.get("altText") or node.get("alt"),
+        })
+    return result
+
+
+def _coerce_image_alts(
+    value: Any, product_images: list[dict[str, Any]]
+) -> list[dict[str, str]]:
+    """Align LLM-returned image alt proposals with the source image list."""
+    if not isinstance(value, list):
+        return []
+    out: list[dict[str, str]] = []
+    for i, item in enumerate(value):
+        if isinstance(item, dict):
+            image_id = _coerce_str(item.get("image_id", "")) or (
+                product_images[i]["id"] if i < len(product_images) else ""
+            )
+            alt = _coerce_str(item.get("proposed_alt", ""))[:125]
+        elif isinstance(item, str):
+            image_id = product_images[i]["id"] if i < len(product_images) else ""
+            alt = _coerce_str(item)[:125]
+        else:
+            continue
+        if alt:
+            out.append({"image_id": image_id, "proposed_alt": alt})
+    return out
+
+
 def _coerce_claims(value: Any) -> list[dict[str, Any]]:
     """Normalize generated claims and their supporting confirmed fact keys."""
     if not isinstance(value, list):
@@ -738,6 +786,7 @@ def _build_pass2_prompt(
     business_context: str = "",
     cannibalization_hint: dict[str, Any] | None = None,
     eeat_signals: list[dict[str, Any]] | None = None,
+    product_images: list[dict[str, Any]] | None = None,
 ) -> str:
     """Build the pass-2 (content) prompt with strict per-field rules.
 
@@ -907,6 +956,11 @@ def _build_pass2_prompt(
     if surface_lines:
         parts.append("\n=== PLAN DES SURFACES À PRODUIRE ===")
         parts.extend(surface_lines)
+    if product_images:
+        parts.append("\n=== IMAGES PRODUIT (pour proposed_image_alts) ===")
+        for i, img in enumerate(product_images):
+            alt_actuel = img.get("current_alt") or "(vide)"
+            parts.append(f"  [{i + 1}] id={img['id']} | alt actuel: {alt_actuel}")
     if forbidden_phrases:
         parts.append("\n=== FORMULATIONS INTERDITES ===")
         parts.extend(f"  - {phrase}" for phrase in forbidden_phrases)
@@ -988,6 +1042,11 @@ def _build_pass2_prompt(
         f"   • Doit compléter proposed_meta_title pour couvrir les mots-clés primary/secondary absents du titre.\n"
         f"   • Bénéfice produit ou CTA seulement s'il est confirmé par les données produit fournies.\n"
         f"   • Si des concurrents sont listés, adopte une formulation propre sans prétendre couvrir un manque non vérifié.\n"
+        f"\n▶ proposed_image_alts (tableau JSON, une entrée par image listée dans IMAGES PRODUIT) :\n"
+        f'   • Chaque objet : {{"image_id": "<id exact>", "proposed_alt": "<alt proposé>"}}\n'
+        f"   • proposed_alt ≤ 125 caractères, contient naturellement le mot-clé #1 ou #2.\n"
+        f"   • Décrit concrètement ce que l'image montre — jamais de texte générique.\n"
+        f"   • Si aucune image n'est fournie dans IMAGES PRODUIT : retourner [].\n"
         f"\n▶ proposed_product_description (200-300 mots, plusieurs paragraphes) :\n"
         f"   • Si la surface est marquée NE PAS GÉNÉRER, retourne une chaîne vide.\n"
         f"   • Doit intégrer le pack GEO dans la description : réponse courte, définition extractible, faits rapides et tableau comparatif si disponibles.\n"
@@ -4177,6 +4236,7 @@ def _fallback_pack(
         "geo_questions": [],
         "proposed_meta_title": "",
         "proposed_meta_description": "",
+        "proposed_image_alts": [],
         "proposed_product_title_if_different": product_title,
         "proposed_product_description": "",
         "proposed_faq": [],
@@ -4298,6 +4358,11 @@ def _build_product_result(
             "proposed_meta_title": proposed_meta_title,
             "current_meta_description": current_meta_description,
             "proposed_meta_description": proposed_meta_description,
+            "current_product_images": _extract_product_images(product),
+            "proposed_image_alts": _coerce_image_alts(
+                _safe_surface_value(llm_pack, surface_plan, "proposed_image_alts"),
+                _extract_product_images(product),
+            ),
             "current_product_title": product_title,
             "proposed_product_title": _coerce_str(
                 llm_pack.get("proposed_product_title_if_different", product_title)
@@ -4622,6 +4687,7 @@ def _extract_product_fields(
             "description": _strip_html(body_html),
             "current_meta_title": seo.get("title") or product_title,
             "current_meta_description": seo.get("description") or "",
+            "product_images": _extract_product_images(product),
             "collections": [
                 c.get("title", "") if isinstance(c, dict) else str(c) for c in raw_collections if c
             ],
@@ -5102,6 +5168,7 @@ def run_market_analysis(
                     str(state["product"].get("id", ""))
                 ),
                 eeat_signals=product_eeat_signals,
+                product_images=fields.get("product_images", []),
             )
             pack = _complete_json(
                 llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192

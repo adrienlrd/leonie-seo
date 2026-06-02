@@ -40,7 +40,7 @@ import {
   qualityWarningText,
 } from "../lib/marketAnalysisShared";
 
-type FieldKey = "meta_title" | "meta_description" | "description" | "faq" | "blog";
+type FieldKey = "meta_title" | "meta_description" | "alt_text" | "description" | "faq" | "blog";
 
 export function ProductContentProposals({
   product,
@@ -76,6 +76,7 @@ export function ProductContentProposals({
   );
   const [openField, setOpenField] = useState<FieldKey | null>(null);
   const toggleField = (f: FieldKey) => setOpenField((p) => (p === f ? null : f));
+  const [showKeywords, setShowKeywords] = useState(false);
 
   const saveFetcher = useFetcher<{ type: string; error: string | null }>();
   const isSaving = saveFetcher.state !== "idle";
@@ -111,6 +112,13 @@ export function ProductContentProposals({
   const updateProp = (key: keyof ContentTestPack, value: string) =>
     setEditedPack((prev) => ({ ...prev, [key]: value }));
 
+  const updateImageAlt = (idx: number, value: string) =>
+    setEditedPack((prev) => {
+      const alts = [...(prev.proposed_image_alts ?? [])];
+      alts[idx] = { ...alts[idx], proposed_alt: value };
+      return { ...prev, proposed_image_alts: alts };
+    });
+
   const updateFaq = (idx: number, field: "q" | "a", value: string) =>
     setEditedPack((prev) => {
       const faq = [...prev.proposed_faq];
@@ -140,6 +148,7 @@ export function ProductContentProposals({
       proposed_blog_intro: editedPack.proposed_blog_intro,
       proposed_blog_outline: editedPack.proposed_blog_outline,
       proposed_blog_ideas: editedPack.proposed_blog_ideas,
+      proposed_image_alts: editedPack.proposed_image_alts ?? [],
     };
     saveFetcher.submit(
       { intent: "saveProposals", productId: product.product_id, proposals: JSON.stringify(proposals) },
@@ -389,9 +398,46 @@ export function ProductContentProposals({
     </BlockStack>
   );
 
+  const renderAltText = (editing: boolean) => (
+    <BlockStack gap="150">
+      {layout === "sections" && (
+        <Text as="h4" variant="headingXs">{t(locale, "proposalFieldAltText")}</Text>
+      )}
+      {(editedPack.proposed_image_alts ?? []).map((item, i) => {
+        const current = editedPack.current_product_images?.[i]?.current_alt;
+        return (
+          <Box key={item.image_id || i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
+            <BlockStack gap="100">
+              <Text as="p" variant="bodySm" tone="subdued">
+                {locale === "fr" ? `Image ${i + 1}` : `Image ${i + 1}`}
+                {current ? ` — ${locale === "fr" ? "Actuel" : "Current"} : ${current}` : ""}
+              </Text>
+              {editing ? (
+                <TextField
+                  label=""
+                  labelHidden
+                  value={item.proposed_alt}
+                  onChange={(v) => updateImageAlt(i, v)}
+                  autoComplete="off"
+                  maxLength={125}
+                  showCharacterCount
+                />
+              ) : (
+                <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+                  <Text as="p" variant="bodySm">{highlightKeywords(item.proposed_alt, kwQueries)}</Text>
+                </Box>
+              )}
+            </BlockStack>
+          </Box>
+        );
+      })}
+    </BlockStack>
+  );
+
   const fields: Array<{ key: FieldKey; labelKey: Parameters<typeof t>[1]; has: boolean; render: (editing: boolean) => JSX.Element }> = [
     { key: "meta_title", labelKey: "proposalFieldMetaTitle", has: Boolean(editedPack.proposed_meta_title), render: renderMetaTitle },
     { key: "meta_description", labelKey: "proposalFieldMetaDescription", has: Boolean(editedPack.proposed_meta_description), render: renderMetaDescription },
+    { key: "alt_text", labelKey: "proposalFieldAltText", has: (editedPack.proposed_image_alts ?? []).length > 0, render: renderAltText },
     { key: "description", labelKey: "proposalFieldDescription", has: Boolean(editedPack.proposed_product_description), render: renderProductDescription },
     { key: "faq", labelKey: "proposalFieldFaq", has: editedPack.proposed_faq.length > 0 || editMode, render: renderFaq },
     { key: "blog", labelKey: "proposalFieldBlog", has: Boolean(editedPack.proposed_blog_title), render: renderBlog },
@@ -559,9 +605,22 @@ export function ProductContentProposals({
       <BlockStack gap="200">
         {saveError}
         {successBanner}
-        {keywordSourcesPanel}
         {enrichmentBlock}
-        <InlineStack gap="150" wrap>{fieldButtons}</InlineStack>
+        <InlineStack gap="150" wrap>
+          {keywordSourcesPanel && (
+            <Button
+              size="slim"
+              pressed={showKeywords}
+              onClick={() => setShowKeywords((v) => !v)}
+            >
+              {t(locale, "marketAnalysisKeywordSourcesTitle")}
+            </Button>
+          )}
+          {fieldButtons}
+        </InlineStack>
+        <Collapsible id={`kw-sources-${product.product_id}`} open={showKeywords}>
+          <Box paddingBlockStart="100">{keywordSourcesPanel}</Box>
+        </Collapsible>
         {available.map((f) => (
           <Collapsible key={f.key} id={`field-${f.key}-${product.product_id}`} open={openField === f.key}>
             <Box paddingBlockStart="100">

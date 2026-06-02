@@ -308,3 +308,27 @@ def test_latest_analysis_marks_context_stale_when_profile_hash_changed() -> None
 
     assert latest["business_profile_context_status"] == "stale"
     assert latest["products"][0]["business_profile_context_status"] == "stale"
+
+
+def test_proposed_image_alts_accepted_in_patch_proposals() -> None:
+    """proposed_image_alts is in allowed_keys and persists via patch endpoint."""
+    ctx = SimpleNamespace(shop="shop.myshopify.com")
+    image_alts = [
+        {"image_id": "gid://shopify/MediaImage/1", "proposed_alt": "Croquettes senior chien sac 2kg"},
+    ]
+    with patch(
+        "app.api.market_analysis.patch_product_proposals", return_value=True
+    ) as patch_proposals:
+        result = asyncio.run(
+            patch_market_analysis_proposals(
+                ctx=ctx,
+                product_id="gid://shopify/Product/1",
+                body={"proposed_image_alts": image_alts},
+            )
+        )
+
+    assert result == {"saved": True, "faq_sync": None}
+    patch_proposals.assert_called_once()
+    saved_proposals = patch_proposals.call_args.args[2]
+    assert saved_proposals["proposed_image_alts"] == image_alts
+    assert saved_proposals["content_quality"]["publish_ready"] is False
