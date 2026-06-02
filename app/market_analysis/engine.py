@@ -3115,7 +3115,7 @@ def _compose_geo_pack_text(pack: dict[str, Any]) -> str:
     if answer:
         parts.append(f"Réponse courte : {answer}")
     if definition:
-        parts.append(f"Définition GEO/IA : {definition}")
+        parts.append(definition)
     if quick_facts:
         parts.append("À retenir : " + " ; ".join(quick_facts[:5]) + ".")
     if comparison_rows:

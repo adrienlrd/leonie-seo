@@ -861,7 +861,11 @@ def test_generated_pack_adds_faq_blog_ideas_and_geo_pack_to_description() -> Non
     assert len(normalized["proposed_blog_ideas"]) == 5
     assert all(idea["target_keyword"] for idea in normalized["proposed_blog_ideas"])
     assert "Réponse courte" in normalized["proposed_product_description"]
-    assert "Définition GEO/IA" in normalized["proposed_product_description"]
+    assert (
+        "Le pull cachemire chien est un vêtement pour chien."
+        in normalized["proposed_product_description"]
+    )
+    assert "Définition GEO/IA" not in normalized["proposed_product_description"]
 
 
 def test_generated_pack_builds_five_blog_ideas_from_one_keyword_when_needed() -> None:
