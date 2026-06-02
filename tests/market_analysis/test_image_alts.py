@@ -16,7 +16,7 @@ def test_fill_image_alts_keeps_llm_value_matched_by_id() -> None:
     images = _images(2)
     llm = [{"image_id": "gid://shopify/MediaImage/2", "proposed_alt": "Sac de croquettes senior"}]
 
-    result = engine._fill_image_alts(llm, images, "Croquettes Chien Senior", "croquettes senior")
+    result = engine._fill_image_alts(llm, images, "Croquettes Chien Senior", ["croquettes senior"])
 
     assert len(result) == 2
     assert result[1] == {
@@ -25,23 +25,28 @@ def test_fill_image_alts_keeps_llm_value_matched_by_id() -> None:
     }
 
 
-def test_fill_image_alts_falls_back_for_missing_images() -> None:
+def test_fill_image_alts_rotates_keywords_for_missing_images() -> None:
     images = _images(3)
     llm = [{"image_id": "gid://shopify/MediaImage/1", "proposed_alt": "Vue principale du sac"}]
 
-    result = engine._fill_image_alts(llm, images, "Croquettes Chien Senior", "croquettes senior")
+    result = engine._fill_image_alts(
+        llm,
+        images,
+        "Croquettes Chien Senior",
+        ["croquettes senior", "alimentation chien âgé"],
+    )
 
     assert len(result) == 3
     assert result[0]["proposed_alt"] == "Vue principale du sac"
-    # The two images the LLM skipped get a deterministic, keyword-aware fallback.
-    assert "Croquettes Chien Senior" in result[1]["proposed_alt"]
-    assert "croquettes senior" in result[1]["proposed_alt"]
-    assert "vue 3" in result[2]["proposed_alt"]
+    # Image 2 rotates to keyword #2, image 3 wraps back to keyword #1 — distinct alts.
+    assert "alimentation chien âgé" in result[1]["proposed_alt"]
+    assert "croquettes senior" in result[2]["proposed_alt"]
+    assert result[1]["proposed_alt"] != result[2]["proposed_alt"]
     assert all(len(item["proposed_alt"]) <= 125 for item in result)
 
 
 def test_fill_image_alts_returns_empty_without_images() -> None:
-    assert engine._fill_image_alts([], [], "Produit", "mot-clé") == []
+    assert engine._fill_image_alts([], [], "Produit", ["mot-clé"]) == []
 
 
 def test_default_image_alt_truncates_to_125_chars() -> None:

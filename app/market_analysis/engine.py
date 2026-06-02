@@ -447,13 +447,14 @@ def _fill_image_alts(
     value: Any,
     product_images: list[dict[str, Any]],
     product_title: str,
-    primary_keyword: str,
+    keywords: list[str],
 ) -> list[dict[str, str]]:
     """Return exactly one alt proposal per product image, in image order.
 
     LLM-provided alts are matched by image id (then by position); any image the
-    LLM skipped falls back to a deterministic, product- and keyword-aware alt so
-    every image always gets a coherent suggestion.
+    LLM skipped falls back to a deterministic alt that rotates through the
+    targeted keywords (image i → keyword i), so distinct images get distinct,
+    keyword-varied suggestions rather than a repeated phrase.
     """
     llm_items = value if isinstance(value, list) else []
     by_id: dict[str, str] = {}
@@ -475,7 +476,8 @@ def _fill_image_alts(
         if not alt and i < len(positional):
             alt = positional[i]
         if not alt:
-            alt = _default_image_alt(product_title, primary_keyword, i)
+            keyword = keywords[i % len(keywords)] if keywords else ""
+            alt = _default_image_alt(product_title, keyword, i)
         out.append({"image_id": image_id, "proposed_alt": alt[:125]})
     return out
 
@@ -1070,8 +1072,11 @@ def _build_pass2_prompt(
         f"\n▶ proposed_image_alts (tableau JSON — UNE ENTRÉE POUR CHAQUE image listée dans IMAGES PRODUIT) :\n"
         f'   • Chaque objet : {{"image_id": "<id exact>", "proposed_alt": "<alt proposé>"}}\n'
         f"   • Réutilise l'`image_id` EXACT de chaque image listée ; n'en oublie aucune.\n"
-        f"   • proposed_alt ≤ 125 caractères, contient naturellement le mot-clé #1 ou #2.\n"
-        f"   • Décrit concrètement ce que l'image montre — jamais de texte générique.\n"
+        f"   • CHAQUE alt doit être DIFFÉRENT des autres : varie l'angle décrit (face, étiquette, "
+        f"détail, mise en situation, échelle…) ET le mot-clé employé.\n"
+        f"   • Répartis les mots-clés du TOP 5 sur les images : image 1 → mot-clé #1, image 2 → #2, etc. "
+        f"Ne réutilise JAMAIS le même alt ni le même mot-clé pour deux images.\n"
+        f"   • proposed_alt ≤ 125 caractères, décrit concrètement ce que montre l'image — jamais de texte générique.\n"
         f"   • Si aucune image n'est fournie dans IMAGES PRODUIT : retourner [].\n"
         f"\n▶ proposed_product_description (200-300 mots, plusieurs paragraphes) :\n"
         f"   • Si la surface est marquée NE PAS GÉNÉRER, retourne une chaîne vide.\n"
@@ -4332,12 +4337,16 @@ def _build_product_result(
         _coerce_seo_keywords(llm_pack.get("seo_keywords", [])),
         key=lambda k: int(k.get("target_rank", 999) or 999),
     )
-    primary_keyword = _coerce_str(sorted_keywords[0].get("query", "")) if sorted_keywords else ""
+    keyword_queries = [
+        query
+        for k in sorted_keywords
+        if (query := _coerce_str(k.get("query", "")).strip())
+    ][:8]
     proposed_image_alts = _fill_image_alts(
         _safe_surface_value(llm_pack, surface_plan, "proposed_image_alts"),
         product_images,
         product_title,
-        primary_keyword,
+        keyword_queries,
     )
     confirmed_facts_list = llm_pack.get("confirmed_facts", []) or []
     schema_jsonld: dict[str, Any] = {}
