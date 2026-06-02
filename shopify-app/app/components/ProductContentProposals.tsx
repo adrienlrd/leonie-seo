@@ -25,6 +25,7 @@ import {
   InlineStack,
   Text,
   TextField,
+  Thumbnail,
   Tooltip,
 } from "@shopify/polaris";
 import { AlertTriangleIcon } from "@shopify/polaris-icons";
@@ -115,7 +116,12 @@ export function ProductContentProposals({
 
   const updateImageAlt = (idx: number, value: string) =>
     setEditedPack((prev) => {
+      const images = prev.current_product_images ?? [];
       const alts = [...(prev.proposed_image_alts ?? [])];
+      // Pad so an image without an LLM alt can still be edited.
+      while (alts.length < images.length) {
+        alts.push({ image_id: images[alts.length]?.id ?? "", proposed_alt: "" });
+      }
       alts[idx] = { ...alts[idx], proposed_alt: value };
       return { ...prev, proposed_image_alts: alts };
     });
@@ -404,31 +410,38 @@ export function ProductContentProposals({
       {layout === "sections" && (
         <Text as="h4" variant="headingXs">{t(locale, "proposalFieldAltText")}</Text>
       )}
-      {(editedPack.proposed_image_alts ?? []).map((item, i) => {
-        const current = editedPack.current_product_images?.[i]?.current_alt;
+      {(editedPack.current_product_images ?? []).map((image, i) => {
+        const proposed = editedPack.proposed_image_alts?.[i]?.proposed_alt ?? "";
         return (
-          <Box key={item.image_id || i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
-            <BlockStack gap="100">
-              <Text as="p" variant="bodySm" tone="subdued">
-                {locale === "fr" ? `Image ${i + 1}` : `Image ${i + 1}`}
-                {current ? ` — ${locale === "fr" ? "Actuel" : "Current"} : ${current}` : ""}
-              </Text>
-              {editing ? (
-                <TextField
-                  label=""
-                  labelHidden
-                  value={item.proposed_alt}
-                  onChange={(v) => updateImageAlt(i, v)}
-                  autoComplete="off"
-                  maxLength={125}
-                  showCharacterCount
-                />
-              ) : (
-                <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-                  <Text as="p" variant="bodySm">{highlightKeywords(item.proposed_alt, kwQueries)}</Text>
-                </Box>
-              )}
-            </BlockStack>
+          <Box key={image.id || i} padding="200" borderWidth="025" borderRadius="200" borderColor="border">
+            <InlineStack gap="300" blockAlign="start" wrap={false}>
+              <Thumbnail source={image.url} alt={image.current_alt ?? ""} size="small" />
+              <Box width="100%">
+                <BlockStack gap="100">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {locale === "fr" ? `Image ${i + 1}` : `Image ${i + 1}`}
+                    {image.current_alt
+                      ? ` — ${locale === "fr" ? "Actuel" : "Current"} : ${image.current_alt}`
+                      : ` — ${locale === "fr" ? "aucun alt actuel" : "no current alt"}`}
+                  </Text>
+                  {editing ? (
+                    <TextField
+                      label=""
+                      labelHidden
+                      value={proposed}
+                      onChange={(v) => updateImageAlt(i, v)}
+                      autoComplete="off"
+                      maxLength={125}
+                      showCharacterCount
+                    />
+                  ) : (
+                    <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+                      <Text as="p" variant="bodySm">{highlightKeywords(proposed, kwQueries)}</Text>
+                    </Box>
+                  )}
+                </BlockStack>
+              </Box>
+            </InlineStack>
           </Box>
         );
       })}
@@ -438,7 +451,7 @@ export function ProductContentProposals({
   const fields: Array<{ key: FieldKey; labelKey: Parameters<typeof t>[1]; has: boolean; render: (editing: boolean) => JSX.Element }> = [
     { key: "meta_title", labelKey: "proposalFieldMetaTitle", has: Boolean(editedPack.proposed_meta_title), render: renderMetaTitle },
     { key: "meta_description", labelKey: "proposalFieldMetaDescription", has: Boolean(editedPack.proposed_meta_description), render: renderMetaDescription },
-    { key: "alt_text", labelKey: "proposalFieldAltText", has: (editedPack.proposed_image_alts ?? []).length > 0, render: renderAltText },
+    { key: "alt_text", labelKey: "proposalFieldAltText", has: (editedPack.current_product_images?.length ?? 0) > 0, render: renderAltText },
     { key: "description", labelKey: "proposalFieldDescription", has: Boolean(editedPack.proposed_product_description), render: renderProductDescription },
     { key: "faq", labelKey: "proposalFieldFaq", has: (editedPack.proposed_faq?.length ?? 0) > 0 || editMode, render: renderFaq },
     { key: "blog", labelKey: "proposalFieldBlog", has: Boolean(editedPack.proposed_blog_title), render: renderBlog },

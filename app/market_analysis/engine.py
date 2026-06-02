@@ -418,7 +418,7 @@ def _extract_product_images(product: dict[str, Any]) -> list[dict[str, Any]]:
     else:
         return []
     result: list[dict[str, Any]] = []
-    for edge in edges[:5]:
+    for edge in edges[:10]:
         if not isinstance(edge, dict):
             continue
         node = edge.get("node", edge)
@@ -432,26 +432,51 @@ def _extract_product_images(product: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
-def _coerce_image_alts(
-    value: Any, product_images: list[dict[str, Any]]
+def _default_image_alt(product_title: str, primary_keyword: str, index: int) -> str:
+    """Deterministic, keyword-aware alt text used when the LLM omits an image."""
+    base = product_title.strip()
+    keyword = primary_keyword.strip()
+    if keyword and keyword.lower() not in base.lower():
+        base = f"{base} – {keyword}"
+    if index > 0:
+        base = f"{base} — vue {index + 1}"
+    return base[:125].rstrip()
+
+
+def _fill_image_alts(
+    value: Any,
+    product_images: list[dict[str, Any]],
+    product_title: str,
+    primary_keyword: str,
 ) -> list[dict[str, str]]:
-    """Align LLM-returned image alt proposals with the source image list."""
-    if not isinstance(value, list):
-        return []
-    out: list[dict[str, str]] = []
-    for i, item in enumerate(value):
+    """Return exactly one alt proposal per product image, in image order.
+
+    LLM-provided alts are matched by image id (then by position); any image the
+    LLM skipped falls back to a deterministic, product- and keyword-aware alt so
+    every image always gets a coherent suggestion.
+    """
+    llm_items = value if isinstance(value, list) else []
+    by_id: dict[str, str] = {}
+    positional: list[str] = []
+    for item in llm_items:
         if isinstance(item, dict):
-            image_id = _coerce_str(item.get("image_id", "")) or (
-                product_images[i]["id"] if i < len(product_images) else ""
-            )
-            alt = _coerce_str(item.get("proposed_alt", ""))[:125]
+            alt = _coerce_str(item.get("proposed_alt", "")).strip()
+            image_id = _coerce_str(item.get("image_id", "")).strip()
+            if image_id:
+                by_id[image_id] = alt
+            positional.append(alt)
         elif isinstance(item, str):
-            image_id = product_images[i]["id"] if i < len(product_images) else ""
-            alt = _coerce_str(item)[:125]
-        else:
-            continue
-        if alt:
-            out.append({"image_id": image_id, "proposed_alt": alt})
+            positional.append(_coerce_str(item).strip())
+
+    out: list[dict[str, str]] = []
+    for i, img in enumerate(product_images):
+        image_id = str(img.get("id") or "")
+        alt = by_id.get(image_id, "")
+        if not alt and i < len(positional):
+            alt = positional[i]
+        if not alt:
+            alt = _default_image_alt(product_title, primary_keyword, i)
+        out.append({"image_id": image_id, "proposed_alt": alt[:125]})
     return out
 
 
@@ -1042,8 +1067,9 @@ def _build_pass2_prompt(
         f"   • Doit compléter proposed_meta_title pour couvrir les mots-clés primary/secondary absents du titre.\n"
         f"   • Bénéfice produit ou CTA seulement s'il est confirmé par les données produit fournies.\n"
         f"   • Si des concurrents sont listés, adopte une formulation propre sans prétendre couvrir un manque non vérifié.\n"
-        f"\n▶ proposed_image_alts (tableau JSON, une entrée par image listée dans IMAGES PRODUIT) :\n"
+        f"\n▶ proposed_image_alts (tableau JSON — UNE ENTRÉE POUR CHAQUE image listée dans IMAGES PRODUIT) :\n"
         f'   • Chaque objet : {{"image_id": "<id exact>", "proposed_alt": "<alt proposé>"}}\n'
+        f"   • Réutilise l'`image_id` EXACT de chaque image listée ; n'en oublie aucune.\n"
         f"   • proposed_alt ≤ 125 caractères, contient naturellement le mot-clé #1 ou #2.\n"
         f"   • Décrit concrètement ce que l'image montre — jamais de texte générique.\n"
         f"   • Si aucune image n'est fournie dans IMAGES PRODUIT : retourner [].\n"
@@ -4301,6 +4327,18 @@ def _build_product_result(
     proposed_blog_ideas = _coerce_blog_ideas(
         _safe_surface_value(llm_pack, surface_plan, "proposed_blog_ideas")
     )
+    product_images = _extract_product_images(product)
+    sorted_keywords = sorted(
+        _coerce_seo_keywords(llm_pack.get("seo_keywords", [])),
+        key=lambda k: int(k.get("target_rank", 999) or 999),
+    )
+    primary_keyword = _coerce_str(sorted_keywords[0].get("query", "")) if sorted_keywords else ""
+    proposed_image_alts = _fill_image_alts(
+        _safe_surface_value(llm_pack, surface_plan, "proposed_image_alts"),
+        product_images,
+        product_title,
+        primary_keyword,
+    )
     confirmed_facts_list = llm_pack.get("confirmed_facts", []) or []
     schema_jsonld: dict[str, Any] = {}
     try:
@@ -4358,11 +4396,8 @@ def _build_product_result(
             "proposed_meta_title": proposed_meta_title,
             "current_meta_description": current_meta_description,
             "proposed_meta_description": proposed_meta_description,
-            "current_product_images": _extract_product_images(product),
-            "proposed_image_alts": _coerce_image_alts(
-                _safe_surface_value(llm_pack, surface_plan, "proposed_image_alts"),
-                _extract_product_images(product),
-            ),
+            "current_product_images": product_images,
+            "proposed_image_alts": proposed_image_alts,
             "current_product_title": product_title,
             "proposed_product_title": _coerce_str(
                 llm_pack.get("proposed_product_title_if_different", product_title)
