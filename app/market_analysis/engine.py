@@ -432,14 +432,12 @@ def _extract_product_images(product: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
-def _default_image_alt(product_title: str, primary_keyword: str, index: int) -> str:
-    """Deterministic, keyword-aware alt text used when the LLM omits an image."""
+def _default_image_alt(product_title: str, keyword: str) -> str:
+    """Deterministic alt text: product title plus a value-adding keyword."""
     base = product_title.strip()
-    keyword = primary_keyword.strip()
-    if keyword and keyword.lower() not in base.lower():
-        base = f"{base} – {keyword}"
-    if index > 0:
-        base = f"{base} — vue {index + 1}"
+    kw = keyword.strip()
+    if kw and kw.lower() not in base.lower():
+        base = f"{base} – {kw}"
     return base[:125].rstrip()
 
 
@@ -452,9 +450,9 @@ def _fill_image_alts(
     """Return exactly one alt proposal per product image, in image order.
 
     LLM-provided alts are matched by image id (then by position); any image the
-    LLM skipped falls back to a deterministic alt that rotates through the
-    targeted keywords (image i → keyword i), so distinct images get distinct,
-    keyword-varied suggestions rather than a repeated phrase.
+    LLM skipped falls back to the product title plus a *value-adding* keyword
+    (one not already present in the title), assigning a distinct keyword to each
+    skipped image so they never collapse to the bare title or a repeated phrase.
     """
     llm_items = value if isinstance(value, list) else []
     by_id: dict[str, str] = {}
@@ -469,15 +467,29 @@ def _fill_image_alts(
         elif isinstance(item, str):
             positional.append(_coerce_str(item).strip())
 
+    title_lower = product_title.lower()
+    value_keywords: list[str] = []
+    seen: set[str] = set()
+    for kw in keywords:
+        clean = kw.strip()
+        if clean and clean.lower() not in title_lower and clean.lower() not in seen:
+            value_keywords.append(clean)
+            seen.add(clean.lower())
+
     out: list[dict[str, str]] = []
+    fallback_index = 0
     for i, img in enumerate(product_images):
         image_id = str(img.get("id") or "")
         alt = by_id.get(image_id, "")
         if not alt and i < len(positional):
             alt = positional[i]
         if not alt:
-            keyword = keywords[i % len(keywords)] if keywords else ""
-            alt = _default_image_alt(product_title, keyword, i)
+            if value_keywords:
+                keyword = value_keywords[fallback_index % len(value_keywords)]
+            else:
+                keyword = keywords[0] if keywords else ""
+            fallback_index += 1
+            alt = _default_image_alt(product_title, keyword)
         out.append({"image_id": image_id, "proposed_alt": alt[:125]})
     return out
 

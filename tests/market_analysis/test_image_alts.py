@@ -25,7 +25,7 @@ def test_fill_image_alts_keeps_llm_value_matched_by_id() -> None:
     }
 
 
-def test_fill_image_alts_rotates_keywords_for_missing_images() -> None:
+def test_fill_image_alts_assigns_distinct_value_keywords_to_missing_images() -> None:
     images = _images(3)
     llm = [{"image_id": "gid://shopify/MediaImage/1", "proposed_alt": "Vue principale du sac"}]
 
@@ -33,16 +33,30 @@ def test_fill_image_alts_rotates_keywords_for_missing_images() -> None:
         llm,
         images,
         "Croquettes Chien Senior",
-        ["croquettes senior", "alimentation chien âgé"],
+        ["alimentation chien âgé", "croquettes sans céréales"],
     )
 
     assert len(result) == 3
     assert result[0]["proposed_alt"] == "Vue principale du sac"
-    # Image 2 rotates to keyword #2, image 3 wraps back to keyword #1 — distinct alts.
-    assert "alimentation chien âgé" in result[1]["proposed_alt"]
-    assert "croquettes senior" in result[2]["proposed_alt"]
-    assert result[1]["proposed_alt"] != result[2]["proposed_alt"]
+    # Each skipped image gets a distinct value-adding keyword and no "vue N" suffix.
+    assert result[1]["proposed_alt"] == "Croquettes Chien Senior – alimentation chien âgé"
+    assert result[2]["proposed_alt"] == "Croquettes Chien Senior – croquettes sans céréales"
     assert all(len(item["proposed_alt"]) <= 125 for item in result)
+
+
+def test_fill_image_alts_skips_keywords_already_in_title() -> None:
+    images = _images(1)
+
+    result = engine._fill_image_alts(
+        [],
+        images,
+        "Le Harnais Haute Couture",
+        ["harnais haute couture", "harnais réglable cuir"],
+    )
+
+    # The title-contained keyword is skipped in favour of one that adds value;
+    # the alt is never reduced to the bare title.
+    assert result[0]["proposed_alt"] == "Le Harnais Haute Couture – harnais réglable cuir"
 
 
 def test_fill_image_alts_returns_empty_without_images() -> None:
@@ -51,5 +65,5 @@ def test_fill_image_alts_returns_empty_without_images() -> None:
 
 def test_default_image_alt_truncates_to_125_chars() -> None:
     long_title = "A" * 200
-    alt = engine._default_image_alt(long_title, "mot-clé", 0)
+    alt = engine._default_image_alt(long_title, "mot-clé")
     assert len(alt) <= 125
