@@ -708,6 +708,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ type: "addTag", ok: resp.ok, data });
   }
 
+  if (intent === "retireKeyword") {
+    const productId = formData.get("productId") as string;
+    const label = formData.get("label") as string;
+    const tagType = (formData.get("tagType") as string) || "keyword";
+    const resp = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/market-analysis/products/${encodeURIComponent(productId)}/tags`,
+      {
+        accessToken: session.accessToken,
+        method: "POST",
+        body: JSON.stringify({ label, tag_type: tagType, status: "negative", locked_by_merchant: true }),
+      },
+    );
+    const data = resp.ok ? await resp.json() : null;
+    return json({ type: "retireKeyword", ok: resp.ok, data });
+  }
+
   // ── Auto-remove products no longer active in the store ───────────────────
   if (intent === "removeProducts") {
     const productIdsRaw = formData.get("productIds") as string;
@@ -930,99 +947,45 @@ function KeywordSourceBadge({ source, locale }: { source: KeywordSource | undefi
   return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlm")}</Badge>;
 }
 
-function tagTone(status: ImprovementTagStatus): "success" | "critical" | "attention" | "info" {
-  if (status === "positive") return "success";
-  if (status === "negative") return "critical";
-  if (status === "forced") return "attention";
+function tagToneInAdded(tag: ImprovementTag): "success" | "critical" | "attention" | "info" {
+  if (tag.tag_type === "keyword") return "attention";
+  if (tag.tag_type === "risk") return "critical";
+  if (tag.status === "positive") return "success";
+  if (tag.status === "forced") return "attention";
   return "info";
 }
 
 function ImprovementTags({
-  tags: initialTags,
-  productId,
+  addedTags,
+  retiredTags,
+  openBucket,
+  onToggle,
+  onRetire,
+  onRestore,
+  newLabel,
+  onNewLabelChange,
+  onAdd,
   locale,
-  shop,
 }: {
-  tags?: ImprovementTag[];
-  productId: string;
+  addedTags: ImprovementTag[];
+  retiredTags: ImprovementTag[];
+  openBucket: "added" | "retired" | null;
+  onToggle: (b: "added" | "retired") => void;
+  onRetire: (tag: ImprovementTag) => void;
+  onRestore: (tag: ImprovementTag) => void;
+  newLabel: string;
+  onNewLabelChange: (v: string) => void;
+  onAdd: () => void;
   locale: Locale;
-  shop: string;
 }) {
   const fr = locale === "fr";
-  const tagFetcher = useFetcher<{ retired?: boolean; restored?: boolean; saved?: boolean; tag?: ImprovementTag }>();
-  const [localTags, setLocalTags] = useState<ImprovementTag[]>(initialTags ?? []);
-  const [openBucket, setOpenBucket] = useState<"added" | "retired" | null>(null);
-  const [newLabel, setNewLabel] = useState("");
-
-  useEffect(() => { setLocalTags(initialTags ?? []); }, [productId]);
-
-  const addedTags = localTags.filter(
-    (t) => !(t.status === "negative" && t.locked_by_merchant),
-  );
-  const retiredTags = localTags.filter(
-    (t) => t.status === "negative" && t.locked_by_merchant,
-  );
-
-  const retireTag = (tag: ImprovementTag) => {
-    setLocalTags((prev) =>
-      prev.map((t) =>
-        t.tag_id === tag.tag_id ? { ...t, status: "negative" as ImprovementTagStatus, locked_by_merchant: true } : t,
-      ),
-    );
-    tagFetcher.submit(
-      { intent: "retireTag", productId, tagId: tag.tag_id },
-      { method: "post" },
-    );
-  };
-
-  const restoreTag = (tag: ImprovementTag) => {
-    setLocalTags((prev) =>
-      prev.map((t) =>
-        t.tag_id === tag.tag_id ? { ...t, status: "positive" as ImprovementTagStatus } : t,
-      ),
-    );
-    tagFetcher.submit(
-      { intent: "restoreTag", productId, tagId: tag.tag_id },
-      { method: "post" },
-    );
-  };
-
-  const addTag = () => {
-    const label = newLabel.trim();
-    if (!label) return;
-    const tempId = `tmp-${Date.now()}`;
-    const newTag: ImprovementTag = {
-      tag_id: tempId,
-      label,
-      tag_type: "merchant",
-      status: "forced",
-      score: 100,
-      source: "merchant",
-      locked_by_merchant: true,
-    };
-    setLocalTags((prev) => [...prev, newTag]);
-    setNewLabel("");
-    tagFetcher.submit(
-      { intent: "addTag", productId, label, tagType: "merchant" },
-      { method: "post" },
-    );
-  };
-
-  if (localTags.length === 0 && openBucket !== "added") {
-    return (
-      <Button size="slim" variant="plain" onClick={() => setOpenBucket("added")}>
-        {fr ? "Ajouter un tag" : "Add tag"}
-      </Button>
-    );
-  }
-
   return (
     <BlockStack gap="200">
       <InlineStack gap="150">
         <Button
           size="slim"
           pressed={openBucket === "added"}
-          onClick={() => setOpenBucket(openBucket === "added" ? null : "added")}
+          onClick={() => onToggle("added")}
         >
           {fr ? `Tags ajoutés (${addedTags.length})` : `Added tags (${addedTags.length})`}
         </Button>
@@ -1030,7 +993,7 @@ function ImprovementTags({
           <Button
             size="slim"
             pressed={openBucket === "retired"}
-            onClick={() => setOpenBucket(openBucket === "retired" ? null : "retired")}
+            onClick={() => onToggle("retired")}
           >
             {fr ? `Tags retirés (${retiredTags.length})` : `Retired tags (${retiredTags.length})`}
           </Button>
@@ -1048,8 +1011,8 @@ function ImprovementTags({
               <BlockStack gap="100">
                 {addedTags.map((tag) => (
                   <InlineStack key={tag.tag_id} align="space-between" blockAlign="center">
-                    <Badge tone={tagTone(tag.status)}>{tag.label}</Badge>
-                    <Button size="slim" variant="plain" tone="critical" onClick={() => retireTag(tag)}>
+                    <Badge tone={tagToneInAdded(tag)}>{tag.label}</Badge>
+                    <Button size="slim" variant="plain" tone="critical" onClick={() => onRetire(tag)}>
                       {fr ? "Retirer" : "Retire"}
                     </Button>
                   </InlineStack>
@@ -1063,11 +1026,11 @@ function ImprovementTags({
                   labelHidden
                   placeholder={fr ? "Nouveau tag…" : "New tag…"}
                   value={newLabel}
-                  onChange={setNewLabel}
+                  onChange={onNewLabelChange}
                   autoComplete="off"
                 />
               </div>
-              <Button size="slim" onClick={addTag} disabled={!newLabel.trim()}>
+              <Button size="slim" onClick={onAdd} disabled={!newLabel.trim()}>
                 {fr ? "Ajouter" : "Add"}
               </Button>
             </InlineStack>
@@ -1085,8 +1048,8 @@ function ImprovementTags({
             </Text>
             {retiredTags.map((tag) => (
               <InlineStack key={tag.tag_id} align="space-between" blockAlign="center">
-                <Badge tone="new">{tag.label}</Badge>
-                <Button size="slim" variant="plain" onClick={() => restoreTag(tag)}>
+                <Badge tone="critical">{tag.label}</Badge>
+                <Button size="slim" variant="plain" onClick={() => onRestore(tag)}>
                   {fr ? "Restaurer" : "Restore"}
                 </Button>
               </InlineStack>
@@ -1208,8 +1171,112 @@ function ProductCard({
   onEnrichAndAnalyze: (answers: Record<string, string>) => void;
   analyzeDisabled: boolean;
 }) {
+  const fr = locale === "fr";
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
+
+  // ── Tag state managed at ProductCard level ─────────────────────────────────
+  const [localTags, setLocalTags] = useState<ImprovementTag[]>(product.improvement_tags ?? []);
+  useEffect(() => { setLocalTags(product.improvement_tags ?? []); }, [product.product_id]);
+  const tagFetcher = useFetcher<{ ok?: boolean }>();
+  const [openBucket, setOpenBucket] = useState<"added" | "retired" | null>(null);
+  const [newTagLabel, setNewTagLabel] = useState("");
+
+  const addedTags = localTags.filter((t) => t.status !== "negative");
+  const retiredTags = localTags.filter((t) => t.status === "negative");
+  const keywordTagLabels = new Set(
+    localTags.filter((t) => t.tag_type === "keyword").map((t) => t.label.toLowerCase()),
+  );
+
+  const onToggleBucket = (b: "added" | "retired") =>
+    setOpenBucket((p) => (p === b ? null : b));
+
+  const retireTag = (tag: ImprovementTag) => {
+    setLocalTags((prev) =>
+      prev.map((t) =>
+        t.tag_id === tag.tag_id
+          ? { ...t, status: "negative" as ImprovementTagStatus, locked_by_merchant: true }
+          : t,
+      ),
+    );
+    tagFetcher.submit(
+      { intent: "retireTag", productId: product.product_id, tagId: tag.tag_id },
+      { method: "post" },
+    );
+  };
+
+  const restoreTag = (tag: ImprovementTag) => {
+    setLocalTags((prev) =>
+      prev.map((t) =>
+        t.tag_id === tag.tag_id ? { ...t, status: "positive" as ImprovementTagStatus } : t,
+      ),
+    );
+    tagFetcher.submit(
+      { intent: "restoreTag", productId: product.product_id, tagId: tag.tag_id },
+      { method: "post" },
+    );
+  };
+
+  const addManualTag = () => {
+    const label = newTagLabel.trim();
+    if (!label) return;
+    const tempTag: ImprovementTag = {
+      tag_id: `tmp-${Date.now()}`,
+      label,
+      tag_type: "merchant",
+      status: "forced",
+      score: 100,
+      source: "merchant",
+      locked_by_merchant: true,
+    };
+    setLocalTags((prev) => [...prev, tempTag]);
+    setNewTagLabel("");
+    tagFetcher.submit(
+      { intent: "addTag", productId: product.product_id, label, tagType: "merchant" },
+      { method: "post" },
+    );
+  };
+
+  const addKeywordTag = (query: string) => {
+    const tempTag: ImprovementTag = {
+      tag_id: `tmp-${Date.now()}`,
+      label: query,
+      tag_type: "keyword",
+      status: "forced",
+      score: 100,
+      source: "merchant",
+      locked_by_merchant: true,
+    };
+    setLocalTags((prev) => [...prev, tempTag]);
+    tagFetcher.submit(
+      { intent: "addTag", productId: product.product_id, label: query, tagType: "keyword" },
+      { method: "post" },
+    );
+  };
+
+  const retireKeywordTag = (query: string) => {
+    const existing = localTags.find(
+      (t) => t.tag_type === "keyword" && t.label.toLowerCase() === query.toLowerCase(),
+    );
+    if (existing) {
+      retireTag(existing);
+    } else {
+      const tempTag: ImprovementTag = {
+        tag_id: `tmp-${Date.now()}`,
+        label: query,
+        tag_type: "keyword",
+        status: "negative",
+        score: 0,
+        source: "merchant",
+        locked_by_merchant: true,
+      };
+      setLocalTags((prev) => [...prev, tempTag]);
+      tagFetcher.submit(
+        { intent: "retireKeyword", productId: product.product_id, label: query, tagType: "keyword" },
+        { method: "post" },
+      );
+    }
+  };
   const pack = product.content_test_pack;
   // Hide keywords with zero product fit — they are noise for the merchant.
   const displayedKeywords = product.seo_keywords.filter(
@@ -1301,7 +1368,18 @@ function ProductCard({
           </Text>
         )}
 
-        <ImprovementTags tags={product.improvement_tags} productId={product.product_id} locale={locale} shop={shop} />
+        <ImprovementTags
+          addedTags={addedTags}
+          retiredTags={retiredTags}
+          openBucket={openBucket}
+          onToggle={onToggleBucket}
+          onRetire={retireTag}
+          onRestore={restoreTag}
+          newLabel={newTagLabel}
+          onNewLabelChange={setNewTagLabel}
+          onAdd={addManualTag}
+          locale={locale}
+        />
         <ImprovementElements elements={product.improvement_elements} locale={locale} />
 
         <ProductContentProposals
@@ -1314,24 +1392,34 @@ function ProductCard({
           showKeywordSources={false}
         />
 
-        <InlineStack gap="150" wrap>
-          {displayedKeywords.length > 0 && (
-            <Button size="slim" pressed={openSection === "keywords"} onClick={() => toggle("keywords")}>
-              {`${t(locale, "marketAnalysisSeoKeywords")} (${displayedKeywords.length})`}
-            </Button>
-          )}
-          {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (
-            <Button size="slim" pressed={openSection === "links"} onClick={() => toggle("links")}>
-              {`${t(locale, "marketAnalysisInternalLinks")} (${pack.recommended_internal_links.length})`}
-            </Button>
-          )}
-        </InlineStack>
+        {/* Uncommitted keywords = those not yet in localTags as keyword type */}
+        {(() => {
+          const uncommitted = displayedKeywords.filter(
+            (k) => !keywordTagLabels.has(k.query.toLowerCase()),
+          );
+          return (
+            <InlineStack gap="150" wrap>
+              {displayedKeywords.length > 0 && (
+                <Button size="slim" pressed={openSection === "keywords"} onClick={() => toggle("keywords")}>
+                  {fr
+                    ? `Mots-clés (${uncommitted.length})`
+                    : `Keywords (${uncommitted.length})`}
+                </Button>
+              )}
+              {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (
+                <Button size="slim" pressed={openSection === "links"} onClick={() => toggle("links")}>
+                  {`${t(locale, "marketAnalysisInternalLinks")} (${pack.recommended_internal_links.length})`}
+                </Button>
+              )}
+            </InlineStack>
+          );
+        })()}
 
         {displayedKeywords.length > 0 && (
           <Collapsible id={`kw-${product.product_id}`} open={openSection === "keywords"}>
               <Box paddingBlockStart="200">
                 <BlockStack gap="200">
-                  {displayedKeywords.map((k, idx) => (
+                  {displayedKeywords.filter((k) => !keywordTagLabels.has(k.query.toLowerCase())).map((k, idx) => (
                     <Box
                       key={`${k.query}-${idx}`}
                       padding="200"
@@ -1343,26 +1431,26 @@ function ProductCard({
                       <BlockStack gap="100">
                         <InlineStack gap="200" align="space-between" wrap blockAlign="center">
                           <InlineStack gap="200" blockAlign="center" wrap>
-                            <Text as="span" variant="bodyMd"><strong>{k.query}</strong></Text>
+                            <Badge tone="attention">{k.query}</Badge>
                             <Badge>{k.intent_type || "—"}</Badge>
                             {(k.target_role === "primary" || k.target_role === "secondary") && (
                               <Badge tone={k.target_role === "primary" ? "success" : "info"}>
                                 {k.target_role === "primary"
-                                  ? (locale === "fr" ? "Cible principale" : "Primary target")
-                                  : (locale === "fr" ? "Cible secondaire" : "Secondary target")}
+                                  ? (fr ? "Cible principale" : "Primary target")
+                                  : (fr ? "Cible secondaire" : "Secondary target")}
                               </Badge>
                             )}
                             <KeywordSourceBadge source={k.data_source} locale={locale} />
                             {usedKeywords.has(k.query.toLowerCase()) && (
                               <Badge tone="success">
-                                {locale === "fr" ? "Couvert" : "Covered"}
+                                {fr ? "Couvert" : "Covered"}
                               </Badge>
                             )}
                           </InlineStack>
-                          <InlineStack gap="100">
+                          <InlineStack gap="100" blockAlign="center">
                             {k.priority_score != null && (
                               <Badge tone={scoreTone(k.priority_score)}>
-                                {`${locale === "fr" ? "Priorité" : "Priority"} ${k.priority_score}`}
+                                {`${fr ? "Priorité" : "Priority"} ${k.priority_score}`}
                               </Badge>
                             )}
                             <Badge
@@ -1372,7 +1460,7 @@ function ProductCard({
                                   : scoreTone(k.demand_score)
                               }
                             >
-                              {`${locale === "fr" ? "Demande" : "Demand"} ${k.demand_score}${
+                              {`${fr ? "Demande" : "Demand"} ${k.demand_score}${
                                 k.data_source === "llm_estimated" || k.data_source === "shopify" || k.data_source === "parent_estimated"
                                   ? " (estimé)"
                                   : ""
@@ -1384,6 +1472,12 @@ function ProductCard({
                             <Badge tone={scoreTone(k.product_fit_score)}>
                               {`Fit ${k.product_fit_score}`}
                             </Badge>
+                            <Button size="slim" onClick={() => addKeywordTag(k.query)}>
+                              {fr ? "Ajouter" : "Add"}
+                            </Button>
+                            <Button size="slim" variant="plain" tone="critical" onClick={() => retireKeywordTag(k.query)}>
+                              {fr ? "Retirer" : "Retire"}
+                            </Button>
                           </InlineStack>
                         </InlineStack>
                         <InlineStack gap="300" wrap>
@@ -1396,7 +1490,7 @@ function ProductCard({
                                 <strong>≤ {k.search_volume_estimated_ceiling.toLocaleString()}</strong>
                                 <em>
                                   {" "}
-                                  ({locale === "fr" ? "estimé via" : "estimated via"} « {k.estimated_from_parent} »)
+                                  ({fr ? "estimé via" : "estimated via"} « {k.estimated_from_parent} »)
                                 </em>
                               </>
                             ) : (
@@ -1418,7 +1512,7 @@ function ProductCard({
                           )}
                           {k.serp_evidence && (
                             <Text as="span" variant="bodySm" tone="subdued">
-                              {locale === "fr" ? "SERP/PAA vérifié" : "SERP/PAA checked"}
+                              {fr ? "SERP/PAA vérifié" : "SERP/PAA checked"}
                             </Text>
                           )}
                         </InlineStack>
