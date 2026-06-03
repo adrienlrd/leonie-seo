@@ -1,8 +1,6 @@
 {%- comment -%}
   Léonie SEO — unified storefront embed
-  One merchant activation controls:
-  - visible product FAQ from `leonie.faq`
-  - JSON-LD for Product, CollectionPage, and Organization
+  Controls: visible product FAQ, breadcrumb navigation, and JSON-LD structured data.
   Product JSON-LD stays Shopify-first and enriches from `leonie.schema_facts`
   only when merchant-approved facts have been synced by the app.
 {%- endcomment -%}
@@ -16,7 +14,14 @@
 {%- if block.settings.enable_jsonld == false -%}
   {%- assign enable_jsonld = false -%}
 {%- endif -%}
+{%- assign enable_breadcrumb = true -%}
+{%- if block.settings.enable_breadcrumb == false -%}
+  {%- assign enable_breadcrumb = false -%}
+{%- endif -%}
+{%- assign bc_sep = block.settings.separator | default: '›' -%}
+{%- assign bc_home = 'general.breadcrumbs.home' | t | default: 'Accueil' -%}
 
+{%- comment -%} ── JSON-LD structured data ─────────────────────────────────── {%- endcomment -%}
 {%- if enable_jsonld -%}
   {%- if template contains 'product' and product -%}
     {%- assign variant = product.selected_or_first_available_variant -%}
@@ -103,7 +108,7 @@
       {
         "@type": "ListItem",
         "position": 1,
-        "name": {{ 'general.breadcrumbs.home' | t | default: 'Accueil' | json }},
+        "name": {{ bc_home | json }},
         "item": {{ shop_url | json }}
       }
       {%- if collection -%}
@@ -153,7 +158,7 @@
       {
         "@type": "ListItem",
         "position": 1,
-        "name": {{ 'general.breadcrumbs.home' | t | default: 'Accueil' | json }},
+        "name": {{ bc_home | json }},
         "item": {{ shop_url | json }}
       },
       {
@@ -164,6 +169,20 @@
       }
     ]
   }
+}
+</script>
+  {%- elsif template contains 'article' and article -%}
+    {%- assign shop_url = shop.secure_url | default: shop.url -%}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type":"ListItem","position":1,"name":{{ bc_home | json }},"item":{{ shop_url | json }}},
+    {"@type":"ListItem","position":2,"name":{{ blog.title | json }},"item":{{ blog.url | prepend: shop_url | json }}},
+    {"@type":"ListItem","position":3,"name":{{ article.title | json }},"item":{{ article.url | prepend: shop_url | json }}}
+  ]
 }
 </script>
   {%- elsif template.name == 'index' -%}
@@ -201,6 +220,129 @@
   {%- endif -%}
 {%- endif -%}
 
+{%- comment -%} ── Visible breadcrumb navigation ──────────────────────────── {%- endcomment -%}
+{%- if enable_breadcrumb -%}
+  {%- assign shop_url = shop.secure_url | default: shop.url -%}
+  {%- assign bc_json = '' -%}
+
+  {%- if template contains 'product' and product -%}
+    {%- assign bc_collection = collection | default: product.collections.first -%}
+    {%- capture bc_json -%}[{"label":{{ bc_home | json }},"url":{{ shop_url | json }}}{% if bc_collection %},{"label":{{ bc_collection.title | json }},"url":{{ bc_collection.url | prepend: shop_url | json }}}{% endif %},{"label":{{ product.title | json }},"url":{{ product.url | prepend: shop_url | json }},"current":true}]{%- endcapture -%}
+  {%- elsif template contains 'collection' and collection -%}
+    {%- capture bc_json -%}[{"label":{{ bc_home | json }},"url":{{ shop_url | json }}},{"label":{{ collection.title | json }},"url":{{ collection.url | prepend: shop_url | json }},"current":true}]{%- endcapture -%}
+  {%- elsif template contains 'article' and article -%}
+    {%- capture bc_json -%}[{"label":{{ bc_home | json }},"url":{{ shop_url | json }}},{"label":{{ blog.title | json }},"url":{{ blog.url | prepend: shop_url | json }}},{"label":{{ article.title | json }},"url":{{ article.url | prepend: shop_url | json }},"current":true}]{%- endcapture -%}
+  {%- elsif template contains 'blog' and blog -%}
+    {%- capture bc_json -%}[{"label":{{ bc_home | json }},"url":{{ shop_url | json }}},{"label":{{ blog.title | json }},"url":{{ blog.url | prepend: shop_url | json }},"current":true}]{%- endcapture -%}
+  {%- elsif template contains 'page' and page -%}
+    {%- capture bc_json -%}[{"label":{{ bc_home | json }},"url":{{ shop_url | json }}},{"label":{{ page.title | json }},"url":{{ page.url | prepend: shop_url | json }},"current":true}]{%- endcapture -%}
+  {%- endif -%}
+
+  {%- if bc_json != blank -%}
+
+<template id="leonie-bc-tpl" data-sep="{{ bc_sep | escape }}">
+  <nav class="leonie-bc" aria-label="Breadcrumb">
+    <ol class="leonie-bc__list" itemscope itemtype="https://schema.org/BreadcrumbList"></ol>
+  </nav>
+</template>
+<script id="leonie-bc-data" type="application/json">{{ bc_json | strip }}</script>
+
+<script>
+(function () {
+  var tpl = document.getElementById('leonie-bc-tpl');
+  var dataEl = document.getElementById('leonie-bc-data');
+  if (!tpl || !dataEl) return;
+
+  // Skip if the theme already renders a visible breadcrumb
+  var EXISTING = [
+    '.breadcrumb', '.breadcrumbs', '.bread-crumb', '.bc-crumbs',
+    '[aria-label="breadcrumb"]', '[aria-label="Breadcrumb"]',
+    'nav[class*="breadcrumb"]', 'ol[class*="breadcrumb"]'
+  ];
+  if (EXISTING.some(function (s) { return document.querySelector(s); })) {
+    tpl.remove(); dataEl.remove(); return;
+  }
+
+  var items;
+  try { items = JSON.parse(dataEl.textContent || '[]'); } catch (e) { return; }
+  if (!Array.isArray(items) || items.length < 2) return;
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  var sep = tpl.dataset.sep || '›';
+  var nav = tpl.content.cloneNode(true);
+  var ol = nav.querySelector('.leonie-bc__list');
+  ol.style.setProperty('--leonie-bc-sep', '"' + sep + '"');
+
+  items.forEach(function (item, i) {
+    var li = document.createElement('li');
+    li.className = 'leonie-bc__item';
+    li.setAttribute('itemprop', 'itemListElement');
+    li.setAttribute('itemscope', '');
+    li.setAttribute('itemtype', 'https://schema.org/ListItem');
+    var pos = '<meta itemprop="position" content="' + (i + 1) + '">';
+    if (item.current) {
+      li.innerHTML = '<span class="leonie-bc__current" itemprop="name">' + esc(item.label) + '</span>' + pos;
+    } else {
+      li.innerHTML = '<a class="leonie-bc__link" href="' + esc(item.url) + '" itemprop="item"><span itemprop="name">' + esc(item.label) + '</span></a>' + pos;
+    }
+    ol.appendChild(li);
+  });
+
+  // Insert INSIDE the first .page-width container so we inherit the theme's
+  // horizontal padding naturally. Fall back to before the first section or
+  // prepend to main — and add our own padding in those cases.
+  var INSIDE = [
+    '#MainContent .page-width', '#main-content .page-width',
+    'main .page-width', '.main-page-content .page-width',
+    '#MainContent .container', 'main .wrapper',
+  ];
+  var BEFORE = [
+    '#MainContent > *:first-child', '#main-content > *:first-child',
+    'main > .shopify-section:first-child', 'main > *:first-child',
+  ];
+  var CONTAINERS = ['main', '[role="main"]', '#MainContent'];
+
+  var wrapper = document.createElement('div');
+  wrapper.className = 'leonie-bc-wrapper';
+  wrapper.appendChild(nav);
+
+  var inserted = false;
+  for (var i = 0; i < INSIDE.length; i++) {
+    var el = document.querySelector(INSIDE[i]);
+    if (el) {
+      el.insertBefore(wrapper, el.firstChild);
+      inserted = true; break;
+    }
+  }
+  if (!inserted) {
+    for (var j = 0; j < BEFORE.length; j++) {
+      var el2 = document.querySelector(BEFORE[j]);
+      if (el2 && el2.parentNode) {
+        wrapper.dataset.outside = '1';
+        el2.parentNode.insertBefore(wrapper, el2);
+        inserted = true; break;
+      }
+    }
+  }
+  if (!inserted) {
+    for (var k = 0; k < CONTAINERS.length; k++) {
+      var el3 = document.querySelector(CONTAINERS[k]);
+      if (el3) { el3.insertBefore(wrapper, el3.firstChild); inserted = true; break; }
+    }
+  }
+
+  tpl.remove();
+  dataEl.remove();
+})();
+</script>
+
+  {%- endif -%}
+{%- endif -%}
+
+{%- comment -%} ── Visible FAQ widget ─────────────────────────────────────── {%- endcomment -%}
 {%- if enable_faq and placement != 'none' and template contains 'product' and product and product.metafields.leonie.faq -%}
 {%- assign faq_entries = product.metafields.leonie.faq.value -%}
 {%- if faq_entries.size > 0 -%}
@@ -250,8 +392,6 @@
     }
 
     function aboveFooterTarget() {
-      // Strategy 1: find the first section of the OS 2.0 footer group, then
-      // walk up to its wrapper container if that container looks footer-related
       var firstFooterSection = document.querySelector('.shopify-section-group-footer-group');
       if (firstFooterSection) {
         var wrapper = firstFooterSection.parentElement;
@@ -261,12 +401,10 @@
         }
         return firstFooterSection;
       }
-      // Strategy 2: explicit footer section group ID (some themes)
       var group = document.querySelector(
         '[id^="shopify-section-group-footer"], [id^="shopify-section-footer-group"]'
       );
       if (group) return group;
-      // Strategy 3: first sibling AFTER <main>
       var main = document.querySelector('main, [role="main"], #MainContent, .main-content');
       if (main && main.parentNode) {
         var next = main.nextElementSibling;
@@ -275,7 +413,6 @@
         }
         if (next) return next;
       }
-      // Strategy 4: outermost shopify-section wrapper of <footer>
       var f = document.querySelector('footer, [role="contentinfo"]');
       if (f) return f.closest('[id^="shopify-section-"]') || f;
       return null;
@@ -287,7 +424,7 @@
     if (placement === 'above_footer') {
       target = aboveFooterTarget();
       if (target && target.parentNode) { target.parentNode.insertBefore(content, target); inserted = true; }
-    } else { // 'below_product'
+    } else {
       section = productSection();
       if (section && section.parentNode) {
         section.parentNode.insertBefore(content, section.nextSibling);
@@ -295,7 +432,6 @@
       }
     }
 
-    // Fallbacks
     if (!inserted) {
       target = aboveFooterTarget();
       if (target && target.parentNode) { target.parentNode.insertBefore(content, target); inserted = true; }
@@ -329,7 +465,45 @@
 }
 </script>
 
+{%- endif -%}
+{%- endif -%}
+
 {%- style -%}
+.leonie-bc-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+}
+.leonie-bc-wrapper[data-outside] {
+  padding-left: var(--page-margin, 1rem);
+  padding-right: var(--page-margin, 1rem);
+}
+.leonie-bc {
+  font-size: 0.8125em;
+  line-height: 1.4;
+  padding: 0.625em 0;
+  color: inherit;
+  font-family: inherit;
+  opacity: 0.75;
+}
+.leonie-bc * { box-sizing: border-box; }
+.leonie-bc__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.leonie-bc__item { display: flex; align-items: center; }
+.leonie-bc__item + .leonie-bc__item::before {
+  content: var(--leonie-bc-sep, "\203a");
+  padding: 0 0.4em;
+  opacity: 0.45;
+}
+.leonie-bc__link { color: inherit; text-decoration: none; }
+.leonie-bc__link:hover,
+.leonie-bc__link:focus-visible { text-decoration: underline; }
+.leonie-bc__current { opacity: 0.6; }
 .leonie-faq {
   display: block;
   box-sizing: border-box;
@@ -369,10 +543,7 @@
   list-style: none;
   line-height: 1.4;
 }
-.leonie-faq__question > span {
-  flex: 1 1 auto;
-  min-width: 0;
-}
+.leonie-faq__question > span { flex: 1 1 auto; min-width: 0; }
 .leonie-faq__question::-webkit-details-marker { display: none; }
 .leonie-faq__question::marker { content: ''; }
 .leonie-faq__question:hover { opacity: 0.75; }
@@ -397,14 +568,29 @@
 }
 {%- endstyle -%}
 
-{%- endif -%}
-{%- endif -%}
-
 {% schema %}
 {
   "name": "Léonie SEO",
   "target": "body",
   "settings": [
+    {
+      "type": "checkbox",
+      "id": "enable_breadcrumb",
+      "label": "Afficher le fil d'ariane",
+      "default": true
+    },
+    {
+      "type": "select",
+      "id": "separator",
+      "label": "Séparateur du fil d'ariane",
+      "options": [
+        { "value": "›", "label": "›  chevron" },
+        { "value": "/", "label": "/  slash" },
+        { "value": "·", "label": "·  point médian" },
+        { "value": "→", "label": "→  flèche" }
+      ],
+      "default": "›"
+    },
     {
       "type": "checkbox",
       "id": "enable_faq",
@@ -431,7 +617,8 @@
     {
       "type": "checkbox",
       "id": "enable_jsonld",
-      "label": "Activer JSON-LD — lisible par les IA",
+      "label": "Activer JSON-LD (structured data lisible par les IA et Google)",
+      "info": "Génère les balises Product, CollectionPage, BreadcrumbList et FAQPage selon la page.",
       "default": true
     }
   ]
