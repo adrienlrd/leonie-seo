@@ -40,6 +40,14 @@ export default function AccountHub() {
           : "Preferences, AI budget, multilingual locales.",
     },
     {
+      titleKey: "jobs",
+      href: "/app/jobs",
+      description:
+        locale === "fr"
+          ? "Suivi des tâches en arrière-plan : analyses, imports, applications."
+          : "Monitor background tasks: analyses, imports, apply runs.",
+    },
+    {
       titleKey: "privacy",
       href: "/app/privacy",
       description:
