@@ -55,6 +55,7 @@ packages = [
     "app.ga4",
     "app.crawl",
     "app.snapshot",
+    "app.learning",
 ]
 
 [tool.pytest.ini_options]

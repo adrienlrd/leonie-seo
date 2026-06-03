@@ -1183,6 +1183,32 @@
 - **Validations skipped:** Full `pytest` was not run; the change was covered by targeted backend/API tests plus global ruff and TypeScript build validation.
 - **Next recommended step:** Task 120 — Progress Curve Dashboard: display GEO score, impressions, clicks, CTR, position, conversions, revenue and estimated vs observed impact curves.
 
+## 2026-06-03 — Learning engine test hardening
+
+- **Scope completed:** Added a comprehensive backend/API/GEO/UI safety test suite for `app/learning/`.
+- **Files covered:** `outcomes`, `learner`, `policy`, `store`, `scheduler`, `approvals`, learning API routes, continuous improvement integration, and the Remix continuous improvement learning contract.
+- **Important fixes made:**
+  - `create_due_observations()` no longer passes transient `deltas` into `create_observation()`.
+  - Edited learning approvals remain status `edited` and are still eligible for explicit one-click safe application.
+  - Successful approval application now records a `seo_changes` trace.
+  - `app.learning` is included in setuptools packaging.
+  - Tests for intentionally archived API routers are skipped at collection time instead of forcing archived routers back into `app.main`.
+- **Safety contracts now tested:**
+  - Only `semi_auto` and `auto_apply` exist; no manual mode is allowed.
+  - `semi_auto` creates pending approvals and does not write live.
+  - `auto_apply` requires enabled learning, pro/agency plan, low risk, high confidence, supported writer, confirmed live write, safe field, and no locked negative merchant tag.
+  - J+14 is intermediate and confidence-capped; J+28 is the primary learning window; J+60 remains historical.
+  - Low-volume or contradictory observations cannot become high-confidence learning evidence.
+  - Bulk approval applies only safe supported actions.
+- **Validations run:**
+  - `ruff check .` ✅
+  - `pytest tests/test_learning` — 74/74 ✅
+  - `pytest tests/test_api/test_learning.py` — 7/7 ✅
+  - `pytest tests/test_geo/test_continuous_agent_learning.py` — 6/6 ✅
+  - `pytest` — 1704 passed, 188 skipped ✅
+  - `cd shopify-app && npm run typecheck` ✅
+  - `cd shopify-app && npm run build` ✅
+
 ## Open decisions
 
 | Decision | Status | Context | Recommended next step |

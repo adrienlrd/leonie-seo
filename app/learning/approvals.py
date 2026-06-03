@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from app.apply.shopify_writer import ShopifyWriter
 from app.content_actions.schema import ContentType
+from app.db_adapter import DB_PATH, get_conn
 from app.learning.models import ApprovalStatus
 from app.learning.risk import is_auto_apply_field_allowed
 from app.learning.store import (
@@ -15,7 +17,7 @@ from app.learning.store import (
     update_approval_status,
 )
 from app.safe_apply.decisions import record_decision as record_content_decision
-from app.safe_apply.writer_adapters import is_live_supported, live_write
+from app.safe_apply.writer_adapters import FIELD_FOR_CONTENT_TYPE, is_live_supported, live_write
 from app.safety import require_shopify_write_allowed
 
 _FIELD_TO_CONTENT_TYPE: dict[str, ContentType] = {
@@ -36,7 +38,7 @@ def is_safe_approval(row: dict[str, Any], *, min_confidence: int = 0) -> bool:
     confidence = int(row.get("confidence_score") or 0)
     content_type = _content_type_for_field(field)
     return (
-        str(row.get("status") or "") == "pending"
+        str(row.get("status") or "") in {"pending", "edited"}
         and risk_level == "low"
         and confidence >= min_confidence
         and is_auto_apply_field_allowed(field)
@@ -90,6 +92,22 @@ def apply_approval(
             record_content_decision(shop, str(action_id), "accept", db_path=db_path)
         except ValueError:
             pass
+    path = db_path if db_path is not None else DB_PATH
+    with get_conn(path) as conn:
+        conn.execute(
+            """INSERT INTO seo_changes
+               (shop, applied_at, resource_type, resource_id, field, old_value, new_value, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'applied')""",
+            (
+                shop,
+                datetime.now(UTC).isoformat(),
+                str(row.get("resource_type") or "product"),
+                str(row["resource_id"]),
+                FIELD_FOR_CONTENT_TYPE.get(content_type, str(row["field"])),
+                result.get("old_value"),
+                str(row["proposed_value"] or ""),
+            ),
+        )
     updated = update_approval_status(
         shop=shop,
         approval_id=approval_id,
@@ -134,14 +152,7 @@ def edit_approval(
     )
     if not updated:
         raise ValueError("Approval not found.")
-    update_approval_status(
-        shop=shop,
-        approval_id=approval_id,
-        status=ApprovalStatus.PENDING,
-        db_path=db_path,
-    )
-    refreshed = list_pending_approvals(shop, include_closed=False, limit=500, db_path=db_path)
-    return next(item for item in refreshed if int(item.get("id") or 0) == approval_id)
+    return updated
 
 
 def bulk_approve_safe(

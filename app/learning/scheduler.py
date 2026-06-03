@@ -87,7 +87,8 @@ def create_due_observations(
                 skipped += 1
                 continue
             payload = build_observation_from_event(event, window_days=window_days)
-            observation_id = create_observation(shop=shop, db_path=db_path, **payload)
+            observation_payload = {key: value for key, value in payload.items() if key != "deltas"}
+            observation_id = create_observation(shop=shop, db_path=db_path, **observation_payload)
             product = products.get(payload["resource_id"])
             obs = LearningObservation(
                 shop=shop,

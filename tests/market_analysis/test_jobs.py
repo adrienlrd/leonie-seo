@@ -2,22 +2,16 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
-
-from app.market_analysis.jobs import (
-    load_latest_result,
-    remove_products_from_analysis,
-    save_latest_result,
-)
 
 
 @pytest.fixture()
 def analysis_with_products(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     import importlib
+
     import app.market_analysis.jobs as jobs_mod
+
     importlib.reload(jobs_mod)
 
     data = {
@@ -35,7 +29,9 @@ def analysis_with_products(tmp_path, monkeypatch):
 def test_remove_products_returns_zero_when_no_analysis(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     import importlib
+
     import app.market_analysis.jobs as jobs_mod
+
     importlib.reload(jobs_mod)
 
     removed = jobs_mod.remove_products_from_analysis(

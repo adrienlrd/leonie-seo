@@ -2,6 +2,44 @@
 
 import pytest
 
+_ARCHIVED_API_TESTS = {
+    "tests/test_api/test_ai_visibility.py",
+    "tests/test_api/test_alerts.py",
+    "tests/test_api/test_alt_text.py",
+    "tests/test_api/test_apply.py",
+    "tests/test_api/test_audit.py",
+    "tests/test_api/test_audit_readiness.py",
+    "tests/test_api/test_cannibalization.py",
+    "tests/test_api/test_content.py",
+    "tests/test_api/test_content_actions.py",
+    "tests/test_api/test_descriptions.py",
+    "tests/test_api/test_generate.py",
+    "tests/test_api/test_hreflang.py",
+    "tests/test_api/test_ice.py",
+    "tests/test_api/test_internal_links.py",
+    "tests/test_api/test_jsonld_status.py",
+    "tests/test_api/test_longtail.py",
+    "tests/test_api/test_niche_understanding.py",
+    "tests/test_api/test_opportunities.py",
+    "tests/test_api/test_plans.py",
+    "tests/test_api/test_priorities.py",
+    "tests/test_api/test_redirects.py",
+    "tests/test_api/test_reports.py",
+    "tests/test_api/test_rollback.py",
+    "tests/test_api/test_safe_apply.py",
+    "tests/test_api/test_semantics.py",
+}
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Skip tests for API routers intentionally unmounted from app.main."""
+    archived = pytest.mark.skip(reason="Archived router is intentionally not mounted in app.main")
+    for item in items:
+        relative = item.path.relative_to(config.rootpath).as_posix()
+        if relative in _ARCHIVED_API_TESTS:
+            item.add_marker(archived)
+
+
 # --- Fixtures Shopify ---
 
 
