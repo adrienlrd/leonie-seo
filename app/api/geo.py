@@ -19,6 +19,8 @@ from app.geo.answers import build_catalog_answer_blocks
 from app.geo.collections import build_collection_suggestions, parse_gsc_query_page_csv
 from app.geo.competitors import build_competitor_monitor
 from app.geo.confidence import compute_catalog_confidence
+from app.geo.continuous_agent import run_continuous_improvement_agent
+from app.geo.continuous_improvement import list_continuous_improvement
 from app.geo.control_groups import build_control_groups
 from app.geo.crawlability import build_ai_crawlability_advisor
 from app.geo.event_tracking import (
@@ -108,6 +110,13 @@ class GeoOptimizationSnapshotRequest(BaseModel):
     source: str = Field(default="geo")
     hypothesis: str | None = None
     notes: str | None = None
+
+
+class ContinuousImprovementAgentRequest(BaseModel):
+    auto_apply: bool = False
+    confirm_live_write: bool = False
+    plan: str = Field(default="free", pattern="^(free|pro|agency)$")
+    max_actions: int = Field(default=5, ge=1, le=20)
 
 
 @router.get("/shops/{shop}/geo/facts")
@@ -249,6 +258,48 @@ async def get_geo_ledger(
     }
 
 
+@router.get("/shops/{shop}/geo/continuous-improvement")
+async def get_geo_continuous_improvement(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    limit: int = Query(default=100, ge=1, le=300),
+) -> dict:
+    """Return continuous improvement tags, agent changes and metrics."""
+    data = list_continuous_improvement(ctx.shop, limit=limit, db_path=DB_PATH)
+    return {
+        "shop": ctx.shop,
+        "available": True,
+        **data,
+    }
+
+
+@router.post("/shops/{shop}/geo/continuous-improvement/run")
+async def run_geo_continuous_improvement_agent(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    body: ContinuousImprovementAgentRequest,
+) -> dict:
+    """Run the continuous improvement agent in proposal or safe auto-apply mode."""
+    try:
+        result = await asyncio.to_thread(
+            run_continuous_improvement_agent,
+            ctx.shop,
+            access_token=ctx.access_token,
+            plan=body.plan,
+            auto_apply=body.auto_apply,
+            confirm_live_write=body.confirm_live_write,
+            max_actions=body.max_actions,
+            db_path=DB_PATH,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "shop": ctx.shop,
+        "available": True,
+        **result,
+    }
+
+
 @router.get("/shops/{shop}/geo/optimization-snapshots")
 async def get_geo_optimization_snapshots(
     shop: str,
@@ -368,7 +419,9 @@ async def get_geo_next_best_actions(
     confidence_data = compute_catalog_confidence(events)
     catalog = build_catalog_report(events, confidence_data["scores"])
     snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
-    result = build_next_best_actions(catalog["reports"], snapshot=snapshot, scope=_validated_scope(scope))
+    result = build_next_best_actions(
+        catalog["reports"], snapshot=snapshot, scope=_validated_scope(scope)
+    )
     return {
         "shop": ctx.shop,
         "generated_at": datetime.now(UTC).isoformat(),

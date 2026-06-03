@@ -209,6 +209,26 @@ interface BlogGapSuggestion {
   reason: string;
 }
 
+type ImprovementTagStatus = "positive" | "neutral" | "negative" | "forced";
+
+interface ImprovementTag {
+  tag_id: string;
+  label: string;
+  tag_type: "keyword" | "analysis_axis" | "content_axis" | "risk" | "merchant";
+  status: ImprovementTagStatus;
+  score: number;
+  source: string;
+  locked_by_merchant: boolean;
+  reason?: string;
+}
+
+interface ImprovementElement {
+  key: string;
+  label: string;
+  improved: boolean;
+  status: "improved" | "not_improved";
+}
+
 interface ContentTestPack {
   current_meta_title: string;
   proposed_meta_title: string;
@@ -276,6 +296,8 @@ interface ProductResult {
   business_profile_context_hash?: string | null;
   business_profile_context_status?: BusinessProfileContextStatus;
   keyword_clusters?: KeywordCluster[];
+  improvement_tags?: ImprovementTag[];
+  improvement_elements?: ImprovementElement[];
 }
 
 interface JobState {
@@ -878,6 +900,43 @@ function KeywordSourceBadge({ source, locale }: { source: KeywordSource | undefi
   return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlm")}</Badge>;
 }
 
+function tagTone(status: ImprovementTagStatus): "success" | "critical" | "attention" | "info" {
+  if (status === "positive") return "success";
+  if (status === "negative") return "critical";
+  if (status === "forced") return "attention";
+  return "info";
+}
+
+function ImprovementTags({ tags, locale }: { tags?: ImprovementTag[]; locale: Locale }) {
+  if (!tags || tags.length === 0) return null;
+  return (
+    <InlineStack gap="100" wrap>
+      {tags.slice(0, 10).map((tag) => (
+        <Badge key={tag.tag_id} tone={tagTone(tag.status)}>
+          {tag.locked_by_merchant
+            ? `${tag.label} · ${locale === "fr" ? "forcé" : "forced"}`
+            : tag.label}
+        </Badge>
+      ))}
+    </InlineStack>
+  );
+}
+
+function ImprovementElements({ elements, locale }: { elements?: ImprovementElement[]; locale: Locale }) {
+  if (!elements || elements.length === 0) return null;
+  return (
+    <InlineStack gap="100" wrap>
+      {elements.map((element) => (
+        <Badge key={element.key} tone={element.improved ? "success" : "info"}>
+          {`${element.label}: ${element.improved
+            ? (locale === "fr" ? "amélioré" : "improved")
+            : (locale === "fr" ? "non amélioré" : "not improved")}`}
+        </Badge>
+      ))}
+    </InlineStack>
+  );
+}
+
 function SummaryCard({ job, locale }: { job: JobState; locale: Locale }) {
   const contextStatus = job.business_profile_context_status;
 
@@ -1065,6 +1124,9 @@ function ProductCard({
               : Object.values(product.target_customer as Record<string, string>).join(" — ")}
           </Text>
         )}
+
+        <ImprovementTags tags={product.improvement_tags} locale={locale} />
+        <ImprovementElements elements={product.improvement_elements} locale={locale} />
 
         <ProductContentProposals
           product={product}

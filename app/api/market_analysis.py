@@ -16,6 +16,11 @@ from app.business_profile.context import (
     resolve_business_profile_context_status,
 )
 from app.business_profile.jobs import load_business_profile
+from app.geo.continuous_improvement import (
+    enrich_market_analysis_result,
+    merge_product_tags,
+    set_product_tag,
+)
 from app.gsc.client import ensure_fresh_gsc
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.market_analysis.competitors import load_competitors, save_competitors
@@ -272,10 +277,22 @@ def _run_analysis_background(
         }
         completed_data = _attach_business_profile_context_status(completed_data, business_profile)
         if persist:
+            completed_data = enrich_market_analysis_result(
+                shop_domain,
+                completed_data,
+                persist_tags=True,
+            )
             save_latest_result(shop_domain, completed_data)
         elif persist_product_results:
             for product_result in completed_data["products"]:
                 replace_product_analysis(shop_domain, product_result, result["analyzed_at"])
+            completed_data = enrich_market_analysis_result(
+                shop_domain,
+                completed_data,
+                persist_tags=True,
+            )
+        else:
+            completed_data = enrich_market_analysis_result(shop_domain, completed_data)
         update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
     except Exception as exc:
         import logging  # noqa: PLC0415
@@ -447,7 +464,50 @@ async def get_latest_market_analysis(
     result = load_latest_result(ctx.shop)
     if result is None:
         raise HTTPException(status_code=404, detail="Aucune analyse précédente disponible")
-    return _attach_business_profile_context_status(result, load_business_profile(ctx.shop))
+    enriched = _attach_business_profile_context_status(result, load_business_profile(ctx.shop))
+    return enrich_market_analysis_result(ctx.shop, enriched)
+
+
+@router.get("/shops/{shop}/market-analysis/products/{product_id:path}/tags")
+async def get_market_analysis_product_tags(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    product_id: str,
+) -> dict[str, Any]:
+    """Return current improvement tags for one product."""
+    result = load_latest_result(ctx.shop)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Aucune analyse précédente disponible")
+    product = next(
+        (p for p in result.get("products", []) if str(p.get("product_id", "")) == str(product_id)),
+        None,
+    )
+    if not isinstance(product, dict):
+        raise HTTPException(status_code=404, detail=f"Product {product_id} not found")
+    return {
+        "product_id": product_id,
+        "tags": merge_product_tags(ctx.shop, product, persist=True),
+    }
+
+
+@router.post("/shops/{shop}/market-analysis/products/{product_id:path}/tags")
+async def save_market_analysis_product_tag(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    product_id: str,
+    body: dict[str, Any],
+) -> dict[str, Any]:
+    """Create or update a merchant-controlled product tag."""
+    try:
+        tag = set_product_tag(
+            ctx.shop,
+            product_id,
+            label=str(body.get("label") or ""),
+            tag_type=str(body.get("tag_type") or "merchant"),
+            status=str(body.get("status") or "forced"),
+            locked_by_merchant=bool(body.get("locked_by_merchant", True)),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"saved": True, "tag": tag}
 
 
 @router.patch("/shops/{shop}/market-analysis/proposals/{product_id:path}")
@@ -605,7 +665,9 @@ async def run_market_analysis_endpoint(
         raise HTTPException(status_code=500, detail=f"Erreur analyse marché : {exc}") from exc
 
     age = _snapshot_age_days(snapshot)
+    enriched = _attach_business_profile_context_status(result, business_profile)
+    enriched = enrich_market_analysis_result(ctx.shop, enriched, persist_tags=True)
     return {
-        **_attach_business_profile_context_status(result, business_profile),
+        **enriched,
         "snapshot_age_days": age,
     }

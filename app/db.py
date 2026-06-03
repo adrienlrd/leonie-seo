@@ -258,6 +258,45 @@ _SQLITE_DDL = [
         last_webhook_tick_at TEXT,
         is_published         INTEGER NOT NULL DEFAULT 0
     )""",
+    """CREATE TABLE IF NOT EXISTS product_improvement_tags (
+        shop                TEXT NOT NULL,
+        product_id          TEXT NOT NULL,
+        tag_id              TEXT NOT NULL,
+        label               TEXT NOT NULL,
+        tag_type            TEXT NOT NULL,
+        status              TEXT NOT NULL DEFAULT 'neutral',
+        score               INTEGER NOT NULL DEFAULT 0,
+        source              TEXT NOT NULL DEFAULT 'market_analysis',
+        locked_by_merchant  INTEGER NOT NULL DEFAULT 0,
+        reason              TEXT,
+        first_seen_at       TEXT NOT NULL,
+        last_seen_at        TEXT NOT NULL,
+        updated_at          TEXT NOT NULL,
+        PRIMARY KEY (shop, product_id, tag_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS tag_performance_history (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop           TEXT NOT NULL,
+        product_id     TEXT NOT NULL,
+        tag_id         TEXT NOT NULL,
+        label          TEXT NOT NULL,
+        status_before  TEXT NOT NULL,
+        status_after   TEXT NOT NULL,
+        window         TEXT NOT NULL,
+        metrics_json   TEXT NOT NULL DEFAULT '{}',
+        reason         TEXT NOT NULL DEFAULT '',
+        decided_at     TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS continuous_improvement_agent_runs (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop           TEXT NOT NULL,
+        created_at     TEXT NOT NULL,
+        mode           TEXT NOT NULL DEFAULT 'proposal',
+        status         TEXT NOT NULL DEFAULT 'completed',
+        summary_json   TEXT NOT NULL DEFAULT '{}',
+        proposals_json TEXT NOT NULL DEFAULT '[]',
+        errors_json    TEXT NOT NULL DEFAULT '[]'
+    )""",
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
@@ -470,6 +509,45 @@ _PG_DDL = [
         last_published_at    TEXT,
         last_webhook_tick_at TEXT,
         is_published         INTEGER NOT NULL DEFAULT 0
+    )""",
+    """CREATE TABLE IF NOT EXISTS product_improvement_tags (
+        shop                TEXT NOT NULL,
+        product_id          TEXT NOT NULL,
+        tag_id              TEXT NOT NULL,
+        label               TEXT NOT NULL,
+        tag_type            TEXT NOT NULL,
+        status              TEXT NOT NULL DEFAULT 'neutral',
+        score               INTEGER NOT NULL DEFAULT 0,
+        source              TEXT NOT NULL DEFAULT 'market_analysis',
+        locked_by_merchant  INTEGER NOT NULL DEFAULT 0,
+        reason              TEXT,
+        first_seen_at       TEXT NOT NULL,
+        last_seen_at        TEXT NOT NULL,
+        updated_at          TEXT NOT NULL,
+        PRIMARY KEY (shop, product_id, tag_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS tag_performance_history (
+        id             SERIAL PRIMARY KEY,
+        shop           TEXT NOT NULL,
+        product_id     TEXT NOT NULL,
+        tag_id         TEXT NOT NULL,
+        label          TEXT NOT NULL,
+        status_before  TEXT NOT NULL,
+        status_after   TEXT NOT NULL,
+        window         TEXT NOT NULL,
+        metrics_json   TEXT NOT NULL DEFAULT '{}',
+        reason         TEXT NOT NULL DEFAULT '',
+        decided_at     TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS continuous_improvement_agent_runs (
+        id             SERIAL PRIMARY KEY,
+        shop           TEXT NOT NULL,
+        created_at     TEXT NOT NULL,
+        mode           TEXT NOT NULL DEFAULT 'proposal',
+        status         TEXT NOT NULL DEFAULT 'completed',
+        summary_json   TEXT NOT NULL DEFAULT '{}',
+        proposals_json TEXT NOT NULL DEFAULT '[]',
+        errors_json    TEXT NOT NULL DEFAULT '[]'
     )""",
 ]
 

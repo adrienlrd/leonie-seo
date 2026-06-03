@@ -182,6 +182,26 @@ export interface BlogIdea {
   outline: string[];
 }
 
+export type ImprovementTagStatus = "positive" | "neutral" | "negative" | "forced";
+
+export interface ImprovementTag {
+  tag_id: string;
+  label: string;
+  tag_type: "keyword" | "analysis_axis" | "content_axis" | "risk" | "merchant";
+  status: ImprovementTagStatus;
+  score: number;
+  source: string;
+  locked_by_merchant: boolean;
+  reason?: string;
+}
+
+export interface ImprovementElement {
+  key: string;
+  label: string;
+  improved: boolean;
+  status: "improved" | "not_improved";
+}
+
 export interface ProductResult {
   product_id: string;
   product_title: string;
@@ -198,6 +218,8 @@ export interface ProductResult {
   opportunity_score: number;
   sources_used: string[];
   keyword_clusters?: KeywordCluster[];
+  improvement_tags?: ImprovementTag[];
+  improvement_elements?: ImprovementElement[];
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
