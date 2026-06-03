@@ -604,8 +604,8 @@ export default function ContinuousImprovement() {
               <Banner tone="success">
                 <Text as="p">
                   {locale === "fr"
-                    ? `Run #${fetcher.data.result?.run_id} terminé. Propositions : ${fetcher.data.result?.proposals.length ?? 0}.`
-                    : `Run #${fetcher.data.result?.run_id} completed. Proposals: ${fetcher.data.result?.proposals.length ?? 0}.`}
+                    ? `Run #${fetcher.data.result?.run_id} terminé. Propositions : ${fetcher.data.result?.proposals?.length ?? 0}.`
+                    : `Run #${fetcher.data.result?.run_id} completed. Proposals: ${fetcher.data.result?.proposals?.length ?? 0}.`}
                 </Text>
               </Banner>
             )}

@@ -53,9 +53,9 @@ def get_settings(shop: str, *, db_path: Path | None = None) -> MerchantLearningS
                     min_confidence_to_auto_apply, min_confidence_to_suggest,
                     require_approval_for_medium_risk, updated_at
                 )
-                VALUES (?, 1, 'semi_auto', 1, 3, 80, 45, 1, ?)
+                VALUES (?, ?, 'semi_auto', ?, 3, 80, 45, ?, ?)
                 """,
-                (shop, now),
+                (shop, True, True, True, now),
             )
             return MerchantLearningSettings(shop=shop)
     return MerchantLearningSettings(
@@ -117,13 +117,13 @@ def update_settings(
             (shop,),
         ).fetchone()
         values = (
-            int(settings.enabled),
+            settings.enabled,
             settings.mode.value,
-            int(settings.allow_bulk_approval),
+            settings.allow_bulk_approval,
             settings.max_auto_actions_per_cycle,
             settings.min_confidence_to_auto_apply,
             settings.min_confidence_to_suggest,
-            int(settings.require_approval_for_medium_risk),
+            settings.require_approval_for_medium_risk,
             now,
             shop,
         )
