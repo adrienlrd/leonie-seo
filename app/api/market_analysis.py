@@ -18,6 +18,7 @@ from app.business_profile.context import (
 from app.business_profile.jobs import load_business_profile
 from app.geo.continuous_improvement import (
     enrich_market_analysis_result,
+    get_product_locked_tags,
     get_shop_retired_tags,
     merge_product_tags,
     reset_all_shop_tags,
@@ -288,6 +289,37 @@ def _run_analysis_background(
                     kw for kw in (_p.get("seo_keywords") or [])
                     if kw.get("query", "").lower().strip() not in retired_lower
                 ]
+
+        # Inject merchant-added keyword tags into seo_keywords if absent — ensures
+        # deliberately committed keywords survive re-analysis even if the LLM didn't pick them.
+        for _p in result.get("products") or []:
+            pid = str(_p.get("product_id") or "")
+            if not pid:
+                continue
+            persisted_tags = get_product_locked_tags(shop_domain, pid)
+            existing_queries = {
+                kw.get("query", "").lower().strip()
+                for kw in (_p.get("seo_keywords") or [])
+            }
+            for _t in persisted_tags:
+                if (
+                    _t.get("locked_by_merchant")
+                    and _t.get("status") != "negative"
+                    and _t.get("tag_type") == "keyword"
+                    and str(_t.get("label") or "").lower().strip() not in existing_queries
+                    and str(_t.get("label") or "").lower().strip() not in retired_lower
+                ):
+                    _p.setdefault("seo_keywords", []).append({
+                        "query": _t["label"],
+                        "intent_type": "commercial",
+                        "demand_score": 50,
+                        "competition_score": 50,
+                        "product_fit_score": 80,
+                        "target_role": "secondary",
+                        "data_source": "merchant",
+                        "priority_score": 60,
+                        "locked": True,
+                    })
         completed_data: dict[str, Any] = {
             "job_id": job_id,
             "shop": shop_domain,
@@ -559,10 +591,12 @@ async def retire_market_analysis_product_tag(
         None,
     ) if result else None
     existing_label = None
+    existing_tag_type = "merchant"
     if product:
         for t in merge_product_tags(ctx.shop, product):
             if t.get("tag_id") == tag_id:
                 existing_label = t.get("label")
+                existing_tag_type = str(t.get("tag_type") or "merchant")
                 break
     if not existing_label:
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -570,11 +604,10 @@ async def retire_market_analysis_product_tag(
         ctx.shop,
         product_id,
         label=existing_label,
-        tag_type="merchant",
+        tag_type=existing_tag_type,
         status="negative",
         locked_by_merchant=True,
     )
-    tag["tag_id"] = tag_id
     return {"retired": True, "tag": tag}
 
 
@@ -591,10 +624,12 @@ async def restore_market_analysis_product_tag(
         None,
     ) if result else None
     existing_label = None
+    existing_tag_type = "merchant"
     if product:
         for t in merge_product_tags(ctx.shop, product):
             if t.get("tag_id") == tag_id:
                 existing_label = t.get("label")
+                existing_tag_type = str(t.get("tag_type") or "merchant")
                 break
     if not existing_label:
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -602,11 +637,10 @@ async def restore_market_analysis_product_tag(
         ctx.shop,
         product_id,
         label=existing_label,
-        tag_type="merchant",
+        tag_type=existing_tag_type,
         status="positive",
         locked_by_merchant=True,
     )
-    tag["tag_id"] = tag_id
     return {"restored": True, "tag": tag}
 
 

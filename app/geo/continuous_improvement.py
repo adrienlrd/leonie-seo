@@ -204,20 +204,27 @@ def merge_product_tags(
     product_id = str(product.get("product_id") or product.get("id") or "")
     derived = _keyword_tags(product) + _axis_tags(product)
     persisted = _load_persisted_tags(shop, product_id, db_path=db_path)
-    by_key: dict[tuple[str, str], dict[str, Any]] = {
-        (tag["tag_type"], tag["label"].lower()): tag for tag in derived
-    }
+
+    # Key by label only — one entry per label. Locked merchant tags always win over
+    # derived tags with the same label so that retire/add actions survive re-analysis.
+    by_label: dict[str, dict[str, Any]] = {}
+    for tag in derived:
+        by_label[str(tag["label"]).lower()] = tag
     for tag in persisted:
-        key = (str(tag["tag_type"]), str(tag["label"]).lower())
-        if tag.get("locked_by_merchant") or key not in by_key:
-            by_key[key] = tag
+        label_key = str(tag["label"]).lower()
+        existing = by_label.get(label_key)
+        if existing is None:
+            by_label[label_key] = tag
+        elif tag.get("locked_by_merchant"):
+            # Locked tag wins: preserve its status but merge in derived metadata
+            by_label[label_key] = {**existing, **tag}
         else:
-            by_key[key] = {
-                **by_key[key],
+            by_label[label_key] = {
+                **existing,
                 **{k: v for k, v in tag.items() if k in ("tag_id", "locked_by_merchant")},
             }
 
-    merged = list(by_key.values())
+    merged = list(by_label.values())
     if persist and product_id:
         upsert_product_tags(shop, product_id, merged, db_path=db_path)
     return sorted(
@@ -312,6 +319,13 @@ def set_product_tag(
     }
     upsert_product_tags(shop, product_id, [tag], db_path=db_path)
     return tag
+
+
+def get_product_locked_tags(
+    shop: str, product_id: str, db_path: Path | None = None
+) -> list[dict[str, Any]]:
+    """Return all merchant-locked tags for one product (any status)."""
+    return _load_persisted_tags(shop, product_id, db_path=db_path)
 
 
 def get_shop_retired_tags(shop: str, db_path: Path | None = None) -> list[str]:
