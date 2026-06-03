@@ -309,6 +309,7 @@ def _run_analysis_background(
         elif persist_product_results:
             for product_result in completed_data["products"]:
                 replace_product_analysis(shop_domain, product_result, result["analyzed_at"])
+            _auto_sync_schema_facts(shop_domain, completed_data["products"])
             completed_data = enrich_market_analysis_result(
                 shop_domain,
                 completed_data,
