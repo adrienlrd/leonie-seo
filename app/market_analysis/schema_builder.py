@@ -154,7 +154,7 @@ def _shop_origin(shop: str) -> str:
 
 def _extract_image_urls(images: list[Any]) -> list[str]:
     out: list[str] = []
-    for img in images:
+    for img in _edge_nodes(images):
         if isinstance(img, str):
             out.append(img)
         elif isinstance(img, dict):
@@ -165,7 +165,7 @@ def _extract_image_urls(images: list[Any]) -> list[str]:
 
 
 def _build_offers(product: dict[str, Any]) -> dict[str, Any] | None:
-    variants = product.get("variants") or []
+    variants = _edge_nodes(product.get("variants") or [])
     if not variants:
         return None
     first = variants[0] if isinstance(variants[0], dict) else {}
@@ -187,6 +187,14 @@ def _build_offers(product: dict[str, Any]) -> dict[str, Any] | None:
         "priceCurrency": "EUR",
         "availability": availability,
     }
+
+
+def _edge_nodes(container: Any) -> list[Any]:
+    if isinstance(container, dict) and isinstance(container.get("edges"), list):
+        return [edge.get("node", {}) for edge in container["edges"] if isinstance(edge, dict)]
+    if isinstance(container, list):
+        return container
+    return []
 
 
 def _string_value(fact: dict[str, Any] | None) -> str:

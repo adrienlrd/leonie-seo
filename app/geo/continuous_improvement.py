@@ -54,7 +54,7 @@ def _stable_tag_id(product_id: str, tag_type: str, label: str) -> str:
 
 def _element_value(product: dict[str, Any], pack: dict[str, Any], key: str) -> Any:
     if key == "schema_jsonld":
-        return product.get("schema_jsonld")
+        return product.get("schema_jsonld") or pack.get("proposed_schema_jsonld")
     if key == "recommended_internal_links":
         return product.get("recommended_internal_links") or pack.get("recommended_internal_links")
     return pack.get(key)

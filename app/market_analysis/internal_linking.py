@@ -11,6 +11,7 @@ Purely deterministic — no LLM calls, no cost.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.market_analysis.keyword_normalization import (
@@ -54,7 +55,7 @@ def build_recommendations(
 
     collections_by_product: dict[str, list[dict[str, Any]]] = {}
     for col in collections:
-        for pid in col.get("product_ids") or []:
+        for pid in _collection_product_ids(col):
             collections_by_product.setdefault(pid, []).append(col)
 
     recommendations: dict[str, list[dict[str, Any]]] = {p["product_id"]: [] for p in products}
@@ -144,14 +145,17 @@ def detect_orphan_products(
     articles: list[dict[str, Any]],
 ) -> list[str]:
     """Return product_ids that belong to no collection and no article links to them."""
+    if not _has_link_coverage_data(collections=collections, articles=articles):
+        return []
+
     in_collection: set[str] = set()
     for col in collections:
-        for pid in col.get("product_ids") or []:
+        for pid in _collection_product_ids(col):
             in_collection.add(str(pid))
 
     mentioned_in_article: set[str] = set()
     for article in articles:
-        for handle in article.get("linked_product_handles") or []:
+        for handle in _article_linked_product_handles(article):
             mentioned_in_article.add(str(handle))
 
     orphans: list[str] = []
@@ -212,6 +216,45 @@ def _primary_keyword(product: dict[str, Any]) -> dict[str, Any] | None:
         if isinstance(kw, dict) and kw.get("target_role") == "primary":
             return kw
     return None
+
+
+def _edge_nodes(container: Any) -> list[dict[str, Any]]:
+    if isinstance(container, dict) and isinstance(container.get("edges"), list):
+        return [edge.get("node", {}) for edge in container["edges"] if isinstance(edge, dict)]
+    if isinstance(container, list):
+        return [item for item in container if isinstance(item, dict)]
+    return []
+
+
+def _collection_product_ids(collection: dict[str, Any]) -> list[str]:
+    explicit = collection.get("product_ids") or collection.get("productIds") or []
+    ids = [str(pid) for pid in explicit if str(pid)]
+    for product in _edge_nodes(collection.get("products")):
+        pid = product.get("id") or product.get("product_id")
+        if pid:
+            ids.append(str(pid))
+    return list(dict.fromkeys(ids))
+
+
+def _article_linked_product_handles(article: dict[str, Any]) -> list[str]:
+    explicit = article.get("linked_product_handles") or []
+    handles = [str(handle) for handle in explicit if str(handle)]
+    body = " ".join(
+        str(article.get(key) or "")
+        for key in ("body_html", "bodyHtml", "content", "contentHtml", "html")
+    )
+    handles.extend(re.findall(r"/products/([a-zA-Z0-9_-]+)", body))
+    return list(dict.fromkeys(handles))
+
+
+def _has_link_coverage_data(
+    *,
+    collections: list[dict[str, Any]],
+    articles: list[dict[str, Any]],
+) -> bool:
+    return any(_collection_product_ids(col) for col in collections) or any(
+        _article_linked_product_handles(article) for article in articles
+    )
 
 
 def _build_anchors(head_keyword: str, target_title: str) -> list[str]:

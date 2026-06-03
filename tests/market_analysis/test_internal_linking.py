@@ -5,7 +5,9 @@ from __future__ import annotations
 from app.market_analysis import internal_linking as il
 
 
-def _product(pid: str, title: str, handle: str, primary_kw: str, intent: str = "transactional") -> dict:
+def _product(
+    pid: str, title: str, handle: str, primary_kw: str, intent: str = "transactional"
+) -> dict:
     return {
         "product_id": pid,
         "product_title": title,
@@ -57,12 +59,44 @@ class TestBuildRecommendations:
         urls = {r["target_url"] for r in recs}
         assert "/collections/accessoires-chien" in urls
 
+    def test_collection_parent_is_suggested_from_shopify_edges(self):
+        products = [
+            _product(
+                "gid://shopify/Product/1",
+                "Harnais cuir",
+                "harnais-cuir",
+                "harnais chien",
+            )
+        ]
+        collections = [
+            {
+                "handle": "accessoires-chien",
+                "title": "Accessoires chien",
+                "products": {
+                    "edges": [
+                        {"node": {"id": "gid://shopify/Product/1"}},
+                    ]
+                },
+            }
+        ]
+        recs = il.build_recommendations(
+            products=products,
+            collections=collections,
+            articles=[],
+            pages=[],
+            shop="boutique.fr",
+        )["gid://shopify/Product/1"]
+        urls = {r["target_url"] for r in recs}
+        assert "/collections/accessoires-chien" in urls
+
     def test_article_with_matching_keywords_is_suggested(self):
         products = [
             _product("a", "Harnais cuir", "harnais-cuir", "harnais chien", intent="transactional"),
         ]
         articles = [
-            _article("comment-choisir-harnais", "Comment choisir un harnais chien", ["harnais chien"]),
+            _article(
+                "comment-choisir-harnais", "Comment choisir un harnais chien", ["harnais chien"]
+            ),
         ]
         recs = il.build_recommendations(
             products=products,
@@ -115,10 +149,33 @@ class TestOrphanAndGapDetection:
             _product("b", "Orphan", "b", "beta"),
         ]
         collections = [_collection("c1", "C1", ["a"])]
-        orphans = il.detect_orphan_products(
-            products=products, collections=collections, articles=[]
-        )
+        orphans = il.detect_orphan_products(products=products, collections=collections, articles=[])
         assert orphans == ["b"]
+
+    def test_orphan_products_are_not_reported_when_link_coverage_is_unavailable(self):
+        products = [
+            _product("a", "Produit", "a", "alpha"),
+        ]
+        orphans = il.detect_orphan_products(
+            products=products,
+            collections=[],
+            articles=[],
+        )
+        assert orphans == []
+
+    def test_article_body_links_count_as_product_coverage(self):
+        products = [
+            _product("a", "Mentionné", "produit-a", "alpha"),
+        ]
+        articles = [
+            {"body_html": '<a href="/products/produit-a">Produit A</a>'},
+        ]
+        orphans = il.detect_orphan_products(
+            products=products,
+            collections=[],
+            articles=articles,
+        )
+        assert orphans == []
 
     def test_blog_gap_suggestions_emerge_for_informational_clusters(self):
         products = [

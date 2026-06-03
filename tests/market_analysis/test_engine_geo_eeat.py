@@ -165,7 +165,10 @@ def test_product_schema_jsonld_is_built_from_confirmed_facts():
 def test_jsonld_failure_does_not_block_product_analysis():
     """Schema generation is diagnostic and must never block analysis completion."""
     router = _router(_PASS1_JSON, _PASS2_JSON)
-    with patch("app.market_analysis.schema_builder.build_product_schema", side_effect=ValueError("bad snapshot")):
+    with patch(
+        "app.market_analysis.schema_builder.build_product_schema",
+        side_effect=ValueError("bad snapshot"),
+    ):
         result = _run(router)
 
     pack = result["products"][0]["content_test_pack"]
@@ -181,6 +184,29 @@ def test_faq_schema_jsonld_is_built_from_proposed_faq():
     faq_schema = pack["proposed_schema_jsonld"]["faq"]
     assert faq_schema["@type"] == "FAQPage"
     assert len(faq_schema["mainEntity"]) == 2
+
+
+def test_product_schema_jsonld_supports_shopify_edge_shapes():
+    from app.market_analysis.schema_builder import build_product_schema
+
+    schema = build_product_schema(
+        product={
+            "title": "Harnais chien",
+            "handle": "harnais-chien",
+            "vendor": "Léonie",
+            "images": {"edges": [{"node": {"url": "https://cdn.test/harnais.jpg"}}]},
+            "variants": {"edges": [{"node": {"price": "88.00", "inventoryQuantity": 3}}]},
+        },
+        confirmed_facts=[
+            {"key": "materials", "value": ["cuir"], "confidence": "confirmed"},
+        ],
+        shop="example.com",
+        meta_description="Harnais confortable pour chien.",
+    )
+
+    assert schema["offers"]["price"] == "88.00"
+    assert schema["image"] == ["https://cdn.test/harnais.jpg"]
+    assert schema["material"] == "cuir"
 
 
 def test_geo_blocks_are_emitted_in_content_pack():
