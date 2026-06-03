@@ -18,7 +18,9 @@ from app.business_profile.context import (
 from app.business_profile.jobs import load_business_profile
 from app.geo.continuous_improvement import (
     enrich_market_analysis_result,
+    get_shop_retired_tags,
     merge_product_tags,
+    reset_all_shop_tags,
     set_product_tag,
 )
 from app.gsc.client import ensure_fresh_gsc
@@ -258,6 +260,9 @@ def _run_analysis_background(
             provider_status=early_provider_status,
         )
 
+        retired_labels = get_shop_retired_tags(shop_domain)
+        retired_lower = {lbl.lower().strip() for lbl in retired_labels}
+
         result = run_market_analysis(
             products,
             shop_domain,
@@ -276,6 +281,13 @@ def _run_analysis_background(
             articles=articles,
             reflection_test=reflection_test,
         )
+
+        if retired_lower:
+            for _p in result.get("products") or []:
+                _p["seo_keywords"] = [
+                    kw for kw in (_p.get("seo_keywords") or [])
+                    if kw.get("query", "").lower().strip() not in retired_lower
+                ]
         completed_data: dict[str, Any] = {
             "job_id": job_id,
             "shop": shop_domain,
@@ -532,6 +544,79 @@ async def save_market_analysis_product_tag(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"saved": True, "tag": tag}
+
+
+@router.post("/shops/{shop}/market-analysis/products/{product_id:path}/tags/{tag_id}/retire")
+async def retire_market_analysis_product_tag(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    product_id: str,
+    tag_id: str,
+) -> dict[str, Any]:
+    """Mark a tag as retired (excluded from future analyses). Locked — survives re-analysis."""
+    result = load_latest_result(ctx.shop)
+    product = next(
+        (p for p in (result.get("products") or []) if str(p.get("product_id", "")) == product_id),
+        None,
+    ) if result else None
+    existing_label = None
+    if product:
+        for t in merge_product_tags(ctx.shop, product):
+            if t.get("tag_id") == tag_id:
+                existing_label = t.get("label")
+                break
+    if not existing_label:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    tag = set_product_tag(
+        ctx.shop,
+        product_id,
+        label=existing_label,
+        tag_type="merchant",
+        status="negative",
+        locked_by_merchant=True,
+    )
+    tag["tag_id"] = tag_id
+    return {"retired": True, "tag": tag}
+
+
+@router.post("/shops/{shop}/market-analysis/products/{product_id:path}/tags/{tag_id}/restore")
+async def restore_market_analysis_product_tag(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    product_id: str,
+    tag_id: str,
+) -> dict[str, Any]:
+    """Restore a retired tag back to active (positive + locked)."""
+    result = load_latest_result(ctx.shop)
+    product = next(
+        (p for p in (result.get("products") or []) if str(p.get("product_id", "")) == product_id),
+        None,
+    ) if result else None
+    existing_label = None
+    if product:
+        for t in merge_product_tags(ctx.shop, product):
+            if t.get("tag_id") == tag_id:
+                existing_label = t.get("label")
+                break
+    if not existing_label:
+        raise HTTPException(status_code=404, detail="Tag not found")
+    tag = set_product_tag(
+        ctx.shop,
+        product_id,
+        label=existing_label,
+        tag_type="merchant",
+        status="positive",
+        locked_by_merchant=True,
+    )
+    tag["tag_id"] = tag_id
+    return {"restored": True, "tag": tag}
+
+
+@router.delete("/shops/{shop}/tags/reset")
+async def reset_shop_tags(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Delete all improvement tags for the shop. Only callable from Account settings."""
+    deleted = reset_all_shop_tags(ctx.shop)
+    return {"reset": deleted}
 
 
 @router.patch("/shops/{shop}/market-analysis/proposals/{product_id:path}")

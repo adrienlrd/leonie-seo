@@ -678,6 +678,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  if (intent === "retireTag" || intent === "restoreTag") {
+    const productId = formData.get("productId") as string;
+    const tagId = formData.get("tagId") as string;
+    const action = intent === "retireTag" ? "retire" : "restore";
+    const resp = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/market-analysis/products/${encodeURIComponent(productId)}/tags/${encodeURIComponent(tagId)}/${action}`,
+      { accessToken: session.accessToken, method: "POST" },
+    );
+    const data = resp.ok ? await resp.json() : null;
+    return json({ type: intent, ok: resp.ok, data });
+  }
+
+  if (intent === "addTag") {
+    const productId = formData.get("productId") as string;
+    const label = formData.get("label") as string;
+    const tagType = (formData.get("tagType") as string) || "merchant";
+    const resp = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/market-analysis/products/${encodeURIComponent(productId)}/tags`,
+      {
+        accessToken: session.accessToken,
+        method: "POST",
+        body: JSON.stringify({ label, tag_type: tagType, status: "forced", locked_by_merchant: true }),
+      },
+    );
+    const data = resp.ok ? await resp.json() : null;
+    return json({ type: "addTag", ok: resp.ok, data });
+  }
+
   // ── Auto-remove products no longer active in the store ───────────────────
   if (intent === "removeProducts") {
     const productIdsRaw = formData.get("productIds") as string;
@@ -907,18 +937,164 @@ function tagTone(status: ImprovementTagStatus): "success" | "critical" | "attent
   return "info";
 }
 
-function ImprovementTags({ tags, locale }: { tags?: ImprovementTag[]; locale: Locale }) {
-  if (!tags || tags.length === 0) return null;
+function ImprovementTags({
+  tags: initialTags,
+  productId,
+  locale,
+  shop,
+}: {
+  tags?: ImprovementTag[];
+  productId: string;
+  locale: Locale;
+  shop: string;
+}) {
+  const fr = locale === "fr";
+  const tagFetcher = useFetcher<{ retired?: boolean; restored?: boolean; saved?: boolean; tag?: ImprovementTag }>();
+  const [localTags, setLocalTags] = useState<ImprovementTag[]>(initialTags ?? []);
+  const [openBucket, setOpenBucket] = useState<"added" | "retired" | null>(null);
+  const [newLabel, setNewLabel] = useState("");
+
+  useEffect(() => { setLocalTags(initialTags ?? []); }, [productId]);
+
+  const addedTags = localTags.filter(
+    (t) => !(t.status === "negative" && t.locked_by_merchant),
+  );
+  const retiredTags = localTags.filter(
+    (t) => t.status === "negative" && t.locked_by_merchant,
+  );
+
+  const retireTag = (tag: ImprovementTag) => {
+    setLocalTags((prev) =>
+      prev.map((t) =>
+        t.tag_id === tag.tag_id ? { ...t, status: "negative" as ImprovementTagStatus, locked_by_merchant: true } : t,
+      ),
+    );
+    tagFetcher.submit(
+      { intent: "retireTag", productId, tagId: tag.tag_id },
+      { method: "post" },
+    );
+  };
+
+  const restoreTag = (tag: ImprovementTag) => {
+    setLocalTags((prev) =>
+      prev.map((t) =>
+        t.tag_id === tag.tag_id ? { ...t, status: "positive" as ImprovementTagStatus } : t,
+      ),
+    );
+    tagFetcher.submit(
+      { intent: "restoreTag", productId, tagId: tag.tag_id },
+      { method: "post" },
+    );
+  };
+
+  const addTag = () => {
+    const label = newLabel.trim();
+    if (!label) return;
+    const tempId = `tmp-${Date.now()}`;
+    const newTag: ImprovementTag = {
+      tag_id: tempId,
+      label,
+      tag_type: "merchant",
+      status: "forced",
+      score: 100,
+      source: "merchant",
+      locked_by_merchant: true,
+    };
+    setLocalTags((prev) => [...prev, newTag]);
+    setNewLabel("");
+    tagFetcher.submit(
+      { intent: "addTag", productId, label, tagType: "merchant" },
+      { method: "post" },
+    );
+  };
+
+  if (localTags.length === 0 && openBucket !== "added") {
+    return (
+      <Button size="slim" variant="plain" onClick={() => setOpenBucket("added")}>
+        {fr ? "Ajouter un tag" : "Add tag"}
+      </Button>
+    );
+  }
+
   return (
-    <InlineStack gap="100" wrap>
-      {tags.slice(0, 10).map((tag) => (
-        <Badge key={tag.tag_id} tone={tagTone(tag.status)}>
-          {tag.locked_by_merchant
-            ? `${tag.label} · ${locale === "fr" ? "forcé" : "forced"}`
-            : tag.label}
-        </Badge>
-      ))}
-    </InlineStack>
+    <BlockStack gap="200">
+      <InlineStack gap="150">
+        <Button
+          size="slim"
+          pressed={openBucket === "added"}
+          onClick={() => setOpenBucket(openBucket === "added" ? null : "added")}
+        >
+          {fr ? `Tags ajoutés (${addedTags.length})` : `Added tags (${addedTags.length})`}
+        </Button>
+        {retiredTags.length > 0 && (
+          <Button
+            size="slim"
+            pressed={openBucket === "retired"}
+            onClick={() => setOpenBucket(openBucket === "retired" ? null : "retired")}
+          >
+            {fr ? `Tags retirés (${retiredTags.length})` : `Retired tags (${retiredTags.length})`}
+          </Button>
+        )}
+      </InlineStack>
+
+      {openBucket === "added" && (
+        <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+          <BlockStack gap="200">
+            {addedTags.length === 0 ? (
+              <Text as="p" variant="bodySm" tone="subdued">
+                {fr ? "Aucun tag actif." : "No active tags."}
+              </Text>
+            ) : (
+              <BlockStack gap="100">
+                {addedTags.map((tag) => (
+                  <InlineStack key={tag.tag_id} align="space-between" blockAlign="center">
+                    <Badge tone={tagTone(tag.status)}>{tag.label}</Badge>
+                    <Button size="slim" variant="plain" tone="critical" onClick={() => retireTag(tag)}>
+                      {fr ? "Retirer" : "Retire"}
+                    </Button>
+                  </InlineStack>
+                ))}
+              </BlockStack>
+            )}
+            <InlineStack gap="150" blockAlign="center">
+              <div style={{ flex: 1 }}>
+                <TextField
+                  label=""
+                  labelHidden
+                  placeholder={fr ? "Nouveau tag…" : "New tag…"}
+                  value={newLabel}
+                  onChange={setNewLabel}
+                  autoComplete="off"
+                />
+              </div>
+              <Button size="slim" onClick={addTag} disabled={!newLabel.trim()}>
+                {fr ? "Ajouter" : "Add"}
+              </Button>
+            </InlineStack>
+          </BlockStack>
+        </Box>
+      )}
+
+      {openBucket === "retired" && retiredTags.length > 0 && (
+        <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+          <BlockStack gap="100">
+            <Text as="p" variant="bodySm" tone="subdued">
+              {fr
+                ? "Ces sujets sont exclus des prochaines analyses."
+                : "These topics are excluded from future analyses."}
+            </Text>
+            {retiredTags.map((tag) => (
+              <InlineStack key={tag.tag_id} align="space-between" blockAlign="center">
+                <Badge tone="new">{tag.label}</Badge>
+                <Button size="slim" variant="plain" onClick={() => restoreTag(tag)}>
+                  {fr ? "Restaurer" : "Restore"}
+                </Button>
+              </InlineStack>
+            ))}
+          </BlockStack>
+        </Box>
+      )}
+    </BlockStack>
   );
 }
 
@@ -1018,6 +1194,7 @@ function BusinessProfileContextBanner({
 function ProductCard({
   product,
   locale,
+  shop,
   isAnalyzing,
   onAnalyze,
   onEnrichAndAnalyze,
@@ -1025,6 +1202,7 @@ function ProductCard({
 }: {
   product: ProductResult;
   locale: Locale;
+  shop: string;
   isAnalyzing: boolean;
   onAnalyze: () => void;
   onEnrichAndAnalyze: (answers: Record<string, string>) => void;
@@ -1123,7 +1301,7 @@ function ProductCard({
           </Text>
         )}
 
-        <ImprovementTags tags={product.improvement_tags} locale={locale} />
+        <ImprovementTags tags={product.improvement_tags} productId={product.product_id} locale={locale} shop={shop} />
         <ImprovementElements elements={product.improvement_elements} locale={locale} />
 
         <ProductContentProposals
@@ -1597,7 +1775,7 @@ function CannibalizationBanner({
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function MarketAnalysisPage() {
-  const { locale, latestJob, latestIdentification, gscConnected, ga4Connected, activeHandles, newProducts, removedProductIds } =
+  const { locale, shop, latestJob, latestIdentification, gscConnected, ga4Connected, activeHandles, newProducts, removedProductIds } =
     useLoaderData<LoaderData>();
 
   // ── UI step: "identification" (step 1) or "analysis" (step 2) ────────────
@@ -2365,6 +2543,7 @@ export default function MarketAnalysisPage() {
                         key={product.product_id}
                         product={product}
                         locale={locale}
+                        shop={shop}
                         isAnalyzing={singleProductId === product.product_id && isSingleRunning}
                         onAnalyze={() => handleAnalyzeSingle(product.product_id)}
                         onEnrichAndAnalyze={(answers) => handleEnrichAndAnalyze(product.product_id, answers)}

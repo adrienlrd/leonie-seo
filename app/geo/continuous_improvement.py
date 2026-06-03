@@ -314,6 +314,42 @@ def set_product_tag(
     return tag
 
 
+def get_shop_retired_tags(shop: str, db_path: Path | None = None) -> list[str]:
+    """Return labels of all merchant-retired tags for a shop (status=negative + locked)."""
+    path = db_path if db_path is not None else DB_PATH
+    try:
+        with get_conn(path) as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT label
+                FROM product_improvement_tags
+                WHERE shop = ? AND status = 'negative' AND locked_by_merchant = 1
+                """,
+                (shop,),
+            ).fetchall()
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            return []
+        raise
+    return [row["label"] for row in rows]
+
+
+def reset_all_shop_tags(shop: str, db_path: Path | None = None) -> int:
+    """Delete all improvement tags for a shop. Returns the number of deleted rows."""
+    path = db_path if db_path is not None else DB_PATH
+    try:
+        with get_conn(path) as conn:
+            cur = conn.execute(
+                "DELETE FROM product_improvement_tags WHERE shop = ?",
+                (shop,),
+            )
+            return cur.rowcount
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            return 0
+        raise
+
+
 def enrich_market_analysis_result(
     shop: str,
     result: dict[str, Any],
