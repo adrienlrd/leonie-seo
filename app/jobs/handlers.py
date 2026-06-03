@@ -202,3 +202,22 @@ async def handle_pagespeed_import(payload: dict, shop: str | None) -> dict:
         site_url=str(site_url) if site_url else None,
         api_key=api_key,
     )
+
+
+@register("learning_cycle")
+async def handle_learning_cycle(payload: dict, shop: str | None) -> dict:
+    """Run the autonomous SEO/GEO learning cycle for a shop."""
+    import asyncio
+
+    from app.learning.scheduler import run_learning_cycle
+
+    if not shop:
+        raise ValueError("shop is required for learning_cycle")
+    return await asyncio.to_thread(
+        run_learning_cycle,
+        shop,
+        access_token=payload.get("access_token"),
+        plan=str(payload.get("plan") or "free"),
+        confirm_live_write=bool(payload.get("confirm_live_write", False)),
+        max_actions=int(payload.get("max_actions", 5)),
+    )

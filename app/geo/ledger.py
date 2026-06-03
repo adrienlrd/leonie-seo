@@ -216,7 +216,7 @@ def summarize_geo_events(shop: str, *, db_path: Path | None = None) -> dict[str,
         "by_status": by_status,
         "estimated_revenue": round(estimated_revenue, 2),
         "observed_revenue": round(observed_revenue, 2),
-        "measurement_note": "Observed impact is recorded only after measurement windows such as J+7/J+30/J+60.",
+        "measurement_note": "Observed impact is recorded after J+14/J+28 learning windows; J+60 is retained for long-term history.",
     }
 
 

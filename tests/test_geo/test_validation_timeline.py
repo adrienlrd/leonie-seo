@@ -35,13 +35,13 @@ def test_build_validation_timeline_marks_future_windows_pending() -> None:
     windows = result["timelines"][0]["windows"]
     assert windows[0]["status"] == "ready"
     assert windows[1]["status"] == "pending"
-    assert result["summary"]["next_due_at"] == "2026-05-08T00:00:00+00:00"
+    assert result["summary"]["next_due_at"] == "2026-05-15T00:00:00+00:00"
 
 
 def test_build_validation_timeline_marks_open_window_measuring() -> None:
     result = build_validation_timeline(
         events=[_event("2026-05-01T00:00:00+00:00")],
-        now=datetime(2026, 5, 9, tzinfo=UTC),
+        now=datetime(2026, 5, 16, tzinfo=UTC),
     )
 
     assert result["timelines"][0]["windows"][1]["status"] == "measuring"
@@ -54,14 +54,14 @@ def test_build_validation_timeline_marks_low_volume_elapsed_window_inconclusive(
         min_impressions=50,
     )
 
-    j30 = result["timelines"][0]["windows"][2]
-    assert j30["status"] == "inconclusive"
+    j28 = result["timelines"][0]["windows"][2]
+    assert j28["status"] == "inconclusive"
     assert result["summary"]["status_counts"]["inconclusive"] >= 1
 
 
 def test_build_validation_timeline_marks_measured_windows_ready() -> None:
     event = _event("2026-05-01T00:00:00+00:00")
-    event["measurement_status"] = "j30_measured"
+    event["measurement_status"] = "j28_measured"
 
     result = build_validation_timeline(
         events=[event],

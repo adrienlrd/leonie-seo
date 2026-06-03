@@ -397,7 +397,7 @@ async def get_geo_retention_milestones(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     limit: int = Query(default=500, ge=1, le=500),
 ) -> dict:
-    """Return J+7/J+30/J+60/J+90 retention milestones for applied GEO events."""
+    """Return J+14/J+28/J+60 retention milestones for applied GEO events."""
     events = list_geo_events(ctx.shop, limit=limit, db_path=DB_PATH)["events"]
     result = build_retention_milestones(events)
     return {
@@ -420,7 +420,7 @@ async def get_geo_next_best_actions(
     catalog = build_catalog_report(events, confidence_data["scores"])
     snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
     result = build_next_best_actions(
-        catalog["reports"], snapshot=snapshot, scope=_validated_scope(scope)
+        catalog["reports"], snapshot=snapshot, scope=_validated_scope(scope), shop=ctx.shop
     )
     return {
         "shop": ctx.shop,
@@ -506,7 +506,7 @@ async def get_geo_validation_timeline(
     event_id: int | None = None,
     min_impressions: int = Query(default=50, ge=0, le=10000),
 ) -> dict:
-    """Return J+7/J+30/J+60/J+90 validation windows for GEO events."""
+    """Return J+14/J+28/J+60 validation windows for GEO events."""
     events = list_geo_events(ctx.shop, limit=200, db_path=DB_PATH)["events"]
     analysis = build_validation_timeline(
         events=events,

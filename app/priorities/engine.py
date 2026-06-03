@@ -157,7 +157,11 @@ def _why_now_deterministic(opp: dict[str, Any], prio: dict[str, Any]) -> str:
     title = str(opp.get("title") or "ce produit")
 
     gsc_ev = next(
-        (s["evidence"] for s in opp.get("signals", []) if s["type"] == "gsc_signal" and s["value"] > 0),
+        (
+            s["evidence"]
+            for s in opp.get("signals", [])
+            if s["type"] == "gsc_signal" and s["value"] > 0
+        ),
         None,
     )
     if gsc_ev:
@@ -206,16 +210,34 @@ def _build_evidence(opp: dict[str, Any], prio: dict[str, Any]) -> list[dict[str,
             continue
         ev = sig.get("evidence", {})
         if sig["type"] == "gsc_signal":
-            evidence.append({"source": "gsc", "metric": "impressions", "value": ev.get("impressions", 0)})
+            evidence.append(
+                {"source": "gsc", "metric": "impressions", "value": ev.get("impressions", 0)}
+            )
         elif sig["type"] == "keyword_gap":
-            evidence.append({"source": "gsc", "metric": "keyword_gap_query", "value": ev.get("query", "")})
+            evidence.append(
+                {"source": "gsc", "metric": "keyword_gap_query", "value": ev.get("query", "")}
+            )
         elif sig["type"] == "audit_pressure":
-            evidence.append({"source": "audit", "metric": "readiness_score", "value": ev.get("readiness_score", 0)})
+            evidence.append(
+                {
+                    "source": "audit",
+                    "metric": "readiness_score",
+                    "value": ev.get("readiness_score", 0),
+                }
+            )
         elif sig["type"] == "cannibalization":
-            evidence.append({"source": "audit", "metric": "duplicate_issues", "value": ev.get("duplicate_issue_count", 0)})
+            evidence.append(
+                {
+                    "source": "audit",
+                    "metric": "duplicate_issues",
+                    "value": ev.get("duplicate_issue_count", 0),
+                }
+            )
     revenue = prio.get("revenue_estimate")
     if revenue and float(revenue) > 0:
-        evidence.append({"source": "gsc", "metric": "revenue_estimate_eur", "value": float(revenue)})
+        evidence.append(
+            {"source": "gsc", "metric": "revenue_estimate_eur", "value": float(revenue)}
+        )
     return evidence[:5]
 
 
@@ -232,7 +254,9 @@ def _build_action_dossier(
     action_type = str(prio.get("action_type") or "review_product")
     effort_str = _EFFORT_MAP.get(action_type, "medium")
     risk_status = str(risk.get("guard_status") or "safe")
-    risk_level = "low" if risk_status == "safe" else "medium" if risk_status == "review_required" else "high"
+    risk_level = (
+        "low" if risk_status == "safe" else "medium" if risk_status == "review_required" else "high"
+    )
 
     r_score = int(prio.get("readiness_score") or 50)
     impressions = int(prio.get("impressions") or 0)
@@ -372,7 +396,9 @@ def _try_llm_arbitrage(
         raw = result.text.strip()
         if raw.startswith("```"):
             lines = raw.splitlines()
-            raw = "\n".join(lines[1:-1] if lines and lines[-1].startswith("```") else lines[1:]).strip()
+            raw = "\n".join(
+                lines[1:-1] if lines and lines[-1].startswith("```") else lines[1:]
+            ).strip()
 
         parsed = json.loads(raw)
         if not isinstance(parsed, list):
@@ -384,7 +410,13 @@ def _try_llm_arbitrage(
             if isinstance(s, dict) and s.get("action_id") and s.get("why_now")
         ]
         if selections:
-            _llm_cache_store(shop, prompt_template.version, content_hash, {"selections": selections}, db_path=db_path)
+            _llm_cache_store(
+                shop,
+                prompt_template.version,
+                content_hash,
+                {"selections": selections},
+                db_path=db_path,
+            )
             return selections
     except (LLMError, json.JSONDecodeError, KeyError, ValueError, TypeError):
         pass
@@ -463,7 +495,9 @@ def build_priority_actions(
         top=_CANDIDATES_TOP,
         scope=scope,
     )
-    prio_by_handle: dict[str, dict[str, Any]] = {r["handle"]: r for r in prio_result.get("rows", [])}
+    prio_by_handle: dict[str, dict[str, Any]] = {
+        r["handle"]: r for r in prio_result.get("rows", [])
+    }
 
     # Step 2: Risk Guard filter — exclude protected products
     scoped = filter_products_by_scope(products, scope)
@@ -480,16 +514,19 @@ def build_priority_actions(
         risk = assess_product_risk(product, shop_domain, gsc_page_rows)
         if risk["guard_status"] == "protected":
             continue
-        prio = prio_by_handle.get(handle, {
-            "action_type": "review_product",
-            "action_label": "Revoir le produit",
-            "readiness_score": 50,
-            "impressions": 0,
-            "revenue_estimate": 0.0,
-            "clicks_gain_estimate": 0.0,
-            "position": 0.0,
-            "confidence": "low",
-        })
+        prio = prio_by_handle.get(
+            handle,
+            {
+                "action_type": "review_product",
+                "action_label": "Revoir le produit",
+                "readiness_score": 50,
+                "impressions": 0,
+                "revenue_estimate": 0.0,
+                "clicks_gain_estimate": 0.0,
+                "position": 0.0,
+                "confidence": "low",
+            },
+        )
         score = _pre_score(opp, prio, risk, niche_hypothesis)
         candidates.append({"opp": opp, "prio": prio, "risk": risk, "pre_score": score})
 
@@ -577,6 +614,27 @@ def build_priority_actions(
 
     for i, dossier in enumerate(selected_dossiers, start=1):
         dossier["rank"] = i
+        try:
+            from app.learning.policy import learning_boost_for_action  # noqa: PLC0415
+
+            learning = learning_boost_for_action(
+                shop=shop,
+                action_type=str(dossier.get("action_type") or "review_product"),
+                surface="product_page",
+                db_path=db_path,
+            )
+            dossier["learning"] = learning
+            dossier["priority_score"] = round(
+                max(
+                    0.0,
+                    min(
+                        100.0,
+                        float(dossier.get("priority_score") or 0) + learning["learning_boost"],
+                    ),
+                )
+            )
+        except Exception:
+            dossier["learning"] = {"learning_boost": 0, "reason": "Learning unavailable."}
 
     return {
         "shop": shop,

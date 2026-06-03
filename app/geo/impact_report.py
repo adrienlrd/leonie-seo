@@ -75,8 +75,8 @@ def _extract_scores(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _extract_gsc(event: dict[str, Any]) -> dict[str, Any]:
-    before_gsc = ((event.get("metrics_before") or {}).get("gsc") or {})
-    after_gsc = ((event.get("metrics_after") or {}).get("gsc") or {})
+    before_gsc = (event.get("metrics_before") or {}).get("gsc") or {}
+    after_gsc = (event.get("metrics_after") or {}).get("gsc") or {}
     has_after = bool(event.get("metrics_after"))
 
     imp_b = _coerce_int(before_gsc.get("impressions"))
@@ -103,8 +103,8 @@ def _extract_gsc(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _extract_ga4(event: dict[str, Any]) -> dict[str, Any]:
-    before_ga4 = ((event.get("metrics_before") or {}).get("ga4") or {})
-    after_ga4 = ((event.get("metrics_after") or {}).get("ga4") or {})
+    before_ga4 = (event.get("metrics_before") or {}).get("ga4") or {}
+    after_ga4 = (event.get("metrics_after") or {}).get("ga4") or {}
     has_after = bool(event.get("metrics_after"))
 
     sessions_b = _coerce_float(before_ga4.get("sessions"))
@@ -157,7 +157,7 @@ def build_event_report(
     next_rec = _RECOMMENDATIONS.get(verdict, "attendre")
 
     applied_at = ""
-    for entry in (event.get("status_history") or []):
+    for entry in event.get("status_history") or []:
         if (entry.get("status") or "").lower() == "applied":
             applied_at = entry.get("changed_at") or event.get("created_at", "")
     if not applied_at:
@@ -174,6 +174,11 @@ def build_event_report(
         "gsc": gsc,
         "ga4": ga4,
         "confidence": {"score": conf_score, "label": conf_label},
+        "learning_windows": {
+            "intermediate": "J+14",
+            "primary": "J+28",
+            "long_term": "J+60",
+        },
         "verdict": verdict,
         "verdict_note": verdict_note,
         "next_recommendation": next_rec,
@@ -224,6 +229,7 @@ def build_catalog_report(
 # ---------------------------------------------------------------------------
 # Markdown export
 # ---------------------------------------------------------------------------
+
 
 def _fmt_int(value: int | None) -> str:
     if value is None:

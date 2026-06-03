@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.learning.policy import learning_boost_for_action
 from app.snapshot.scope import filter_products_by_scope, summarize_product_scopes
 
 _ACTION_PRIORITY: dict[str, str] = {
@@ -33,7 +34,7 @@ _RATIONALES: dict[str, str] = {
     ),
     "attendre": (
         "Données insuffisantes pour conclure. "
-        "Attendre la prochaine fenêtre de validation (J+30 ou J+60) avant d'agir."
+        "Attendre la prochaine fenêtre de validation (J+14 ou J+28) avant d'agir."
     ),
 }
 
@@ -74,7 +75,8 @@ def _similar_products(
                     "resource_title": product.get("title") or pid,
                     "resource_type": "product",
                     "similarity_reason": (
-                        f"Même type : {p_type}" if p_type == source_type
+                        f"Même type : {p_type}"
+                        if p_type == source_type
                         else f"Même marque : {p_vendor}"
                     ),
                 }
@@ -90,6 +92,7 @@ def build_next_best_actions(
     snapshot: dict[str, Any] | None = None,
     *,
     scope: str = "active",
+    shop: str | None = None,
 ) -> dict[str, Any]:
     """Build a prioritised next-best-action list from validated event reports.
 
@@ -100,9 +103,7 @@ def build_next_best_actions(
     Returns:
         Dict with ``actions`` list, ``summary`` and ``dry_run`` flag.
     """
-    already_optimized_ids: set[str] = {
-        str(r.get("resource_id") or "") for r in reports
-    }
+    already_optimized_ids: set[str] = {str(r.get("resource_id") or "") for r in reports}
 
     all_products = (snapshot or {}).get("products") or []
     scoped_products = filter_products_by_scope(all_products, scope) if snapshot else []
@@ -126,6 +127,14 @@ def build_next_best_actions(
         verdict = report.get("verdict") or "inconclusif"
         priority = _ACTION_PRIORITY.get(action_type, "low")
         rationale = _RATIONALES.get(action_type, "")
+        learning_signal = (
+            learning_boost_for_action(
+                shop=shop,
+                action_type=str(report.get("action_type") or "review_product"),
+            )
+            if shop
+            else {"learning_boost": 0, "reason": "Learning not scoped."}
+        )
 
         suggestions: list[dict[str, Any]] = []
         if action_type == "répliquer":
@@ -147,6 +156,7 @@ def build_next_best_actions(
                 "action_type": action_type,
                 "priority": priority,
                 "rationale": rationale,
+                "learning": learning_signal,
                 "suggested_resources": suggestions,
                 "dry_run": True,
             }

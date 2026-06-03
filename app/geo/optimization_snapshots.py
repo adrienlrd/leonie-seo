@@ -92,7 +92,9 @@ def _resource_path(resource_type: str, handle: str) -> str:
     return f"/products/{handle}"
 
 
-def _find_resource(snapshot: dict[str, Any], resource_type: str, resource_id: str) -> dict[str, Any] | None:
+def _find_resource(
+    snapshot: dict[str, Any], resource_type: str, resource_id: str
+) -> dict[str, Any] | None:
     key = "collections" if resource_type == "collection" else "products"
     for resource in snapshot.get(key, []):
         if str(resource.get("id")) == str(resource_id):
@@ -130,7 +132,9 @@ def build_optimization_snapshot(
         commerce = {
             "price": variant.get("price"),
             "sku": variant.get("sku"),
-            "inventory_quantity": variant.get("inventoryQuantity", variant.get("inventory_quantity")),
+            "inventory_quantity": variant.get(
+                "inventoryQuantity", variant.get("inventory_quantity")
+            ),
             "status": resource.get("status", ""),
         }
         readiness_score = int(readiness["readiness_score"])
@@ -178,7 +182,7 @@ def build_optimization_snapshot(
             "ctr": float(gsc.get("ctr", 0.0) or 0.0),
             "position": float(gsc.get("position", 0.0) or 0.0),
         },
-        "measurement_note": "Baseline metrics captured before optimization; later tasks compare J+7/J+30/J+60 windows.",
+        "measurement_note": "Baseline metrics captured before optimization; learning compares J+14/J+28 windows and keeps J+60 as long-term history.",
     }
     return {
         "shop": shop,

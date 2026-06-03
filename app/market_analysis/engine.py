@@ -424,11 +424,13 @@ def _extract_product_images(product: dict[str, Any]) -> list[dict[str, Any]]:
         node = edge.get("node", edge)
         if not isinstance(node, dict):
             continue
-        result.append({
-            "id": str(node.get("id") or ""),
-            "url": str(node.get("url") or node.get("src") or ""),
-            "current_alt": node.get("altText") or node.get("alt"),
-        })
+        result.append(
+            {
+                "id": str(node.get("id") or ""),
+                "url": str(node.get("url") or node.get("src") or ""),
+                "current_alt": node.get("altText") or node.get("alt"),
+            }
+        )
     return result
 
 
@@ -4350,9 +4352,7 @@ def _build_product_result(
         key=lambda k: int(k.get("target_rank", 999) or 999),
     )
     keyword_queries = [
-        query
-        for k in sorted_keywords
-        if (query := _coerce_str(k.get("query", "")).strip())
+        query for k in sorted_keywords if (query := _coerce_str(k.get("query", "")).strip())
     ][:8]
     proposed_image_alts = _fill_image_alts(
         _safe_surface_value(llm_pack, surface_plan, "proposed_image_alts"),
@@ -5347,6 +5347,14 @@ def run_market_analysis(
     total_opportunity_count = sum(
         len(r.get("seo_keywords", [])) + len(r.get("geo_questions", [])) for r in product_results
     )
+    try:
+        from app.learning.policy import enrich_market_products  # noqa: PLC0415
+
+        enrich_market_products(shop, product_results)
+        if "learning_engine" not in sources_used:
+            sources_used.append("learning_engine")
+    except Exception as exc:
+        logger.warning("Skipping market analysis learning enrichment for %s: %s", shop, exc)
 
     return {
         "shop": shop,

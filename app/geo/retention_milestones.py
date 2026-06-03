@@ -1,7 +1,7 @@
 """Retention milestone tracker for GEO optimization validation (task 123).
 
 Explains to the merchant why the app must remain active during the validation
-window. Shows J+7 / J+30 / J+60 / J+90 progress across all applied events.
+window. Shows J+14 / J+28 / J+60 progress across all applied events.
 No dark patterns: milestones are only surfaced when real optimizations exist.
 """
 
@@ -12,24 +12,20 @@ from typing import Any
 
 from app.geo.validation_timeline import _applied_at
 
-_MILESTONE_DAYS = [7, 30, 60, 90]
+_MILESTONE_DAYS = [14, 28, 60]
 
 _MILESTONE_MESSAGES = {
-    7: {
-        "fr": "Les moteurs de recherche commencent à recrawler vos pages. Trop tôt pour conclure.",
-        "en": "Search engines are starting to recrawl your pages. Too early to conclude.",
+    14: {
+        "fr": "Signal intermédiaire. Utile pour orienter, mais la confiance reste plafonnée.",
+        "en": "Intermediate signal. Useful for direction, but confidence remains capped.",
     },
-    30: {
-        "fr": "Premier vrai signal de progression. Comparez vos impressions GSC avant/après.",
-        "en": "First real progress signal. Compare your GSC impressions before/after.",
+    28: {
+        "fr": "Fenêtre principale de validation. Le moteur apprend surtout à partir de ce jalon.",
+        "en": "Primary validation window. The engine mainly learns from this milestone.",
     },
     60: {
-        "fr": "Signal fiable. L'impact des optimisations GEO devient mesurable avec confiance.",
-        "en": "Reliable signal. GEO optimization impact can now be measured with confidence.",
-    },
-    90: {
-        "fr": "Fenêtre de conclusion. Vous pouvez tirer des conclusions sur chaque optimisation.",
-        "en": "Conclusion window. You can now draw conclusions on each optimization.",
+        "fr": "Historique long terme. Sert à confirmer ou nuancer les décisions déjà prises.",
+        "en": "Long-term history. Used to confirm or nuance decisions already made.",
     },
 }
 
@@ -98,11 +94,7 @@ def build_retention_milestones(
         elapsed_at_due = days
         reached = elapsed_days >= elapsed_at_due
         # count how many events have reached this window
-        events_reached = sum(
-            1
-            for d in applied_dates
-            if (reference - d).days >= days
-        )
+        events_reached = sum(1 for d in applied_dates if (reference - d).days >= days)
 
         status = "completed" if reached else ("active" if elapsed_days >= days - 7 else "upcoming")
         # active = within 7 days of the milestone date

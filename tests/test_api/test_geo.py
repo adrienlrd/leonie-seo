@@ -364,7 +364,9 @@ def test_get_geo_validation_timeline_returns_event_windows(client, tmp_path) -> 
     assert data["available"] is True
     assert data["summary"]["timelines_built"] == 1
     assert data["timelines"][0]["windows"][0]["label"] == "J+0"
-    assert data["timelines"][0]["windows"][-1]["label"] == "J+90"
+    assert data["timelines"][0]["windows"][1]["label"] == "J+14"
+    assert data["timelines"][0]["windows"][2]["label"] == "J+28"
+    assert data["timelines"][0]["windows"][-1]["label"] == "J+60"
 
 
 def test_get_geo_risk_guard_returns_protection_rows(client, snapshot_file, tmp_path) -> None:
@@ -865,8 +867,8 @@ def test_get_geo_retention_milestones_returns_milestones(client, tmp_path) -> No
     data = resp.json()
     assert data["shop"] == SHOP
     assert data["has_active_events"] is True
-    assert len(data["milestones"]) == 4
-    assert data["milestones"][0]["label"] == "J+7"
+    assert len(data["milestones"]) == 3
+    assert data["milestones"][0]["label"] == "J+14"
     assert "retention_message_fr" in data
 
 

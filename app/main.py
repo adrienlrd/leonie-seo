@@ -33,6 +33,7 @@ from app.api.dashboard import router as dashboard_router  # noqa: E402
 from app.api.market_analysis import router as market_analysis_router  # noqa: E402
 from app.api.business_profile import router as business_profile_router  # noqa: E402
 from app.api.llms_txt import router as llms_txt_router  # noqa: E402
+from app.api.learning import router as learning_router  # noqa: E402
 from app.api.shops import router as shops_router  # noqa: E402
 from app.api.crawl import router as crawl_router  # noqa: E402  (onboarding snapshot)
 from app.api.help import router as help_router  # noqa: E402
@@ -159,6 +160,7 @@ app.include_router(shops_router)
 app.include_router(market_analysis_router)
 app.include_router(business_profile_router)
 app.include_router(llms_txt_router)
+app.include_router(learning_router)
 app.include_router(dashboard_router)
 app.include_router(help_router)
 app.include_router(jobs_router)

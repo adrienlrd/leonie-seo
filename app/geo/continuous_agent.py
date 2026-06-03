@@ -28,13 +28,16 @@ from app.geo.continuous_improvement import (
     upsert_product_tags,
 )
 from app.geo.ledger import create_geo_event, list_geo_events
+from app.learning.models import CandidateAction, LearningMode, RiskLevel
+from app.learning.policy import learning_boost_for_action, rank_candidates
+from app.learning.risk import assess_action_risk
 from app.market_analysis.jobs import load_latest_result
 from app.niche.understanding import get_validated_niche_hypothesis
 from app.safe_apply.decisions import record_decision
 from app.safe_apply.writer_adapters import is_live_supported, live_write
 from app.safety import require_shopify_write_allowed
 
-_WINDOWS_DAYS = (7, 30, 60)
+_WINDOWS_DAYS = (14, 28, 60)
 _SENSITIVE_FACTS = {
     "materials",
     "origins",
@@ -305,7 +308,7 @@ def _request_for_product(
 
 
 def _candidate_actions(
-    products: list[dict[str, Any]], *, max_actions: int
+    shop: str, products: list[dict[str, Any]], *, max_actions: int, db_path: Path | None = None
 ) -> list[tuple[dict[str, Any], str, ContentType]]:
     candidates: list[tuple[dict[str, Any], str, ContentType]] = []
     for product in products:
@@ -320,8 +323,46 @@ def _candidate_actions(
             if element.get("improved") and not has_negative:
                 continue
             candidates.append((product, key, content_type))
-    candidates.sort(key=lambda item: int(item[0].get("opportunity_score") or 0), reverse=True)
+
+    def _score(item: tuple[dict[str, Any], str, ContentType]) -> float:
+        product, key, _content_type = item
+        keyword_source = "unknown"
+        for keyword in product.get("seo_keywords") or []:
+            if isinstance(keyword, dict) and keyword.get("data_source"):
+                keyword_source = str(keyword.get("data_source"))
+                break
+        signal = learning_boost_for_action(
+            shop=shop,
+            action_type=key,
+            keyword_source=keyword_source,
+            db_path=db_path,
+        )
+        return float(product.get("opportunity_score") or 0) + float(signal["learning_boost"])
+
+    candidates.sort(key=_score, reverse=True)
     return candidates[:max_actions]
+
+
+def _old_value(product: dict[str, Any], element_key: str) -> str:
+    pack = (
+        product.get("content_test_pack")
+        if isinstance(product.get("content_test_pack"), dict)
+        else {}
+    )
+    if element_key == "meta_title":
+        return str(pack.get("current_meta_title") or "")
+    if element_key == "meta_description":
+        return str(pack.get("current_meta_description") or "")
+    if element_key == "product_description":
+        return str(pack.get("current_product_description_summary") or "")
+    return ""
+
+
+def _keyword_source(product: dict[str, Any]) -> str:
+    for keyword in product.get("seo_keywords") or []:
+        if isinstance(keyword, dict) and keyword.get("data_source"):
+            return str(keyword.get("data_source"))
+    return "unknown"
 
 
 def _mark_action_approved(
@@ -431,9 +472,9 @@ def run_continuous_improvement_agent(
 ) -> dict[str, Any]:
     """Run the continuous improvement agent.
 
-    The agent measures J+7/J+30/J+60 feedback from the GEO ledger, updates tag
+    The agent measures J+14/J+28/J+60 feedback from the GEO ledger, updates tag
     status, generates content-action proposals, and live-applies only supported
-    Shopify fields when auto_apply and confirm_live_write are both true.
+    Shopify fields when the learning policy allows it.
     """
     latest = load_latest_result(shop)
     if latest is None:
@@ -450,11 +491,14 @@ def run_continuous_improvement_agent(
     refreshed_products = [
         product for product in refreshed.get("products", []) if isinstance(product, dict)
     ]
-    candidates = _candidate_actions(refreshed_products, max_actions=max_actions)
+    candidates = _candidate_actions(
+        shop, refreshed_products, max_actions=max_actions, db_path=db_path
+    )
     niche_hypothesis = get_validated_niche_hypothesis(shop)
     proposals: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
     applied = 0
+    learning_approvals_created = 0
 
     for product, element_key, content_type in candidates:
         tags = product.get("improvement_tags") or []
@@ -511,7 +555,62 @@ def run_continuous_improvement_agent(
             )
             proposal["ledger_event_id"] = event_id
 
-            if auto_apply:
+            risk_level = assess_action_risk(
+                content_type.value,
+                field=element_key,
+                content_quality_score=result.quality.score,
+                tags=tags,
+            )
+            candidate = CandidateAction(
+                shop=shop,
+                resource_type="product",
+                resource_id=str(product.get("product_id") or ""),
+                resource_title=str(product.get("product_title") or ""),
+                action_type=content_type.value,
+                field=element_key,
+                surface="product_page",
+                current_score=score_before,
+                potential_score=score_after,
+                confidence_score=max(0, min(100, int(result.quality.score or 0))),
+                risk_level=RiskLevel(risk_level.value),
+                keyword_source=_keyword_source(product),
+                content_quality_score=result.quality.score,
+                old_value=_old_value(product, element_key),
+                proposed_value=result.output.primary_text,
+                tags=tags,
+                metadata={
+                    "action_id": result.action_id,
+                    "content_type": content_type.value,
+                    "generated_at": result.generated_at,
+                    "ledger_event_id": event_id,
+                },
+            )
+            decisions = rank_candidates(
+                shop,
+                [candidate],
+                plan=plan,
+                writer_supported_by_field={
+                    "meta_title": bool(access_token) and is_live_supported(ContentType.META_TITLE),
+                    "meta_description": bool(access_token)
+                    and is_live_supported(ContentType.META_DESCRIPTION),
+                    "product_description": bool(access_token)
+                    and is_live_supported(ContentType.PRODUCT_DESCRIPTION),
+                },
+                confirm_live_write=confirm_live_write,
+                max_auto_actions=1,
+                mode_override=LearningMode.AUTO_APPLY if auto_apply else LearningMode.SEMI_AUTO,
+                db_path=db_path,
+            )
+            decision = decisions[0] if decisions else None
+            if decision:
+                proposal["learning_score"] = round(decision.final_score, 2)
+                proposal["confidence_score"] = candidate.confidence_score
+                proposal["risk_level"] = decision.risk_level.value
+                proposal["learning_explanation"] = decision.explanation
+                if decision.approval_required:
+                    learning_approvals_created += 1
+
+            if decision and decision.auto_apply_eligible:
                 proposal["auto_apply_attempted"] = True
                 if not access_token:
                     proposal["auto_apply_reason"] = "missing_access_token"
@@ -521,6 +620,8 @@ def run_continuous_improvement_agent(
                     proposal["auto_apply_reason"] = "needs_review"
                 elif not is_live_supported(content_type):
                     proposal["auto_apply_reason"] = "content_type_not_live_supported"
+                elif risk_level != RiskLevel.LOW:
+                    proposal["auto_apply_reason"] = "risk_not_low"
                 else:
                     _mark_action_approved(shop, result.action_id, db_path=db_path)
                     apply_result = _apply_safe_action(
@@ -553,13 +654,14 @@ def run_continuous_improvement_agent(
         "feedback_tag_decisions": len(tag_decisions),
         "candidate_actions": len(candidates),
         "proposals_created": len(proposals),
-        "auto_apply": auto_apply,
+        "mode": "auto_apply" if auto_apply else "semi_auto",
         "applied": applied,
+        "learning_approvals_created": learning_approvals_created,
         "errors": len(errors),
     }
     run_id = _save_run(
         shop=shop,
-        mode="auto_apply" if auto_apply else "proposal",
+        mode="auto_apply" if auto_apply else "semi_auto",
         status="completed" if not errors else "completed_with_errors",
         summary=summary,
         proposals=proposals,

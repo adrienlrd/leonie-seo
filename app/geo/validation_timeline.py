@@ -7,10 +7,9 @@ from typing import Any
 
 MILESTONES = [
     {"key": "j0", "days": 0, "label": "J+0", "purpose": "Optimization applied; baseline starts."},
-    {"key": "j7", "days": 7, "label": "J+7", "purpose": "First weak signals only."},
-    {"key": "j30", "days": 30, "label": "J+30", "purpose": "First serious review window."},
-    {"key": "j60", "days": 60, "label": "J+60", "purpose": "More reliable impact signal."},
-    {"key": "j90", "days": 90, "label": "J+90", "purpose": "Full validation conclusion."},
+    {"key": "j14", "days": 14, "label": "J+14", "purpose": "Intermediate learning signal."},
+    {"key": "j28", "days": 28, "label": "J+28", "purpose": "Primary validation window."},
+    {"key": "j60", "days": 60, "label": "J+60", "purpose": "Long-term historical signal."},
 ]
 
 MEASURABLE_STATUSES = {"applied", "measured", "rolled_back"}
@@ -86,14 +85,12 @@ def _window_message(status: str, milestone_key: str) -> str:
         return "The window has opened; collect data before drawing conclusions."
     if status == "inconclusive":
         return "Not enough baseline volume for a confident read."
-    if milestone_key == "j7":
-        return "Use as an early directional signal, not a conclusion."
-    if milestone_key == "j30":
-        return "This is the first serious review window."
+    if milestone_key == "j14":
+        return "Use as an intermediate signal; confidence is capped."
+    if milestone_key == "j28":
+        return "This is the primary validation window for learning."
     if milestone_key == "j60":
-        return "This window gives a more reliable signal."
-    if milestone_key == "j90":
-        return "This window supports the full validation conclusion."
+        return "This window is retained as a long-term historical read."
     return "Baseline started."
 
 
@@ -104,12 +101,13 @@ def build_validation_timeline(
     event_id: int | None = None,
     min_impressions: int = 50,
 ) -> dict[str, Any]:
-    """Build J+7/J+30/J+60/J+90 validation windows for optimization events."""
+    """Build J+14/J+28/J+60 validation windows for optimization events."""
     current = (now or datetime.now(UTC)).astimezone(UTC)
     measurable_events = [
         event
         for event in events
-        if event.get("status") in MEASURABLE_STATUSES and (event_id is None or int(event.get("id", 0)) == event_id)
+        if event.get("status") in MEASURABLE_STATUSES
+        and (event_id is None or int(event.get("id", 0)) == event_id)
     ]
 
     timelines = []
@@ -170,7 +168,7 @@ def build_validation_timeline(
             "timelines_built": len(timelines),
             "status_counts": status_counts,
             "next_due_at": next_due_at.isoformat() if next_due_at else None,
-            "time_note": "SEO/GEO validation needs time; the first days are weak signals and not enough for a conclusion.",
+            "time_note": "SEO/GEO validation uses J+14 as an intermediate signal and J+28 as the primary learning window.",
             "min_impressions": min_impressions,
         },
         "timelines": timelines,
