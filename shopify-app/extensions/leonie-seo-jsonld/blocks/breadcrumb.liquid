@@ -1,0 +1,221 @@
+{%- comment -%}
+  Léonie SEO — Fil d'ariane (breadcrumb)
+  Visible breadcrumb navigation on product, collection, article, blog, and page templates.
+  Inserts before the first main content element via JS — no theme code changes required.
+  Detects existing breadcrumbs to avoid duplication across all themes.
+{%- endcomment -%}
+
+{%- liquid
+  assign home_label = 'general.breadcrumbs.home' | t | default: 'Accueil'
+  assign base_url = shop.secure_url | default: shop.url
+  assign bc_sep = block.settings.separator | default: '›'
+  assign bc_json = ''
+-%}
+
+{%- if template contains 'product' and product -%}
+  {%- assign bc_collection = collection | default: product.collections.first -%}
+  {%- capture bc_json -%}[{"label":{{ home_label | json }},"url":{{ base_url | json }}}{% if bc_collection %},{"label":{{ bc_collection.title | json }},"url":{{ bc_collection.url | prepend: base_url | json }}}{% endif %},{"label":{{ product.title | json }},"url":{{ product.url | prepend: base_url | json }},"current":true}]{%- endcapture -%}
+{%- elsif template contains 'collection' and collection -%}
+  {%- capture bc_json -%}[{"label":{{ home_label | json }},"url":{{ base_url | json }}},{"label":{{ collection.title | json }},"url":{{ collection.url | prepend: base_url | json }},"current":true}]{%- endcapture -%}
+{%- elsif template contains 'article' and article -%}
+  {%- capture bc_json -%}[{"label":{{ home_label | json }},"url":{{ base_url | json }}},{"label":{{ blog.title | json }},"url":{{ blog.url | prepend: base_url | json }}},{"label":{{ article.title | json }},"url":{{ article.url | prepend: base_url | json }},"current":true}]{%- endcapture -%}
+{%- elsif template contains 'blog' and blog -%}
+  {%- capture bc_json -%}[{"label":{{ home_label | json }},"url":{{ base_url | json }}},{"label":{{ blog.title | json }},"url":{{ blog.url | prepend: base_url | json }},"current":true}]{%- endcapture -%}
+{%- elsif template contains 'page' and page -%}
+  {%- capture bc_json -%}[{"label":{{ home_label | json }},"url":{{ base_url | json }}},{"label":{{ page.title | json }},"url":{{ page.url | prepend: base_url | json }},"current":true}]{%- endcapture -%}
+{%- endif -%}
+
+{%- if bc_json != blank -%}
+
+{%- comment -%}
+  JSON-LD BreadcrumbList for article pages only.
+  Product and collection pages are already covered by the faq_embed block.
+{%- endcomment -%}
+{%- if template contains 'article' and article and block.settings.enable_jsonld -%}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type":"ListItem","position":1,"name":{{ home_label | json }},"item":{{ base_url | json }}},
+    {"@type":"ListItem","position":2,"name":{{ blog.title | json }},"item":{{ blog.url | prepend: base_url | json }}},
+    {"@type":"ListItem","position":3,"name":{{ article.title | json }},"item":{{ article.url | prepend: base_url | json }}}
+  ]
+}
+</script>
+{%- endif -%}
+
+<template id="leonie-bc-tpl" data-sep="{{ bc_sep | escape }}">
+  <nav class="leonie-bc" aria-label="Breadcrumb">
+    <ol class="leonie-bc__list" itemscope itemtype="https://schema.org/BreadcrumbList"></ol>
+  </nav>
+</template>
+<script id="leonie-bc-data" type="application/json">{{ bc_json | strip }}</script>
+
+<script>
+(function () {
+  var tpl = document.getElementById('leonie-bc-tpl');
+  var dataEl = document.getElementById('leonie-bc-data');
+  if (!tpl || !dataEl) return;
+
+  // Skip if the theme already renders a visible breadcrumb
+  var EXISTING = [
+    '.breadcrumb', '.breadcrumbs', '.bread-crumb', '.bc-crumbs',
+    '[aria-label="breadcrumb"]', '[aria-label="Breadcrumb"]',
+    'nav[class*="breadcrumb"]', 'ol[class*="breadcrumb"]'
+  ];
+  if (EXISTING.some(function (s) { return document.querySelector(s); })) {
+    tpl.remove(); dataEl.remove(); return;
+  }
+
+  var items;
+  try { items = JSON.parse(dataEl.textContent || '[]'); } catch (e) { return; }
+  if (!Array.isArray(items) || items.length < 2) return;
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  var sep = tpl.dataset.sep || '›';
+  var nav = tpl.content.cloneNode(true);
+  var ol = nav.querySelector('.leonie-bc__list');
+  ol.style.setProperty('--leonie-bc-sep', '"' + sep + '"');
+
+  items.forEach(function (item, i) {
+    var li = document.createElement('li');
+    li.className = 'leonie-bc__item';
+    li.setAttribute('itemprop', 'itemListElement');
+    li.setAttribute('itemscope', '');
+    li.setAttribute('itemtype', 'https://schema.org/ListItem');
+    var pos = '<meta itemprop="position" content="' + (i + 1) + '">';
+    if (item.current) {
+      li.innerHTML = '<span class="leonie-bc__current" itemprop="name">' + esc(item.label) + '</span>' + pos;
+    } else {
+      li.innerHTML =
+        '<a class="leonie-bc__link" href="' + esc(item.url) + '" itemprop="item">' +
+        '<span itemprop="name">' + esc(item.label) + '</span></a>' + pos;
+    }
+    ol.appendChild(li);
+  });
+
+  // Find the best insertion point before the main page content
+  var TARGETS = [
+    '#MainContent > *:first-child',
+    '#main-content > *:first-child',
+    '.main-page-content > *:first-child',
+    'main > .shopify-section:first-child',
+    'main > *:first-child',
+  ];
+  var CONTAINERS = [
+    'main', '[role="main"]', '#MainContent', '.main-content'
+  ];
+
+  var anchor = null;
+  var prepend = false;
+
+  for (var i = 0; i < TARGETS.length; i++) {
+    anchor = document.querySelector(TARGETS[i]);
+    if (anchor) break;
+  }
+  if (!anchor) {
+    for (var j = 0; j < CONTAINERS.length; j++) {
+      anchor = document.querySelector(CONTAINERS[j]);
+      if (anchor) { prepend = true; break; }
+    }
+  }
+  if (!anchor) return;
+
+  var wrapper = document.createElement('div');
+  wrapper.className = 'leonie-bc-wrapper';
+  wrapper.appendChild(nav);
+
+  if (prepend) {
+    anchor.insertBefore(wrapper, anchor.firstChild);
+  } else {
+    anchor.parentNode.insertBefore(wrapper, anchor);
+  }
+
+  tpl.remove();
+  dataEl.remove();
+})();
+</script>
+
+{%- style -%}
+.leonie-bc-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+}
+.leonie-bc {
+  font-size: 0.8125em;
+  line-height: 1.4;
+  padding: 0.625em 0;
+  color: inherit;
+  font-family: inherit;
+  opacity: 0.75;
+}
+.leonie-bc * {
+  box-sizing: border-box;
+}
+.leonie-bc__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.leonie-bc__item {
+  display: flex;
+  align-items: center;
+}
+.leonie-bc__item + .leonie-bc__item::before {
+  content: var(--leonie-bc-sep, "\203a");
+  padding: 0 0.4em;
+  opacity: 0.45;
+}
+.leonie-bc__link {
+  color: inherit;
+  text-decoration: none;
+}
+.leonie-bc__link:hover,
+.leonie-bc__link:focus-visible {
+  text-decoration: underline;
+}
+.leonie-bc__current {
+  opacity: 0.6;
+}
+{%- endstyle -%}
+
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Fil d'ariane — Léonie SEO",
+  "target": "body",
+  "settings": [
+    {
+      "type": "select",
+      "id": "separator",
+      "label": "Séparateur",
+      "options": [
+        { "value": "›", "label": "›  chevron" },
+        { "value": "/", "label": "/  slash" },
+        { "value": "·", "label": "·  point médian" },
+        { "value": "→", "label": "→  flèche" }
+      ],
+      "default": "›"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_jsonld",
+      "label": "JSON-LD BreadcrumbList (articles de blog)",
+      "info": "Pour les pages produit et collection, le JSON-LD est géré par le bloc Léonie SEO principal.",
+      "default": true
+    }
+  ]
+}
+{% endschema %}
