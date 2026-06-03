@@ -123,7 +123,7 @@ def _record_tag_history(
             """
             INSERT INTO tag_performance_history (
                 shop, product_id, tag_id, label, status_before, status_after,
-                window, metrics_json, reason, decided_at
+                measurement_window, metrics_json, reason, decided_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,

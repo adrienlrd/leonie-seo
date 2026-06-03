@@ -282,7 +282,7 @@ _SQLITE_DDL = [
         label          TEXT NOT NULL,
         status_before  TEXT NOT NULL,
         status_after   TEXT NOT NULL,
-        window         TEXT NOT NULL,
+        measurement_window TEXT NOT NULL,
         metrics_json   TEXT NOT NULL DEFAULT '{}',
         reason         TEXT NOT NULL DEFAULT '',
         decided_at     TEXT NOT NULL
@@ -534,7 +534,7 @@ _PG_DDL = [
         label          TEXT NOT NULL,
         status_before  TEXT NOT NULL,
         status_after   TEXT NOT NULL,
-        window         TEXT NOT NULL,
+        measurement_window TEXT NOT NULL,
         metrics_json   TEXT NOT NULL DEFAULT '{}',
         reason         TEXT NOT NULL DEFAULT '',
         decided_at     TEXT NOT NULL

@@ -390,7 +390,7 @@ def list_continuous_improvement(
         tag_history_rows = conn.execute(
             """
             SELECT product_id, tag_id, label, status_before, status_after,
-                   window, metrics_json, reason, decided_at
+                   measurement_window, metrics_json, reason, decided_at
             FROM tag_performance_history
             WHERE shop = ?
             ORDER BY decided_at DESC, id DESC
@@ -441,7 +441,7 @@ def list_continuous_improvement(
                 "label": row["label"],
                 "status_before": row["status_before"],
                 "status_after": row["status_after"],
-                "window": row["window"],
+                "window": row["measurement_window"],
                 "metrics": _json_loads(row["metrics_json"], {}),
                 "reason": row["reason"],
                 "decided_at": row["decided_at"],
