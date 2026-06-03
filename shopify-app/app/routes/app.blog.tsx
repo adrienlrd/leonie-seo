@@ -8,6 +8,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import {
+  Form,
   Link as RemixLink,
   useActionData,
   useFetcher,
@@ -75,6 +76,8 @@ interface LoaderData {
   drafts: Draft[];
   selected: Draft | null;
   error: string | null;
+  prefillTitle: string | null;
+  prefillCluster: string | null;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -82,6 +85,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const locale = getLocale(request);
   const url = new URL(request.url);
   const draftId = url.searchParams.get("draft");
+  const prefillTitle = url.searchParams.get("title");
+  const prefillCluster = url.searchParams.get("cluster");
 
   const listRes = await callBackendForShop(
     session.shop,
@@ -108,8 +113,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     drafts,
     selected,
     error: null,
+    prefillTitle,
+    prefillCluster,
   });
 };
+
+interface LinkableArticle {
+  id: string;
+  blog_title: string;
+  shopify_article_handle: string | null;
+  status: string;
+  tags: string[];
+}
+
+interface DynamicSuggestion {
+  target_url: string;
+  anchor: string;
+  target_title: string;
+  reason: string;
+}
 
 interface ActionResult {
   type: string;
@@ -117,6 +139,8 @@ interface ActionResult {
   error: string | null;
   draft?: Draft | null;
   blogs?: Array<{ id: string; handle: string; title: string }>;
+  articles?: LinkableArticle[];
+  suggestions?: DynamicSuggestion[];
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -203,6 +227,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return respond(false, null, `${res.status}`);
     }
 
+    if (intent === "createBlank") {
+      const blogTitle = String(form.get("blogTitle") ?? "");
+      const res = await proxy("/blog/drafts", {
+        method: "POST",
+        body: JSON.stringify({ blog_title: blogTitle, auto_generate: false }),
+      });
+      if (!res.ok) return respond(false, null, `${res.status}`);
+      const draft = (await res.json()) as Draft;
+      return redirect(`/app/blog?draft=${draft.id}`);
+    }
+
     if (intent === "listBlogs") {
       const res = await proxy("/blog/blogs");
       const data = res.ok ? ((await res.json()) as { blogs?: ActionResult["blogs"] }) : null;
@@ -212,6 +247,40 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         error: res.ok ? null : `${res.status}`,
         draft: null,
         blogs: data?.blogs ?? [],
+      });
+    }
+
+    if (intent === "listLinkableArticles") {
+      const draftId = String(form.get("draftId") ?? "");
+      if (!draftId) return json<ActionResult>({ type: "listLinkableArticles", ok: false, error: "Missing draftId", draft: null });
+      const res = await proxy(`/blog/drafts/${draftId}/linkable-articles`);
+      const data = res.ok ? ((await res.json()) as { articles?: LinkableArticle[] }) : null;
+      return json<ActionResult>({
+        type: "listLinkableArticles",
+        ok: res.ok,
+        error: res.ok ? null : `${res.status}`,
+        draft: null,
+        articles: data?.articles ?? [],
+      });
+    }
+
+    if (intent === "fetchLinkSuggestions") {
+      const draftId = String(form.get("draftId") ?? "");
+      const rawKeywords = String(form.get("keywords") ?? "");
+      const rawExclude = String(form.get("excludeUrls") ?? "");
+      const keywords = rawKeywords ? rawKeywords.split("||").filter(Boolean) : [];
+      const excludeUrls = rawExclude ? rawExclude.split("||").filter(Boolean) : [];
+      const res = await proxy(`/blog/drafts/${draftId}/link-suggestions`, {
+        method: "POST",
+        body: JSON.stringify({ keywords, exclude_urls: excludeUrls }),
+      });
+      const data = res.ok ? ((await res.json()) as { suggestions?: DynamicSuggestion[] }) : null;
+      return json<ActionResult>({
+        type: "fetchLinkSuggestions",
+        ok: res.ok,
+        error: res.ok ? null : `${res.status}`,
+        draft: null,
+        suggestions: data?.suggestions ?? [],
       });
     }
   } catch (exc) {
@@ -259,7 +328,7 @@ function DraftListItem({
 }
 
 export default function BlogIndexPage() {
-  const { locale, shop, drafts, selected, error } = useLoaderData<typeof loader>();
+  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
   const navigate = useNavigate();
@@ -271,7 +340,11 @@ export default function BlogIndexPage() {
 
   const fetcher = useFetcher<typeof action>();
   const blogsFetcher = useFetcher<{ ok?: boolean; blogs?: Array<{ id: string; handle: string; title: string }> }>();
+  const articlesFetcher = useFetcher<ActionResult>();
+  const suggestionsFetcher = useFetcher<ActionResult>();
   const isBusy = fetcher.state !== "idle";
+  const [showArticlePicker, setShowArticlePicker] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
   // 0 = édition, 1 = aperçu — saving auto-switches to preview so the merchant
@@ -357,6 +430,59 @@ export default function BlogIndexPage() {
       ),
     } : prev);
 
+  const addArticleLink = (article: LinkableArticle) => {
+    const target_url = article.shopify_article_handle
+      ? `/blogs/blog/${article.shopify_article_handle}`
+      : `#draft-${article.id}`;
+    const newLink: InternalLink = {
+      target_url,
+      anchor: article.blog_title,
+      target_title: article.blog_title,
+      reason: "related_article",
+    };
+    setDraft((prev) => prev ? {
+      ...prev,
+      internal_links: [...(prev.internal_links ?? []), newLink],
+    } : prev);
+    setShowArticlePicker(false);
+  };
+
+  const onLoadArticles = () => {
+    if (!draft) return;
+    articlesFetcher.submit(
+      { intent: "listLinkableArticles", draftId: draft.id },
+      { method: "post" },
+    );
+    setShowArticlePicker(true);
+  };
+
+  const onFetchSuggestions = () => {
+    if (!draft) return;
+    const existingUrls = (draft.internal_links ?? []).map((l) => l.target_url).join("||");
+    const keywords = [
+      draft.blog_title,
+      ...(draft.sections ?? []).map((s) => s.h2),
+    ].filter(Boolean).join("||");
+    suggestionsFetcher.submit(
+      { intent: "fetchLinkSuggestions", draftId: draft.id, keywords, excludeUrls: existingUrls },
+      { method: "post" },
+    );
+    setShowSuggestions(true);
+  };
+
+  const addSuggestedLink = (suggestion: DynamicSuggestion) => {
+    const newLink: InternalLink = {
+      target_url: suggestion.target_url,
+      anchor: suggestion.anchor,
+      target_title: suggestion.target_title,
+      reason: suggestion.reason,
+    };
+    setDraft((prev) => prev ? {
+      ...prev,
+      internal_links: [...(prev.internal_links ?? []), newLink],
+    } : prev);
+  };
+
   const onOpenPublish = () => {
     setPublishOpen(true);
     blogsFetcher.submit({ intent: "listBlogs" }, { method: "post" });
@@ -392,6 +518,27 @@ export default function BlogIndexPage() {
         {fetcher.data?.error && !fetcher.data.ok && (
           <Banner tone="critical" title={fr ? "Publication échouée" : "Publish failed"}>
             <p style={{ whiteSpace: "pre-wrap" }}>{fetcher.data.error}</p>
+          </Banner>
+        )}
+        {prefillTitle && (
+          <Banner
+            tone="info"
+            title={fr ? "Sujet détecté depuis Analyse marché" : "Topic detected from Market analysis"}
+          >
+            <BlockStack gap="200">
+              <Text as="p" variant="bodySm">
+                {fr
+                  ? `Crée un article sur : "${prefillTitle}"`
+                  : `Create an article about: "${prefillTitle}"`}
+              </Text>
+              <Form method="post">
+                <input type="hidden" name="intent" value="createBlank" />
+                <input type="hidden" name="blogTitle" value={prefillTitle} />
+                <Button variant="primary" size="slim" submit>
+                  {fr ? "Créer le brouillon" : "Create draft"}
+                </Button>
+              </Form>
+            </BlockStack>
           </Banner>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, alignItems: "start" }}>
@@ -495,47 +642,162 @@ export default function BlogIndexPage() {
                       </Card>
                     ))}
 
-                    {(draft.internal_links ?? []).length > 0 && (
-                      <Box
-                        padding="400"
-                        background="bg-surface-secondary"
-                        borderRadius="200"
-                        borderColor="border"
-                        borderWidth="025"
-                      >
-                        <BlockStack gap="300">
-                          <BlockStack gap="050">
-                            <Text as="h3" variant="headingSm">
-                              {fr ? "Liens internes ajoutés à l'article" : "Internal links added to the article"}
-                            </Text>
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              {fr
-                                ? "Ces liens viennent d'Analyse marché. Ajuste l'ancre si besoin avant publication."
-                                : "These links come from Market analysis. Adjust anchors before publishing if needed."}
-                            </Text>
-                          </BlockStack>
-                          {(draft.internal_links ?? []).map((link, idx) => (
-                            <div
-                              key={`${link.target_url}-${idx}`}
-                              style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
-                            >
-                              <TextField
-                                label={fr ? "Ancre" : "Anchor"}
-                                value={link.anchor}
-                                onChange={(v) => setInternalLink(idx, { anchor: v })}
-                                autoComplete="off"
-                              />
-                              <TextField
-                                label="URL"
-                                value={link.target_url}
-                                onChange={(v) => setInternalLink(idx, { target_url: v })}
-                                autoComplete="off"
-                              />
-                            </div>
-                          ))}
+                    <Box
+                      padding="400"
+                      background="bg-surface-secondary"
+                      borderRadius="200"
+                      borderColor="border"
+                      borderWidth="025"
+                    >
+                      <BlockStack gap="300">
+                        <BlockStack gap="050">
+                          <Text as="h3" variant="headingSm">
+                            {fr ? "Liens internes" : "Internal links"}
+                          </Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {fr
+                              ? "Liens vers produits, collections ou autres articles. Ajuste l'ancre avant publication."
+                              : "Links to products, collections, or other articles. Adjust anchors before publishing."}
+                          </Text>
                         </BlockStack>
-                      </Box>
-                    )}
+                        {(draft.internal_links ?? []).map((link, idx) => (
+                          <div
+                            key={`${link.target_url}-${idx}`}
+                            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+                          >
+                            <TextField
+                              label={fr ? "Ancre" : "Anchor"}
+                              value={link.anchor}
+                              onChange={(v) => setInternalLink(idx, { anchor: v })}
+                              autoComplete="off"
+                            />
+                            <TextField
+                              label="URL"
+                              value={link.target_url}
+                              onChange={(v) => setInternalLink(idx, { target_url: v })}
+                              autoComplete="off"
+                              suffix={link.reason === "related_article"
+                                ? <Badge tone="info" size="small">Article</Badge>
+                                : undefined}
+                            />
+                          </div>
+                        ))}
+                        <InlineStack gap="200">
+                          <Button size="slim" variant="plain" onClick={onLoadArticles}>
+                            {fr ? "Ajouter un lien vers un autre article" : "Add link to another article"}
+                          </Button>
+                        </InlineStack>
+                        {showArticlePicker && (
+                          <Box
+                            padding="300"
+                            background="bg-surface-secondary"
+                            borderRadius="200"
+                            borderColor="border"
+                            borderWidth="025"
+                          >
+                            <BlockStack gap="200">
+                              <InlineStack align="space-between" blockAlign="center">
+                                <Text as="p" variant="bodySm" fontWeight="semibold">
+                                  {fr ? "Choisir un article" : "Choose an article"}
+                                </Text>
+                                <Button size="slim" variant="plain" onClick={() => setShowArticlePicker(false)}>
+                                  {fr ? "Fermer" : "Close"}
+                                </Button>
+                              </InlineStack>
+                              {articlesFetcher.state !== "idle" ? (
+                                <InlineStack gap="200" blockAlign="center">
+                                  <Spinner size="small" />
+                                  <Text as="span" variant="bodySm">{fr ? "Chargement…" : "Loading…"}</Text>
+                                </InlineStack>
+                              ) : (articlesFetcher.data?.articles ?? []).length === 0 ? (
+                                <Text as="p" variant="bodySm" tone="subdued">
+                                  {fr ? "Aucun autre article disponible." : "No other articles available."}
+                                </Text>
+                              ) : (
+                                <BlockStack gap="150">
+                                  {(articlesFetcher.data?.articles ?? []).map((article) => (
+                                    <InlineStack key={article.id} align="space-between" blockAlign="center">
+                                      <BlockStack gap="025">
+                                        <Text as="span" variant="bodySm">{article.blog_title}</Text>
+                                        <Badge
+                                          tone={article.status === "published_to_shopify" ? "success" : "info"}
+                                          size="small"
+                                        >
+                                          {article.status === "published_to_shopify"
+                                            ? (fr ? "Publié" : "Published")
+                                            : (fr ? "Brouillon" : "Draft")}
+                                        </Badge>
+                                      </BlockStack>
+                                      <Button size="slim" onClick={() => addArticleLink(article)}>
+                                        {fr ? "Ajouter" : "Add"}
+                                      </Button>
+                                    </InlineStack>
+                                  ))}
+                                </BlockStack>
+                              )}
+                            </BlockStack>
+                          </Box>
+                        )}
+                        <InlineStack gap="200">
+                          <Button size="slim" variant="plain" onClick={onFetchSuggestions} loading={suggestionsFetcher.state !== "idle"}>
+                            {fr ? "Rafraîchir les suggestions" : "Refresh suggestions"}
+                          </Button>
+                        </InlineStack>
+                        {showSuggestions && (
+                          <Box
+                            padding="300"
+                            background="bg-surface-secondary"
+                            borderRadius="200"
+                            borderColor="border"
+                            borderWidth="025"
+                          >
+                            <BlockStack gap="200">
+                              <InlineStack align="space-between" blockAlign="center">
+                                <Text as="p" variant="bodySm" fontWeight="semibold">
+                                  {fr ? "Suggestions de liens" : "Link suggestions"}
+                                </Text>
+                                <Button size="slim" variant="plain" onClick={() => setShowSuggestions(false)}>
+                                  {fr ? "Fermer" : "Close"}
+                                </Button>
+                              </InlineStack>
+                              {suggestionsFetcher.state !== "idle" ? (
+                                <InlineStack gap="200" blockAlign="center">
+                                  <Spinner size="small" />
+                                  <Text as="span" variant="bodySm">{fr ? "Analyse en cours…" : "Analyzing…"}</Text>
+                                </InlineStack>
+                              ) : (suggestionsFetcher.data?.suggestions ?? []).length === 0 ? (
+                                <Text as="p" variant="bodySm" tone="subdued">
+                                  {fr ? "Aucune suggestion trouvée pour ces mots-clés." : "No suggestions found for these keywords."}
+                                </Text>
+                              ) : (
+                                <BlockStack gap="150">
+                                  {(suggestionsFetcher.data?.suggestions ?? []).map((s, i) => (
+                                    <InlineStack key={`${s.target_url}-${i}`} align="space-between" blockAlign="center">
+                                      <BlockStack gap="025">
+                                        <Text as="span" variant="bodySm">{s.target_title || s.anchor}</Text>
+                                        <Badge
+                                          tone={s.reason === "related_article" ? "info" : s.reason === "collection_parent" ? "success" : "attention"}
+                                          size="small"
+                                        >
+                                          {s.reason === "related_article"
+                                            ? (fr ? "Article" : "Article")
+                                            : s.reason === "collection_parent"
+                                              ? (fr ? "Collection" : "Collection")
+                                              : (fr ? "Produit" : "Product")}
+                                        </Badge>
+                                      </BlockStack>
+                                      <Button size="slim" onClick={() => addSuggestedLink(s)}>
+                                        {fr ? "Ajouter" : "Add"}
+                                      </Button>
+                                    </InlineStack>
+                                  ))}
+                                </BlockStack>
+                              )}
+                            </BlockStack>
+                          </Box>
+                        )}
+                      </BlockStack>
+                    </Box>
                   </>
                 ) : (
                   <Box

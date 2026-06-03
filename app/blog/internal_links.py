@@ -11,6 +11,7 @@ from html import escape
 from typing import Any
 
 _MAX_BLOG_LINKS = 5
+_DYNAMIC_SIM_THRESHOLD = 0.3
 
 
 def select_blog_internal_links(
@@ -49,6 +50,109 @@ def select_blog_internal_links(
         if len(selected) >= max(0, max_links):
             break
     return selected
+
+
+def suggest_links_for_article(
+    *,
+    keywords: list[str],
+    products: list[dict[str, Any]],
+    collections: list[dict[str, Any]],
+    other_drafts: list[dict[str, Any]],
+    exclude_urls: set[str] | None = None,
+    max_links: int = _MAX_BLOG_LINKS,
+) -> list[dict[str, str]]:
+    """Return ranked link suggestions matching ``keywords`` from the article.
+
+    Matches against products (via primary keyword), collections (via title), and
+    other blog drafts (via title). Uses Jaccard similarity on normalized tokens.
+    Lower threshold than the market analysis engine (0.3 vs 0.5) to stay useful
+    even for short article keyword lists.
+    """
+    from app.market_analysis.keyword_normalization import (
+        jaccard_similarity,
+        tokenize_normalized,
+    )
+
+    exclude = exclude_urls or set()
+    article_tokens = tokenize_normalized(" ".join(keywords))
+    if not article_tokens:
+        return []
+
+    candidates: list[tuple[float, dict[str, str]]] = []
+
+    for product in products:
+        primary_kw = next(
+            (kw for kw in (product.get("seo_keywords") or []) if isinstance(kw, dict) and kw.get("target_role") == "primary"),
+            None,
+        )
+        if not primary_kw:
+            continue
+        query = str(primary_kw.get("query") or "").strip()
+        if not query:
+            continue
+        sim = jaccard_similarity(article_tokens, tokenize_normalized(query))
+        if sim < _DYNAMIC_SIM_THRESHOLD:
+            continue
+        url = str(product.get("product_url") or "").strip()
+        if not url:
+            handle = str(product.get("product_handle") or "").strip()
+            url = f"/products/{handle}" if handle else ""
+        if not url or url in exclude:
+            continue
+        candidates.append((sim, {
+            "target_url": url,
+            "anchor": query,
+            "target_title": str(product.get("product_title") or ""),
+            "reason": "sibling_product",
+        }))
+
+    for col in collections:
+        handle = str(col.get("handle") or "").strip()
+        title = str(col.get("title") or "").strip()
+        if not handle or not title:
+            continue
+        url = f"/collections/{handle}"
+        if url in exclude:
+            continue
+        sim = jaccard_similarity(article_tokens, tokenize_normalized(title))
+        if sim < _DYNAMIC_SIM_THRESHOLD:
+            continue
+        candidates.append((sim, {
+            "target_url": url,
+            "anchor": title,
+            "target_title": title,
+            "reason": "collection_parent",
+        }))
+
+    for draft in other_drafts:
+        title = str(draft.get("blog_title") or "").strip()
+        handle = str(draft.get("shopify_article_handle") or "").strip()
+        if not title:
+            continue
+        url = f"/blogs/blog/{handle}" if handle else f"#draft-{draft.get('id', '')}"
+        if url in exclude:
+            continue
+        sim = jaccard_similarity(article_tokens, tokenize_normalized(title))
+        if sim < _DYNAMIC_SIM_THRESHOLD:
+            continue
+        candidates.append((sim, {
+            "target_url": url,
+            "anchor": title,
+            "target_title": title,
+            "reason": "related_article",
+        }))
+
+    candidates.sort(key=lambda c: c[0], reverse=True)
+    seen_urls: set[str] = set()
+    result: list[dict[str, str]] = []
+    for _, link in candidates:
+        if link["target_url"] in seen_urls:
+            continue
+        seen_urls.add(link["target_url"])
+        result.append(link)
+        if len(result) >= max_links:
+            break
+    return result
 
 
 def render_internal_links_html(

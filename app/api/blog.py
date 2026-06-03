@@ -12,8 +12,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.api.deps import ShopContext, get_shop_context
+from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_writer import ShopifyWriteError
-from app.blog.internal_links import render_internal_links_html, select_blog_internal_links
+from app.blog.internal_links import (
+    render_internal_links_html,
+    select_blog_internal_links,
+    suggest_links_for_article,
+)
 from app.blog.schema import build_article_jsonld, build_faqpage_jsonld, render_jsonld_blocks
 from app.blog.section_generator import generate_all_sections, generate_section
 from app.blog.shopify_articles import BlogPublisher
@@ -78,7 +83,8 @@ class PublishDraftRequest(BaseModel):
 
 
 class DraftCreateRequest(BaseModel):
-    product_id: str
+    product_id: str | None = None
+    blog_title: str = ""
     auto_generate: bool = True
     blog_idea_index: int | None = None
 
@@ -94,6 +100,11 @@ class DraftUpdateRequest(BaseModel):
     author_name: str | None = None
     author_url: str | None = None
     image_url: str | None = None
+
+
+class LinkSuggestionsRequest(BaseModel):
+    keywords: list[str] = Field(default_factory=list)
+    exclude_urls: list[str] = Field(default_factory=list)
 
 
 def _source_product_link(
@@ -197,20 +208,82 @@ def create_blog_draft(
     body: DraftCreateRequest,
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict[str, Any]:
-    """Create a draft from a product. Generates all sections synchronously by default."""
-    draft = _draft_from_product(ctx.shop, body.product_id, blog_idea_index=body.blog_idea_index)
-    if body.auto_generate and draft["outline"]:
-        draft["sections"] = generate_all_sections(
-            blog_title=draft["blog_title"],
-            h2_questions=draft["outline"],
-            product_title=draft["product_title"],
-            product_summary=draft["product_summary"],
-            confirmed_facts=draft["confirmed_facts"],
-            target_customer=draft["target_customer"],
-            shop=ctx.shop,
-        )
+    """Create a draft. Supply product_id to pre-populate from market analysis, or blog_title alone for a blank draft."""
+    if body.product_id:
+        draft = _draft_from_product(ctx.shop, body.product_id, blog_idea_index=body.blog_idea_index)
+        if body.auto_generate and draft["outline"]:
+            draft["sections"] = generate_all_sections(
+                blog_title=draft["blog_title"],
+                h2_questions=draft["outline"],
+                product_title=draft["product_title"],
+                product_summary=draft["product_summary"],
+                confirmed_facts=draft["confirmed_facts"],
+                target_customer=draft["target_customer"],
+                shop=ctx.shop,
+            )
+    else:
+        draft = {
+            "product_title": "",
+            "blog_title": body.blog_title,
+            "intro": "",
+            "summary": "",
+            "sections": [],
+            "internal_links": [],
+            "outline": [],
+            "tags": [],
+            "author_type": "Organization",
+            "author_name": "",
+        }
     saved = save_draft(ctx.shop, draft)
     return saved
+
+
+@router.get("/shops/{shop}/blog/drafts/{draft_id}/linkable-articles")
+def list_linkable_articles(
+    draft_id: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Return other drafts that can be linked from the given draft."""
+    all_drafts = list_drafts(ctx.shop)
+    linkable = [
+        {
+            "id": d["id"],
+            "blog_title": d.get("blog_title", ""),
+            "shopify_article_handle": d.get("shopify_article_handle"),
+            "status": d.get("status", "draft"),
+            "tags": d.get("tags", []),
+        }
+        for d in all_drafts
+        if d.get("id") != draft_id and d.get("blog_title")
+    ]
+    published = [d for d in linkable if d["status"] == "published_to_shopify"]
+    unpublished = [d for d in linkable if d["status"] != "published_to_shopify"]
+    return {"articles": published + unpublished}
+
+
+@router.post("/shops/{shop}/blog/drafts/{draft_id}/link-suggestions")
+def get_link_suggestions(
+    draft_id: str,
+    body: LinkSuggestionsRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Return dynamic link suggestions for a draft based on provided keywords.
+
+    Matches keywords against products (via primary keyword), collections, and
+    other drafts. Uses the latest market analysis for product/collection data.
+    """
+    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    products = (load_latest_result(ctx.shop) or {}).get("products") or snapshot.get("products") or []
+    collections = snapshot.get("collections") or []
+    other_drafts = [d for d in list_drafts(ctx.shop) if d.get("id") != draft_id]
+    suggestions = suggest_links_for_article(
+        keywords=body.keywords,
+        products=products,
+        collections=collections,
+        other_drafts=other_drafts,
+        exclude_urls=set(body.exclude_urls),
+    )
+    return {"suggestions": suggestions}
 
 
 @router.put("/shops/{shop}/blog/drafts/{draft_id}")

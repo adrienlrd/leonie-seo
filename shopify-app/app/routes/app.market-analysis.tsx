@@ -1524,9 +1524,18 @@ function OrphanGapsBanner({
               {t(locale, "marketAnalysisBlogGapsExplain")}
             </Text>
             {blogGaps.map((gap, i) => (
-              <Text key={i} as="p" variant="bodySm">
-                • {gap.suggested_title}
-              </Text>
+              <InlineStack key={i} gap="200" align="start" blockAlign="center">
+                <Text as="p" variant="bodySm">
+                  • {gap.suggested_title}
+                </Text>
+                <Button
+                  size="slim"
+                  variant="plain"
+                  url={`/app/blog?cluster=${encodeURIComponent(gap.cluster_head)}&title=${encodeURIComponent(gap.suggested_title)}`}
+                >
+                  {t(locale, "marketAnalysisBlogGapCreate")}
+                </Button>
+              </InlineStack>
             ))}
           </BlockStack>
         ) : null}

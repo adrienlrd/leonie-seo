@@ -514,6 +514,7 @@ const FR: Dictionary = {
   marketAnalysisOrphanProductsExplain: "Ces produits n'appartiennent à aucune collection et ne sont mentionnés dans aucun article. Ils reçoivent peu de jus SEO interne.",
   marketAnalysisBlogGaps: "Trous de contenu blog (intent informationnel non couvert)",
   marketAnalysisBlogGapsExplain: "Aucun article de votre blog ne couvre ces requêtes informationnelles. Créer un article augmente l'autorité topique.",
+  marketAnalysisBlogGapCreate: "Créer l'article",
   // ── V1 hybrid data layer ──────────────────────────────────────────────────
   marketAnalysisDataUsed: "Données utilisées",
   marketAnalysisFreeLimits: "Limites du mode gratuit",
@@ -1109,6 +1110,7 @@ const EN: Dictionary = {
   marketAnalysisOrphanProductsExplain: "These products belong to no collection and are not mentioned in any article. They receive little internal SEO juice.",
   marketAnalysisBlogGaps: "Blog content gaps (uncovered informational intent)",
   marketAnalysisBlogGapsExplain: "No article on your blog covers these informational queries. Publishing one boosts topical authority.",
+  marketAnalysisBlogGapCreate: "Create article",
   // ── V1 hybrid data layer ──────────────────────────────────────────────────
   marketAnalysisDataUsed: "Data sources used",
   marketAnalysisFreeLimits: "Free-mode limits",
