@@ -24,6 +24,7 @@ import {
   Button,
   Card,
   ChoiceList,
+  Divider,
   EmptyState,
   InlineStack,
   Modal,
@@ -70,6 +71,16 @@ interface Draft {
   updated_at?: string;
 }
 
+interface BlogIdeaFlat {
+  title: string;
+  target_keyword: string;
+  intro: string;
+  outline: string[];
+  product_id: string;
+  product_title: string;
+  idea_index: number;
+}
+
 interface LoaderData {
   locale: Locale;
   shop: string;
@@ -78,6 +89,7 @@ interface LoaderData {
   error: string | null;
   prefillTitle: string | null;
   prefillCluster: string | null;
+  blogIdeas: BlogIdeaFlat[];
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -107,6 +119,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (oneRes.ok) selected = (await oneRes.json()) as Draft;
   }
 
+  // Load blog ideas from the latest market analysis
+  let blogIdeas: BlogIdeaFlat[] = [];
+  try {
+    const analysisRes = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/market-analysis/latest`,
+      { accessToken: session.accessToken },
+    );
+    if (analysisRes.ok) {
+      const analysis = (await analysisRes.json()) as { products?: Array<{
+        product_id: string; product_title: string;
+        content_test_pack?: { proposed_blog_ideas?: Array<{ title?: string; target_keyword?: string; intro?: string; outline?: string[] }> };
+      }> };
+      blogIdeas = (analysis.products ?? []).flatMap((p) =>
+        ((p.content_test_pack?.proposed_blog_ideas) ?? []).map((idea, idx) => ({
+          title: idea.title ?? "",
+          target_keyword: idea.target_keyword ?? "",
+          intro: idea.intro ?? "",
+          outline: idea.outline ?? [],
+          product_id: p.product_id,
+          product_title: p.product_title,
+          idea_index: idx,
+        })),
+      );
+    }
+  } catch { /* analysis not available yet */ }
+
   return json<LoaderData>({
     locale,
     shop: session.shop,
@@ -115,6 +154,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     error: null,
     prefillTitle,
     prefillCluster,
+    blogIdeas,
   });
 };
 
@@ -293,13 +333,15 @@ function DraftListItem({
   draft,
   active,
   locale,
-}: { draft: Draft; active: boolean; locale: Locale }) {
+  onClick,
+}: { draft: Draft; active: boolean; locale: Locale; onClick?: () => void }) {
   const fr = locale === "fr";
   // Use the Remix Link (client-side navigation) so we never leave the embedded
   // Shopify session — a plain anchor would trigger the OAuth login path.
   return (
     <RemixLink
       to={`/app/blog?draft=${draft.id}`}
+      onClick={onClick}
       style={{
         display: "block",
         textDecoration: "none",
@@ -328,7 +370,7 @@ function DraftListItem({
 }
 
 export default function BlogIndexPage() {
-  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster } = useLoaderData<typeof loader>();
+  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
   const navigate = useNavigate();
@@ -347,6 +389,9 @@ export default function BlogIndexPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
+  const [selectedIdea, setSelectedIdea] = useState<BlogIdeaFlat | null>(null);
+  const [showPublished, setShowPublished] = useState(true);
+  const [showIdeas, setShowIdeas] = useState(true);
   // 0 = édition, 1 = aperçu — saving auto-switches to preview so the merchant
   // immediately sees the cleanly-rendered article.
   const [tabIndex, setTabIndex] = useState(0);
@@ -544,31 +589,174 @@ export default function BlogIndexPage() {
         <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, alignItems: "start" }}>
           <Card padding="200">
             <BlockStack gap="200">
-              <InlineStack align="space-between" blockAlign="center">
-                <Text as="h2" variant="headingSm">
-                  {fr ? `Brouillons (${drafts.length})` : `Drafts (${drafts.length})`}
-                </Text>
-              </InlineStack>
-              {drafts.length === 0 ? (
-                <Text as="p" tone="subdued" variant="bodySm">
-                  {fr
-                    ? "Aucun brouillon. Génère-en un depuis Analyse marché."
-                    : "No drafts yet. Generate one from Market analysis."}
-                </Text>
-              ) : (
-                <Box>
-                  {drafts.map((d) => (
-                    <DraftListItem key={d.id} draft={d} active={d.id === draft?.id} locale={locale} />
-                  ))}
-                </Box>
+              {/* ── Publiés ──────────────────────────────────────────── */}
+              {(() => {
+                const published = drafts.filter((d) => d.status === "published_to_shopify");
+                if (published.length === 0) return null;
+                return (
+                  <>
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text as="h2" variant="headingSm">
+                        {fr ? `Publiés (${published.length})` : `Published (${published.length})`}
+                      </Text>
+                      <Button size="slim" variant="plain" onClick={() => setShowPublished((p) => !p)}>
+                        {showPublished ? "▲" : "▼"}
+                      </Button>
+                    </InlineStack>
+                    {showPublished && (
+                      <Box>
+                        {published.map((d) => (
+                          <DraftListItem key={d.id} draft={d} active={d.id === draft?.id && !selectedIdea} locale={locale} onClick={() => setSelectedIdea(null)} />
+                        ))}
+                      </Box>
+                    )}
+                    <Divider />
+                  </>
+                );
+              })()}
+
+              {/* ── Brouillons ───────────────────────────────────────── */}
+              {(() => {
+                const unpublished = drafts.filter((d) => d.status !== "published_to_shopify");
+                return (
+                  <>
+                    <Text as="h2" variant="headingSm">
+                      {fr ? `Brouillons (${unpublished.length})` : `Drafts (${unpublished.length})`}
+                    </Text>
+                    {unpublished.length === 0 ? (
+                      <Text as="p" tone="subdued" variant="bodySm">
+                        {fr ? "Aucun brouillon." : "No drafts yet."}
+                      </Text>
+                    ) : (
+                      <Box>
+                        {unpublished.map((d) => (
+                          <DraftListItem key={d.id} draft={d} active={d.id === draft?.id && !selectedIdea} locale={locale} onClick={() => setSelectedIdea(null)} />
+                        ))}
+                      </Box>
+                    )}
+                  </>
+                );
+              })()}
+
+              {/* ── Idées de blog ────────────────────────────────────── */}
+              {blogIdeas.length > 0 && (
+                <>
+                  <Divider />
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="h2" variant="headingSm">
+                      {fr ? `Idées de blog (${blogIdeas.length})` : `Blog ideas (${blogIdeas.length})`}
+                    </Text>
+                    <Button size="slim" variant="plain" onClick={() => setShowIdeas((p) => !p)}>
+                      {showIdeas ? "▲" : "▼"}
+                    </Button>
+                  </InlineStack>
+                  {showIdeas && (
+                    <BlockStack gap="100">
+                      {(() => {
+                        const byProduct = new Map<string, BlogIdeaFlat[]>();
+                        blogIdeas.forEach((idea) => {
+                          const arr = byProduct.get(idea.product_id) ?? [];
+                          arr.push(idea);
+                          byProduct.set(idea.product_id, arr);
+                        });
+                        return [...byProduct.entries()].map(([pid, ideas]) => (
+                          <BlockStack key={pid} gap="050">
+                            <Text as="p" variant="bodySm" fontWeight="semibold" tone="subdued">
+                              {ideas[0].product_title}
+                            </Text>
+                            {ideas.map((idea) => {
+                              const isActive = selectedIdea?.product_id === idea.product_id && selectedIdea?.idea_index === idea.idea_index;
+                              return (
+                                <div
+                                  key={`${pid}-${idea.idea_index}`}
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() => { setSelectedIdea(idea); setDraft(null); }}
+                                  onKeyDown={(e) => { if (e.key === "Enter") { setSelectedIdea(idea); setDraft(null); } }}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: 6,
+                                    cursor: "pointer",
+                                    background: isActive ? "var(--p-color-bg-surface-active)" : "transparent",
+                                    marginBottom: 2,
+                                  }}
+                                >
+                                  <Text as="span" variant="bodySm" fontWeight={isActive ? "semibold" : "regular"}>
+                                    {idea.title || (fr ? "(sans titre)" : "(untitled)")}
+                                  </Text>
+                                </div>
+                              );
+                            })}
+                          </BlockStack>
+                        ));
+                      })()}
+                    </BlockStack>
+                  )}
+                </>
               )}
+
               <Button url="/app/market-analysis" variant="plain">
                 {fr ? "Aller à Analyse marché →" : "Go to Market analysis →"}
               </Button>
             </BlockStack>
           </Card>
 
-          {draft ? (
+          {selectedIdea ? (
+            <Card>
+              <BlockStack gap="400">
+                <InlineStack align="space-between" blockAlign="start" wrap>
+                  <BlockStack gap="100">
+                    <Text as="h2" variant="headingLg">{selectedIdea.title || (fr ? "(sans titre)" : "(untitled)")}</Text>
+                    <Text as="p" variant="bodySm" tone="subdued">{selectedIdea.product_title}</Text>
+                    {selectedIdea.target_keyword && (
+                      <InlineStack gap="100" blockAlign="center">
+                        <Text as="span" variant="bodySm" tone="subdued">{fr ? "Mot-clé cible :" : "Target keyword:"}</Text>
+                        <Badge tone="attention">{selectedIdea.target_keyword}</Badge>
+                      </InlineStack>
+                    )}
+                  </BlockStack>
+                  <Button variant="plain" onClick={() => setSelectedIdea(null)}>
+                    {fr ? "Fermer" : "Close"}
+                  </Button>
+                </InlineStack>
+
+                {selectedIdea.intro && (
+                  <BlockStack gap="100">
+                    <Text as="p" variant="headingXs" tone="subdued">{fr ? "Introduction" : "Introduction"}</Text>
+                    <Text as="p" variant="bodySm">{selectedIdea.intro}</Text>
+                  </BlockStack>
+                )}
+
+                {selectedIdea.outline.length > 0 && (
+                  <BlockStack gap="100">
+                    <Text as="p" variant="headingXs" tone="subdued">{fr ? "Plan de l'article" : "Article outline"}</Text>
+                    <BlockStack gap="050">
+                      {selectedIdea.outline.map((h2, i) => (
+                        <Text key={i} as="p" variant="bodySm">
+                          {i + 1}. {h2}
+                        </Text>
+                      ))}
+                    </BlockStack>
+                  </BlockStack>
+                )}
+
+                <Box paddingBlockStart="200">
+                  <Form method="post">
+                    <input type="hidden" name="intent" value="createFromProduct" />
+                    <input type="hidden" name="productId" value={selectedIdea.product_id} />
+                    <input type="hidden" name="blogIdeaIndex" value={String(selectedIdea.idea_index)} />
+                    <Button
+                      variant="primary"
+                      submit
+                      loading={fetcher.state !== "idle" && fetcher.formData?.get("intent") === "createFromProduct"}
+                    >
+                      {fr ? "Générer l'article" : "Generate article"}
+                    </Button>
+                  </Form>
+                </Box>
+              </BlockStack>
+            </Card>
+          ) : draft ? (
             <Card>
               <BlockStack gap="400">
                 <InlineStack align="space-between" blockAlign="center" wrap>
