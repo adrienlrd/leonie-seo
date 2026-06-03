@@ -947,11 +947,11 @@ function KeywordSourceBadge({ source, locale }: { source: KeywordSource | undefi
   return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlm")}</Badge>;
 }
 
-function tagToneInAdded(tag: ImprovementTag): "success" | "critical" | "attention" | "info" {
+function tagToneInAdded(tag: ImprovementTag): "success" | "critical" | "attention" | "warning" | "info" {
   if (tag.tag_type === "keyword") return "attention";
   if (tag.tag_type === "risk") return "critical";
+  if (tag.tag_type === "merchant" || tag.status === "forced") return "warning";
   if (tag.status === "positive") return "success";
-  if (tag.status === "forced") return "attention";
   return "info";
 }
 
