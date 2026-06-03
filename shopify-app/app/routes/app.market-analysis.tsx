@@ -1177,7 +1177,20 @@ function ProductCard({
 
   // ── Tag state managed at ProductCard level ─────────────────────────────────
   const [localTags, setLocalTags] = useState<ImprovementTag[]>(product.improvement_tags ?? []);
-  useEffect(() => { setLocalTags(product.improvement_tags ?? []); }, [product.product_id]);
+  useEffect(() => {
+    const serverTags = product.improvement_tags ?? [];
+    setLocalTags((prev) => {
+      // Preserve pending optimistic tags (tmp- prefix) not yet confirmed by server
+      const pending = prev.filter(
+        (p) =>
+          p.tag_id.startsWith("tmp-") &&
+          !serverTags.some(
+            (s) => s.label.toLowerCase() === p.label.toLowerCase() && s.tag_type === p.tag_type,
+          ),
+      );
+      return [...serverTags, ...pending];
+    });
+  }, [product.product_id, product.improvement_tags]);
   const tagFetcher = useFetcher<{ ok?: boolean }>();
   const [openBucket, setOpenBucket] = useState<"added" | "retired" | null>(null);
   const [newTagLabel, setNewTagLabel] = useState("");
