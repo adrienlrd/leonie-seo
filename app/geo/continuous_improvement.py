@@ -364,6 +364,27 @@ def reset_all_shop_tags(shop: str, db_path: Path | None = None) -> int:
         raise
 
 
+def _published_linked_handles(shop: str) -> set[str]:
+    """Return product handles linked from any published Léonie blog article."""
+    try:
+        from app.blog.store import list_drafts  # noqa: PLC0415
+
+        linked: set[str] = set()
+        for draft in list_drafts(shop):
+            if draft.get("status") != "published_to_shopify":
+                continue
+            for link in draft.get("internal_links") or []:
+                url = str(link.get("target_url") or "").strip().rstrip("/")
+                parts = url.split("/")
+                if "products" in parts:
+                    idx = parts.index("products") + 1
+                    if idx < len(parts) and parts[idx]:
+                        linked.add(parts[idx])
+        return linked
+    except Exception:
+        return set()
+
+
 def enrich_market_analysis_result(
     shop: str,
     result: dict[str, Any],
@@ -373,6 +394,7 @@ def enrich_market_analysis_result(
 ) -> dict[str, Any]:
     """Attach tags and per-element improvement statuses to a market analysis result."""
     enriched = dict(result)
+    linked_handles = _published_linked_handles(shop)
     products = []
     for product in result.get("products", []) if isinstance(result.get("products"), list) else []:
         if not isinstance(product, dict):
@@ -385,6 +407,13 @@ def enrich_market_analysis_result(
             db_path=db_path,
         )
         product_copy["improvement_elements"] = build_improvement_elements(product_copy)
+        # Override maillage element immediately when a published blog links to this product
+        handle = str(product_copy.get("product_handle") or "").strip()
+        if handle and handle in linked_handles:
+            for el in product_copy["improvement_elements"]:
+                if el.get("key") == "internal_links":
+                    el["improved"] = True
+                    el["status"] = "improved"
         products.append(product_copy)
     enriched["products"] = products
     return enriched

@@ -14,6 +14,30 @@ _MAX_BLOG_LINKS = 5
 _DYNAMIC_SIM_THRESHOLD = 0.3
 
 
+def build_source_product_link(
+    product: dict[str, Any],
+    selected_idea: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Build the canonical blog→product link for a draft (public version)."""
+    selected_idea = selected_idea or {}
+    target_url = str(product.get("product_url") or "").strip()
+    if not target_url:
+        handle = str(product.get("product_handle") or "").strip()
+        target_url = f"/products/{handle}" if handle else ""
+    if not target_url:
+        return None
+    title = str(product.get("product_title") or "").strip()
+    anchor = str(selected_idea.get("target_keyword") or "").strip() or title
+    if not anchor:
+        return None
+    return {
+        "target_url": target_url,
+        "target_title": title or anchor,
+        "anchors": [anchor],
+        "reason": "source_product",
+    }
+
+
 def select_blog_internal_links(
     recommendations: list[dict[str, Any]] | None,
     *,

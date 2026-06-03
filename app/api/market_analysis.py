@@ -11,6 +11,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_days
 from app.api.deps import ShopContext, get_shop_context
 from app.apply.apply_faq import apply_schema_facts_to_shopify
+from app.blog.auto_draft import auto_create_orphan_drafts
+from app.blog.store import list_drafts
 from app.business_profile.context import (
     build_business_profile_context_meta,
     resolve_business_profile_context_status,
@@ -185,6 +187,54 @@ def _run_identification_background(
         update_job(job_id, status="failed", error=str(exc))
 
 
+def _handle_from_url(url: str) -> str:
+    """Extract a product/collection handle from a /products/handle or /collections/.../products/handle URL."""
+    url = url.strip().rstrip("/")
+    parts = url.split("/")
+    if "products" in parts:
+        idx = len(parts) - 1 - parts[::-1].index("products") + 1  # noqa: E501 — index after "products"
+        if idx < len(parts):
+            return parts[idx]
+    if parts:
+        return parts[-1]
+    return ""
+
+
+def _leonie_articles_as_snapshot(shop: str) -> list[dict[str, Any]]:
+    """Convert published Léonie blog drafts to the snapshot article format.
+
+    The returned dicts match the format expected by build_recommendations():
+    { handle, title, keywords[], linked_product_handles[] }
+    """
+    import logging  # noqa: PLC0415
+
+    logger = logging.getLogger(__name__)
+    try:
+        drafts = list_drafts(shop)
+    except Exception as exc:
+        logger.warning("_leonie_articles_as_snapshot: could not load drafts for %s: %s", shop, exc)
+        return []
+    articles = []
+    for draft in drafts:
+        if draft.get("status") != "published_to_shopify":
+            continue
+        handle = str(draft.get("shopify_article_handle") or "").strip()
+        if not handle:
+            continue
+        linked_handles = [
+            _handle_from_url(str(link.get("target_url") or ""))
+            for link in (draft.get("internal_links") or [])
+            if link.get("target_url")
+        ]
+        articles.append({
+            "handle": handle,
+            "title": str(draft.get("blog_title") or ""),
+            "keywords": list(draft.get("tags") or []),
+            "linked_product_handles": [h for h in linked_handles if h],
+        })
+    return articles
+
+
 def _auto_sync_schema_facts(shop: str, products: list[dict[str, Any]]) -> None:
     """Push confirmed facts to the `leonie.schema_facts` metafield for each product.
 
@@ -264,6 +314,10 @@ def _run_analysis_background(
         retired_labels = get_shop_retired_tags(shop_domain)
         retired_lower = {lbl.lower().strip() for lbl in retired_labels}
 
+        # Merge snapshot articles with Léonie-published blog articles so the
+        # internal-linking engine sees articles we've already published.
+        merged_articles = list(articles or []) + _leonie_articles_as_snapshot(shop_domain)
+
         result = run_market_analysis(
             products,
             shop_domain,
@@ -279,7 +333,7 @@ def _run_analysis_background(
             business_profile=business_profile,
             progress_callback=_on_progress,
             collections=collections,
-            articles=articles,
+            articles=merged_articles,
             reflection_test=reflection_test,
         )
 
@@ -350,6 +404,7 @@ def _run_analysis_background(
             )
             save_latest_result(shop_domain, completed_data)
             _auto_sync_schema_facts(shop_domain, completed_data["products"])
+            auto_create_orphan_drafts(shop_domain, completed_data)
         elif persist_product_results:
             for product_result in completed_data["products"]:
                 replace_product_analysis(shop_domain, product_result, result["analyzed_at"])

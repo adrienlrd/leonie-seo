@@ -15,6 +15,7 @@ from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_writer import ShopifyWriteError
 from app.blog.internal_links import (
+    build_source_product_link,
     render_internal_links_html,
     select_blog_internal_links,
     suggest_links_for_article,
@@ -107,27 +108,6 @@ class LinkSuggestionsRequest(BaseModel):
     exclude_urls: list[str] = Field(default_factory=list)
 
 
-def _source_product_link(
-    product: dict[str, Any],
-    selected_idea: dict[str, Any],
-) -> dict[str, Any] | None:
-    """Build the guaranteed blog-to-product link for the generated draft."""
-    target_url = str(product.get("product_url") or "").strip()
-    if not target_url:
-        handle = str(product.get("product_handle") or "").strip()
-        target_url = f"/products/{handle}" if handle else ""
-    if not target_url:
-        return None
-    title = str(product.get("product_title") or "").strip()
-    anchor = str(selected_idea.get("target_keyword") or "").strip() or title
-    if not anchor:
-        return None
-    return {
-        "target_url": target_url,
-        "target_title": title or anchor,
-        "anchors": [anchor],
-        "reason": "source_product",
-    }
 
 
 def _draft_from_product(
@@ -159,7 +139,7 @@ def _draft_from_product(
     raw_internal_links = [
         link
         for link in [
-            _source_product_link(product, selected_idea),
+            build_source_product_link(product, selected_idea),
             *(
                 pack.get("recommended_internal_links")
                 or product.get("recommended_internal_links")
