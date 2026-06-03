@@ -1057,8 +1057,6 @@ function ProductCard({
       .map(([query]) => query),
   );
 
-  const jsonld = pack.proposed_schema_jsonld;
-  const hasStructuredData = Boolean(jsonld && (jsonld.product || jsonld.faq || jsonld.breadcrumb));
 
   return (
     <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface">
@@ -1142,11 +1140,6 @@ function ProductCard({
           {displayedKeywords.length > 0 && (
             <Button size="slim" pressed={openSection === "keywords"} onClick={() => toggle("keywords")}>
               {`${t(locale, "marketAnalysisSeoKeywords")} (${displayedKeywords.length})`}
-            </Button>
-          )}
-          {hasStructuredData && (
-            <Button size="slim" pressed={openSection === "structured"} onClick={() => toggle("structured")}>
-              {t(locale, "marketAnalysisStructuredData")}
             </Button>
           )}
           {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (
@@ -1268,14 +1261,6 @@ function ProductCard({
                 </BlockStack>
               </Box>
             </Collapsible>
-        )}
-
-        {hasStructuredData && (
-          <Collapsible id={`structured-${product.product_id}`} open={openSection === "structured"}>
-            <Box paddingBlockStart="200">
-              <GeoPackSection productId={product.product_id} pack={pack} locale={locale} />
-            </Box>
-          </Collapsible>
         )}
 
         {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (

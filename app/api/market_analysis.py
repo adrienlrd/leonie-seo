@@ -182,6 +182,28 @@ def _run_identification_background(
         update_job(job_id, status="failed", error=str(exc))
 
 
+def _auto_sync_schema_facts(shop: str, products: list[dict[str, Any]]) -> None:
+    """Push confirmed facts to the `leonie.schema_facts` metafield for each product.
+
+    Fail-open: a sync error is logged but never blocks the analysis result.
+    """
+    import logging  # noqa: PLC0415
+
+    logger = logging.getLogger(__name__)
+    for product in products:
+        pack = product.get("content_test_pack") or {}
+        confirmed_facts = pack.get("confirmed_facts") or []
+        if not confirmed_facts:
+            continue
+        pid = product.get("product_id", "")
+        if not pid:
+            continue
+        try:
+            apply_schema_facts_to_shopify(shop, pid, confirmed_facts)
+        except Exception as exc:
+            logger.warning("Auto schema-facts sync failed for %s/%s: %s", shop, pid, exc)
+
+
 def _run_analysis_background(
     job_id: str,
     products: list[dict[str, Any]],
@@ -283,6 +305,7 @@ def _run_analysis_background(
                 persist_tags=True,
             )
             save_latest_result(shop_domain, completed_data)
+            _auto_sync_schema_facts(shop_domain, completed_data["products"])
         elif persist_product_results:
             for product_result in completed_data["products"]:
                 replace_product_analysis(shop_domain, product_result, result["analyzed_at"])
