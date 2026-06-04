@@ -599,69 +599,66 @@ export function ProductContentProposals({
   const activeEnrichmentQuestions = enrichmentQuestions.filter((q) => !retiredKeys.has(q.key));
   const [showRetiredQuestions, setShowRetiredQuestions] = useState(false);
 
-  const enrichmentBlock = !editMode && (activeEnrichmentQuestions.length > 0 || retiredQuestions.length > 0) ? (
+  // Faits déjà confirmés dans les analyses précédentes (source=merchant_confirmation)
+  const confirmedAnswers = enrichmentAnswers; // merchantAnswersFromPack already read from confirmed_facts
+
+  const hasContent = activeEnrichmentQuestions.length > 0 || retiredQuestions.length > 0 || Object.keys(confirmedAnswers).length > 0;
+
+  const enrichmentBlock = !editMode && hasContent ? (
     <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
-      <BlockStack gap="200">
-        <InlineStack gap="200" blockAlign="center" wrap>
-          <Text as="p" variant="bodySm" fontWeight="semibold">
-            {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
-          </Text>
-          {activeEnrichmentQuestions.length > 0 && (
-            <Button size="slim" variant="plain" onClick={() => setShowEnrichmentQuestions((open) => !open)}>
-              {showEnrichmentQuestions
-                ? (locale === "fr" ? "Réduire" : "Collapse")
-                : (locale === "fr" ? "Compléter" : "Complete")}
+      <BlockStack gap="300">
+        <Text as="p" variant="bodySm" fontWeight="semibold">
+          {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
+        </Text>
+        <Text as="p" variant="bodySm" tone="subdued">
+          {locale === "fr"
+            ? "Vos réponses sont persistées et réinjectées automatiquement dans chaque analyse."
+            : "Your answers are persisted and automatically re-injected into every analysis."}
+        </Text>
+
+        {/* Questions actives — toujours visibles, bouton Retirer inline */}
+        {activeEnrichmentQuestions.map((question) => (
+          <InlineStack key={question.key} align="space-between" blockAlign="start" wrap={false} gap="200">
+            <Box width="100%">
+              <TextField
+                label={question.question}
+                helpText={question.why_it_matters}
+                placeholder={question.placeholder}
+                value={enrichmentAnswers[question.key] ?? ""}
+                onChange={(value) => setEnrichmentAnswers((answers) => ({ ...answers, [question.key]: value }))}
+                autoComplete="off"
+                multiline={2}
+              />
+            </Box>
+            {onRetireQuestion && (
+              <div style={{ paddingTop: 28, flexShrink: 0 }}>
+                <Button
+                  size="slim"
+                  variant="plain"
+                  tone="critical"
+                  onClick={() => onRetireQuestion(question.key)}
+                >
+                  {locale === "fr" ? "Retirer" : "Dismiss"}
+                </Button>
+              </div>
+            )}
+          </InlineStack>
+        ))}
+
+        {activeEnrichmentQuestions.length > 0 && (
+          <InlineStack>
+            <Button
+              variant="primary"
+              loading={isAnalyzing}
+              disabled={!canSubmitEnrichment || analyzeDisabled}
+              onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
+            >
+              {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
             </Button>
-          )}
-        </InlineStack>
-        <Collapsible id={`enrichment-${product.product_id}`} open={showEnrichmentQuestions}>
-          <BlockStack gap="300">
-            <Text as="p" variant="bodySm" tone="subdued">
-              {locale === "fr"
-                ? "Répondez seulement avec des informations exactes. Vos réponses sont persistées et utilisées par les prochaines analyses."
-                : "Answer only with accurate information. Your answers are persisted and used by future analyses."}
-            </Text>
-            {activeEnrichmentQuestions.map((question) => (
-              <BlockStack key={question.key} gap="100">
-                <InlineStack align="space-between" blockAlign="start" wrap={false}>
-                  <Box width="100%">
-                    <TextField
-                      label={question.question}
-                      helpText={question.why_it_matters}
-                      placeholder={question.placeholder}
-                      value={enrichmentAnswers[question.key] ?? ""}
-                      onChange={(value) => setEnrichmentAnswers((answers) => ({ ...answers, [question.key]: value }))}
-                      autoComplete="off"
-                      multiline={2}
-                    />
-                  </Box>
-                  {onRetireQuestion && (
-                    <div style={{ paddingTop: 28, paddingLeft: 8, flexShrink: 0 }}>
-                      <Button
-                        size="slim"
-                        variant="plain"
-                        tone="critical"
-                        onClick={() => onRetireQuestion(question.key)}
-                      >
-                        {locale === "fr" ? "Retirer" : "Dismiss"}
-                      </Button>
-                    </div>
-                  )}
-                </InlineStack>
-              </BlockStack>
-            ))}
-            <InlineStack gap="200">
-              <Button
-                variant="primary"
-                loading={isAnalyzing}
-                disabled={!canSubmitEnrichment || analyzeDisabled}
-                onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
-              >
-                {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
-              </Button>
-            </InlineStack>
-          </BlockStack>
-        </Collapsible>
+          </InlineStack>
+        )}
+
+        {/* Questions non pertinentes */}
         {retiredQuestions.length > 0 && (
           <>
             <Button
@@ -677,7 +674,14 @@ export function ProductContentProposals({
               <BlockStack gap="200">
                 {retiredQuestions.map((question) => (
                   <InlineStack key={question.key} align="space-between" blockAlign="center" wrap>
-                    <Text as="p" variant="bodySm" tone="subdued">{question.question}</Text>
+                    <BlockStack gap="050">
+                      <Text as="p" variant="bodySm" tone="subdued">{question.question}</Text>
+                      {confirmedAnswers[question.key] && (
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          → {confirmedAnswers[question.key]}
+                        </Text>
+                      )}
+                    </BlockStack>
                     {onRestoreQuestion && (
                       <Button size="slim" variant="plain" onClick={() => onRestoreQuestion(question.key)}>
                         {locale === "fr" ? "Restaurer" : "Restore"}

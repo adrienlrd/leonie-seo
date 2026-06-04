@@ -277,6 +277,7 @@ def _run_analysis_background(
     persist: bool = True,
     plan: str | None = None,
     merchant_facts_by_product: dict[str, dict[str, str]] | None = None,
+    retired_questions_by_product: dict[str, list[str]] | None = None,
     persist_product_results: bool = False,
     business_profile: dict[str, Any] | None = None,
     collections: list[dict[str, Any]] | None = None,
@@ -337,6 +338,7 @@ def _run_analysis_background(
             product_labels=identifications or None,
             plan=plan,
             merchant_facts_by_product=merchant_facts_by_product,
+            retired_questions_by_product=retired_questions_by_product,
             business_profile=business_profile,
             progress_callback=_on_progress,
             collections=collections,
@@ -540,6 +542,7 @@ async def start_market_analysis_job(
     ga4_page_rows = _load_ga4_page_rows(ctx.shop)
     identifications = load_identifications(ctx.shop)  # {} if none saved yet
     merchant_facts = load_merchant_facts(ctx.shop)
+    retired_qs = load_retired_questions(ctx.shop)
     business_profile = load_business_profile(ctx.shop)
 
     job_id = create_job(ctx.shop)
@@ -558,6 +561,7 @@ async def start_market_analysis_job(
         persist,
         plan,
         merchant_facts or None,
+        retired_qs or None,
         persist_product_result,
         business_profile,
         snapshot.get("collections") or [],
