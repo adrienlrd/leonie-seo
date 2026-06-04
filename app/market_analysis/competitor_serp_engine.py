@@ -35,7 +35,8 @@ logger = logging.getLogger(__name__)
 _LOCATION_CODE = 2250
 _LANGUAGE_CODE = "fr"
 _BLOCKED_PATH_PARTS = ("/cart", "/checkout", "/account", "/search", "/login", "/register")
-_MAX_COMPETITORS = 8
+_MAX_PREVIEW = 12  # competitors shown instantly (aligned with the home page list)
+_MAX_ENRICH = 8  # competitors crawled + LLM-synthesized (cost cap)
 
 _SYNTHESIS_SYSTEM = (
     "Tu es un expert SEO/GEO francophone qui aide un marchand Shopify à comprendre "
@@ -48,16 +49,19 @@ _SYNTHESIS_SYSTEM = (
 def build_config_for_serp_job() -> CompetitorCrawlConfig:
     """Build a crawl config for the enrichment job: 1 page per competitor."""
     base = CompetitorCrawlConfig.from_env()
-    return replace(base, enabled=True, max_urls_per_run=_MAX_COMPETITORS)
+    return replace(base, enabled=True, max_urls_per_run=_MAX_ENRICH)
 
 
 # ── Layer 1: instant SERP aggregation ─────────────────────────────────────────
 
 
 def aggregate_competitors_from_serp(
-    shop: str, *, max_competitors: int = _MAX_COMPETITORS
+    shop: str, *, max_competitors: int = _MAX_PREVIEW
 ) -> dict[str, Any]:
-    """Build one profile per competitor domain from the cached SERP intel.
+    """Build one profile per competitor, using the SAME authoritative list as
+    the home page (business profile competitor_domains + market analysis
+    competitor_signals), enriched with cached SERP intel (ranked keywords,
+    titles, PAA, top page to crawl).
 
     Synchronous and fast (cache reads only). No crawl, no LLM. Used by the
     /preview endpoint so the page renders immediately.
@@ -67,6 +71,62 @@ def aggregate_competitors_from_serp(
         return _empty_result(shop, error="no_market_analysis")
 
     merchant_domains = _collect_merchant_domains(shop)
+    serp_by_domain = _build_serp_map(result, merchant_domains)
+    authoritative = _authoritative_competitors(shop, result, merchant_domains)
+
+    competitors = [
+        _finalize_profile(domain, meta, serp_by_domain.get(domain))
+        for domain, meta in authoritative.items()
+    ]
+    competitors.sort(key=lambda c: (-c["estimated_strength"], c["domain"]))
+    competitors = competitors[:max_competitors]
+
+    serp_cache_size = len({kw for d in serp_by_domain.values() for kw in d["_keywords"]})
+    return {
+        "created_at": datetime.now(UTC).isoformat(),
+        "shop": shop,
+        "competitors": competitors,
+        "keywords_used": serp_cache_size,
+        "enriched": False,
+    }
+
+
+def _authoritative_competitors(
+    shop: str, result: dict[str, Any], merchant_domains: set[str]
+) -> dict[str, dict[str, Any]]:
+    """Domains the home page shows: business profile competitor_domains +
+    market analysis competitor_signals (deduped by domain, strongest wins)."""
+    out: dict[str, dict[str, Any]] = {}
+
+    profile = load_business_profile(shop) or {}
+    for raw in profile.get("competitor_domains") or []:
+        domain = _normalize_domain(str(raw))
+        if domain and not _is_merchant(domain, merchant_domains):
+            out.setdefault(domain, {"strength": None, "angle": "", "url": "", "source": "manual"})
+
+    for sig in result.get("competitor_signals") or []:
+        if not isinstance(sig, dict):
+            continue
+        domain = _normalize_domain(str(sig.get("domain", "")))
+        if not domain or _is_merchant(domain, merchant_domains):
+            continue
+        strength = sig.get("estimated_strength")
+        meta = out.setdefault(domain, {"strength": None, "angle": "", "url": "", "source": ""})
+        if isinstance(strength, (int, float)):
+            meta["strength"] = max(meta["strength"] or 0, int(strength))
+        if not meta["angle"]:
+            meta["angle"] = str(sig.get("content_angle") or "").strip()
+        if not meta["url"]:
+            meta["url"] = str(sig.get("url") or "").strip()
+        if not meta["source"]:
+            meta["source"] = str(sig.get("detected_from") or "")
+    return out
+
+
+def _build_serp_map(
+    result: dict[str, Any], merchant_domains: set[str]
+) -> dict[str, dict[str, Any]]:
+    """Per-domain SERP enrichment from the keyword cache (no API call)."""
     all_keywords = _collect_all_keywords(result)
     serp_cache = keyword_cache.get_many(
         keyword_cache.SERP,
@@ -96,7 +156,7 @@ def aggregate_competitors_from_serp(
             rank = int(comp.get("rank") or 99)
             entry = by_domain.setdefault(
                 domain,
-                {"domain": domain, "ranked_keywords": [], "_paa": set(), "_urls": []},
+                {"ranked_keywords": [], "_paa": set(), "_urls": [], "_keywords": set()},
             )
             entry["ranked_keywords"].append({
                 "keyword": kw_norm,
@@ -105,34 +165,34 @@ def aggregate_competitors_from_serp(
                 "url": canonical or url,
             })
             entry["_paa"].update(paa)
+            entry["_keywords"].add(kw_norm)
             if canonical:
                 entry["_urls"].append((rank, canonical, str(comp.get("title", "")).strip()))
-
-    competitors = [_finalize_profile(entry) for entry in by_domain.values()]
-    competitors.sort(key=lambda c: (-c["estimated_strength"], c["domain"]))
-    competitors = competitors[:max_competitors]
-
-    return {
-        "created_at": datetime.now(UTC).isoformat(),
-        "shop": shop,
-        "competitors": competitors,
-        "keywords_used": len(serp_cache),
-        "enriched": False,
-    }
+    return by_domain
 
 
-def _finalize_profile(entry: dict[str, Any]) -> dict[str, Any]:
-    ranked = sorted(entry["ranked_keywords"], key=lambda k: k["rank"])
-    ranks = [k["rank"] for k in ranked] or [99]
-    best_rank = min(ranks)
-    avg_rank = round(mean(ranks), 1)
+def _finalize_profile(
+    domain: str, meta: dict[str, Any], serp: dict[str, Any] | None
+) -> dict[str, Any]:
+    serp = serp or {"ranked_keywords": [], "_paa": set(), "_urls": []}
+    ranked = sorted(serp["ranked_keywords"], key=lambda k: k["rank"])
+    ranks = [k["rank"] for k in ranked]
+    best_rank = min(ranks) if ranks else 0
+    avg_rank = round(mean(ranks), 1) if ranks else 0.0
     count = len(ranked)
-    # Strength: better rank + more keywords ranked → stronger competitor.
-    strength = max(10, min(100, int((100 - best_rank * 5) + min(30, count * 3))))
-    top_urls = sorted(entry["_urls"], key=lambda u: u[0])
-    top_page_url = top_urls[0][1] if top_urls else ""
+
+    signal_strength = meta.get("strength")
+    if isinstance(signal_strength, int):
+        strength = max(10, min(100, signal_strength))
+    elif ranks:
+        strength = max(10, min(100, int((100 - best_rank * 5) + min(30, count * 3))))
+    else:
+        strength = 35
+
+    top_urls = sorted(serp["_urls"], key=lambda u: u[0])
+    top_page_url = top_urls[0][1] if top_urls else str(meta.get("url") or "")
     top_page_title = top_urls[0][2] if top_urls else (ranked[0]["title"] if ranked else "")
-    sample_titles = []
+    sample_titles: list[str] = []
     for k in ranked:
         title = k["title"]
         if title and title not in sample_titles:
@@ -140,7 +200,7 @@ def _finalize_profile(entry: dict[str, Any]) -> dict[str, Any]:
         if len(sample_titles) >= 5:
             break
     return {
-        "domain": entry["domain"],
+        "domain": domain,
         "estimated_strength": strength,
         "strength_label": _strength_label(strength),
         "ranked_keyword_count": count,
@@ -148,7 +208,8 @@ def _finalize_profile(entry: dict[str, Any]) -> dict[str, Any]:
         "avg_rank": avg_rank,
         "ranked_keywords": ranked[:15],
         "sample_titles": sample_titles,
-        "paa_questions": sorted(entry["_paa"])[:10],
+        "paa_questions": sorted(serp["_paa"])[:10],
+        "content_angle": str(meta.get("angle") or ""),
         "top_page_url": top_page_url,
         "top_page_title": top_page_title,
         "top_page": None,
@@ -173,7 +234,9 @@ def run_competitor_serp_crawl(shop: str, config: CompetitorCrawlConfig) -> dict[
     if preview.get("error") or not preview["competitors"]:
         return preview
 
-    competitors = preview["competitors"]
+    # Preview lists all competitors (aligned with the home page); enrichment
+    # (crawl + LLM) is capped to the strongest _MAX_ENRICH to bound cost.
+    to_enrich = preview["competitors"][:_MAX_ENRICH]
     targets = [
         CompetitorCrawlTarget(
             keyword=(c["ranked_keywords"][0]["keyword"] if c["ranked_keywords"] else ""),
@@ -182,7 +245,7 @@ def run_competitor_serp_crawl(shop: str, config: CompetitorCrawlConfig) -> dict[
             url=c["top_page_url"],
             title=c["top_page_title"],
         )
-        for c in competitors
+        for c in to_enrich
         if c["top_page_url"]
     ]
     crawl_results = fetch_competitor_targets(targets, config)
@@ -195,7 +258,7 @@ def run_competitor_serp_crawl(shop: str, config: CompetitorCrawlConfig) -> dict[
     llm_router = _get_router_safe(shop)
 
     total_crawled = 0
-    for competitor in competitors:
+    for competitor in to_enrich:
         features = features_by_domain.get(competitor["domain"])
         if features:
             total_crawled += 1

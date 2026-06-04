@@ -397,9 +397,15 @@ function CompetitorCard({
               </Badge>
             </InlineStack>
             <Text as="p" tone="subdued">
-              {locale === "fr"
-                ? `${profile.ranked_keyword_count} mots-clés rankés · meilleure position #${profile.best_rank} · moyenne #${profile.avg_rank}`
-                : `${profile.ranked_keyword_count} ranked keywords · best #${profile.best_rank} · avg #${profile.avg_rank}`}
+              {profile.ranked_keyword_count > 0
+                ? locale === "fr"
+                  ? `${profile.ranked_keyword_count} mots-clés rankés · meilleure position #${profile.best_rank} · moyenne #${profile.avg_rank}`
+                  : `${profile.ranked_keyword_count} ranked keywords · best #${profile.best_rank} · avg #${profile.avg_rank}`
+                : profile.content_angle
+                  ? profile.content_angle
+                  : locale === "fr"
+                    ? "Concurrent identifié au niveau du domaine"
+                    : "Competitor identified at domain level"}
             </Text>
           </BlockStack>
           {profile.top_page_url && (

@@ -379,6 +379,7 @@ export interface CompetitorProfile {
   ranked_keywords: CompetitorRankedKeyword[];
   sample_titles: string[];
   paa_questions: string[];
+  content_angle?: string;
   top_page_url?: string;
   top_page_title?: string;
   top_page?: CompetitorCrawlTopUrl | null;

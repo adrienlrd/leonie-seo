@@ -33,37 +33,53 @@ def _market_result() -> dict[str, Any]:
         "products": [
             {"seo_keywords": [{"query": "fontaine chat"}, {"query": "gamelle chat"}]},
         ],
-        "competitor_signals": [],
+        "competitor_signals": [
+            {"domain": "zooplus.fr", "estimated_strength": 85, "detected_from": "paid_provider"},
+            {"domain": "wanimo.com", "estimated_strength": 40, "detected_from": "paid_provider"},
+        ],
     }
 
 
-def test_aggregate_groups_by_domain_and_sorts_by_strength(monkeypatch):
+def test_aggregate_uses_signals_and_enriches_from_serp(monkeypatch):
     monkeypatch.setattr(engine, "load_latest_result", lambda shop: _market_result())
-    monkeypatch.setattr(
-        engine.keyword_cache, "get_many", lambda *a, **k: _serp_cache()
-    )
+    monkeypatch.setattr(engine, "load_business_profile", lambda shop: None)
+    monkeypatch.setattr(engine.keyword_cache, "get_many", lambda *a, **k: _serp_cache())
 
     out = engine.aggregate_competitors_from_serp("demo.myshopify.com")
 
     assert out["enriched"] is False
     assert out["keywords_used"] == 2
     domains = [c["domain"] for c in out["competitors"]]
-    assert domains[0] == "zooplus.fr"  # 2 keywords, best rank 1 → strongest
+    assert domains == ["zooplus.fr", "wanimo.com"]  # sorted by signal strength
     zooplus = out["competitors"][0]
-    assert zooplus["ranked_keyword_count"] == 2
+    assert zooplus["estimated_strength"] == 85  # from signal, not derived
+    assert zooplus["ranked_keyword_count"] == 2  # enriched from SERP cache
     assert zooplus["best_rank"] == 1
-    assert zooplus["top_page_url"] == "https://zooplus.fr/fontaine"  # best rank
+    assert zooplus["top_page_url"] == "https://zooplus.fr/fontaine"
     assert zooplus["synthesis"] is None
     assert "Comment nettoyer une fontaine ?" in zooplus["paa_questions"]
 
 
-def test_aggregate_excludes_merchant_domain(monkeypatch):
-    cache = _serp_cache()
-    cache["fontaine chat"]["top_competitors"].append(
-        {"domain": "demo.myshopify.com", "title": "Ma fontaine", "url": "https://demo.myshopify.com/x", "rank": 3}
+def test_aggregate_includes_manual_competitor_domains(monkeypatch):
+    monkeypatch.setattr(engine, "load_latest_result", lambda shop: {"products": [], "competitor_signals": []})
+    monkeypatch.setattr(
+        engine, "load_business_profile", lambda shop: {"competitor_domains": ["croquetteland.com"]}
     )
-    monkeypatch.setattr(engine, "load_latest_result", lambda shop: _market_result())
-    monkeypatch.setattr(engine.keyword_cache, "get_many", lambda *a, **k: cache)
+    monkeypatch.setattr(engine.keyword_cache, "get_many", lambda *a, **k: {})
+
+    out = engine.aggregate_competitors_from_serp("demo.myshopify.com")
+
+    assert "croquetteland.com" in [c["domain"] for c in out["competitors"]]
+
+
+def test_aggregate_excludes_merchant_domain(monkeypatch):
+    result = _market_result()
+    result["competitor_signals"].append(
+        {"domain": "demo.myshopify.com", "estimated_strength": 90, "detected_from": "paid_provider"}
+    )
+    monkeypatch.setattr(engine, "load_latest_result", lambda shop: result)
+    monkeypatch.setattr(engine, "load_business_profile", lambda shop: None)
+    monkeypatch.setattr(engine.keyword_cache, "get_many", lambda *a, **k: _serp_cache())
 
     out = engine.aggregate_competitors_from_serp("demo.myshopify.com")
 
