@@ -258,6 +258,8 @@ interface ContentTestPack {
   eeat_signals?: EeatSignal[];
   content_quality?: ContentQuality;
   enrichment_questions?: EnrichmentQuestion[];
+  retired_question_keys?: string[];
+  retired_questions?: EnrichmentQuestion[];
   content_guardrail_reflection?: ContentGuardrailReflection;
   faq_sync?: {
     applied: boolean;
@@ -748,6 +750,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ type: "removeProducts", error: null });
   }
 
+  if (intent === "retireQuestion" || intent === "restoreQuestion") {
+    const productId = String(formData.get("productId") ?? "");
+    const key = String(formData.get("key") ?? "");
+    const action = intent === "retireQuestion" ? "retire" : "restore";
+    try {
+      await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/products/${encodeURIComponent(productId)}/questions/${encodeURIComponent(key)}/${action}`,
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(10_000) },
+      );
+    } catch { /* best-effort */ }
+    return json({ type: intent, ok: true, error: null });
+  }
+
   if (intent === "applyToShopify") {
     const productId = String(formData.get("productId") ?? "");
     const fields = JSON.parse(String(formData.get("fields") ?? "[]")) as string[];
@@ -1201,6 +1217,19 @@ function ProductCard({
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
 
+  // ── Question retire/restore ───────────────────────────────────────────────
+  const questionFetcher = useFetcher<{ type: string; ok: boolean }>();
+  const onRetireQuestion = (key: string) =>
+    questionFetcher.submit(
+      { intent: "retireQuestion", productId: product.product_id, key },
+      { method: "post" },
+    );
+  const onRestoreQuestion = (key: string) =>
+    questionFetcher.submit(
+      { intent: "restoreQuestion", productId: product.product_id, key },
+      { method: "post" },
+    );
+
   // ── Apply-to-Shopify state ─────────────────────────────────────────────────
   const applyFetcher = useFetcher<{ type: string; ok: boolean; results?: Record<string, { applied: boolean; error: string | null }>; error?: string | null }>();
   const applyLoading = applyFetcher.state !== "idle";
@@ -1478,6 +1507,8 @@ function ProductCard({
           showKeywordSources={false}
           checkedApplyFields={checkedApplyFields}
           onToggleApplyField={onToggleApplyField}
+          onRetireQuestion={onRetireQuestion}
+          onRestoreQuestion={onRestoreQuestion}
         />
 
         {/* Uncommitted keywords = those not yet in localTags as keyword type */}

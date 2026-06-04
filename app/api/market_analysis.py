@@ -40,13 +40,18 @@ from app.market_analysis.jobs import (
     load_identifications,
     load_latest_result,
     load_merchant_facts,
+    load_question_metadata,
+    load_retired_questions,
     patch_product_proposals,
     remove_products_from_analysis,
     replace_product_analysis,
+    restore_question,
+    retire_question,
     save_identification_job,
     save_identifications,
     save_latest_result,
     save_merchant_facts,
+    save_question_metadata,
     update_job,
 )
 from app.market_analysis.providers.dataforseo_provider import DataForSEOProvider
@@ -590,7 +595,32 @@ async def get_latest_market_analysis(
     if result is None:
         raise HTTPException(status_code=404, detail="Aucune analyse précédente disponible")
     enriched = _attach_business_profile_context_status(result, load_business_profile(ctx.shop))
-    return enrich_market_analysis_result(ctx.shop, enriched)
+    enriched = enrich_market_analysis_result(ctx.shop, enriched)
+
+    retired_by_product = load_retired_questions(ctx.shop)
+    meta_by_product = load_question_metadata(ctx.shop)
+    products = enriched.get("products") or []
+    for product in products:
+        if not isinstance(product, dict):
+            continue
+        pid = str(product.get("product_id") or "")
+        retired_keys = retired_by_product.get(pid, [])
+        pack = product.get("content_test_pack")
+        if isinstance(pack, dict):
+            # Save current question metadata for future display of retired questions
+            active_qs = pack.get("enrichment_questions") or []
+            if active_qs:
+                save_question_metadata(ctx.shop, pid, active_qs)
+                meta_by_product = load_question_metadata(ctx.shop)
+            # Build retired questions list from saved metadata
+            retired_qs = [
+                meta_by_product.get(pid, {}).get(k)
+                for k in retired_keys
+                if meta_by_product.get(pid, {}).get(k)
+            ]
+            pack["retired_question_keys"] = retired_keys
+            pack["retired_questions"] = [q for q in retired_qs if q]
+    return enriched
 
 
 @router.get("/shops/{shop}/market-analysis/products/{product_id:path}/tags")
@@ -699,6 +729,30 @@ async def restore_market_analysis_product_tag(
         locked_by_merchant=True,
     )
     return {"restored": True, "tag": tag}
+
+
+@router.post("/shops/{shop}/market-analysis/products/{product_id:path}/questions/{key}/retire")
+async def retire_enrichment_question(
+    shop: str,
+    product_id: str,
+    key: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Mark an enrichment question as not relevant for a product."""
+    retire_question(ctx.shop, product_id, key)
+    return {"retired": True, "key": key, "product_id": product_id}
+
+
+@router.post("/shops/{shop}/market-analysis/products/{product_id:path}/questions/{key}/restore")
+async def restore_enrichment_question(
+    shop: str,
+    product_id: str,
+    key: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Restore a previously retired enrichment question."""
+    restore_question(ctx.shop, product_id, key)
+    return {"restored": True, "key": key, "product_id": product_id}
 
 
 @router.delete("/shops/{shop}/tags/reset")
@@ -911,6 +965,7 @@ async def run_market_analysis_endpoint(
 
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
     merchant_facts = load_merchant_facts(ctx.shop)
+    retired_questions = load_retired_questions(ctx.shop)
     business_profile = load_business_profile(ctx.shop)
 
     try:
@@ -924,6 +979,7 @@ async def run_market_analysis_endpoint(
             max_products=max_products,
             plan=plan,
             merchant_facts_by_product=merchant_facts or None,
+            retired_questions_by_product=retired_questions or None,
             business_profile=business_profile,
             collections=snapshot.get("collections") or [],
             articles=snapshot.get("articles") or [],

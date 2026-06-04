@@ -4846,6 +4846,7 @@ def run_market_analysis(
     product_labels: dict[str, str] | None = None,
     plan: str | None = None,
     merchant_facts_by_product: dict[str, dict[str, str]] | None = None,
+    retired_questions_by_product: dict[str, list[str]] | None = None,
     business_profile: dict[str, Any] | None = None,
     progress_callback: Callable[..., None] | None = None,
     collections: list[dict[str, Any]] | None = None,
@@ -5110,6 +5111,10 @@ def run_market_analysis(
             state["fields"].get("missing_facts", []),
             state["pack"]["surface_plan"],
         )
+        _pid = str(state.get("product_id") or state["fields"].get("product_id") or "")
+        _retired = frozenset((retired_questions_by_product or {}).get(_pid) or [])
+        if _retired:
+            merchant_questions = [q for q in merchant_questions if q.get("key") not in _retired]
         state["pack"]["enrichment_questions"] = merchant_questions
         state["pack"]["merchant_questions"] = merchant_questions
         state["pack"]["pending_questions"] = merchant_questions

@@ -158,6 +158,8 @@ export interface ContentTestPack {
   confirmed_facts?: ConfirmedFact[];
   content_quality?: ContentQuality;
   enrichment_questions?: EnrichmentQuestion[];
+  retired_question_keys?: string[];
+  retired_questions?: EnrichmentQuestion[];
   content_guardrail_reflection?: ContentGuardrailReflection;
   current_product_images?: { id: string; url: string; current_alt: string | null }[];
   proposed_image_alts?: { image_id: string; proposed_alt: string }[];

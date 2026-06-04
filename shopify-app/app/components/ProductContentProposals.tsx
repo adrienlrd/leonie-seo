@@ -56,6 +56,8 @@ export function ProductContentProposals({
   showKeywordSources = true,
   checkedApplyFields,
   onToggleApplyField,
+  onRetireQuestion,
+  onRestoreQuestion,
 }: {
   product: ProductResult;
   locale: Locale;
@@ -66,8 +68,12 @@ export function ProductContentProposals({
   showKeywordSources?: boolean;
   checkedApplyFields?: Set<FieldKey>;
   onToggleApplyField?: (field: FieldKey) => void;
+  onRetireQuestion?: (key: string) => void;
+  onRestoreQuestion?: (key: string) => void;
 }) {
   const pack = product.content_test_pack;
+  const retiredKeys = new Set<string>(pack.retired_question_keys ?? []);
+  const retiredQuestions = (pack.retired_questions ?? []) as Array<{ key: string; question: string; why_it_matters: string; placeholder: string }>;
   const seoKeywords = product.seo_keywords ?? [];
   const coverageTargets = (() => {
     const primary = seoKeywords
@@ -590,37 +596,59 @@ export function ProductContentProposals({
     </Tooltip>
   ) : null;
 
-  const enrichmentBlock = !editMode && enrichmentQuestions.length > 0 ? (
+  const activeEnrichmentQuestions = enrichmentQuestions.filter((q) => !retiredKeys.has(q.key));
+  const [showRetiredQuestions, setShowRetiredQuestions] = useState(false);
+
+  const enrichmentBlock = !editMode && (activeEnrichmentQuestions.length > 0 || retiredQuestions.length > 0) ? (
     <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
       <BlockStack gap="200">
         <InlineStack gap="200" blockAlign="center" wrap>
           <Text as="p" variant="bodySm" fontWeight="semibold">
             {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
           </Text>
-          <Button size="slim" variant="plain" onClick={() => setShowEnrichmentQuestions((open) => !open)}>
-            {showEnrichmentQuestions
-              ? (locale === "fr" ? "Réduire" : "Collapse")
-              : (locale === "fr" ? "Compléter" : "Complete")}
-          </Button>
+          {activeEnrichmentQuestions.length > 0 && (
+            <Button size="slim" variant="plain" onClick={() => setShowEnrichmentQuestions((open) => !open)}>
+              {showEnrichmentQuestions
+                ? (locale === "fr" ? "Réduire" : "Collapse")
+                : (locale === "fr" ? "Compléter" : "Complete")}
+            </Button>
+          )}
         </InlineStack>
         <Collapsible id={`enrichment-${product.product_id}`} open={showEnrichmentQuestions}>
           <BlockStack gap="300">
             <Text as="p" variant="bodySm" tone="subdued">
               {locale === "fr"
-                ? "Répondez seulement avec des informations exactes. Vos réponses sont injectées dans le prompt pour produire un contenu plus précis et ancré dans votre produit."
-                : "Answer only with accurate information. Your answers are injected into the prompt to produce more precise, product-grounded content."}
+                ? "Répondez seulement avec des informations exactes. Vos réponses sont persistées et utilisées par les prochaines analyses."
+                : "Answer only with accurate information. Your answers are persisted and used by future analyses."}
             </Text>
-            {enrichmentQuestions.map((question) => (
-              <TextField
-                key={question.key}
-                label={question.question}
-                helpText={question.why_it_matters}
-                placeholder={question.placeholder}
-                value={enrichmentAnswers[question.key] ?? ""}
-                onChange={(value) => setEnrichmentAnswers((answers) => ({ ...answers, [question.key]: value }))}
-                autoComplete="off"
-                multiline={2}
-              />
+            {activeEnrichmentQuestions.map((question) => (
+              <BlockStack key={question.key} gap="100">
+                <InlineStack align="space-between" blockAlign="start" wrap={false}>
+                  <Box width="100%">
+                    <TextField
+                      label={question.question}
+                      helpText={question.why_it_matters}
+                      placeholder={question.placeholder}
+                      value={enrichmentAnswers[question.key] ?? ""}
+                      onChange={(value) => setEnrichmentAnswers((answers) => ({ ...answers, [question.key]: value }))}
+                      autoComplete="off"
+                      multiline={2}
+                    />
+                  </Box>
+                  {onRetireQuestion && (
+                    <div style={{ paddingTop: 28, paddingLeft: 8, flexShrink: 0 }}>
+                      <Button
+                        size="slim"
+                        variant="plain"
+                        tone="critical"
+                        onClick={() => onRetireQuestion(question.key)}
+                      >
+                        {locale === "fr" ? "Retirer" : "Dismiss"}
+                      </Button>
+                    </div>
+                  )}
+                </InlineStack>
+              </BlockStack>
             ))}
             <InlineStack gap="200">
               <Button
@@ -634,6 +662,33 @@ export function ProductContentProposals({
             </InlineStack>
           </BlockStack>
         </Collapsible>
+        {retiredQuestions.length > 0 && (
+          <>
+            <Button
+              size="slim"
+              variant="plain"
+              onClick={() => setShowRetiredQuestions((v) => !v)}
+            >
+              {showRetiredQuestions
+                ? (locale === "fr" ? "Masquer les questions non pertinentes" : "Hide dismissed questions")
+                : `${locale === "fr" ? "Questions non pertinentes" : "Dismissed questions"} (${retiredQuestions.length})`}
+            </Button>
+            <Collapsible id={`retired-questions-${product.product_id}`} open={showRetiredQuestions}>
+              <BlockStack gap="200">
+                {retiredQuestions.map((question) => (
+                  <InlineStack key={question.key} align="space-between" blockAlign="center" wrap>
+                    <Text as="p" variant="bodySm" tone="subdued">{question.question}</Text>
+                    {onRestoreQuestion && (
+                      <Button size="slim" variant="plain" onClick={() => onRestoreQuestion(question.key)}>
+                        {locale === "fr" ? "Restaurer" : "Restore"}
+                      </Button>
+                    )}
+                  </InlineStack>
+                ))}
+              </BlockStack>
+            </Collapsible>
+          </>
+        )}
       </BlockStack>
     </Box>
   ) : null;

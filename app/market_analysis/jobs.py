@@ -132,6 +132,71 @@ def load_merchant_facts(shop: str) -> dict[str, dict[str, str]]:
     return stored
 
 
+def _write_json_file(shop: str, filename: str, data: dict) -> None:
+    try:
+        shop_dir = _DATA_DIR / shop
+        shop_dir.mkdir(parents=True, exist_ok=True)
+        (shop_dir / filename).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except OSError as exc:
+        logger.error("Failed to write %s for %s: %s", filename, shop, exc)
+
+
+def load_retired_questions(shop: str) -> dict[str, list[str]]:
+    """Load retired question keys per product."""
+    path = _DATA_DIR / shop / "market_analysis_retired_questions.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {str(k): [str(v) for v in v_list if isinstance(v, str)] for k, v_list in raw.items() if isinstance(v_list, list)}
+
+
+def retire_question(shop: str, product_id: str, key: str) -> None:
+    """Mark a question key as retired for a given product."""
+    stored = load_retired_questions(shop)
+    keys = stored.get(product_id, [])
+    if key not in keys:
+        keys.append(key)
+    stored[product_id] = keys
+    _write_json_file(shop, "market_analysis_retired_questions.json", stored)
+
+
+def restore_question(shop: str, product_id: str, key: str) -> None:
+    """Remove the retired status from a question key."""
+    stored = load_retired_questions(shop)
+    stored[product_id] = [k for k in stored.get(product_id, []) if k != key]
+    _write_json_file(shop, "market_analysis_retired_questions.json", stored)
+
+
+def load_question_metadata(shop: str) -> dict[str, dict[str, dict]]:
+    """Load persisted question metadata (text, placeholder, why_it_matters) per product."""
+    path = _DATA_DIR / shop / "market_analysis_question_metadata.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def save_question_metadata(shop: str, product_id: str, questions: list[dict]) -> None:
+    """Persist question metadata so retired questions can still be displayed."""
+    stored = load_question_metadata(shop)
+    stored[product_id] = {
+        q["key"]: {
+            "key": q["key"],
+            "question": q.get("question", ""),
+            "why_it_matters": q.get("why_it_matters", ""),
+            "placeholder": q.get("placeholder", ""),
+            "target_keyword": q.get("target_keyword", ""),
+        }
+        for q in questions
+        if isinstance(q, dict) and q.get("key")
+    }
+    _write_json_file(shop, "market_analysis_question_metadata.json", stored)
+
+
 def save_identification_job(shop: str, data: dict[str, Any]) -> None:
     """Persist the latest AI identification job result to disk."""
     try:
