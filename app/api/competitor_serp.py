@@ -21,7 +21,7 @@ from app.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/api", tags=["competitor_serp"])
 
 _jobs: dict[str, dict[str, Any]] = {}
 _DATA_DIR = data_dir()
