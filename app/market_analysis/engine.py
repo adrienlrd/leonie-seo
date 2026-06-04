@@ -12,6 +12,14 @@ from typing import Any
 from app.business_profile.context import build_business_profile_context_meta
 from app.geo.facts import analyze_product_facts
 from app.llm import LLMError, get_router
+from app.market_analysis.competitor_crawl.config import CompetitorCrawlConfig
+from app.market_analysis.competitor_crawl.extractor import extract_merchant_product_features
+from app.market_analysis.competitor_crawl.fetcher import fetch_competitor_targets
+from app.market_analysis.competitor_crawl.insights import build_competitor_crawl_insights
+from app.market_analysis.competitor_crawl.models import CompetitorCrawlTarget
+from app.market_analysis.competitor_crawl.prompt import format_competitor_crawl_for_prompt
+from app.market_analysis.competitor_crawl.store import record_competitor_crawl_run
+from app.market_analysis.competitor_crawl.url_selection import select_competitor_urls_for_product
 from app.market_analysis.competitors import build_competitor_signals
 from app.market_analysis.providers.dataforseo_provider import DataForSEOProvider
 from app.market_analysis.providers.free_provider import (
@@ -828,6 +836,7 @@ def _build_pass2_prompt(
     cannibalization_hint: dict[str, Any] | None = None,
     eeat_signals: list[dict[str, Any]] | None = None,
     product_images: list[dict[str, Any]] | None = None,
+    competitor_crawl_summary: str | None = None,
 ) -> str:
     """Build the pass-2 (content) prompt with strict per-field rules.
 
@@ -987,6 +996,9 @@ def _build_pass2_prompt(
     if crawl_lines:
         parts.append("\n=== PROBLÈMES TECHNIQUES DÉTECTÉS (crawl) ===")
         parts.extend(crawl_lines)
+    if competitor_crawl_summary:
+        parts.append("\n=== BENCHMARK STRUCTUREL CONCURRENTS CRAWLÉS ===")
+        parts.append(competitor_crawl_summary)
     parts.append("\n=== FAITS PRODUIT CONFIRMÉS — SEULE SOURCE AUTORISÉE POUR LES AFFIRMATIONS ===")
     parts.extend(
         fact_lines or ["  - aucun fait produit confirmé : ne génère aucun contenu factuel"]
@@ -1144,6 +1156,8 @@ def _build_pass2_prompt(
         f"- Les requêtes 'meilleur/meilleure/comment choisir/avis/comparatif' vont en blog ou guide, pas en primary keyword produit.\n"
         f"- Si GSC réel montre un keyword en position 4-20 et que le blog est autorisé, traite cette intention en priorité.\n"
         f"- Si des CONCURRENTS DE DOMAINE sont listés : différencie uniquement les champs autorisés de leurs formulations.\n"
+        f"- Utilise les insights de crawl concurrent uniquement comme benchmark structurel : FAQ, answer block, schema, maillage, structure H2.\n"
+        f"- Ne copie jamais le wording concurrent, n'infère jamais de faits produit depuis les concurrents, ne reprends aucune promesse concurrente.\n"
         f"\n▶ proposed_geo_definition_block (≈25 mots) :\n"
         f'   • Format extractible par IA : "{{Produit}} est {{catégorie}} qui {{bénéfice vérifié}}."\n'
         f"   • Première phrase utilisable telle quelle dans un AI Overview / extrait Perplexity.\n"
@@ -4387,6 +4401,19 @@ def _build_product_result(
     fact_conflicts = [
         conflict for conflict in llm_pack.get("fact_conflicts", []) if isinstance(conflict, dict)
     ]
+    competitor_crawl_insights = (
+        llm_pack.get("competitor_crawl_insights")
+        if isinstance(llm_pack.get("competitor_crawl_insights"), dict)
+        else {
+            "enabled": False,
+            "sample_size": 0,
+            "top_urls": [],
+            "dominant_patterns": {},
+            "merchant_gaps": [],
+            "priority_boost_total": 0,
+            "prompt_summary": "",
+        }
+    )
 
     return {
         "product_id": product_id,
@@ -4412,6 +4439,11 @@ def _build_product_result(
         "keyword_content_guardrail": content_quality.get("keyword_content_guardrail", {}),
         "trend_signals": opportunity.get("trend_signals", []),
         "competitor_signals": opportunity.get("signals", []),
+        "competitor_crawl_insights": competitor_crawl_insights,
+        "competitor_pattern_boost": int(
+            competitor_crawl_insights.get("priority_boost_total", 0) or 0
+        ),
+        "competitor_pattern_gaps": competitor_crawl_insights.get("merchant_gaps", []),
         "content_test_pack": {
             "current_meta_title": current_meta_title,
             "proposed_meta_title": proposed_meta_title,
@@ -4482,6 +4514,11 @@ def _build_product_result(
             "confidence": _normalize_confidence(llm_pack.get("confidence", "")) or "low",
             "content_quality": content_quality,
             "content_guardrail_reflection": llm_pack.get("content_guardrail_reflection", {}),
+            "competitor_crawl_insights": competitor_crawl_insights,
+            "competitor_pattern_boost": int(
+                competitor_crawl_insights.get("priority_boost_total", 0) or 0
+            ),
+            "competitor_pattern_gaps": competitor_crawl_insights.get("merchant_gaps", []),
         },
         "recommended_content_actions": _coerce_str_list(
             llm_pack.get("recommended_content_actions", [])
@@ -4833,6 +4870,203 @@ def _merge_merchant_confirmed_facts(
     return facts
 
 
+def _run_competitor_crawl_analysis(
+    *,
+    shop: str,
+    pass1_states: list[dict[str, Any]],
+    serp_intel: dict[str, dict[str, Any]],
+    config: CompetitorCrawlConfig,
+) -> tuple[dict[str, dict[str, Any]], int]:
+    """Run optional competitor crawling and return insights keyed by product id."""
+    if not config.enabled or not serp_intel or config.max_urls_per_run <= 0:
+        _record_competitor_crawl_run_fail_open(
+            shop=shop,
+            enabled=config.enabled,
+            urls_selected=0,
+            results=[],
+            summary={"reason": "disabled_or_no_serp"},
+        )
+        return {}, 0
+
+    targets_by_product: dict[str, list[CompetitorCrawlTarget]] = {}
+    global_targets: list[CompetitorCrawlTarget] = []
+    seen_urls: set[str] = set()
+    for state in pass1_states:
+        product_id = str(state["product"].get("id", ""))
+        targets = select_competitor_urls_for_product(
+            state["pack"].get("seo_keywords", []) or [],
+            serp_intel,
+            shop,
+            config.max_urls_per_product,
+        )
+        if not targets:
+            continue
+        targets_by_product[product_id] = targets
+        for target in targets:
+            if target.url in seen_urls or len(global_targets) >= config.max_urls_per_run:
+                continue
+            seen_urls.add(target.url)
+            global_targets.append(target)
+
+    if not global_targets:
+        _record_competitor_crawl_run_fail_open(
+            shop=shop,
+            enabled=True,
+            urls_selected=0,
+            results=[],
+            summary={"reason": "no_targets_selected"},
+        )
+        return {}, 0
+
+    try:
+        crawl_results = fetch_competitor_targets(global_targets, config)
+    except Exception as exc:
+        logger.warning("Competitor crawl failed open for %s: %s", shop, exc)
+        _record_competitor_crawl_run_fail_open(
+            shop=shop,
+            enabled=True,
+            urls_selected=len(global_targets),
+            results=[],
+            summary={"error": str(exc)},
+        )
+        return {}, 0
+
+    features_by_url: dict[str, dict[str, Any]] = {}
+    for result in crawl_results:
+        if result.features and not result.error:
+            feature = dict(result.features)
+            feature.update(
+                {
+                    "url": result.target.url,
+                    "final_url": result.final_url or result.target.url,
+                    "domain": result.target.domain,
+                    "rank": result.target.rank,
+                    "keyword": result.target.keyword,
+                    "title": result.target.title or feature.get("title", ""),
+                    "from_cache": result.from_cache,
+                }
+            )
+            features_by_url[result.target.url] = feature
+
+    insights_by_product: dict[str, dict[str, Any]] = {}
+    for state in pass1_states:
+        product_id = str(state["product"].get("id", ""))
+        target_features = [
+            features_by_url[target.url]
+            for target in targets_by_product.get(product_id, [])
+            if target.url in features_by_url
+        ]
+        if not target_features:
+            continue
+        try:
+            merchant_features = extract_merchant_product_features(state["product"])
+            insights = build_competitor_crawl_insights(
+                state["pack"],
+                target_features,
+                merchant_features,
+            )
+            insights_by_product[product_id] = insights
+            state["pack"]["competitor_crawl_insights"] = insights
+            state["pack"]["competitor_crawl_summary"] = format_competitor_crawl_for_prompt(insights)
+            state["pack"]["competitor_pattern_boost"] = int(
+                insights.get("priority_boost_total", 0) or 0
+            )
+            state["pack"]["competitor_pattern_gaps"] = insights.get("merchant_gaps", [])
+        except Exception as exc:
+            logger.debug("Competitor insight build failed for product %s: %s", product_id, exc)
+
+    _record_competitor_crawl_run_fail_open(
+        shop=shop,
+        enabled=True,
+        urls_selected=len(global_targets),
+        results=crawl_results,
+        summary={
+            "products_with_insights": len(insights_by_product),
+            "features_extracted": len(features_by_url),
+        },
+    )
+    return insights_by_product, len(features_by_url)
+
+
+def _record_competitor_crawl_run_fail_open(
+    *,
+    shop: str,
+    enabled: bool,
+    urls_selected: int,
+    results: list[Any],
+    summary: dict[str, Any],
+) -> None:
+    """Persist competitor crawl run stats without blocking analysis."""
+    try:
+        record_competitor_crawl_run(
+            shop=shop,
+            enabled=enabled,
+            urls_selected=urls_selected,
+            urls_fetched=sum(1 for result in results if not getattr(result, "from_cache", False)),
+            urls_from_cache=sum(1 for result in results if getattr(result, "from_cache", False)),
+            errors_count=sum(
+                1
+                for result in results
+                if getattr(result, "error", None) or not getattr(result, "allowed_by_robots", True)
+            ),
+            summary=summary,
+        )
+    except Exception as exc:
+        logger.debug("Competitor crawl run persistence failed for %s: %s", shop, exc)
+
+
+def _apply_competitor_pack_recommendations(pack: dict[str, Any]) -> None:
+    """Add explainable recommended actions from competitor structural gaps."""
+    insights = pack.get("competitor_crawl_insights")
+    if not isinstance(insights, dict):
+        return
+    actions = _coerce_str_list(pack.get("recommended_content_actions", []))
+    for gap in insights.get("merchant_gaps", []) or []:
+        if not isinstance(gap, dict):
+            continue
+        action = _competitor_gap_action(gap)
+        if action and action not in actions:
+            actions.append(action)
+    pack["recommended_content_actions"] = actions[:8]
+
+
+def _competitor_gap_action(gap: dict[str, Any]) -> str:
+    gap_key = str(gap.get("gap") or "")
+    return {
+        "missing_faq_block": "Prioriser une FAQ structurée, car elle domine chez les concurrents SERP crawlés.",
+        "missing_product_schema": "Ajouter ou renforcer le Product schema avec les faits produit confirmés.",
+        "missing_breadcrumb_schema": "Ajouter un Breadcrumb schema pour clarifier la structure de page.",
+        "missing_geo_answer_block": "Ajouter un bloc réponse court GEO/AEO basé uniquement sur les faits confirmés.",
+        "weak_internal_linking": "Renforcer le maillage interne depuis et vers cette fiche produit.",
+        "thin_product_description": "Étoffer la description produit avec des sections utiles et vérifiables.",
+    }.get(gap_key, "")
+
+
+def _apply_competitor_result_boost(product_result: dict[str, Any]) -> None:
+    """Apply a capped competitor-pattern opportunity boost to the product result."""
+    insights = product_result.get("competitor_crawl_insights")
+    if not isinstance(insights, dict):
+        return
+    boost = max(0, min(20, int(insights.get("priority_boost_total", 0) or 0)))
+    product_result["competitor_pattern_boost"] = boost
+    product_result["competitor_pattern_gaps"] = insights.get("merchant_gaps", [])
+    pack = product_result.setdefault("content_test_pack", {})
+    if isinstance(pack, dict):
+        pack["competitor_crawl_insights"] = insights
+        pack["competitor_pattern_boost"] = boost
+        pack["competitor_pattern_gaps"] = insights.get("merchant_gaps", [])
+    if boost <= 0:
+        return
+    product_result["opportunity_score_before_competitor_boost"] = product_result.get(
+        "opportunity_score",
+        0,
+    )
+    product_result["opportunity_score"] = min(
+        100,
+        int(product_result.get("opportunity_score", 0) or 0) + boost,
+    )
+
+
 def run_market_analysis(
     products: list[dict[str, Any]],
     shop: str,
@@ -4917,6 +5151,7 @@ def run_market_analysis(
     dataforseo_provider = DataForSEOProvider()
     google_ads_provider = GoogleAdsKeywordProvider()
     paid_providers = [p for p in (dataforseo_provider, google_ads_provider) if p.available]
+    competitor_crawl_config = CompetitorCrawlConfig.from_env()
 
     provider_status: dict[str, Any] = {
         "free": True,
@@ -5143,6 +5378,17 @@ def run_market_analysis(
             state["pack"].get("seo_keywords", []) or []
         )
 
+    competitor_crawl_feature_count = 0
+    if competitor_crawl_config.enabled:
+        _, competitor_crawl_feature_count = _run_competitor_crawl_analysis(
+            shop=shop,
+            pass1_states=pass1_states,
+            serp_intel=serp_intel,
+            config=competitor_crawl_config,
+        )
+        if competitor_crawl_feature_count > 0 and "competitor_crawl" not in sources_used:
+            sources_used.append("competitor_crawl")
+
     pass1_product_views = [
         {
             "product_id": str(state["product"].get("id", "")),
@@ -5230,6 +5476,7 @@ def run_market_analysis(
                 ),
                 eeat_signals=product_eeat_signals,
                 product_images=fields.get("product_images", []),
+                competitor_crawl_summary=pack.get("competitor_crawl_summary"),
             )
             pack = _complete_json(
                 llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192
@@ -5290,6 +5537,7 @@ def run_market_analysis(
                 pack,
                 confirmed_facts=fields.get("confirmed_facts", []),
             )
+            _apply_competitor_pack_recommendations(pack)
             pack["content_quality"] = _build_content_quality(
                 pack,
                 confirmed_facts=fields.get("confirmed_facts", []),
@@ -5297,15 +5545,16 @@ def run_market_analysis(
                 surface_plan=pack.get("surface_plan", {}),
                 forbidden_phrases=forbidden_phrases,
             )
-        product_results.append(
-            _build_product_result(
-                state["product"],
-                state["opp"],
-                pack,
-                shop,
-                business_profile_context_hash,
-            )
+        _apply_competitor_pack_recommendations(pack)
+        product_result = _build_product_result(
+            state["product"],
+            state["opp"],
+            pack,
+            shop,
+            business_profile_context_hash,
         )
+        _apply_competitor_result_boost(product_result)
+        product_results.append(product_result)
         if progress_callback is not None:
             try:
                 progress_callback(idx + 1, total, list(product_results), "content")

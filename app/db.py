@@ -218,6 +218,29 @@ _SQLITE_DDL = [
         detail        TEXT NOT NULL,
         metadata_json TEXT NOT NULL DEFAULT '{}'
     )""",
+    """CREATE TABLE IF NOT EXISTS competitor_crawl_cache (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        url               TEXT NOT NULL UNIQUE,
+        domain            TEXT NOT NULL,
+        fetched_at        TEXT NOT NULL,
+        status_code       INTEGER,
+        final_url         TEXT,
+        allowed_by_robots INTEGER NOT NULL DEFAULT 0,
+        html_hash         TEXT NOT NULL DEFAULT '',
+        features_json     TEXT NOT NULL DEFAULT '{}',
+        error             TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS competitor_crawl_runs (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop            TEXT NOT NULL,
+        created_at      TEXT NOT NULL,
+        enabled         INTEGER NOT NULL DEFAULT 0,
+        urls_selected   INTEGER NOT NULL DEFAULT 0,
+        urls_fetched    INTEGER NOT NULL DEFAULT 0,
+        urls_from_cache INTEGER NOT NULL DEFAULT 0,
+        errors_count    INTEGER NOT NULL DEFAULT 0,
+        summary_json    TEXT NOT NULL DEFAULT '{}'
+    )""",
     # Unified content actions drafts (Phase 11.8, task 145)
     """CREATE TABLE IF NOT EXISTS content_actions (
         action_id      TEXT PRIMARY KEY,
@@ -586,6 +609,29 @@ _PG_DDL = [
         severity      TEXT NOT NULL,
         detail        TEXT NOT NULL,
         metadata_json TEXT NOT NULL DEFAULT '{}'
+    )""",
+    """CREATE TABLE IF NOT EXISTS competitor_crawl_cache (
+        id                SERIAL PRIMARY KEY,
+        url               TEXT NOT NULL UNIQUE,
+        domain            TEXT NOT NULL,
+        fetched_at        TEXT NOT NULL,
+        status_code       INTEGER,
+        final_url         TEXT,
+        allowed_by_robots BOOLEAN NOT NULL DEFAULT FALSE,
+        html_hash         TEXT NOT NULL DEFAULT '',
+        features_json     TEXT NOT NULL DEFAULT '{}',
+        error             TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS competitor_crawl_runs (
+        id              SERIAL PRIMARY KEY,
+        shop            TEXT NOT NULL,
+        created_at      TEXT NOT NULL,
+        enabled         BOOLEAN NOT NULL DEFAULT FALSE,
+        urls_selected   INTEGER NOT NULL DEFAULT 0,
+        urls_fetched    INTEGER NOT NULL DEFAULT 0,
+        urls_from_cache INTEGER NOT NULL DEFAULT 0,
+        errors_count    INTEGER NOT NULL DEFAULT 0,
+        summary_json    TEXT NOT NULL DEFAULT '{}'
     )""",
     """CREATE TABLE IF NOT EXISTS llms_txt_publications (
         shop                 TEXT PRIMARY KEY,
