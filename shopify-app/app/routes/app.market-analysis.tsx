@@ -1116,22 +1116,7 @@ function SummaryCard({
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center" wrap>
-          <BlockStack gap="100">
-            {job.analyzed_at && (
-              <Text as="p" variant="bodySm" tone="subdued">
-                {t(locale, "marketAnalysisLastRun")} : {formatDate(job.analyzed_at)}
-              </Text>
-            )}
-            {contextStatus === "current" && (
-              <Badge tone="success">{t(locale, "marketAnalysisProfileContextCurrent")}</Badge>
-            )}
-            {contextStatus === "stale" && (
-              <Badge tone="attention">{t(locale, "marketAnalysisProfileContextStaleBadge")}</Badge>
-            )}
-            {contextStatus === "unknown" && (
-              <Badge tone="attention">{t(locale, "marketAnalysisProfileContextUnknownBadge")}</Badge>
-            )}
-          </BlockStack>
+          <div />
           {(onAnalyzeAll || onEditIdentification) && (
             <InlineStack gap="200">
               {onAnalyzeAll && (
@@ -1426,23 +1411,6 @@ function ProductCard({
             )}
             {product.business_profile_context_status === "unknown" && (
               <Badge tone="attention">{t(locale, "marketAnalysisProfileContextUnknownBadge")}</Badge>
-            )}
-            {coverageTargets.length > 0 && (
-              <Badge
-                tone={
-                  usedKeywords.size / coverageTargets.length >= 0.75
-                    ? "success"
-                    : usedKeywords.size / coverageTargets.length >= 0.5
-                    ? "info"
-                    : usedKeywords.size / coverageTargets.length >= 0.25
-                    ? "warning"
-                    : "critical"
-                }
-              >
-                {locale === "fr"
-                  ? `${usedKeywords.size}/${coverageTargets.length} cibles couvertes`
-                  : `${usedKeywords.size}/${coverageTargets.length} targets covered`}
-              </Badge>
             )}
             {isAnalyzing ? (
               <Spinner size="small" />
