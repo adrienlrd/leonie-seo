@@ -34,11 +34,11 @@ def build_config_for_serp_job() -> CompetitorCrawlConfig:
     """Build a crawl config suitable for the dedicated SERP job.
 
     Always sets enabled=True (user explicitly triggered the crawl) and
-    respects COMPETITOR_SERP_MAX_URLS_PER_RUN env var (default 100).
+    respects COMPETITOR_SERP_MAX_URLS_PER_RUN env var (default 30).
     """
     base = CompetitorCrawlConfig.from_env()
-    max_urls = int(os.getenv("COMPETITOR_SERP_MAX_URLS_PER_RUN", "100"))
-    return replace(base, enabled=True, max_urls_per_run=max(10, max_urls))
+    max_urls = int(os.getenv("COMPETITOR_SERP_MAX_URLS_PER_RUN", "30"))
+    return replace(base, enabled=True, max_urls_per_run=max(5, max_urls))
 
 
 def run_competitor_serp_crawl(shop: str, config: CompetitorCrawlConfig) -> dict[str, Any]:
@@ -119,7 +119,7 @@ def run_competitor_serp_crawl(shop: str, config: CompetitorCrawlConfig) -> dict[
         if domain not in domain_sources:
             domain_sources[domain] = "domain_level"
 
-    max_per_domain = int(os.getenv("COMPETITOR_SERP_MAX_URLS_PER_DOMAIN", "10"))
+    max_per_domain = int(os.getenv("COMPETITOR_SERP_MAX_URLS_PER_DOMAIN", "3"))
     targets = _deduplicate_targets(domain_targets, max_per_domain=max_per_domain, max_total=config.max_urls_per_run)
     logger.info("competitor_serp: crawling %d URLs across %d domains", len(targets), len(domain_targets))
 

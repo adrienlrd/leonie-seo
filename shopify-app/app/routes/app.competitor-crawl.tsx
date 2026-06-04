@@ -512,6 +512,9 @@ export default function CompetitorCrawlPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const pollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const jobIdRef = useRef<string | null>(null);
+  // Always up-to-date fetcher reference — avoids stale closure in setInterval
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
 
   const [domainFilter, setDomainFilter] = useState("all");
   const [pageTypeFilter, setPageTypeFilter] = useState("all");
@@ -525,11 +528,14 @@ export default function CompetitorCrawlPage() {
     }
   };
 
-  const startPolling = (id: string) => {
+  const startPolling = () => {
     stopPolling();
     pollerRef.current = setInterval(() => {
-      if (fetcher.state === "idle" && jobIdRef.current) {
-        fetcher.submit({ intent: "poll", jobId: jobIdRef.current }, { method: "post" });
+      if (fetcherRef.current.state === "idle" && jobIdRef.current) {
+        fetcherRef.current.submit(
+          { intent: "poll", jobId: jobIdRef.current },
+          { method: "post" },
+        );
       }
     }, 5000);
   };
@@ -544,7 +550,7 @@ export default function CompetitorCrawlPage() {
       setJobId(data.job_id);
       setJobStatus(String(data.status ?? "pending"));
       jobIdRef.current = data.job_id;
-      startPolling(data.job_id);
+      startPolling();
       return;
     }
 
