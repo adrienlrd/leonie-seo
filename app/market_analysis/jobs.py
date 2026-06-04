@@ -183,16 +183,21 @@ def load_question_metadata(shop: str) -> dict[str, dict[str, dict]]:
 def save_question_metadata(shop: str, product_id: str, questions: list[dict]) -> None:
     """Persist question metadata so retired questions can still be displayed."""
     stored = load_question_metadata(shop)
+    # Merge — never overwrite existing keys so retired/validated question text survives re-analysis
+    existing = stored.get(product_id) or {}
     stored[product_id] = {
-        q["key"]: {
-            "key": q["key"],
-            "question": q.get("question", ""),
-            "why_it_matters": q.get("why_it_matters", ""),
-            "placeholder": q.get("placeholder", ""),
-            "target_keyword": q.get("target_keyword", ""),
-        }
-        for q in questions
-        if isinstance(q, dict) and q.get("key")
+        **existing,
+        **{
+            q["key"]: {
+                "key": q["key"],
+                "question": q.get("question", ""),
+                "why_it_matters": q.get("why_it_matters", ""),
+                "placeholder": q.get("placeholder", ""),
+                "target_keyword": q.get("target_keyword", ""),
+            }
+            for q in questions
+            if isinstance(q, dict) and q.get("key")
+        },
     }
     _write_json_file(shop, "market_analysis_question_metadata.json", stored)
 
