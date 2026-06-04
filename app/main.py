@@ -23,6 +23,7 @@ logging.basicConfig(
 # ── Active routers (pages: dashboard, market-analysis, blog, llms-txt,
 #    continuous-improvement, account + sub-pages, jobs) ─────────────────────
 from app.api.blog import router as blog_router  # noqa: E402
+from app.api.competitor_serp import router as competitor_serp_router  # noqa: E402
 from app.api.ga4 import router as ga4_router  # noqa: E402  (status used by market-analysis)
 from app.api.geo import router as geo_router  # noqa: E402  (continuous-improvement)
 from app.api.gsc import router as gsc_router  # noqa: E402  (status used by market-analysis)
@@ -171,6 +172,7 @@ app.include_router(observability_router)
 app.include_router(ga4_router)
 app.include_router(geo_router)
 app.include_router(blog_router)
+app.include_router(competitor_serp_router)
 
 # ── Archived — not mounted (see archive/pre-cleanup-2026-06-03) ───────────────
 # app.include_router(audit_router)

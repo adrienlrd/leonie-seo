@@ -41,38 +41,41 @@ def build_competitor_crawl_insights(
     }
 
 
+def url_to_competitor_top_url(item: dict[str, Any]) -> dict[str, Any]:
+    """Serialize a flat feature dict to the CompetitorCrawlTopUrl shape."""
+    return {
+        "url": item.get("url", ""),
+        "domain": item.get("domain", ""),
+        "rank": item.get("rank", 0),
+        "keyword": item.get("keyword", ""),
+        "keyword_intent_type": item.get("keyword_intent_type", ""),
+        "title": item.get("title", ""),
+        "page_type": item.get("page_type", "unknown"),
+        "final_url": item.get("final_url", item.get("url", "")),
+        "feature_summary": {
+            "has_faq_block": bool(item.get("has_faq_block")),
+            "has_product_schema": bool(item.get("has_product_schema")),
+            "has_breadcrumb_schema": bool(item.get("has_breadcrumb_schema")),
+            "word_count": int(item.get("word_count", 0) or 0),
+            "internal_link_count": int(item.get("internal_link_count", 0) or 0),
+        },
+        "seo": _seo_detail(item),
+        "structure": _structure_detail(item),
+        "geo_aeo": _geo_aeo_detail(item),
+        "schema": _schema_detail(item),
+        "links": _links_detail(item),
+        "images": _images_detail(item),
+        "trust": _trust_detail(item),
+        "product_depth": _product_depth_detail(item),
+        "serp": _serp_detail(item),
+    }
+
+
 def _top_urls(features: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    top = []
-    for item in sorted(features, key=lambda f: int(f.get("rank", 999) or 999))[:5]:
-        top.append(
-            {
-                "url": item.get("url", ""),
-                "domain": item.get("domain", ""),
-                "rank": item.get("rank", 0),
-                "keyword": item.get("keyword", ""),
-                "keyword_intent_type": item.get("keyword_intent_type", ""),
-                "title": item.get("title", ""),
-                "page_type": item.get("page_type", "unknown"),
-                "final_url": item.get("final_url", item.get("url", "")),
-                "feature_summary": {
-                    "has_faq_block": bool(item.get("has_faq_block")),
-                    "has_product_schema": bool(item.get("has_product_schema")),
-                    "has_breadcrumb_schema": bool(item.get("has_breadcrumb_schema")),
-                    "word_count": int(item.get("word_count", 0) or 0),
-                    "internal_link_count": int(item.get("internal_link_count", 0) or 0),
-                },
-                "seo": _seo_detail(item),
-                "structure": _structure_detail(item),
-                "geo_aeo": _geo_aeo_detail(item),
-                "schema": _schema_detail(item),
-                "links": _links_detail(item),
-                "images": _images_detail(item),
-                "trust": _trust_detail(item),
-                "product_depth": _product_depth_detail(item),
-                "serp": _serp_detail(item),
-            }
-        )
-    return top
+    return [
+        url_to_competitor_top_url(item)
+        for item in sorted(features, key=lambda f: int(f.get("rank", 999) or 999))[:5]
+    ]
 
 
 def _keyword_present(text: str, keyword: str) -> bool:

@@ -353,6 +353,30 @@ export interface ProductResult {
   opportunity_score_before_competitor_boost?: number;
 }
 
+// ── Competitor SERP page types ────────────────────────────────────────────────
+
+export interface CompetitorSerpUrl extends CompetitorCrawlTopUrl {
+  from_cache?: boolean;
+  error?: string;
+  blocked_by_robots?: boolean;
+}
+
+export interface CompetitorSerpDomain {
+  domain: string;
+  source: "serp_per_product" | "domain_level" | "manual" | string;
+  estimated_strength: number;
+  urls: CompetitorSerpUrl[];
+}
+
+export interface CompetitorSerpResult {
+  created_at: string;
+  shop?: string;
+  competitors: CompetitorSerpDomain[];
+  total_urls_crawled: number;
+  keywords_used: number;
+  error?: string;
+}
+
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
 export function scoreTone(score: number): "success" | "warning" | "critical" {
