@@ -172,18 +172,37 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 // ── Synthesis block (the narrative "what they do / how to inspire") ────────────
 
-function SynthesisBlock({ profile, locale }: { profile: CompetitorProfile; locale: Locale }) {
+function SynthesisBlock({
+  profile,
+  locale,
+  running,
+}: {
+  profile: CompetitorProfile;
+  locale: Locale;
+  running: boolean;
+}) {
   const synthesis = profile.synthesis;
 
   if (synthesis === undefined || synthesis === null) {
+    if (running) {
+      return (
+        <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+          <InlineStack gap="200" blockAlign="center">
+            <Spinner size="small" />
+            <Text as="p" tone="subdued">
+              {locale === "fr" ? "Analyse détaillée en cours…" : "Detailed analysis in progress…"}
+            </Text>
+          </InlineStack>
+        </Box>
+      );
+    }
     return (
       <Box padding="300" background="bg-surface-secondary" borderRadius="200">
-        <InlineStack gap="200" blockAlign="center">
-          <Spinner size="small" />
-          <Text as="p" tone="subdued">
-            {locale === "fr" ? "Analyse détaillée en cours…" : "Detailed analysis in progress…"}
-          </Text>
-        </InlineStack>
+        <Text as="p" tone="subdued">
+          {locale === "fr"
+            ? "Clique sur « Générer l'analyse détaillée » pour obtenir les forces, opportunités et actions inspirées de ce concurrent."
+            : "Click “Generate detailed analysis” to get this competitor's strengths, opportunities and inspired actions."}
+        </Text>
       </Box>
     );
   }
@@ -354,7 +373,15 @@ function TechnicalDetail({ page, locale }: { page: CompetitorCrawlTopUrl; locale
 
 // ── Competitor card ───────────────────────────────────────────────────────────
 
-function CompetitorCard({ profile, locale }: { profile: CompetitorProfile; locale: Locale }) {
+function CompetitorCard({
+  profile,
+  locale,
+  running,
+}: {
+  profile: CompetitorProfile;
+  locale: Locale;
+  running: boolean;
+}) {
   const [detailOpen, setDetailOpen] = useState(false);
   const topKeywords = profile.ranked_keywords.slice(0, 8);
 
@@ -384,7 +411,7 @@ function CompetitorCard({ profile, locale }: { profile: CompetitorProfile; local
 
         <Divider />
 
-        <SynthesisBlock profile={profile} locale={locale} />
+        <SynthesisBlock profile={profile} locale={locale} running={running} />
 
         {topKeywords.length > 0 && (
           <BlockStack gap="200">
@@ -469,24 +496,34 @@ export default function CompetitorCrawlPage() {
     if (!fetcher.data) return;
     const data = fetcher.data as Record<string, unknown>;
 
-    if (typeof data.job_id === "string") {
-      setJobStatus(String(data.status ?? "pending"));
+    // Terminal states first: the completed/failed poll response also carries
+    // job_id, so it must be handled before the "job started" branch below.
+    if (data.status === "completed") {
+      stopPolling();
+      jobIdRef.current = null;
+      setJobStatus("completed");
+      if (data.result) setResult(data.result as CompetitorSerpResult);
+      return;
+    }
+    if (data.status === "failed") {
+      stopPolling();
+      jobIdRef.current = null;
+      setJobStatus("failed");
+      setActionError(String(data.error ?? "Analyse échouée"));
+      return;
+    }
+
+    // Job just started (start_job response) — begin polling.
+    if (typeof data.job_id === "string" && !jobIdRef.current) {
       jobIdRef.current = data.job_id;
+      setJobStatus(String(data.status ?? "pending"));
       startPolling();
       return;
     }
 
+    // Intermediate poll (pending/running) — keep the status fresh.
     if (typeof data.status === "string") {
       setJobStatus(data.status);
-      if (data.status === "completed") {
-        stopPolling();
-        jobIdRef.current = null;
-        if (data.result) setResult(data.result as CompetitorSerpResult);
-      } else if (data.status === "failed") {
-        stopPolling();
-        jobIdRef.current = null;
-        setActionError(String(data.error ?? "Analyse échouée"));
-      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher.data]);
@@ -617,7 +654,7 @@ export default function CompetitorCrawlPage() {
         )}
 
         {filtered.map((profile) => (
-          <CompetitorCard key={profile.domain} profile={profile} locale={locale} />
+          <CompetitorCard key={profile.domain} profile={profile} locale={locale} running={isRunning} />
         ))}
 
         {hasData && filtered.length === 0 && (
