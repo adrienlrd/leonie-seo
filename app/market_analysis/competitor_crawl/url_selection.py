@@ -24,11 +24,17 @@ def select_competitor_urls_for_product(
     serp_intel: dict[str, dict],
     merchant_domain: str,
     max_urls: int,
+    merchant_domains: list[str] | None = None,
 ) -> list[CompetitorCrawlTarget]:
     """Select top external competitor URLs from DataForSEO SERP intelligence."""
     if max_urls <= 0:
         return []
-    merchant = _normalize_domain(merchant_domain)
+    merchants = {
+        domain
+        for domain in [_normalize_domain(merchant_domain)]
+        + [_normalize_domain(value) for value in (merchant_domains or [])]
+        if domain
+    }
     selected: list[CompetitorCrawlTarget] = []
     seen_urls: set[str] = set()
     keywords = sorted(
@@ -52,7 +58,7 @@ def select_competitor_urls_for_product(
             if not canonical_url or canonical_url in seen_urls:
                 continue
             domain = _normalize_domain(str(item.get("domain") or urlsplit(canonical_url).netloc))
-            if not domain or _same_or_subdomain(domain, merchant):
+            if not domain or any(_same_or_subdomain(domain, merchant) for merchant in merchants):
                 continue
             if _is_blocked_path(canonical_url):
                 continue

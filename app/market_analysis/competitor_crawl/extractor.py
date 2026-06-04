@@ -41,11 +41,15 @@ class _FeatureParser(HTMLParser):
         self.text_parts: list[str] = []
         self.paragraphs: list[str] = []
         self.links: list[str] = []
+        self.link_entries: list[dict[str, str]] = []
+        self.current_link_href: str | None = None
+        self.current_link_text: list[str] = []
         self.h1: list[str] = []
         self.h2: list[str] = []
         self.h3: list[str] = []
         self.image_count = 0
         self.images_missing_alt_count = 0
+        self.image_alt_texts: list[str] = []
         self.list_count = 0
         self.table_texts: list[str] = []
         self.classes_and_ids: list[str] = []
@@ -66,12 +70,17 @@ class _FeatureParser(HTMLParser):
             self.text_parts.append(" ")
         elif lower == "a":
             self.current_link = True
+            self.current_link_href = attr.get("href") or ""
+            self.current_link_text = []
             if attr.get("href"):
                 self.links.append(attr["href"])
         elif lower == "img":
             self.image_count += 1
-            if not attr.get("alt", "").strip():
+            alt = attr.get("alt", "").strip()
+            if not alt:
                 self.images_missing_alt_count += 1
+            else:
+                self.image_alt_texts.append(alt)
         elif lower in {"ul", "ol"}:
             self.list_count += 1
         elif lower == "table":
@@ -90,7 +99,16 @@ class _FeatureParser(HTMLParser):
         elif lower == "p":
             self.current_paragraph = False
         elif lower == "a":
+            if self.current_link_href:
+                self.link_entries.append(
+                    {
+                        "href": self.current_link_href,
+                        "anchor": _normalize_text(" ".join(self.current_link_text)),
+                    }
+                )
             self.current_link = False
+            self.current_link_href = None
+            self.current_link_text = []
         elif lower == "table" and self.current_table:
             table_text = _normalize_text(" ".join(self.current_table_text))
             if table_text:
@@ -107,6 +125,8 @@ class _FeatureParser(HTMLParser):
         self.text_parts.append(text)
         if self.current_table:
             self.current_table_text.append(text)
+        if self.current_link:
+            self.current_link_text.append(text)
         if self.current_heading == "h1":
             self.h1.append(text)
         elif self.current_heading == "h2":
@@ -164,6 +184,7 @@ def extract_competitor_features(html: str, *, url: str = "") -> dict[str, Any]:
     internal_links, external_links = _count_links(parser.links, base_domain)
     word_count = len(_WORD_RE.findall(text))
     short_answers = _count_short_answer_blocks(parser.paragraphs)
+    descriptive_alts = _descriptive_alt_count(parser.image_alt_texts)
     has_product_schema = "product" in schema_types_lower
     has_offer_schema = bool({"offer", "aggregateoffer"} & schema_types_lower)
     has_breadcrumb_schema = "breadcrumblist" in schema_types_lower
@@ -171,11 +192,15 @@ def extract_competitor_features(html: str, *, url: str = "") -> dict[str, Any]:
     has_article_schema = bool({"article", "blogposting", "newsarticle"} & schema_types_lower)
     has_organization_schema = "organization" in schema_types_lower
     has_faq_block = faq_questions > 0 or has_faq_schema or _class_hint(parser, "faq")
+    has_breadcrumb_block = has_breadcrumb_schema or _class_hint(parser, "breadcrumb")
     has_specs_table = _has_product_specs_table(parser.table_texts)
     has_comparison_table = _has_comparison_table(parser.table_texts, text_lower)
+    trust_proof_types = _trust_proof_types(text_lower)
+    content_depth = _content_depth_flags(text_lower)
     has_shopify_cdn = "cdn.shopify.com" in html.lower() or "myshopify.com" in html.lower()
     features = {
         "url": url,
+        "page_type": _infer_page_type(url, parser.classes_and_ids, schema_types_lower, text_lower),
         "title": core.get("title", ""),
         "title_length": len(core.get("title", "") or ""),
         "meta_description": core.get("meta_description", ""),
@@ -185,12 +210,17 @@ def extract_competitor_features(html: str, *, url: str = "") -> dict[str, Any]:
         "h2_count": len(parser.h2),
         "h2_texts": parser.h2[:20],
         "h3_count": len(parser.h3),
+        "h3_texts": parser.h3[:20],
         "word_count": word_count,
         "paragraph_count": len(parser.paragraphs),
         "image_count": parser.image_count,
+        "image_alt_count": len(parser.image_alt_texts),
         "images_missing_alt_count": parser.images_missing_alt_count,
+        "descriptive_image_alt_count": descriptive_alts,
+        "image_alt_examples": parser.image_alt_texts[:8],
         "internal_link_count": internal_links,
         "external_link_count": external_links,
+        "internal_link_examples": _internal_link_examples(parser.link_entries, base_domain),
         "canonical_present": bool(core.get("canonical")),
         "has_faq_block": has_faq_block,
         "faq_question_count": faq_questions,
@@ -218,7 +248,12 @@ def extract_competitor_features(html: str, *, url: str = "") -> dict[str, Any]:
             text_lower,
             ["avis client", "avis clients", "étoiles", "etoiles", "trustpilot", "reviews"],
         ),
+        "has_trust_proof": bool(trust_proof_types),
+        "trust_proof_types": trust_proof_types,
         "has_product_specs_table": has_specs_table,
+        "has_breadcrumb_block": has_breadcrumb_block,
+        "breadcrumb_structure": "schema_or_visible" if has_breadcrumb_block else "not_detected",
+        "content_depth": content_depth,
         "answerability_score": _answerability_score(
             has_faq_block=has_faq_block,
             has_short_answer=short_answers > 0,
@@ -304,6 +339,118 @@ def _count_links(links: list[str], base_domain: str) -> tuple[int, int]:
         else:
             external += 1
     return internal, external
+
+
+def _internal_link_examples(
+    link_entries: list[dict[str, str]],
+    base_domain: str,
+    *,
+    limit: int = 12,
+) -> list[dict[str, str]]:
+    examples: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for entry in link_entries:
+        href = entry.get("href", "").strip()
+        if not href or href.startswith(("#", "mailto:", "tel:", "javascript:")):
+            continue
+        parsed = urlsplit(href)
+        domain = parsed.netloc.lower().removeprefix("www.")
+        if domain and domain != base_domain and not domain.endswith(f".{base_domain}"):
+            continue
+        path = parsed.path or href
+        key = f"{path}|{entry.get('anchor', '')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        examples.append(
+            {
+                "href": href,
+                "anchor": entry.get("anchor", "")[:120],
+                "target_type": _link_target_type(path),
+            }
+        )
+        if len(examples) >= limit:
+            break
+    return examples
+
+
+def _link_target_type(path: str) -> str:
+    lower = path.lower()
+    if "/products/" in lower:
+        return "product"
+    if "/collections/" in lower:
+        return "collection"
+    if "/blogs/" in lower or "/blog/" in lower:
+        return "blog"
+    if "faq" in lower or "questions" in lower:
+        return "faq"
+    return "other"
+
+
+def _descriptive_alt_count(alt_texts: list[str]) -> int:
+    count = 0
+    for alt in alt_texts:
+        words = _WORD_RE.findall(alt)
+        if len(words) >= 3 and len(alt.strip()) >= 18:
+            count += 1
+    return count
+
+
+def _infer_page_type(
+    url: str,
+    classes_and_ids: list[str],
+    schema_types_lower: set[str],
+    text_lower: str,
+) -> str:
+    path = urlsplit(url).path.lower()
+    markers = " ".join(classes_and_ids)
+    if "/products/" in path or "product" in schema_types_lower:
+        return "product"
+    if "/collections/" in path or "collection" in markers:
+        return "collection"
+    if (
+        "/blogs/" in path
+        or "/blog/" in path
+        or bool({"article", "blogposting"} & schema_types_lower)
+    ):
+        return "blog"
+    if "faq" in path or "faq" in markers or "faqpage" in schema_types_lower:
+        return "faq"
+    if "comment choisir" in text_lower or "guide d'achat" in text_lower:
+        return "guide"
+    return "unknown"
+
+
+def _trust_proof_types(text_lower: str) -> list[str]:
+    checks = [
+        ("reviews", ["avis client", "avis clients", "avis vérifié", "avis verifie", "reviews"]),
+        ("guarantee", ["garantie", "satisfait ou remboursé", "satisfait ou rembourse"]),
+        ("delivery", ["livraison", "expédition", "expedition"]),
+        ("returns", ["retour", "retours", "remboursement"]),
+        ("secure_payment", ["paiement sécurisé", "paiement securise", "secure payment"]),
+    ]
+    return [key for key, needles in checks if _contains_any(text_lower, needles)]
+
+
+def _content_depth_flags(text_lower: str) -> dict[str, bool]:
+    return {
+        "materials": _contains_any(
+            text_lower,
+            ["matière", "matiere", "matériau", "materiau", "cuir", "coton", "inox", "bois"],
+        ),
+        "dimensions": _contains_any(
+            text_lower,
+            ["dimension", "taille", "hauteur", "largeur", "longueur", "cm", "mm"],
+        ),
+        "usage": _contains_any(
+            text_lower,
+            ["usage", "utilisation", "pour chien", "pour chat", "quotidien"],
+        ),
+        "compatibility": _contains_any(text_lower, ["compatible", "convient", "adapté", "adapte"]),
+        "care": _contains_any(
+            text_lower, ["entretien", "nettoyage", "lavage", "laver", "nettoyer"]
+        ),
+    }
 
 
 def _count_faq_questions(

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlsplit
 
 from app.business_profile.context import build_business_profile_context_meta
 from app.geo.facts import analyze_product_facts
@@ -31,6 +33,7 @@ from app.market_analysis.providers.types import KeywordSignal
 from app.niche.signals.google_suggest import fetch_suggestions_bulk
 from app.observability.metrics import check_budget
 from app.snapshot.scope import filter_products_by_scope
+from app.tenant_config import find_tenant_by_shop_domain
 
 logger = logging.getLogger(__name__)
 
@@ -1222,6 +1225,30 @@ _GENERIC_DOMAINS = frozenset(
         "boulanger.com",
         "darty.com",
         "ldlc.com",
+        "decathlon.fr",
+        "maxizoo.fr",
+        "zooplus.fr",
+        "bitiba.fr",
+        "animalis.com",
+        "truffaut.com",
+        "jardiland.com",
+        "wanimo.com",
+    }
+)
+
+_RETAILER_BRAND_QUERY_MARKERS = frozenset(
+    {
+        "amazon",
+        "cdiscount",
+        "decathlon",
+        "maxi zoo",
+        "maxizoo",
+        "zooplus",
+        "bitiba",
+        "animalis",
+        "truffaut",
+        "jardiland",
+        "wanimo",
     }
 )
 
@@ -1478,6 +1505,143 @@ def _content_word_count(text: str) -> int:
         for word in re.findall(r"[a-zàâäéèêëîïôùûüç]+", text.lower())
         if len(word) >= 3 and word not in _FR_STOP_WORDS
     )
+
+
+def _domain_to_keyword_marker(domain: str) -> str:
+    """Convert a domain into a rough brand marker for keyword filtering."""
+    host = _normalize_domain_value(domain)
+    if not host:
+        return ""
+    parts = host.split(".")
+    label = parts[1] if parts and parts[0] == "www" and len(parts) > 1 else parts[0]
+    return label.replace("-", " ").strip()
+
+
+def _normalize_domain_value(value: str) -> str:
+    """Normalize a URL/domain string to a bare lowercase host."""
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return ""
+    if raw.startswith("sc-domain:"):
+        raw = raw.removeprefix("sc-domain:")
+    if "://" in raw:
+        raw = urlsplit(raw).netloc
+    return raw.split("/")[0].split(":")[0].removeprefix("www.")
+
+
+def _merchant_public_domains(
+    shop: str,
+    *,
+    gsc_page_rows: dict[str, dict[str, Any]] | None = None,
+) -> list[str]:
+    """Return known merchant domains beyond the myshopify hostname."""
+    domains: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: Any) -> None:
+        domain = _normalize_domain_value(str(value or ""))
+        if domain and domain not in seen:
+            domains.append(domain)
+            seen.add(domain)
+
+    add(shop)
+    tenant = find_tenant_by_shop_domain(shop)
+    if tenant:
+        add(tenant.shopify_store_domain)
+        add(tenant.base_url or "")
+        add(tenant.gsc_property or "")
+    for value in os.getenv("COMPETITOR_CRAWL_MERCHANT_DOMAINS", "").split(","):
+        add(value)
+    for key in gsc_page_rows or {}:
+        add(str(key))
+    return domains
+
+
+def _merchant_brand_terms(
+    shop: str,
+    *,
+    business_profile: dict[str, Any] | None = None,
+) -> frozenset[str]:
+    """Return brand terms that must not be treated as competitor brands."""
+    terms: set[str] = set()
+    profile = business_profile or {}
+    for value in (
+        profile.get("brand_name"),
+        shop,
+        _domain_to_keyword_marker(shop),
+    ):
+        terms.update(_content_words(_coerce_str(value)))
+    tenant = find_tenant_by_shop_domain(shop)
+    if tenant:
+        terms.update(_content_words(tenant.brand))
+        terms.update(_content_words(_domain_to_keyword_marker(tenant.base_url or "")))
+        terms.update(_content_words(tenant.tenant_id.replace("-", " ")))
+    return frozenset(terms)
+
+
+def _competitor_brand_markers(
+    *,
+    business_profile: dict[str, Any] | None = None,
+    merchant_terms: frozenset[str] | None = None,
+) -> tuple[frozenset[str], ...]:
+    """Build normalized competitor/retailer markers to exclude from product keywords."""
+    markers = set(_RETAILER_BRAND_QUERY_MARKERS)
+    profile = business_profile or {}
+    for domain in profile.get("competitor_domains", []) or []:
+        marker = _domain_to_keyword_marker(str(domain))
+        if marker:
+            markers.add(marker)
+    for item in profile.get("competitors", []) or []:
+        if not isinstance(item, dict):
+            continue
+        name = _coerce_str(item.get("name", ""))
+        domain_marker = _domain_to_keyword_marker(_coerce_str(item.get("domain", "")))
+        if name:
+            markers.add(name)
+        if domain_marker:
+            markers.add(domain_marker)
+    allowed = merchant_terms or frozenset()
+    out: list[frozenset[str]] = []
+    for marker in markers:
+        words = _content_words(marker)
+        if not words or words <= allowed:
+            continue
+        out.append(words)
+    return tuple(out)
+
+
+def _has_competitor_brand_marker(
+    query: str,
+    competitor_markers: tuple[frozenset[str], ...],
+    merchant_terms: frozenset[str],
+) -> bool:
+    """Return True when a query targets a competitor/retailer brand."""
+    query_words = _content_words(query)
+    if not query_words:
+        return False
+    if query_words & merchant_terms:
+        return False
+    return any(marker <= query_words for marker in competitor_markers)
+
+
+def _filter_competitor_brand_keywords(
+    keywords: list[dict[str, Any]],
+    *,
+    competitor_markers: tuple[frozenset[str], ...],
+    merchant_terms: frozenset[str],
+) -> list[dict[str, Any]]:
+    """Remove competitor-branded keywords from product-page target selection."""
+    if not competitor_markers:
+        return list(keywords)
+    filtered: list[dict[str, Any]] = []
+    for keyword in keywords:
+        if not isinstance(keyword, dict):
+            continue
+        query = _clean_keyword_query(keyword.get("query", ""))
+        if _has_competitor_brand_marker(query, competitor_markers, merchant_terms):
+            continue
+        filtered.append(keyword)
+    return filtered
 
 
 def _seed_text_list(seed_texts: str | list[str]) -> list[str]:
@@ -1827,6 +1991,8 @@ def _build_keyword_candidate_pool(
     *,
     dataforseo: Any = None,
     suggest_fetcher: Callable[[list[str]], list[Any]] | None = None,
+    competitor_markers: tuple[frozenset[str], ...] = (),
+    merchant_terms: frozenset[str] = frozenset(),
     use_suggest: bool = True,
     ideas_limit: int = 25,
     max_pool: int = _POOL_MAX,
@@ -1901,6 +2067,11 @@ def _build_keyword_candidate_pool(
     )
     for cand in candidates:
         cand.pop("_src_priority", None)
+    candidates = _filter_competitor_brand_keywords(
+        candidates,
+        competitor_markers=competitor_markers,
+        merchant_terms=merchant_terms,
+    )
     return candidates[:max_pool]
 
 
@@ -4873,6 +5044,7 @@ def _merge_merchant_confirmed_facts(
 def _run_competitor_crawl_analysis(
     *,
     shop: str,
+    merchant_domains: list[str],
     pass1_states: list[dict[str, Any]],
     serp_intel: dict[str, dict[str, Any]],
     config: CompetitorCrawlConfig,
@@ -4898,6 +5070,7 @@ def _run_competitor_crawl_analysis(
             serp_intel,
             shop,
             config.max_urls_per_product,
+            merchant_domains=merchant_domains,
         )
         if not targets:
             continue
@@ -4934,6 +5107,11 @@ def _run_competitor_crawl_analysis(
     features_by_url: dict[str, dict[str, Any]] = {}
     for result in crawl_results:
         if result.features and not result.error:
+            serp_entry = (
+                serp_intel.get(result.target.keyword.lower())
+                or serp_intel.get(result.target.keyword)
+                or {}
+            )
             feature = dict(result.features)
             feature.update(
                 {
@@ -4944,6 +5122,8 @@ def _run_competitor_crawl_analysis(
                     "keyword": result.target.keyword,
                     "title": result.target.title or feature.get("title", ""),
                     "from_cache": result.from_cache,
+                    "serp_paa_questions": list(serp_entry.get("paa", []) or [])[:10],
+                    "serp_featured_snippet": serp_entry.get("featured_snippet"),
                 }
             )
             features_by_url[result.target.url] = feature
@@ -4951,11 +5131,20 @@ def _run_competitor_crawl_analysis(
     insights_by_product: dict[str, dict[str, Any]] = {}
     for state in pass1_states:
         product_id = str(state["product"].get("id", ""))
-        target_features = [
-            features_by_url[target.url]
-            for target in targets_by_product.get(product_id, [])
-            if target.url in features_by_url
-        ]
+        keyword_meta = {
+            str(keyword.get("query", "")).strip().lower(): keyword
+            for keyword in state["pack"].get("seo_keywords", []) or []
+            if isinstance(keyword, dict)
+        }
+        target_features: list[dict[str, Any]] = []
+        for target in targets_by_product.get(product_id, []):
+            if target.url not in features_by_url:
+                continue
+            feature = dict(features_by_url[target.url])
+            keyword = keyword_meta.get(target.keyword.lower(), {})
+            feature["keyword_intent_type"] = keyword.get("intent_type", "")
+            feature["serp_feature_targets"] = list(keyword.get("serp_feature_targets", []) or [])
+            target_features.append(feature)
         if not target_features:
             continue
         try:
@@ -5129,6 +5318,12 @@ def run_market_analysis(
     business_context = _format_business_profile_context(business_profile)
     business_profile_context = build_business_profile_context_meta(business_profile)
     business_profile_context_hash = business_profile_context.get("hash")
+    merchant_domains = _merchant_public_domains(shop, gsc_page_rows=gsc_page_rows)
+    merchant_terms = _merchant_brand_terms(shop, business_profile=business_profile)
+    competitor_brand_markers = _competitor_brand_markers(
+        business_profile=business_profile,
+        merchant_terms=merchant_terms,
+    )
     if business_context:
         sources_used.append("business_profile")
 
@@ -5186,6 +5381,8 @@ def run_market_analysis(
             fields,
             gsc_query_rows,
             dataforseo=dataforseo_provider,
+            competitor_markers=competitor_brand_markers,
+            merchant_terms=merchant_terms,
             use_suggest=True,
         )
         if candidate_pool:
@@ -5310,6 +5507,12 @@ def run_market_analysis(
             buying_intents=_coerce_str_list(state["pack"].get("buying_intents", [])),
             target_customer=str(state["pack"].get("target_customer", "")),
         )
+        filtered_keywords = _filter_competitor_brand_keywords(
+            repaired_keywords,
+            competitor_markers=competitor_brand_markers,
+            merchant_terms=merchant_terms,
+        )
+        repaired_keywords = filtered_keywords
         ranked = _assign_keyword_targets(repaired_keywords, product_words)
         state["pack"]["keyword_guardrail"] = _build_keyword_guardrail(
             ranked,
@@ -5382,6 +5585,7 @@ def run_market_analysis(
     if competitor_crawl_config.enabled:
         _, competitor_crawl_feature_count = _run_competitor_crawl_analysis(
             shop=shop,
+            merchant_domains=merchant_domains,
             pass1_states=pass1_states,
             serp_intel=serp_intel,
             config=competitor_crawl_config,

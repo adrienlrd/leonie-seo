@@ -50,7 +50,10 @@ def _top_urls(features: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "domain": item.get("domain", ""),
                 "rank": item.get("rank", 0),
                 "keyword": item.get("keyword", ""),
+                "keyword_intent_type": item.get("keyword_intent_type", ""),
                 "title": item.get("title", ""),
+                "page_type": item.get("page_type", "unknown"),
+                "final_url": item.get("final_url", item.get("url", "")),
                 "feature_summary": {
                     "has_faq_block": bool(item.get("has_faq_block")),
                     "has_product_schema": bool(item.get("has_product_schema")),
@@ -58,9 +61,180 @@ def _top_urls(features: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "word_count": int(item.get("word_count", 0) or 0),
                     "internal_link_count": int(item.get("internal_link_count", 0) or 0),
                 },
+                "seo": _seo_detail(item),
+                "structure": _structure_detail(item),
+                "geo_aeo": _geo_aeo_detail(item),
+                "schema": _schema_detail(item),
+                "links": _links_detail(item),
+                "images": _images_detail(item),
+                "trust": _trust_detail(item),
+                "product_depth": _product_depth_detail(item),
+                "serp": _serp_detail(item),
             }
         )
     return top
+
+
+def _keyword_present(text: str, keyword: str) -> bool:
+    words = {word for word in keyword.lower().replace("’", "'").split() if len(word) >= 3}
+    haystack = text.lower()
+    return bool(words) and all(word in haystack for word in words)
+
+
+def _has_cta(text: str) -> bool:
+    lower = text.lower()
+    return any(
+        marker in lower
+        for marker in (
+            "découvrir",
+            "découvrez",
+            "decouvrir",
+            "decouvrez",
+            "acheter",
+            "commander",
+            "choisir",
+            "profiter",
+            "voir",
+            "shop",
+            "buy",
+        )
+    )
+
+
+def _has_commercial_benefit(text: str) -> bool:
+    lower = text.lower()
+    return any(
+        marker in lower
+        for marker in (
+            "livraison",
+            "garantie",
+            "qualité",
+            "qualite",
+            "confort",
+            "premium",
+            "durable",
+            "facile",
+            "offert",
+            "promo",
+        )
+    )
+
+
+def _seo_detail(item: dict[str, Any]) -> dict[str, Any]:
+    keyword = str(item.get("keyword", ""))
+    title = str(item.get("title", ""))
+    meta = str(item.get("meta_description", ""))
+    return {
+        "title": title,
+        "title_length": int(item.get("title_length", 0) or 0),
+        "title_keyword_present": _keyword_present(title, keyword),
+        "title_promise_detected": _has_commercial_benefit(title),
+        "meta_description": meta,
+        "meta_description_length": int(item.get("meta_description_length", 0) or 0),
+        "meta_keyword_present": _keyword_present(meta, keyword),
+        "meta_has_commercial_angle": _has_commercial_benefit(meta),
+        "meta_has_cta": _has_cta(meta),
+        "canonical_present": bool(item.get("canonical_present")),
+    }
+
+
+def _structure_detail(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "h1_count": int(item.get("h1_count", 0) or 0),
+        "h1_text": item.get("h1_text", ""),
+        "h2_count": int(item.get("h2_count", 0) or 0),
+        "h2_texts": list(item.get("h2_texts", []) or [])[:20],
+        "h3_count": int(item.get("h3_count", 0) or 0),
+        "h3_texts": list(item.get("h3_texts", []) or [])[:20],
+        "word_count": int(item.get("word_count", 0) or 0),
+        "paragraph_count": int(item.get("paragraph_count", 0) or 0),
+        "has_bullet_lists": bool(item.get("has_bullet_lists")),
+        "has_comparison_table": bool(item.get("has_comparison_table")),
+        "has_product_specs_table": bool(item.get("has_product_specs_table")),
+        "has_pros_cons": bool(item.get("has_pros_cons")),
+        "has_buying_guide": bool(item.get("has_buying_guide")),
+        "has_how_to_structure": bool(item.get("has_how_to_structure")),
+        "has_breadcrumb_block": bool(item.get("has_breadcrumb_block")),
+        "breadcrumb_structure": item.get("breadcrumb_structure", ""),
+    }
+
+
+def _geo_aeo_detail(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "has_faq_block": bool(item.get("has_faq_block")),
+        "faq_question_count": int(item.get("faq_question_count", 0) or 0),
+        "has_short_answer_block": bool(item.get("has_short_answer_block")),
+        "short_answer_block_count": int(item.get("short_answer_block_count", 0) or 0),
+        "has_definition_block": bool(item.get("has_definition_block")),
+        "answerability_score": int(item.get("answerability_score", 0) or 0),
+        "ai_readability_score": int(item.get("ai_readability_score", 0) or 0),
+    }
+
+
+def _schema_detail(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "jsonld_count": int(item.get("jsonld_count", 0) or 0),
+        "schema_types": list(item.get("schema_types", []) or []),
+        "has_product_schema": bool(item.get("has_product_schema")),
+        "has_offer_schema": bool(item.get("has_offer_schema")),
+        "has_breadcrumb_schema": bool(item.get("has_breadcrumb_schema")),
+        "has_faq_schema": bool(item.get("has_faq_schema")),
+        "has_article_schema": bool(item.get("has_article_schema")),
+        "has_organization_schema": bool(item.get("has_organization_schema")),
+        "schema_completeness_score": int(item.get("schema_completeness_score", 0) or 0),
+    }
+
+
+def _links_detail(item: dict[str, Any]) -> dict[str, Any]:
+    examples = list(item.get("internal_link_examples", []) or [])[:12]
+    return {
+        "internal_link_count": int(item.get("internal_link_count", 0) or 0),
+        "external_link_count": int(item.get("external_link_count", 0) or 0),
+        "internal_link_examples": examples,
+        "product_link_count": sum(1 for link in examples if link.get("target_type") == "product"),
+        "collection_link_count": sum(
+            1 for link in examples if link.get("target_type") == "collection"
+        ),
+        "blog_link_count": sum(1 for link in examples if link.get("target_type") == "blog"),
+    }
+
+
+def _images_detail(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "image_count": int(item.get("image_count", 0) or 0),
+        "image_alt_count": int(item.get("image_alt_count", 0) or 0),
+        "images_missing_alt_count": int(item.get("images_missing_alt_count", 0) or 0),
+        "descriptive_image_alt_count": int(item.get("descriptive_image_alt_count", 0) or 0),
+        "image_alt_examples": list(item.get("image_alt_examples", []) or [])[:8],
+    }
+
+
+def _trust_detail(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "has_reviews_or_social_proof": bool(item.get("has_reviews_or_social_proof")),
+        "has_trust_proof": bool(item.get("has_trust_proof")),
+        "trust_proof_types": list(item.get("trust_proof_types", []) or []),
+    }
+
+
+def _product_depth_detail(item: dict[str, Any]) -> dict[str, Any]:
+    depth = item.get("content_depth") if isinstance(item.get("content_depth"), dict) else {}
+    return {
+        "materials": bool(depth.get("materials")),
+        "dimensions": bool(depth.get("dimensions")),
+        "usage": bool(depth.get("usage")),
+        "compatibility": bool(depth.get("compatibility")),
+        "care": bool(depth.get("care")),
+    }
+
+
+def _serp_detail(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "paa_questions": list(item.get("serp_paa_questions", []) or [])[:10],
+        "featured_snippet": item.get("serp_featured_snippet"),
+        "featured_snippet_present": bool(item.get("serp_featured_snippet")),
+        "serp_feature_targets": list(item.get("serp_feature_targets", []) or []),
+    }
 
 
 def _dominant_patterns(features: list[dict[str, Any]]) -> dict[str, Any]:

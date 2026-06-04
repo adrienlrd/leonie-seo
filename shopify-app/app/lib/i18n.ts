@@ -4,6 +4,7 @@ type Dictionary = Record<string, string>;
 
 const FR: Dictionary = {
   dashboard: "Accueil",
+  competitorCrawlNav: "Concurrents SERP",
   audit: "Audit",
   longtail: "Longue traîne",
   cannibalization: "Cannibalisation",
@@ -600,6 +601,7 @@ const FR: Dictionary = {
 
 const EN: Dictionary = {
   dashboard: "Home",
+  competitorCrawlNav: "SERP competitors",
   audit: "Audit",
   longtail: "Long tail",
   cannibalization: "Cannibalization",

@@ -207,6 +207,105 @@ def test_pool_dedup_keeps_dataforseo_base_but_preserves_gsc_metrics():
     assert merged["gsc_impressions"] == 320  # observed GSC metrics preserved
 
 
+def test_pool_filters_retailer_brand_queries_when_competitor_marker_matches():
+    ideas = [
+        {
+            "query": "fontaine à eau chat maxi zoo",
+            "intent_type": "commercial",
+            "demand_score": 70,
+            "competition_score": 35,
+            "product_fit_score": 0,
+            "reason": "retailer query",
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+            "search_volume": 1200,
+        },
+        {
+            "query": "fontaine chat decathlon",
+            "intent_type": "commercial",
+            "demand_score": 65,
+            "competition_score": 40,
+            "product_fit_score": 0,
+            "reason": "retailer query",
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+            "search_volume": 900,
+        },
+        {
+            "query": "fontaine chat leonie",
+            "intent_type": "commercial",
+            "demand_score": 45,
+            "competition_score": 30,
+            "product_fit_score": 0,
+            "reason": "merchant brand query",
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+            "search_volume": 150,
+        },
+        {
+            "query": "fontaine eau chat silencieuse",
+            "intent_type": "commercial",
+            "demand_score": 60,
+            "competition_score": 35,
+            "product_fit_score": 0,
+            "reason": "product query",
+            "data_source": "dataforseo",
+            "difficulty_source": "dataforseo",
+            "search_volume": 600,
+        },
+    ]
+
+    pool = engine._build_keyword_candidate_pool(
+        _fields(
+            product_title="Fontaine à eau pour chat Léonie",
+            source_product_text="Fontaine à eau filtrée silencieuse pour chat Léonie",
+        ),
+        [],
+        dataforseo=_FakeDataForSEO(ideas=ideas),
+        suggest_fetcher=lambda _s: [],
+        competitor_markers=engine._competitor_brand_markers(merchant_terms=frozenset({"leonie"})),
+        merchant_terms=frozenset({"leonie"}),
+    )
+
+    queries = {candidate["query"] for candidate in pool}
+    assert "fontaine à eau chat maxi zoo" not in queries
+    assert "fontaine chat decathlon" not in queries
+    assert "fontaine chat leonie" in queries
+    assert "fontaine eau chat silencieuse" in queries
+
+
+def test_filter_competitor_brand_keywords_removes_all_retailer_queries():
+    selected = [
+        {"query": "harnais chien anti traction decathlon"},
+        {"query": "harnais chien maxi zoo"},
+    ]
+
+    filtered = engine._filter_competitor_brand_keywords(
+        selected,
+        competitor_markers=engine._competitor_brand_markers(merchant_terms=frozenset({"leonie"})),
+        merchant_terms=frozenset({"leonie"}),
+    )
+
+    assert filtered == []
+
+
+def test_filter_competitor_brand_keywords_keeps_merchant_branded_query():
+    selected = [
+        {"query": "fontaine chat maxi zoo"},
+        {"query": "fontaine chat léonie"},
+        {"query": "fontaine eau chat sans fil"},
+    ]
+
+    filtered = engine._filter_competitor_brand_keywords(
+        selected,
+        competitor_markers=engine._competitor_brand_markers(merchant_terms=frozenset({"leonie"})),
+        merchant_terms=frozenset({"leonie"}),
+    )
+
+    queries = [keyword["query"] for keyword in filtered]
+    assert queries == ["fontaine chat léonie", "fontaine eau chat sans fil"]
+
+
 def test_merge_pass1_selection_inherits_real_metrics_and_flags_added():
     pool = [
         {"query": "fontaine chat", "data_source": "dataforseo", "search_volume": 1000},

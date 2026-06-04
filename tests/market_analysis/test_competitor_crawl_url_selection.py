@@ -64,6 +64,34 @@ def test_ignores_merchant_domain_when_serp_contains_same_shop() -> None:
     assert targets[0].domain == "competitor.fr"
 
 
+def test_ignores_public_merchant_domain_alias_when_serp_contains_storefront() -> None:
+    targets = select_competitor_urls_for_product(
+        [{"query": "pull chien léonie", "target_rank": 1}],
+        {
+            "pull chien léonie": {
+                "top_competitors": [
+                    {
+                        "domain": "leoniedelacroix.com",
+                        "url": "https://www.leoniedelacroix.com/products/pull-pour-chien",
+                        "rank": 1,
+                    },
+                    {
+                        "domain": "competitor.fr",
+                        "url": "https://competitor.fr/products/pull-chien",
+                        "rank": 2,
+                    },
+                ]
+            }
+        },
+        "287c4a-bb.myshopify.com",
+        3,
+        merchant_domains=["leoniedelacroix.com"],
+    )
+
+    assert len(targets) == 1
+    assert targets[0].domain == "competitor.fr"
+
+
 def test_ignores_cart_checkout_account_and_search_when_urls_are_sensitive() -> None:
     targets = select_competitor_urls_for_product(
         [{"query": "fontaine chat", "target_rank": 1}],

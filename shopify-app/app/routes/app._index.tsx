@@ -1730,6 +1730,11 @@ function BizProfileCards({ profile, competitorSignals, locale }: { profile: Busi
                 ))}
               </BlockStack>
             )}
+            <InlineStack>
+              <Button url={localizedPath("/app/competitor-crawl", locale)} variant="secondary" size="slim">
+                {locale === "fr" ? "Voir le crawl SERP" : "View SERP crawl"}
+              </Button>
+            </InlineStack>
           </BlockStack>
         </Card>
 

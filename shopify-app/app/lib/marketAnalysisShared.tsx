@@ -205,6 +205,130 @@ export interface ImprovementElement {
   status: "improved" | "not_improved";
 }
 
+export interface CompetitorInternalLinkExample {
+  href: string;
+  anchor: string;
+  target_type: "product" | "collection" | "blog" | "faq" | "other" | string;
+}
+
+export interface CompetitorCrawlTopUrl {
+  url: string;
+  final_url?: string;
+  domain: string;
+  rank: number;
+  keyword: string;
+  keyword_intent_type?: string;
+  title: string;
+  page_type?: string;
+  feature_summary?: {
+    has_faq_block?: boolean;
+    has_product_schema?: boolean;
+    has_breadcrumb_schema?: boolean;
+    word_count?: number;
+    internal_link_count?: number;
+  };
+  seo?: {
+    title?: string;
+    title_length?: number;
+    title_keyword_present?: boolean;
+    title_promise_detected?: boolean;
+    meta_description?: string;
+    meta_description_length?: number;
+    meta_keyword_present?: boolean;
+    meta_has_commercial_angle?: boolean;
+    meta_has_cta?: boolean;
+    canonical_present?: boolean;
+  };
+  structure?: {
+    h1_count?: number;
+    h1_text?: string;
+    h2_count?: number;
+    h2_texts?: string[];
+    h3_count?: number;
+    h3_texts?: string[];
+    word_count?: number;
+    paragraph_count?: number;
+    has_bullet_lists?: boolean;
+    has_comparison_table?: boolean;
+    has_product_specs_table?: boolean;
+    has_pros_cons?: boolean;
+    has_buying_guide?: boolean;
+    has_how_to_structure?: boolean;
+    has_breadcrumb_block?: boolean;
+    breadcrumb_structure?: string;
+  };
+  geo_aeo?: {
+    has_faq_block?: boolean;
+    faq_question_count?: number;
+    has_short_answer_block?: boolean;
+    short_answer_block_count?: number;
+    has_definition_block?: boolean;
+    answerability_score?: number;
+    ai_readability_score?: number;
+  };
+  schema?: {
+    jsonld_count?: number;
+    schema_types?: string[];
+    has_product_schema?: boolean;
+    has_offer_schema?: boolean;
+    has_breadcrumb_schema?: boolean;
+    has_faq_schema?: boolean;
+    has_article_schema?: boolean;
+    has_organization_schema?: boolean;
+    schema_completeness_score?: number;
+  };
+  links?: {
+    internal_link_count?: number;
+    external_link_count?: number;
+    internal_link_examples?: CompetitorInternalLinkExample[];
+    product_link_count?: number;
+    collection_link_count?: number;
+    blog_link_count?: number;
+  };
+  images?: {
+    image_count?: number;
+    image_alt_count?: number;
+    images_missing_alt_count?: number;
+    descriptive_image_alt_count?: number;
+    image_alt_examples?: string[];
+  };
+  trust?: {
+    has_reviews_or_social_proof?: boolean;
+    has_trust_proof?: boolean;
+    trust_proof_types?: string[];
+  };
+  product_depth?: {
+    materials?: boolean;
+    dimensions?: boolean;
+    usage?: boolean;
+    compatibility?: boolean;
+    care?: boolean;
+  };
+  serp?: {
+    paa_questions?: string[];
+    featured_snippet?: string | null;
+    featured_snippet_present?: boolean;
+    serp_feature_targets?: string[];
+  };
+}
+
+export interface CompetitorCrawlGap {
+  gap: string;
+  action_type: string;
+  priority_boost: number;
+  reason: string;
+}
+
+export interface CompetitorCrawlInsights {
+  enabled: boolean;
+  sample_size: number;
+  top_urls: CompetitorCrawlTopUrl[];
+  dominant_patterns: Record<string, number | string | boolean>;
+  merchant_gaps: CompetitorCrawlGap[];
+  priority_boost_total: number;
+  prompt_summary: string;
+}
+
 export interface ProductResult {
   product_id: string;
   product_title: string;
@@ -223,6 +347,10 @@ export interface ProductResult {
   keyword_clusters?: KeywordCluster[];
   improvement_tags?: ImprovementTag[];
   improvement_elements?: ImprovementElement[];
+  competitor_crawl_insights?: CompetitorCrawlInsights;
+  competitor_pattern_boost?: number;
+  competitor_pattern_gaps?: CompetitorCrawlGap[];
+  opportunity_score_before_competitor_boost?: number;
 }
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────

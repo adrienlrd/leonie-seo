@@ -41,8 +41,10 @@ def _html() -> str:
         <ul><li>Volume</li><li>Entretien</li></ul>
         <table><tr><th>Critère</th><th>Valeur</th></tr><tr><td>Dimension</td><td>20 cm</td></tr></table>
         <img src="//cdn.shopify.com/a.jpg">
-        <img src="/b.jpg" alt="Fontaine chat">
-        <a href="/collections/chats">Collection</a>
+        <img src="/b.jpg" alt="Fontaine chat inox silencieuse">
+        <a href="/collections/chats">Collection chats</a>
+        <a href="/blogs/conseils/choisir-fontaine-chat">Guide fontaine</a>
+        <p>Avis clients, garantie, livraison et retours sont affichés sur la page.</p>
         <a href="https://external.example/a">External</a>
         <div class="shopify-section">Shopify</div>
       </body>
@@ -73,9 +75,22 @@ def test_counts_headings_links_and_words_when_html_has_content() -> None:
     assert features["h1_count"] == 1
     assert features["h2_count"] == 2
     assert features["h3_count"] == 1
-    assert features["internal_link_count"] == 1
+    assert features["internal_link_count"] == 2
     assert features["external_link_count"] == 1
     assert features["word_count"] > 40
+
+
+def test_extracts_page_type_link_anchors_image_alts_and_trust_signals() -> None:
+    features = extract_competitor_features(_html(), url="https://competitor.fr/products/fontaine")
+
+    assert features["page_type"] == "product"
+    assert features["image_alt_count"] == 1
+    assert features["descriptive_image_alt_count"] == 1
+    assert features["internal_link_examples"][0]["target_type"] == "collection"
+    assert any(link["target_type"] == "blog" for link in features["internal_link_examples"])
+    assert features["has_trust_proof"] is True
+    assert "guarantee" in features["trust_proof_types"]
+    assert features["content_depth"]["dimensions"] is True
 
 
 def test_scores_are_bounded_when_content_is_extracted() -> None:
