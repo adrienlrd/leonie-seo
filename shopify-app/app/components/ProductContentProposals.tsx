@@ -72,8 +72,18 @@ export function ProductContentProposals({
   onRestoreQuestion?: (key: string) => void;
 }) {
   const pack = product.content_test_pack;
-  const retiredKeys = new Set<string>(pack.retired_question_keys ?? []);
-  const retiredQuestions = (pack.retired_questions ?? []) as Array<{ key: string; question: string; why_it_matters: string; placeholder: string }>;
+  // Optimistic local state — updates immediately on retire/restore without waiting for server
+  const [localRetiredKeys, setLocalRetiredKeys] = useState<Set<string>>(
+    () => new Set(pack.retired_question_keys ?? []),
+  );
+  // Sync when pack changes (page reload / re-analysis)
+  const retiredKeysSig = JSON.stringify(pack.retired_question_keys ?? []);
+  useEffect(() => {
+    setLocalRetiredKeys(new Set(pack.retired_question_keys ?? []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retiredKeysSig]);
+
+  const completedQuestions = pack.completed_questions ?? [];
   const seoKeywords = product.seo_keywords ?? [];
   const coverageTargets = (() => {
     const primary = seoKeywords
@@ -596,13 +606,32 @@ export function ProductContentProposals({
     </Tooltip>
   ) : null;
 
-  const activeEnrichmentQuestions = enrichmentQuestions.filter((q) => !retiredKeys.has(q.key));
-  const [showRetiredQuestions, setShowRetiredQuestions] = useState(false);
+  const activeEnrichmentQuestions = enrichmentQuestions.filter((q) => !localRetiredKeys.has(q.key));
+  const [showCompletedQuestions, setShowCompletedQuestions] = useState(false);
 
-  // Faits déjà confirmés dans les analyses précédentes (source=merchant_confirmation)
-  const confirmedAnswers = enrichmentAnswers; // merchantAnswersFromPack already read from confirmed_facts
+  // Optimistic retire/restore: update local state immediately + call parent callback
+  const handleRetire = (key: string) => {
+    setLocalRetiredKeys((prev) => new Set([...prev, key]));
+    onRetireQuestion?.(key);
+  };
+  const handleRestore = (key: string) => {
+    setLocalRetiredKeys((prev) => { const next = new Set(prev); next.delete(key); return next; });
+    onRestoreQuestion?.(key);
+  };
 
-  const hasContent = activeEnrichmentQuestions.length > 0 || retiredQuestions.length > 0 || Object.keys(confirmedAnswers).length > 0;
+  // "Déjà complété" = completed_questions from backend (retired + auto-answered)
+  // + any questions just retired optimistically that aren't in completed_questions yet
+  const optimisticRetiredKeys = [...localRetiredKeys].filter(
+    (k) => !completedQuestions.some((q) => q.key === k),
+  );
+  const optimisticCompleted = optimisticRetiredKeys
+    .map((k) => enrichmentQuestions.find((q) => q.key === k))
+    .filter(Boolean)
+    .map((q) => ({ ...q!, is_retired: true, answer: enrichmentAnswers[q!.key] ?? "" }));
+
+  const allCompletedQuestions = [...completedQuestions, ...optimisticCompleted];
+
+  const hasContent = activeEnrichmentQuestions.length > 0 || allCompletedQuestions.length > 0;
 
   const enrichmentBlock = !editMode && hasContent ? (
     <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
@@ -630,18 +659,11 @@ export function ProductContentProposals({
                 multiline={2}
               />
             </Box>
-            {onRetireQuestion && (
-              <div style={{ paddingTop: 28, flexShrink: 0 }}>
-                <Button
-                  size="slim"
-                  variant="plain"
-                  tone="critical"
-                  onClick={() => onRetireQuestion(question.key)}
-                >
-                  {locale === "fr" ? "Retirer" : "Dismiss"}
-                </Button>
-              </div>
-            )}
+            <div style={{ paddingTop: 28, flexShrink: 0 }}>
+              <Button size="slim" variant="plain" tone="critical" onClick={() => handleRetire(question.key)}>
+                {locale === "fr" ? "Retirer" : "Dismiss"}
+              </Button>
+            </div>
           </InlineStack>
         ))}
 
@@ -658,32 +680,35 @@ export function ProductContentProposals({
           </InlineStack>
         )}
 
-        {/* Questions non pertinentes */}
-        {retiredQuestions.length > 0 && (
+        {/* Déjà complété = retirées + déjà répondues */}
+        {allCompletedQuestions.length > 0 && (
           <>
             <Button
               size="slim"
               variant="plain"
-              onClick={() => setShowRetiredQuestions((v) => !v)}
+              onClick={() => setShowCompletedQuestions((v) => !v)}
             >
-              {showRetiredQuestions
-                ? (locale === "fr" ? "Masquer les questions non pertinentes" : "Hide dismissed questions")
-                : `${locale === "fr" ? "Questions non pertinentes" : "Dismissed questions"} (${retiredQuestions.length})`}
+              {showCompletedQuestions
+                ? (locale === "fr" ? "Masquer" : "Hide")
+                : `${locale === "fr" ? "Déjà complété" : "Already completed"} (${allCompletedQuestions.length})`}
             </Button>
-            <Collapsible id={`retired-questions-${product.product_id}`} open={showRetiredQuestions}>
+            <Collapsible id={`completed-questions-${product.product_id}`} open={showCompletedQuestions}>
               <BlockStack gap="200">
-                {retiredQuestions.map((question) => (
-                  <InlineStack key={question.key} align="space-between" blockAlign="center" wrap>
+                {allCompletedQuestions.map((question) => (
+                  <InlineStack key={question.key} align="space-between" blockAlign="start" wrap>
                     <BlockStack gap="050">
-                      <Text as="p" variant="bodySm" tone="subdued">{question.question}</Text>
-                      {confirmedAnswers[question.key] && (
+                      <Text as="p" variant="bodySm" fontWeight="semibold">{question.question}</Text>
+                      {question.answer && (
+                        <Text as="p" variant="bodySm" tone="subdued">→ {question.answer}</Text>
+                      )}
+                      {!question.answer && (
                         <Text as="p" variant="bodySm" tone="subdued">
-                          → {confirmedAnswers[question.key]}
+                          {locale === "fr" ? "Non pertinente" : "Not relevant"}
                         </Text>
                       )}
                     </BlockStack>
-                    {onRestoreQuestion && (
-                      <Button size="slim" variant="plain" onClick={() => onRestoreQuestion(question.key)}>
+                    {question.is_retired && (
+                      <Button size="slim" variant="plain" onClick={() => handleRestore(question.key)}>
                         {locale === "fr" ? "Restaurer" : "Restore"}
                       </Button>
                     )}

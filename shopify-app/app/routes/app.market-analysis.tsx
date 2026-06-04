@@ -260,6 +260,7 @@ interface ContentTestPack {
   enrichment_questions?: EnrichmentQuestion[];
   retired_question_keys?: string[];
   retired_questions?: EnrichmentQuestion[];
+  completed_questions?: Array<{ key: string; question: string; why_it_matters: string; placeholder: string; is_retired: boolean; answer: string }>;
   content_guardrail_reflection?: ContentGuardrailReflection;
   faq_sync?: {
     applied: boolean;

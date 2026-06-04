@@ -603,27 +603,58 @@ async def get_latest_market_analysis(
 
     retired_by_product = load_retired_questions(ctx.shop)
     meta_by_product = load_question_metadata(ctx.shop)
+    merchant_facts = load_merchant_facts(ctx.shop)
     products = enriched.get("products") or []
     for product in products:
         if not isinstance(product, dict):
             continue
         pid = str(product.get("product_id") or "")
-        retired_keys = retired_by_product.get(pid, [])
+        retired_keys_list = retired_by_product.get(pid, [])
+        retired_keys_set = set(retired_keys_list)
         pack = product.get("content_test_pack")
-        if isinstance(pack, dict):
-            # Save current question metadata for future display of retired questions
-            active_qs = pack.get("enrichment_questions") or []
-            if active_qs:
-                save_question_metadata(ctx.shop, pid, active_qs)
-                meta_by_product = load_question_metadata(ctx.shop)
-            # Build retired questions list from saved metadata
-            retired_qs = [
-                meta_by_product.get(pid, {}).get(k)
-                for k in retired_keys
-                if meta_by_product.get(pid, {}).get(k)
-            ]
-            pack["retired_question_keys"] = retired_keys
-            pack["retired_questions"] = [q for q in retired_qs if q]
+        if not isinstance(pack, dict):
+            continue
+
+        # Persist question metadata so we can display them after retirement
+        active_qs = pack.get("enrichment_questions") or []
+        if active_qs:
+            save_question_metadata(ctx.shop, pid, active_qs)
+            meta_by_product = load_question_metadata(ctx.shop)
+
+        meta = meta_by_product.get(pid) or {}
+        active_keys = {q.get("key") for q in active_qs if isinstance(q, dict) and q.get("key")}
+
+        # Keys answered by merchant (source=merchant_confirmation) but not active
+        confirmed_facts = pack.get("confirmed_facts") or []
+        answered_keys = {
+            f.get("key") for f in confirmed_facts
+            if isinstance(f, dict) and f.get("source") == "merchant_confirmation" and f.get("key")
+        }
+        auto_completed_keys = answered_keys - active_keys - retired_keys_set
+
+        # Build answers map from merchant facts file
+        product_facts = merchant_facts.get(pid) or {}
+
+        completed_questions: list[dict[str, Any]] = []
+        for k in retired_keys_list:
+            q = meta.get(k)
+            if q:
+                completed_questions.append({
+                    **q,
+                    "is_retired": True,
+                    "answer": product_facts.get(k, ""),
+                })
+        for k in sorted(auto_completed_keys):
+            q = meta.get(k)
+            if q:
+                completed_questions.append({
+                    **q,
+                    "is_retired": False,
+                    "answer": product_facts.get(k, ""),
+                })
+
+        pack["retired_question_keys"] = retired_keys_list
+        pack["completed_questions"] = completed_questions
     return enriched
 
 
