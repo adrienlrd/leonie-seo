@@ -20,6 +20,7 @@ import {
   BlockStack,
   Box,
   Button,
+  Checkbox,
   Collapsible,
   Icon,
   InlineStack,
@@ -41,7 +42,9 @@ import {
   qualityWarningText,
 } from "../lib/marketAnalysisShared";
 
-type FieldKey = "meta_title" | "meta_description" | "alt_text" | "description" | "faq" | "blog";
+export type FieldKey = "meta_title" | "meta_description" | "alt_text" | "description" | "faq" | "blog";
+
+const APPLY_FIELD_KEYS: FieldKey[] = ["meta_title", "meta_description", "alt_text", "description"];
 
 export function ProductContentProposals({
   product,
@@ -51,6 +54,8 @@ export function ProductContentProposals({
   analyzeDisabled,
   layout,
   showKeywordSources = true,
+  checkedApplyFields,
+  onToggleApplyField,
 }: {
   product: ProductResult;
   locale: Locale;
@@ -59,6 +64,8 @@ export function ProductContentProposals({
   analyzeDisabled: boolean;
   layout: "sections" | "buttons";
   showKeywordSources?: boolean;
+  checkedApplyFields?: Set<FieldKey>;
+  onToggleApplyField?: (field: FieldKey) => void;
 }) {
   const pack = product.content_test_pack;
   const seoKeywords = product.seo_keywords ?? [];
@@ -69,6 +76,21 @@ export function ProductContentProposals({
     return primary.length > 0 ? primary : seoKeywords.slice(0, 5);
   })();
   const kwQueries = coverageTargets.map((keyword) => keyword.query);
+
+  const fieldHasNewProposal = (key: FieldKey): boolean => {
+    switch (key) {
+      case "meta_title":
+        return Boolean(pack.proposed_meta_title) && pack.proposed_meta_title !== pack.current_meta_title;
+      case "meta_description":
+        return Boolean(pack.proposed_meta_description) && pack.proposed_meta_description !== pack.current_meta_description;
+      case "description":
+        return Boolean(pack.proposed_product_description);
+      case "alt_text":
+        return (pack.proposed_image_alts ?? []).some((a) => Boolean(a.proposed_alt));
+      default:
+        return false;
+    }
+  };
 
   // Global edit toggle (sections layout) + per-field edit toggle (buttons layout).
   const [editMode, setEditMode] = useState(false);
@@ -178,23 +200,40 @@ export function ProductContentProposals({
   const renderMetaTitle = (editing: boolean) => (
     <BlockStack gap="100">
       {layout === "sections" && <Text as="h4" variant="headingXs">Meta title</Text>}
-      <Text as="p" variant="bodySm" tone="subdued">
-        {locale === "fr" ? "Actuel" : "Current"} : {pack.current_meta_title}
-      </Text>
       {editing ? (
-        <TextField
-          label=""
-          labelHidden
-          value={editedPack.proposed_meta_title}
-          onChange={(v) => updateProp("proposed_meta_title", v)}
-          autoComplete="off"
-          maxLength={70}
-          showCharacterCount
-        />
+        <>
+          <Text as="p" variant="bodySm" tone="subdued">
+            {locale === "fr" ? "Actuel" : "Current"} : {pack.current_meta_title || "—"}
+          </Text>
+          <TextField
+            label=""
+            labelHidden
+            value={editedPack.proposed_meta_title}
+            onChange={(v) => updateProp("proposed_meta_title", v)}
+            autoComplete="off"
+            maxLength={70}
+            showCharacterCount
+          />
+        </>
       ) : (
-        <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-          <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_meta_title, kwQueries)}</Text>
-        </Box>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div>
+            <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
+              {locale === "fr" ? "Actuel" : "Current"}
+            </Text>
+            <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+              <Text as="p" variant="bodySm" tone="subdued">{pack.current_meta_title || "—"}</Text>
+            </Box>
+          </div>
+          <div>
+            <Text as="p" variant="bodySm" fontWeight="semibold">
+              {locale === "fr" ? "Proposé" : "Proposed"}
+            </Text>
+            <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+              <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_meta_title, kwQueries)}</Text>
+            </Box>
+          </div>
+        </div>
       )}
     </BlockStack>
   );
@@ -202,25 +241,44 @@ export function ProductContentProposals({
   const renderMetaDescription = (editing: boolean) => (
     <BlockStack gap="100">
       {layout === "sections" && <Text as="h4" variant="headingXs">Meta description</Text>}
-      <Text as="p" variant="bodySm" tone="subdued">
-        {locale === "fr" ? "Actuelle" : "Current"} :{" "}
-        {pack.current_meta_description || (locale === "fr" ? "absente" : "missing")}
-      </Text>
       {editing ? (
-        <TextField
-          label=""
-          labelHidden
-          value={editedPack.proposed_meta_description}
-          onChange={(v) => updateProp("proposed_meta_description", v)}
-          multiline={3}
-          autoComplete="off"
-          maxLength={160}
-          showCharacterCount
-        />
+        <>
+          <Text as="p" variant="bodySm" tone="subdued">
+            {locale === "fr" ? "Actuelle" : "Current"} :{" "}
+            {pack.current_meta_description || (locale === "fr" ? "absente" : "missing")}
+          </Text>
+          <TextField
+            label=""
+            labelHidden
+            value={editedPack.proposed_meta_description}
+            onChange={(v) => updateProp("proposed_meta_description", v)}
+            multiline={3}
+            autoComplete="off"
+            maxLength={160}
+            showCharacterCount
+          />
+        </>
       ) : (
-        <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-          <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_meta_description, kwQueries)}</Text>
-        </Box>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div>
+            <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
+              {locale === "fr" ? "Actuelle" : "Current"}
+            </Text>
+            <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+              <Text as="p" variant="bodySm" tone="subdued">
+                {pack.current_meta_description || (locale === "fr" ? "— absente" : "— missing")}
+              </Text>
+            </Box>
+          </div>
+          <div>
+            <Text as="p" variant="bodySm" fontWeight="semibold">
+              {locale === "fr" ? "Proposée" : "Proposed"}
+            </Text>
+            <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+              <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_meta_description, kwQueries)}</Text>
+            </Box>
+          </div>
+        </div>
       )}
     </BlockStack>
   );
@@ -231,18 +289,42 @@ export function ProductContentProposals({
         <Text as="h4" variant="headingXs">{t(locale, "contentTypeProductDescription")}</Text>
       )}
       {editing ? (
-        <TextField
-          label=""
-          labelHidden
-          value={editedPack.proposed_product_description}
-          onChange={(v) => updateProp("proposed_product_description", v)}
-          multiline={5}
-          autoComplete="off"
-        />
+        <>
+          {pack.current_product_description_summary && (
+            <Text as="p" variant="bodySm" tone="subdued">
+              {locale === "fr" ? "Actuelle" : "Current"} : {pack.current_product_description_summary}
+            </Text>
+          )}
+          <TextField
+            label=""
+            labelHidden
+            value={editedPack.proposed_product_description}
+            onChange={(v) => updateProp("proposed_product_description", v)}
+            multiline={5}
+            autoComplete="off"
+          />
+        </>
       ) : (
-        <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
-          <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_product_description, kwQueries)}</Text>
-        </Box>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div>
+            <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
+              {locale === "fr" ? "Actuelle" : "Current"}
+            </Text>
+            <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+              <Text as="p" variant="bodySm" tone="subdued">
+                {pack.current_product_description_summary || "—"}
+              </Text>
+            </Box>
+          </div>
+          <div>
+            <Text as="p" variant="bodySm" fontWeight="semibold">
+              {locale === "fr" ? "Proposée" : "Proposed"}
+            </Text>
+            <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
+              <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_product_description, kwQueries)}</Text>
+            </Box>
+          </div>
+        </div>
       )}
     </BlockStack>
   );
@@ -604,16 +686,28 @@ export function ProductContentProposals({
     </Box>
   ) : null;
 
-  const fieldButtons = fields.filter((f) => f.has).map((f) => (
-    <Button
-      key={f.key}
-      size="slim"
-      pressed={openField === f.key}
-      onClick={() => toggleField(f.key)}
-    >
-      {t(locale, f.labelKey)}
-    </Button>
-  ));
+  const fieldButtons = fields.filter((f) => f.has).map((f) => {
+    const isApplyable = APPLY_FIELD_KEYS.includes(f.key);
+    const isChecked = isApplyable && (checkedApplyFields?.has(f.key) ?? false);
+    const showYellow = isApplyable && fieldHasNewProposal(f.key) && isChecked;
+    return (
+      <InlineStack key={f.key} gap="050" blockAlign="center">
+        {isApplyable && onToggleApplyField && (
+          <Checkbox
+            label=""
+            labelHidden
+            checked={isChecked}
+            onChange={() => onToggleApplyField(f.key)}
+          />
+        )}
+        <div style={showYellow ? { outline: "2px solid #F4C430", borderRadius: 6 } : {}}>
+          <Button size="slim" pressed={openField === f.key} onClick={() => toggleField(f.key)}>
+            {t(locale, f.labelKey)}
+          </Button>
+        </div>
+      </InlineStack>
+    );
+  });
 
   if (layout === "buttons") {
     const available = fields.filter((f) => f.has);

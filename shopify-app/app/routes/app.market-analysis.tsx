@@ -26,7 +26,7 @@ import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
-import { ProductContentProposals } from "../components/ProductContentProposals";
+import { ProductContentProposals, type FieldKey } from "../components/ProductContentProposals";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -238,6 +238,8 @@ interface ContentTestPack {
   proposed_product_title: string;
   current_product_description_summary: string;
   proposed_product_description: string;
+  current_product_images?: { id: string; url: string; current_alt: string | null }[];
+  proposed_image_alts?: { image_id: string; proposed_alt: string }[];
   proposed_faq: { q: string; a: string }[];
   proposed_geo_answer_block: string;
   proposed_geo_definition_block?: string;
@@ -746,6 +748,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ type: "removeProducts", error: null });
   }
 
+  if (intent === "applyToShopify") {
+    const productId = String(formData.get("productId") ?? "");
+    const fields = JSON.parse(String(formData.get("fields") ?? "[]")) as string[];
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/proposals/${encodeURIComponent(productId)}/apply-to-shopify`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: JSON.stringify({ fields, confirm_live_write: true }),
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+      const data = await resp.json().catch(() => ({})) as { results?: Record<string, { applied: boolean; error: string | null }>; detail?: string };
+      return json({ type: "applyToShopify", ok: resp.ok, results: data.results ?? {}, error: resp.ok ? null : (data.detail ?? `Backend ${resp.status}`) });
+    } catch (err) {
+      return json({ type: "applyToShopify", ok: false, results: {}, error: String(err) });
+    }
+  }
+
   return json({ type: "unknown", error: "Unknown intent" });
 };
 
@@ -1175,6 +1198,50 @@ function ProductCard({
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
 
+  // ── Apply-to-Shopify state ─────────────────────────────────────────────────
+  const applyFetcher = useFetcher<{ type: string; ok: boolean; results?: Record<string, { applied: boolean; error: string | null }>; error?: string | null }>();
+  const applyLoading = applyFetcher.state !== "idle";
+
+  const pack = product.content_test_pack;
+  const APPLY_FIELDS: FieldKey[] = ["meta_title", "meta_description", "alt_text", "description"];
+
+  const fieldHasProposal = (key: FieldKey): boolean => {
+    switch (key) {
+      case "meta_title": return Boolean(pack?.proposed_meta_title) && pack?.proposed_meta_title !== pack?.current_meta_title;
+      case "meta_description": return Boolean(pack?.proposed_meta_description) && pack?.proposed_meta_description !== pack?.current_meta_description;
+      case "description": return Boolean(pack?.proposed_product_description);
+      case "alt_text": return (pack?.proposed_image_alts ?? []).some((a) => Boolean(a.proposed_alt));
+      default: return false;
+    }
+  };
+
+  const [checkedApplyFields, setCheckedApplyFields] = useState<Set<FieldKey>>(
+    () => new Set(APPLY_FIELDS.filter(fieldHasProposal)),
+  );
+
+  const packSig = JSON.stringify(pack);
+  useEffect(() => {
+    setCheckedApplyFields(new Set(APPLY_FIELDS.filter(fieldHasProposal)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.product_id, packSig]);
+
+  const onToggleApplyField = (field: FieldKey) =>
+    setCheckedApplyFields((prev) => {
+      const next = new Set(prev);
+      if (next.has(field)) next.delete(field); else next.add(field);
+      return next;
+    });
+
+  const handleApplyProposals = () => {
+    const fields = [...checkedApplyFields].map((f) => (f === "alt_text" ? "image_alts" : f));
+    applyFetcher.submit(
+      { intent: "applyToShopify", productId: product.product_id, fields: JSON.stringify(fields) },
+      { method: "post" },
+    );
+  };
+
+  const applyResult = applyFetcher.data?.type === "applyToShopify" ? applyFetcher.data : null;
+
   // ── Tag state managed at ProductCard level ─────────────────────────────────
   const [localTags, setLocalTags] = useState<ImprovementTag[]>(product.improvement_tags ?? []);
   useEffect(() => {
@@ -1290,7 +1357,6 @@ function ProductCard({
       );
     }
   };
-  const pack = product.content_test_pack;
   // Hide keywords with zero product fit — they are noise for the merchant.
   const displayedKeywords = product.seo_keywords.filter(
     (keyword) => (keyword.product_fit_score ?? 0) > 0,
@@ -1366,6 +1432,11 @@ function ProductCard({
                 {t(locale, "marketAnalysisAnalyzeOne")}
               </Button>
             )}
+            {checkedApplyFields.size > 0 && (
+              <Button size="slim" variant="primary" loading={applyLoading} onClick={handleApplyProposals}>
+                {fr ? "Valider les propositions" : "Apply proposals"}
+              </Button>
+            )}
           </InlineStack>
         </InlineStack>
 
@@ -1395,6 +1466,22 @@ function ProductCard({
         />
         <ImprovementElements elements={product.improvement_elements} locale={locale} />
 
+        {applyResult && (
+          <Banner tone={applyResult.ok ? "success" : "critical"}>
+            {applyResult.ok ? (
+              <BlockStack gap="100">
+                {Object.entries(applyResult.results ?? {}).map(([field, res]) => (
+                  <Text key={field} as="p" variant="bodySm">
+                    {field} : {res.applied ? (fr ? "✓ appliqué" : "✓ applied") : `✗ ${res.error ?? (fr ? "échec" : "failed")}`}
+                  </Text>
+                ))}
+              </BlockStack>
+            ) : (
+              <Text as="p" variant="bodySm">{applyResult.error}</Text>
+            )}
+          </Banner>
+        )}
+
         <ProductContentProposals
           product={product}
           locale={locale}
@@ -1403,6 +1490,8 @@ function ProductCard({
           analyzeDisabled={analyzeDisabled}
           layout="buttons"
           showKeywordSources={false}
+          checkedApplyFields={checkedApplyFields}
+          onToggleApplyField={onToggleApplyField}
         />
 
         {/* Uncommitted keywords = those not yet in localTags as keyword type */}

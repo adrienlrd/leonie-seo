@@ -7,10 +7,12 @@ import json
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_days
 from app.api.deps import ShopContext, get_shop_context
 from app.apply.apply_faq import apply_schema_facts_to_shopify
+from app.apply.shopify_writer import ShopifyWriter
 from app.blog.auto_draft import auto_create_orphan_drafts
 from app.blog.store import list_drafts
 from app.business_profile.context import (
@@ -774,6 +776,73 @@ async def sync_market_analysis_schema_facts(
         return {"saved": False, "schema_facts_sync": sync_result}
     patch_product_proposals(ctx.shop, product_id, {"schema_facts_sync": sync_result})
     return {"saved": True, "schema_facts_sync": sync_result}
+
+
+class ApplyProposalsRequest(BaseModel):
+    fields: list[str]
+    confirm_live_write: bool = False
+
+
+@router.post("/shops/{shop}/market-analysis/proposals/{product_id:path}/apply-to-shopify")
+async def apply_market_analysis_proposals_to_shopify(
+    shop: str,
+    product_id: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    body: ApplyProposalsRequest,
+) -> dict[str, Any]:
+    """Apply selected market-analysis proposals directly to Shopify."""
+    result = load_latest_result(ctx.shop)
+    if result is None:
+        raise HTTPException(status_code=404, detail="No analysis found")
+    product = next(
+        (p for p in (result.get("products") or []) if p.get("product_id") == product_id),
+        None,
+    )
+    if not isinstance(product, dict):
+        raise HTTPException(
+            status_code=404, detail=f"Product {product_id} not found in latest analysis"
+        )
+    pack = product.get("content_test_pack") or {}
+    if not body.confirm_live_write:
+        return {"dry_run": True, "shop": ctx.shop, "product_id": product_id, "fields_requested": body.fields}
+
+    writer = ShopifyWriter(ctx.shop, ctx.access_token)
+    results: dict[str, Any] = {}
+
+    seo_fields = [f for f in body.fields if f in {"meta_title", "meta_description"}]
+    if seo_fields:
+        title = str(pack.get("proposed_meta_title") or "") if "meta_title" in seo_fields else None
+        desc = str(pack.get("proposed_meta_description") or "") if "meta_description" in seo_fields else None
+        r = await asyncio.to_thread(writer.apply_product_seo, product_id, title or None, desc or None)
+        for f in seo_fields:
+            results[f] = {"applied": r.applied, "error": r.error}
+
+    if "description" in body.fields:
+        r = await asyncio.to_thread(
+            writer.apply_product_description, product_id, str(pack.get("proposed_product_description") or "")
+        )
+        results["description"] = {"applied": r.applied, "error": r.error}
+
+    if "image_alts" in body.fields:
+        image_alts = pack.get("proposed_image_alts") or []
+        alt_errors: list[str] = []
+        applied_count = 0
+        for alt_item in (image_alts if isinstance(image_alts, list) else []):
+            image_id = str(alt_item.get("image_id") or "")
+            proposed_alt = str(alt_item.get("proposed_alt") or "")
+            if image_id and proposed_alt:
+                r = await asyncio.to_thread(writer.apply_image_alt, product_id, image_id, proposed_alt)
+                if r.applied:
+                    applied_count += 1
+                elif r.error:
+                    alt_errors.append(r.error)
+        results["image_alts"] = {
+            "applied": applied_count > 0,
+            "applied_count": applied_count,
+            "error": "; ".join(alt_errors) if alt_errors else None,
+        }
+
+    return {"shop": ctx.shop, "product_id": product_id, "results": results}
 
 
 @router.post("/shops/{shop}/market-analysis/products/remove")
