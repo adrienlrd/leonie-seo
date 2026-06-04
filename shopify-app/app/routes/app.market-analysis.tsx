@@ -1084,18 +1084,16 @@ function ImprovementTags({
   );
 }
 
-function ImprovementElements({ elements, locale }: { elements?: ImprovementElement[]; locale: Locale }) {
-  if (!elements || elements.length === 0) return null;
+function NotImprovedIcon({ elements, locale }: { elements?: ImprovementElement[]; locale: Locale }) {
+  const notImproved = (elements ?? []).filter((e) => !e.improved);
+  if (notImproved.length === 0) return null;
+  const tip = notImproved.map((e) => e.label).join(", ");
   return (
-    <InlineStack gap="100" wrap>
-      {elements.map((element) => (
-        <Badge key={element.key} tone={element.improved ? "success" : "info"}>
-          {`${element.label}: ${element.improved
-            ? (locale === "fr" ? "amélioré" : "improved")
-            : (locale === "fr" ? "non amélioré" : "not improved")}`}
-        </Badge>
-      ))}
-    </InlineStack>
+    <Tooltip content={`${locale === "fr" ? "Non amélioré" : "Not improved"} : ${tip}`}>
+      <span style={{ display: "inline-flex", cursor: "help" }}>
+        <Icon source={AlertTriangleIcon} tone="warning" />
+      </span>
+    </Tooltip>
   );
 }
 
@@ -1396,6 +1394,7 @@ function ProductCard({
                   </span>
                 </Tooltip>
               )}
+              <NotImprovedIcon elements={product.improvement_elements} locale={locale} />
             </InlineStack>
           </BlockStack>
           <InlineStack gap="200">
@@ -1464,7 +1463,6 @@ function ProductCard({
           onAdd={addManualTag}
           locale={locale}
         />
-        <ImprovementElements elements={product.improvement_elements} locale={locale} />
 
         {applyResult && (
           <Banner tone={applyResult.ok ? "success" : "critical"}>
