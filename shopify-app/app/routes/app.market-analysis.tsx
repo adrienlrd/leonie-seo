@@ -1097,34 +1097,54 @@ function NotImprovedIcon({ elements, locale }: { elements?: ImprovementElement[]
   );
 }
 
-function SummaryCard({ job, locale }: { job: JobState; locale: Locale }) {
+function SummaryCard({
+  job,
+  locale,
+  onAnalyzeAll,
+  onEditIdentification,
+  analyzeDisabled,
+}: {
+  job: JobState;
+  locale: Locale;
+  onAnalyzeAll?: () => void;
+  onEditIdentification?: () => void;
+  analyzeDisabled?: boolean;
+}) {
   const contextStatus = job.business_profile_context_status;
 
   return (
     <Card>
-      <BlockStack gap="200">
-        <InlineStack gap="400" wrap>
-          {job.analyzed_at && (
-            <Text as="p" variant="bodySm" tone="subdued">
-              {t(locale, "marketAnalysisLastRun")} : {formatDate(job.analyzed_at)}
-            </Text>
-          )}
-          <Text as="p" variant="bodySm">
-            <strong>{job.analyzed_product_count}</strong>{" "}
-            {t(locale, "marketAnalysisProductCount")}
-          </Text>
-          <Text as="p" variant="bodySm">
-            <strong>{job.total_opportunity_count}</strong>{" "}
-            {t(locale, "marketAnalysisOpportunityCount")}
-          </Text>
-          {contextStatus === "current" && (
-            <Badge tone="success">{t(locale, "marketAnalysisProfileContextCurrent")}</Badge>
-          )}
-          {contextStatus === "stale" && (
-            <Badge tone="attention">{t(locale, "marketAnalysisProfileContextStaleBadge")}</Badge>
-          )}
-          {contextStatus === "unknown" && (
-            <Badge tone="attention">{t(locale, "marketAnalysisProfileContextUnknownBadge")}</Badge>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center" wrap>
+          <BlockStack gap="100">
+            {job.analyzed_at && (
+              <Text as="p" variant="bodySm" tone="subdued">
+                {t(locale, "marketAnalysisLastRun")} : {formatDate(job.analyzed_at)}
+              </Text>
+            )}
+            {contextStatus === "current" && (
+              <Badge tone="success">{t(locale, "marketAnalysisProfileContextCurrent")}</Badge>
+            )}
+            {contextStatus === "stale" && (
+              <Badge tone="attention">{t(locale, "marketAnalysisProfileContextStaleBadge")}</Badge>
+            )}
+            {contextStatus === "unknown" && (
+              <Badge tone="attention">{t(locale, "marketAnalysisProfileContextUnknownBadge")}</Badge>
+            )}
+          </BlockStack>
+          {(onAnalyzeAll || onEditIdentification) && (
+            <InlineStack gap="200">
+              {onAnalyzeAll && (
+                <Button variant="primary" onClick={onAnalyzeAll} disabled={analyzeDisabled} loading={analyzeDisabled}>
+                  {t(locale, "marketAnalysisAnalyzeAll")}
+                </Button>
+              )}
+              {onEditIdentification && (
+                <Button variant="plain" onClick={onEditIdentification} disabled={analyzeDisabled}>
+                  {t(locale, "marketAnalysisEditIdentification")}
+                </Button>
+              )}
+            </InlineStack>
           )}
         </InlineStack>
       </BlockStack>
@@ -2418,19 +2438,6 @@ export default function MarketAnalysisPage() {
       }}
     >
       <BlockStack gap="400">
-        {/* Read-only banner */}
-        <Banner tone="info">
-          <Text as="p">{t(locale, "marketAnalysisReadOnly")}</Text>
-        </Banner>
-
-        {/* Data sources status */}
-        <DataSourcesCard
-          gscConnected={gscConnected}
-          ga4Connected={ga4Connected}
-          providerStatus={job?.provider_status ?? latestJob?.provider_status}
-          locale={locale}
-        />
-
         {!gscConnected && (
           <Banner
             tone="warning"
@@ -2596,22 +2603,6 @@ export default function MarketAnalysisPage() {
               disabled={isInProgress}
             />
 
-            {/* Action buttons (re-run / edit identification) */}
-            {job?.status === "completed" && (
-              <InlineStack gap="300" wrap>
-                <Button
-                  variant="primary"
-                  onClick={() => setShowRerunModal(true)}
-                  loading={isInProgress}
-                  disabled={isInProgress}
-                >
-                  {t(locale, "marketAnalysisAnalyzeAll")}
-                </Button>
-                <Button variant="plain" onClick={handleEditIdentification} disabled={isInProgress}>
-                  {t(locale, "marketAnalysisEditIdentification")}
-                </Button>
-              </InlineStack>
-            )}
 
             {/* Cannibalization alerts — two products sharing the same primary cluster */}
             {job?.cannibalization_alerts && job.cannibalization_alerts.length > 0 ? (
@@ -2651,45 +2642,45 @@ export default function MarketAnalysisPage() {
               ) : null;
             })()}
 
-            {/* Launch card */}
-            <Card>
-              <BlockStack gap="300">
-                {!isInProgress && !job && (
-                  <Text as="p" tone="subdued">{t(locale, "marketAnalysisEmpty")}</Text>
-                )}
-
-                {!job?.status || job.status === "failed" ? (
-                  <Button
-                    variant="primary"
-                    onClick={handleRerun}
-                    disabled={isInProgress}
-                    loading={isInProgress}
-                  >
-                    {isInProgress
-                      ? t(locale, "marketAnalysisRunning")
-                      : t(locale, "marketAnalysisRun")}
-                  </Button>
-                ) : null}
-
-                {isRunning && (
-                  <BlockStack gap="100">
-                    {job?.phase && (
+            {/* Launch card — only shown when no job yet, job failed, or analysis running */}
+            {(!job?.status || job.status === "failed" || isRunning) && (
+              <Card>
+                <BlockStack gap="300">
+                  {!isInProgress && !job && (
+                    <Text as="p" tone="subdued">{t(locale, "marketAnalysisEmpty")}</Text>
+                  )}
+                  {!job?.status || job.status === "failed" ? (
+                    <Button
+                      variant="primary"
+                      onClick={handleRerun}
+                      disabled={isInProgress}
+                      loading={isInProgress}
+                    >
+                      {isInProgress
+                        ? t(locale, "marketAnalysisRunning")
+                        : t(locale, "marketAnalysisRun")}
+                    </Button>
+                  ) : null}
+                  {isRunning && (
+                    <BlockStack gap="100">
+                      {job?.phase && (
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {job.phase === "targeting"
+                            ? t(locale, "marketAnalysisPhaseTargeting")
+                            : t(locale, "marketAnalysisPhaseContent")}
+                        </Text>
+                      )}
                       <Text as="p" variant="bodySm" tone="subdued">
-                        {job.phase === "targeting"
-                          ? t(locale, "marketAnalysisPhaseTargeting")
-                          : t(locale, "marketAnalysisPhaseContent")}
+                        {job && job.total > 0
+                          ? progressLabel(locale, job.progress, job.total)
+                          : t(locale, "marketAnalysisRunning")}
                       </Text>
-                    )}
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {job && job.total > 0
-                        ? progressLabel(locale, job.progress, job.total)
-                        : t(locale, "marketAnalysisRunning")}
-                    </Text>
-                    <ProgressBar progress={progressPct} size="small" />
-                  </BlockStack>
-                )}
-              </BlockStack>
-            </Card>
+                      <ProgressBar progress={progressPct} size="small" />
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              </Card>
+            )}
 
             {/* Error */}
             {anyError && (
@@ -2714,7 +2705,13 @@ export default function MarketAnalysisPage() {
                     {locale === "fr" ? "Télécharger la réflexion" : "Download reflection"}
                   </Button>
                 </InlineStack>
-                <SummaryCard job={job} locale={locale} />
+                <SummaryCard
+                  job={job}
+                  locale={locale}
+                  onAnalyzeAll={() => setShowRerunModal(true)}
+                  onEditIdentification={handleEditIdentification}
+                  analyzeDisabled={isInProgress}
+                />
               </>
             )}
 

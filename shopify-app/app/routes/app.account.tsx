@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useFetcher, useLoaderData } from "@remix-run/react";
-import { Banner, BlockStack, Box, Button, Card, Divider, InlineStack, Page, Text } from "@shopify/polaris";
+import { Badge, Banner, BlockStack, Box, Button, Card, Divider, InlineStack, Page, Text } from "@shopify/polaris";
 import { useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
@@ -9,8 +9,19 @@ import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
 import { HubGrid, type HubItem } from "../components/HubGrid";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  return json({ locale: getLocale(request) });
+  const { session } = await authenticate.admin(request);
+  const locale = getLocale(request);
+  const [gscResp, ga4Resp] = await Promise.allSettled([
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/gsc/status`, { accessToken: session.accessToken }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/ga4/status`, { accessToken: session.accessToken }),
+  ]);
+  const gscConnected = gscResp.status === "fulfilled" && gscResp.value.ok
+    ? ((await gscResp.value.json().catch(() => ({}))) as { connected?: boolean }).connected === true
+    : false;
+  const ga4Connected = ga4Resp.status === "fulfilled" && ga4Resp.value.ok
+    ? ((await ga4Resp.value.json().catch(() => ({}))) as { ready?: boolean }).ready === true
+    : false;
+  return json({ locale, gscConnected, ga4Connected });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -32,7 +43,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function AccountHub() {
-  const { locale } = useLoaderData<typeof loader>() as { locale: Locale };
+  const { locale, gscConnected, ga4Connected } = useLoaderData<typeof loader>() as { locale: Locale; gscConnected: boolean; ga4Connected: boolean };
   const fr = locale === "fr";
   const resetFetcher = useFetcher<{ type: string; ok: boolean; reset: number }>();
   const [confirmReset, setConfirmReset] = useState(false);
@@ -90,6 +101,47 @@ export default function AccountHub() {
     >
       <BlockStack gap="600">
         <HubGrid items={items} locale={locale} />
+
+        <Card>
+          <BlockStack gap="300">
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingMd">
+                {fr ? "Analyse SEO — sources de données" : "SEO Analysis — data sources"}
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                {fr
+                  ? "Mode lecture seule — aucune modification Shopify. L'analyse utilise le profil entreprise validé quand il existe et remonte des signaux pour l'améliorer."
+                  : "Read-only mode — no Shopify modifications. The analysis uses the validated business profile when available and surfaces signals to improve it."}
+              </Text>
+            </BlockStack>
+            <InlineStack gap="400" wrap>
+              <InlineStack gap="200" blockAlign="center">
+                <Text as="span" variant="bodySm">Shopify</Text>
+                <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+              </InlineStack>
+              <InlineStack gap="200" blockAlign="center">
+                <Text as="span" variant="bodySm">Google Search Console</Text>
+                {gscConnected ? (
+                  <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+                ) : (
+                  <Button variant="plain" size="slim" url="/app/onboarding">
+                    {fr ? "Se connecter" : "Connect"}
+                  </Button>
+                )}
+              </InlineStack>
+              <InlineStack gap="200" blockAlign="center">
+                <Text as="span" variant="bodySm">Google Analytics 4</Text>
+                {ga4Connected ? (
+                  <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+                ) : (
+                  <Button variant="plain" size="slim" url="/app/ga4">
+                    {fr ? "Se connecter" : "Connect"}
+                  </Button>
+                )}
+              </InlineStack>
+            </InlineStack>
+          </BlockStack>
+        </Card>
 
         <Divider />
 
