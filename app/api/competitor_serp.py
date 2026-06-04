@@ -13,6 +13,7 @@ from fastapi.routing import APIRouter
 
 from app.api.deps import ShopContext, get_shop_context
 from app.market_analysis.competitor_serp_engine import (
+    aggregate_competitors_from_serp,
     build_config_for_serp_job,
     run_competitor_serp_crawl,
 )
@@ -60,7 +61,7 @@ def _run_crawl_background(job_id: str, shop: str) -> None:
         _jobs[job_id].update({
             "status": "completed",
             "completed_at": datetime.now(UTC).isoformat(),
-            "total_urls_crawled": result.get("total_urls_crawled", 0),
+            "total_pages_crawled": result.get("total_pages_crawled", 0),
             "keywords_used": result.get("keywords_used", 0),
             "competitor_count": len(result.get("competitors", [])),
         })
@@ -73,6 +74,14 @@ def _run_crawl_background(job_id: str, shop: str) -> None:
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/shops/{shop}/competitor-serp/preview")
+async def get_competitor_serp_preview(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Return instant competitor profiles from the SERP cache (no crawl, no LLM)."""
+    return aggregate_competitors_from_serp(ctx.shop)
 
 
 @router.post("/shops/{shop}/competitor-serp/jobs")
@@ -88,7 +97,7 @@ async def start_competitor_serp_job(
         "status": "pending",
         "created_at": datetime.now(UTC).isoformat(),
         "completed_at": None,
-        "total_urls_crawled": None,
+        "total_pages_crawled": None,
         "keywords_used": None,
         "competitor_count": None,
         "error": None,

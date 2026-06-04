@@ -13,8 +13,8 @@ import {
   EmptyState,
   InlineGrid,
   InlineStack,
+  List,
   Page,
-  ProgressBar,
   Select,
   Spinner,
   Text,
@@ -23,43 +23,58 @@ import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, type Locale } from "../lib/i18n";
 import type {
-  CompetitorCrawlGap,
-  CompetitorSerpDomain,
+  CompetitorCrawlTopUrl,
+  CompetitorProfile,
   CompetitorSerpResult,
-  CompetitorSerpUrl,
 } from "../lib/marketAnalysisShared";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 interface LoaderData {
   shop: string;
   locale: Locale;
-  result: CompetitorSerpResult | null;
+  preview: CompetitorSerpResult | null;
+  latest: CompetitorSerpResult | null;
   error: string | null;
 }
 
-type ActionResult =
+type ActionData =
   | { job_id: string; status: string }
-  | { status: string; completed_at?: string; total_urls_crawled?: number; keywords_used?: number; competitor_count?: number; error?: string }
-  | { result: CompetitorSerpResult };
+  | { status: string; result?: CompetitorSerpResult | null; error?: string }
+  | { error: string };
+
+async function fetchJson(
+  shop: string,
+  path: string,
+  accessToken?: string,
+): Promise<{ ok: boolean; status: number; data: unknown }> {
+  const resp = await callBackendForShop(shop, path, { accessToken });
+  const data = resp.ok ? await resp.json() : null;
+  return { ok: resp.ok, status: resp.status, data };
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const locale = getLocale(request);
   try {
-    const resp = await callBackendForShop(
-      session.shop,
-      `/api/shops/${session.shop}/competitor-serp/latest`,
-      { accessToken: session.accessToken },
-    );
-    if (resp.status === 404) {
-      return json<LoaderData>({ shop: session.shop, locale, result: null, error: null });
-    }
-    if (!resp.ok) {
-      return json<LoaderData>({ shop: session.shop, locale, result: null, error: `HTTP ${resp.status}` });
-    }
-    return json<LoaderData>({ shop: session.shop, locale, result: await resp.json(), error: null });
+    const [previewRes, latestRes] = await Promise.all([
+      fetchJson(session.shop, `/api/shops/${session.shop}/competitor-serp/preview`, session.accessToken),
+      fetchJson(session.shop, `/api/shops/${session.shop}/competitor-serp/latest`, session.accessToken),
+    ]);
+    return json<LoaderData>({
+      shop: session.shop,
+      locale,
+      preview: previewRes.ok ? (previewRes.data as CompetitorSerpResult) : null,
+      latest: latestRes.ok ? (latestRes.data as CompetitorSerpResult) : null,
+      error: previewRes.ok ? null : `HTTP ${previewRes.status}`,
+    });
   } catch (err) {
-    return json<LoaderData>({ shop: session.shop, locale, result: null, error: err instanceof Error ? err.message : "Network error" });
+    return json<LoaderData>({
+      shop: session.shop,
+      locale,
+      preview: null,
+      latest: null,
+      error: err instanceof Error ? err.message : "Network error",
+    });
   }
 };
 
@@ -84,17 +99,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       `/api/shops/${session.shop}/competitor-serp/jobs/${jobId}`,
       { accessToken: session.accessToken },
     );
-    const job = await resp.json();
-    if (job.status === "completed") {
-      const latestResp = await callBackendForShop(
+    const jobRaw = resp.ok ? await resp.json() : { status: "failed", error: `HTTP ${resp.status}` };
+    if (jobRaw.status === "completed") {
+      const latestRes = await fetchJson(
         session.shop,
         `/api/shops/${session.shop}/competitor-serp/latest`,
-        { accessToken: session.accessToken },
+        session.accessToken,
       );
-      const result = latestResp.ok ? await latestResp.json() : null;
-      return json({ ...job, result });
+      return json({ ...jobRaw, result: latestRes.ok ? latestRes.data : null });
     }
-    return json(job);
+    return json(jobRaw);
   }
 
   return json({ error: "Unknown intent" }, { status: 400 });
@@ -128,40 +142,15 @@ function yesNoBadge(value: unknown, locale: Locale) {
   return <Badge tone={value ? "success" : "critical"}>{yesNo(value, locale)}</Badge>;
 }
 
-function pageTypeLabel(type: string | undefined, locale: Locale): string {
-  const labels: Record<string, [string, string]> = {
-    product: ["Produit", "Product"],
-    collection: ["Collection", "Collection"],
-    blog: ["Blog", "Blog"],
-    faq: ["FAQ", "FAQ"],
-    guide: ["Guide", "Guide"],
-    unknown: ["Non classée", "Unclassified"],
-  };
-  const label = labels[type || "unknown"] ?? labels.unknown;
-  return label[locale === "fr" ? 0 : 1];
+function strengthTone(label: string): "success" | "warning" | "critical" {
+  if (label === "élevée") return "success";
+  if (label === "moyenne") return "warning";
+  return "critical";
 }
 
-function intentLabel(intent: string | undefined, locale: Locale): string {
-  const labels: Record<string, [string, string]> = {
-    informational: ["Informationnelle", "Informational"],
-    commercial: ["Commerciale", "Commercial"],
-    transactional: ["Transactionnelle", "Transactional"],
-    navigational: ["Navigationnelle", "Navigational"],
-    unknown: ["Non classée", "Unclassified"],
-  };
-  return (labels[intent || "unknown"] ?? labels.unknown)[locale === "fr" ? 0 : 1];
-}
-
-function sourceLabel(source: string, locale: Locale): string {
-  if (source === "domain_level") return locale === "fr" ? "Domain level" : "Domain level";
-  if (source === "manual") return locale === "fr" ? "Manuel" : "Manual";
-  return "SERP";
-}
-
-function sourceTone(source: string): "success" | "info" | "attention" {
-  if (source === "domain_level") return "success";
-  if (source === "manual") return "attention";
-  return "info";
+function textOrDash(value: unknown): string {
+  const text = String(value ?? "").trim();
+  return text || "—";
 }
 
 function metricLabel(label: string, value: string | number | React.ReactNode) {
@@ -177,42 +166,91 @@ function metricLabel(label: string, value: string | number | React.ReactNode) {
   );
 }
 
-function textOrDash(value: unknown): string {
-  const text = String(value ?? "").trim();
-  return text || "—";
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return <Text as="h3" variant="headingSm">{children}</Text>;
 }
 
-function ListBlock({ items, empty = "—" }: { items: string[]; empty?: string }) {
-  if (!items.length) return <Text as="p" tone="subdued">{empty}</Text>;
+// ── Synthesis block (the narrative "what they do / how to inspire") ────────────
+
+function SynthesisBlock({ profile, locale }: { profile: CompetitorProfile; locale: Locale }) {
+  const synthesis = profile.synthesis;
+
+  if (synthesis === undefined || synthesis === null) {
+    return (
+      <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+        <InlineStack gap="200" blockAlign="center">
+          <Spinner size="small" />
+          <Text as="p" tone="subdued">
+            {locale === "fr" ? "Analyse détaillée en cours…" : "Detailed analysis in progress…"}
+          </Text>
+        </InlineStack>
+      </Box>
+    );
+  }
+
   return (
-    <BlockStack gap="050">
-      {items.map((item, i) => (
-        <Text as="p" variant="bodySm" key={`${item}-${i}`}>{item}</Text>
-      ))}
+    <BlockStack gap="300">
+      {synthesis.title_style && (
+        <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+          <BlockStack gap="050">
+            <Text as="p" variant="bodySm" tone="subdued">
+              {locale === "fr" ? "Style de titres" : "Title style"}
+            </Text>
+            <Text as="p">{synthesis.title_style}</Text>
+          </BlockStack>
+        </Box>
+      )}
+      <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+        {synthesis.strengths.length > 0 && (
+          <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
+            <BlockStack gap="150">
+              <Text as="p" fontWeight="semibold">
+                {locale === "fr" ? "✓ Ce qu'ils font bien" : "✓ What they do well"}
+              </Text>
+              <List type="bullet">
+                {synthesis.strengths.map((s, i) => (
+                  <List.Item key={i}>{s}</List.Item>
+                ))}
+              </List>
+            </BlockStack>
+          </Box>
+        )}
+        {synthesis.opportunities.length > 0 && (
+          <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
+            <BlockStack gap="150">
+              <Text as="p" fontWeight="semibold">
+                {locale === "fr" ? "⚡ Opportunités pour toi" : "⚡ Your opportunities"}
+              </Text>
+              <List type="bullet">
+                {synthesis.opportunities.map((o, i) => (
+                  <List.Item key={i}>{o}</List.Item>
+                ))}
+              </List>
+            </BlockStack>
+          </Box>
+        )}
+      </InlineGrid>
+      {synthesis.inspiration.length > 0 && (
+        <Box padding="300" background="bg-surface-success" borderRadius="200">
+          <BlockStack gap="150">
+            <Text as="p" fontWeight="semibold">
+              {locale === "fr" ? "→ À faire pour t'en inspirer" : "→ Actions to take"}
+            </Text>
+            <List type="number">
+              {synthesis.inspiration.map((a, i) => (
+                <List.Item key={i}>{a}</List.Item>
+              ))}
+            </List>
+          </BlockStack>
+        </Box>
+      )}
     </BlockStack>
   );
 }
 
-function GapBadges({ gaps }: { gaps: CompetitorCrawlGap[] }) {
-  if (!gaps.length) return null;
-  return (
-    <InlineStack gap="100" wrap>
-      {gaps.map((gap) => (
-        <Badge key={`${gap.gap}-${gap.action_type}`} tone="attention">
-          {`${gap.gap} +${gap.priority_boost}`}
-        </Badge>
-      ))}
-    </InlineStack>
-  );
-}
+// ── Technical detail (reuses the crawled-page metrics) ─────────────────────────
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return <Text as="h2" variant="headingSm">{children}</Text>;
-}
-
-// ── URL Card ──────────────────────────────────────────────────────────────────
-
-function CompetitorUrlCard({ page, locale }: { page: CompetitorSerpUrl; locale: Locale }) {
+function TechnicalDetail({ page, locale }: { page: CompetitorCrawlTopUrl; locale: Locale }) {
   const seo = page.seo ?? {};
   const structure = page.structure ?? {};
   const geo = page.geo_aeo ?? {};
@@ -220,281 +258,157 @@ function CompetitorUrlCard({ page, locale }: { page: CompetitorSerpUrl; locale: 
   const links = page.links ?? {};
   const images = page.images ?? {};
   const trust = page.trust ?? {};
-  const depth = page.product_depth ?? {};
-  const serp = page.serp ?? {};
-  const fallback = page.feature_summary ?? {};
   const h2 = asList(structure.h2_texts);
-  const h3 = asList(structure.h3_texts);
-  const paa = asList(serp.paa_questions);
   const schemaTypes = asList(schema.schema_types);
-  const linkExamples = links.internal_link_examples ?? [];
-  const altExamples = asList(images.image_alt_examples);
 
-  if (page.blocked_by_robots) {
-    return (
-      <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-        <InlineStack gap="200" align="space-between">
-          <BlockStack gap="100">
-            <InlineStack gap="100">
-              <Badge>{`Rank ${page.rank}`}</Badge>
-              <Badge tone="critical">Robots.txt bloqué</Badge>
-            </InlineStack>
-            <Text as="p" variant="bodySm" tone="subdued">{page.keyword} · {page.url}</Text>
-          </BlockStack>
-        </InlineStack>
-      </Box>
-    );
-  }
+  return (
+    <BlockStack gap="400">
+      <Text as="p" variant="bodySm" tone="subdued">{page.final_url || page.url}</Text>
 
-  if (page.error && !Object.keys(page.feature_summary ?? {}).length) {
-    return (
-      <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-        <InlineStack gap="200" align="space-between">
-          <BlockStack gap="100">
-            <InlineStack gap="100">
-              <Badge>{`Rank ${page.rank}`}</Badge>
-              <Badge tone="warning">Erreur crawl</Badge>
-              {page.from_cache && <Badge tone="info">Cache</Badge>}
-            </InlineStack>
-            <Text as="p" variant="bodySm" tone="subdued">{page.keyword} · {page.url}</Text>
-          </BlockStack>
+      <BlockStack gap="200">
+        <SectionHeading>SEO</SectionHeading>
+        <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+          <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
+            <BlockStack gap="150">
+              <Text as="p" variant="bodySm" tone="subdued">Title</Text>
+              <Text as="p">{textOrDash(seo.title || page.title)}</Text>
+              <InlineStack gap="100" wrap>
+                <Badge>{`${asNumber(seo.title_length)} car.`}</Badge>
+                <Badge tone={seo.title_keyword_present ? "success" : "attention"}>
+                  {`Mot-clé ${yesNo(seo.title_keyword_present, locale)}`}
+                </Badge>
+              </InlineStack>
+            </BlockStack>
+          </Box>
+          <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
+            <BlockStack gap="150">
+              <Text as="p" variant="bodySm" tone="subdued">Meta description</Text>
+              <Text as="p">{textOrDash(seo.meta_description)}</Text>
+              <InlineStack gap="100" wrap>
+                <Badge>{`${asNumber(seo.meta_description_length)} car.`}</Badge>
+                <Badge tone={seo.meta_has_cta ? "success" : "info"}>
+                  {`CTA ${yesNo(seo.meta_has_cta, locale)}`}
+                </Badge>
+              </InlineStack>
+            </BlockStack>
+          </Box>
+        </InlineGrid>
+      </BlockStack>
+
+      <BlockStack gap="200">
+        <SectionHeading>{locale === "fr" ? "Structure et contenu" : "Structure & content"}</SectionHeading>
+        <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="300">
+          {metricLabel("H1", asNumber(structure.h1_count))}
+          {metricLabel("H2", asNumber(structure.h2_count))}
+          {metricLabel("H3", asNumber(structure.h3_count))}
+          {metricLabel(locale === "fr" ? "Longueur" : "Length", `${asNumber(structure.word_count)} ${locale === "fr" ? "mots" : "words"}`)}
+          {metricLabel(locale === "fr" ? "Listes" : "Lists", yesNoBadge(structure.has_bullet_lists, locale))}
+          {metricLabel(locale === "fr" ? "Tableau comparatif" : "Comparison table", yesNoBadge(structure.has_comparison_table, locale))}
+          {metricLabel("Specs produit", yesNoBadge(structure.has_product_specs_table, locale))}
+          {metricLabel(locale === "fr" ? "Av./Inconv." : "Pros/Cons", yesNoBadge(structure.has_pros_cons, locale))}
+        </InlineGrid>
+        {h2.length > 0 && (
+          <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
+            <BlockStack gap="150">
+              <Text as="p" variant="bodySm" tone="subdued">H2</Text>
+              <BlockStack gap="050">
+                {h2.map((item, i) => (
+                  <Text as="p" variant="bodySm" key={`${item}-${i}`}>{item}</Text>
+                ))}
+              </BlockStack>
+            </BlockStack>
+          </Box>
+        )}
+      </BlockStack>
+
+      <BlockStack gap="200">
+        <SectionHeading>GEO / AEO / Schema</SectionHeading>
+        <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="300">
+          {metricLabel("FAQ visible", `${yesNo(geo.has_faq_block, locale)} · ${asNumber(geo.faq_question_count)} q.`)}
+          {metricLabel(locale === "fr" ? "Blocs réponse" : "Answer blocks", yesNoBadge(geo.has_short_answer_block, locale))}
+          {metricLabel("Answerability", `${asNumber(geo.answerability_score)}/100`)}
+          {metricLabel("AI readability", `${asNumber(geo.ai_readability_score)}/100`)}
+          {metricLabel("JSON-LD", `${asNumber(schema.jsonld_count)} blocs`)}
+          {metricLabel("Product / Offer", `${yesNo(schema.has_product_schema, locale)} / ${yesNo(schema.has_offer_schema, locale)}`)}
+          {metricLabel("Breadcrumb / FAQPage", `${yesNo(schema.has_breadcrumb_schema, locale)} / ${yesNo(schema.has_faq_schema, locale)}`)}
+          {metricLabel(locale === "fr" ? "Liens internes" : "Internal links", asNumber(links.internal_link_count))}
+        </InlineGrid>
+        {schemaTypes.length > 0 && (
+          <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
+            <BlockStack gap="150">
+              <Text as="p" variant="bodySm" tone="subdued">{locale === "fr" ? "Schémas détectés" : "Detected schemas"}</Text>
+              <InlineStack gap="100" wrap>
+                {schemaTypes.map((item) => <Badge key={item}>{item}</Badge>)}
+              </InlineStack>
+            </BlockStack>
+          </Box>
+        )}
+        <InlineStack gap="100" wrap>
+          {metricLabel(locale === "fr" ? "Images (alt)" : "Images (alt)", `${asNumber(images.descriptive_image_alt_count)}/${asNumber(images.image_count)}`)}
+          {metricLabel(locale === "fr" ? "Confiance" : "Trust", yesNoBadge(trust.has_trust_proof || trust.has_reviews_or_social_proof, locale))}
         </InlineStack>
-      </Box>
-    );
-  }
+      </BlockStack>
+    </BlockStack>
+  );
+}
+
+// ── Competitor card ───────────────────────────────────────────────────────────
+
+function CompetitorCard({ profile, locale }: { profile: CompetitorProfile; locale: Locale }) {
+  const [detailOpen, setDetailOpen] = useState(false);
+  const topKeywords = profile.ranked_keywords.slice(0, 8);
 
   return (
     <Card>
       <BlockStack gap="400">
         <InlineStack align="space-between" blockAlign="start" gap="300" wrap>
           <BlockStack gap="150">
-            <InlineStack gap="150" wrap>
-              <Badge tone="success">{`Rank ${page.rank}`}</Badge>
-              <Badge tone="info">{pageTypeLabel(page.page_type, locale)}</Badge>
-              <Badge>{intentLabel(page.keyword_intent_type, locale)}</Badge>
-              {page.from_cache && <Badge tone="info">{locale === "fr" ? "Cache" : "Cache"}</Badge>}
+            <InlineStack gap="150" blockAlign="center" wrap>
+              <Text as="h2" variant="headingMd">{profile.domain}</Text>
+              <Badge tone={strengthTone(profile.strength_label)}>
+                {`${locale === "fr" ? "Force" : "Strength"} ${profile.strength_label}`}
+              </Badge>
             </InlineStack>
-            <Text as="p" variant="bodySm" tone="subdued">{page.keyword}</Text>
+            <Text as="p" tone="subdued">
+              {locale === "fr"
+                ? `${profile.ranked_keyword_count} mots-clés rankés · meilleure position #${profile.best_rank} · moyenne #${profile.avg_rank}`
+                : `${profile.ranked_keyword_count} ranked keywords · best #${profile.best_rank} · avg #${profile.avg_rank}`}
+            </Text>
           </BlockStack>
-          <Button url={page.final_url || page.url} target="_blank" variant="secondary" size="slim">
-            {locale === "fr" ? "Ouvrir" : "Open"}
-          </Button>
+          {profile.top_page_url && (
+            <Button url={profile.top_page_url} target="_blank" variant="secondary" size="slim">
+              {locale === "fr" ? "Voir leur page" : "View their page"}
+            </Button>
+          )}
         </InlineStack>
-        <Text as="p" variant="bodySm" tone="subdued">{page.final_url || page.url}</Text>
 
         <Divider />
 
-        <BlockStack gap="300">
-          <SectionHeading>SERP</SectionHeading>
-          <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="300">
-            {metricLabel("Mot-clé", page.keyword)}
-            {metricLabel("Position", `#${page.rank}`)}
-            {metricLabel("Intention", intentLabel(page.keyword_intent_type, locale))}
-            {metricLabel("Featured snippet", yesNoBadge(serp.featured_snippet_present, locale))}
-          </InlineGrid>
-          {paa.length > 0 && (
-            <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-              <BlockStack gap="150">
-                <Text as="p" variant="bodySm" tone="subdued">PAA / questions SERP</Text>
-                <ListBlock items={paa} />
-              </BlockStack>
-            </Box>
-          )}
-        </BlockStack>
+        <SynthesisBlock profile={profile} locale={locale} />
 
-        <BlockStack gap="300">
-          <SectionHeading>SEO</SectionHeading>
-          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
-            <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-              <BlockStack gap="150">
-                <Text as="p" variant="bodySm" tone="subdued">Title SEO</Text>
-                <Text as="p">{textOrDash(seo.title || page.title)}</Text>
-                <InlineStack gap="100" wrap>
-                  <Badge>{`${asNumber(seo.title_length)} car.`}</Badge>
-                  <Badge tone={seo.title_keyword_present ? "success" : "attention"}>
-                    {`Mot-clé ${yesNo(seo.title_keyword_present, locale)}`}
-                  </Badge>
-                  <Badge tone={seo.title_promise_detected ? "success" : "info"}>
-                    {`Promesse ${yesNo(seo.title_promise_detected, locale)}`}
-                  </Badge>
-                </InlineStack>
-              </BlockStack>
-            </Box>
-            <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-              <BlockStack gap="150">
-                <Text as="p" variant="bodySm" tone="subdued">Meta description</Text>
-                <Text as="p">{textOrDash(seo.meta_description)}</Text>
-                <InlineStack gap="100" wrap>
-                  <Badge>{`${asNumber(seo.meta_description_length)} car.`}</Badge>
-                  <Badge tone={seo.meta_has_commercial_angle ? "success" : "info"}>
-                    {`Angle ${yesNo(seo.meta_has_commercial_angle, locale)}`}
-                  </Badge>
-                  <Badge tone={seo.meta_has_cta ? "success" : "info"}>
-                    {`CTA ${yesNo(seo.meta_has_cta, locale)}`}
-                  </Badge>
-                </InlineStack>
-              </BlockStack>
-            </Box>
-          </InlineGrid>
-        </BlockStack>
-
-        <BlockStack gap="300">
-          <SectionHeading>Structure Hn et contenu</SectionHeading>
-          <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="300">
-            {metricLabel("H1", `${asNumber(structure.h1_count)} · ${textOrDash(structure.h1_text)}`)}
-            {metricLabel("H2", asNumber(structure.h2_count))}
-            {metricLabel("H3", asNumber(structure.h3_count))}
-            {metricLabel("Longueur", `${asNumber(structure.word_count || fallback.word_count)} mots`)}
-            {metricLabel("Paragraphes", asNumber(structure.paragraph_count))}
-            {metricLabel("Listes", yesNoBadge(structure.has_bullet_lists, locale))}
-            {metricLabel("Tableau comparatif", yesNoBadge(structure.has_comparison_table, locale))}
-            {metricLabel("Specs produit", yesNoBadge(structure.has_product_specs_table, locale))}
-          </InlineGrid>
-          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
-            <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-              <BlockStack gap="150">
-                <Text as="p" variant="bodySm" tone="subdued">H2</Text>
-                <ListBlock items={h2} />
-              </BlockStack>
-            </Box>
-            <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-              <BlockStack gap="150">
-                <Text as="p" variant="bodySm" tone="subdued">H3</Text>
-                <ListBlock items={h3} />
-              </BlockStack>
-            </Box>
-          </InlineGrid>
-        </BlockStack>
-
-        <BlockStack gap="300">
-          <SectionHeading>GEO / AEO / Schema</SectionHeading>
-          <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="300">
-            {metricLabel("FAQ visible", `${yesNo(geo.has_faq_block, locale)} · ${asNumber(geo.faq_question_count)} q.`)}
-            {metricLabel("Blocs réponse courte", `${yesNo(geo.has_short_answer_block, locale)} · ${asNumber(geo.short_answer_block_count)}`)}
-            {metricLabel("Answerability", `${asNumber(geo.answerability_score)}/100`)}
-            {metricLabel("AI readability", `${asNumber(geo.ai_readability_score)}/100`)}
-            {metricLabel("JSON-LD", `${asNumber(schema.jsonld_count)} blocs`)}
-            {metricLabel("Product / Offer", `${yesNo(schema.has_product_schema, locale)} / ${yesNo(schema.has_offer_schema, locale)}`)}
-            {metricLabel("Breadcrumb / FAQPage", `${yesNo(schema.has_breadcrumb_schema, locale)} / ${yesNo(schema.has_faq_schema, locale)}`)}
-            {metricLabel("Article / Org.", `${yesNo(schema.has_article_schema, locale)} / ${yesNo(schema.has_organization_schema, locale)}`)}
-          </InlineGrid>
-          <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-            <BlockStack gap="150">
-              <Text as="p" variant="bodySm" tone="subdued">Types Schema détectés</Text>
-              <InlineStack gap="100" wrap>
-                {schemaTypes.length
-                  ? schemaTypes.map((item) => <Badge key={item}>{item}</Badge>)
-                  : <Text as="p" tone="subdued">—</Text>}
-              </InlineStack>
-            </BlockStack>
-          </Box>
-        </BlockStack>
-
-        <BlockStack gap="300">
-          <SectionHeading>Maillage, images et confiance</SectionHeading>
-          <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="300">
-            {metricLabel("Liens internes", asNumber(links.internal_link_count || fallback.internal_link_count))}
-            {metricLabel("Liens externes", asNumber(links.external_link_count))}
-            {metricLabel("Images", asNumber(images.image_count))}
-            {metricLabel("Alt descriptifs", `${asNumber(images.descriptive_image_alt_count)}/${asNumber(images.image_alt_count)}`)}
-            {metricLabel("Alt manquants", asNumber(images.images_missing_alt_count))}
-            {metricLabel("Breadcrumb", yesNoBadge(structure.has_breadcrumb_block || schema.has_breadcrumb_schema, locale))}
-            {metricLabel("Confiance", yesNoBadge(trust.has_trust_proof || trust.has_reviews_or_social_proof, locale))}
-            {metricLabel("Avantages/Inconvénients", yesNoBadge(structure.has_pros_cons, locale))}
-          </InlineGrid>
-          {linkExamples.length > 0 && (
-            <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-              <BlockStack gap="150">
-                <Text as="p" variant="bodySm" tone="subdued">Ancres internes</Text>
-                <BlockStack gap="100">
-                  {linkExamples.map((link, i) => (
-                    <InlineStack key={`${link.href}-${i}`} gap="100" wrap>
-                      <Badge>{link.target_type}</Badge>
-                      <Text as="p" variant="bodySm">{textOrDash(link.anchor)}</Text>
-                    </InlineStack>
-                  ))}
-                </BlockStack>
-              </BlockStack>
-            </Box>
-          )}
-          {altExamples.length > 0 && (
-            <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-              <BlockStack gap="150">
-                <Text as="p" variant="bodySm" tone="subdued">Alt text exemples</Text>
-                <ListBlock items={altExamples} />
-              </BlockStack>
-            </Box>
-          )}
-        </BlockStack>
-
-        <BlockStack gap="200">
-          <SectionHeading>Profondeur produit</SectionHeading>
-          <InlineStack gap="100" wrap>
-            <Badge tone={depth.materials ? "success" : "info"}>{`Matériaux ${yesNo(depth.materials, locale)}`}</Badge>
-            <Badge tone={depth.dimensions ? "success" : "info"}>{`Dimensions ${yesNo(depth.dimensions, locale)}`}</Badge>
-            <Badge tone={depth.usage ? "success" : "info"}>{`Usage ${yesNo(depth.usage, locale)}`}</Badge>
-            <Badge tone={depth.compatibility ? "success" : "info"}>{`Compatibilité ${yesNo(depth.compatibility, locale)}`}</Badge>
-            <Badge tone={depth.care ? "success" : "info"}>{`Entretien ${yesNo(depth.care, locale)}`}</Badge>
-          </InlineStack>
-        </BlockStack>
-      </BlockStack>
-    </Card>
-  );
-}
-
-// ── Competitor section ────────────────────────────────────────────────────────
-
-function CompetitorSection({
-  competitor,
-  locale,
-  pageTypeFilter,
-}: {
-  competitor: CompetitorSerpDomain;
-  locale: Locale;
-  pageTypeFilter: string;
-}) {
-  const [open, setOpen] = useState(true);
-  const filteredUrls = competitor.urls.filter(
-    (u) => pageTypeFilter === "all" || (u.page_type || "unknown") === pageTypeFilter,
-  );
-  if (filteredUrls.length === 0) return null;
-
-  const typeCounts = competitor.urls.reduce<Record<string, number>>((acc, u) => {
-    const t = u.page_type || "unknown";
-    acc[t] = (acc[t] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  return (
-    <Card>
-      <BlockStack gap="400">
-        <InlineStack align="space-between" blockAlign="center" wrap gap="300">
-          <BlockStack gap="100">
-            <InlineStack gap="150" wrap>
-              <Text as="h2" variant="headingMd">{competitor.domain}</Text>
-              <Badge tone={sourceTone(competitor.source)}>{sourceLabel(competitor.source, locale)}</Badge>
-              <Badge tone="info">{`Force ${competitor.estimated_strength}`}</Badge>
-            </InlineStack>
+        {topKeywords.length > 0 && (
+          <BlockStack gap="200">
+            <SectionHeading>{locale === "fr" ? "Mots-clés où ils apparaissent" : "Keywords they rank for"}</SectionHeading>
             <InlineStack gap="100" wrap>
-              {Object.entries(typeCounts).map(([type, count]) => (
-                <Badge key={type}>{`${pageTypeLabel(type, locale)} ×${count}`}</Badge>
+              {topKeywords.map((kw, i) => (
+                <Badge key={`${kw.keyword}-${i}`} tone={kw.rank <= 3 ? "success" : undefined}>
+                  {`${kw.keyword} · #${kw.rank}`}
+                </Badge>
               ))}
             </InlineStack>
           </BlockStack>
-          <Button variant="plain" onClick={() => setOpen((o) => !o)}>
-            {open
-              ? locale === "fr" ? "Réduire" : "Collapse"
-              : locale === "fr" ? `Voir ${filteredUrls.length} URLs` : `Show ${filteredUrls.length} URLs`}
-          </Button>
-        </InlineStack>
+        )}
 
-        <Collapsible id={`competitor-${competitor.domain}`} open={open}>
-          <BlockStack gap="400">
-            {filteredUrls.map((url, i) => (
-              <CompetitorUrlCard key={`${url.url}-${i}`} page={url} locale={locale} />
-            ))}
+        {profile.top_page && (
+          <BlockStack gap="200">
+            <Button variant="plain" onClick={() => setDetailOpen((o) => !o)} disclosure={detailOpen ? "up" : "down"}>
+              {locale === "fr" ? "Détail technique de leur page" : "Technical detail of their page"}
+            </Button>
+            <Collapsible id={`detail-${profile.domain}`} open={detailOpen}>
+              <TechnicalDetail page={profile.top_page} locale={locale} />
+            </Collapsible>
           </BlockStack>
-        </Collapsible>
+        )}
       </BlockStack>
     </Card>
   );
@@ -502,23 +416,29 @@ function CompetitorSection({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function CompetitorCrawlPage() {
-  const { locale, result: initialResult, error: loaderError } = useLoaderData<typeof loader>() as LoaderData;
-  const fetcher = useFetcher<ActionResult>();
+function mostRecent(
+  preview: CompetitorSerpResult | null,
+  latest: CompetitorSerpResult | null,
+): CompetitorSerpResult | null {
+  if (latest?.enriched && latest.competitors.length > 0) return latest;
+  return preview;
+}
 
-  const [currentResult, setCurrentResult] = useState<CompetitorSerpResult | null>(initialResult);
-  const [jobId, setJobId] = useState<string | null>(null);
+export default function CompetitorCrawlPage() {
+  const { locale, preview, latest, error: loaderError } = useLoaderData<typeof loader>() as LoaderData;
+  const fetcher = useFetcher<ActionData>();
+
+  const [result, setResult] = useState<CompetitorSerpResult | null>(() => mostRecent(preview, latest));
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [domainFilter, setDomainFilter] = useState("all");
+
   const pollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const jobIdRef = useRef<string | null>(null);
-  // Always up-to-date fetcher reference — avoids stale closure in setInterval
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
-  const [domainFilter, setDomainFilter] = useState("all");
-  const [pageTypeFilter, setPageTypeFilter] = useState("all");
-
+  const isEnriched = Boolean(latest?.enriched) && (result?.enriched ?? false);
   const isRunning = jobStatus === "pending" || jobStatus === "running";
 
   const stopPolling = () => {
@@ -532,12 +452,15 @@ export default function CompetitorCrawlPage() {
     stopPolling();
     pollerRef.current = setInterval(() => {
       if (fetcherRef.current.state === "idle" && jobIdRef.current) {
-        fetcherRef.current.submit(
-          { intent: "poll", jobId: jobIdRef.current },
-          { method: "post" },
-        );
+        fetcherRef.current.submit({ intent: "poll", jobId: jobIdRef.current }, { method: "post" });
       }
     }, 5000);
+  };
+
+  const handleEnrich = () => {
+    setActionError(null);
+    setJobStatus("pending");
+    fetcher.submit({ intent: "start_job" }, { method: "post" });
   };
 
   useEffect(() => () => stopPolling(), []);
@@ -547,7 +470,6 @@ export default function CompetitorCrawlPage() {
     const data = fetcher.data as Record<string, unknown>;
 
     if (typeof data.job_id === "string") {
-      setJobId(data.job_id);
       setJobStatus(String(data.status ?? "pending"));
       jobIdRef.current = data.job_id;
       startPolling();
@@ -558,34 +480,21 @@ export default function CompetitorCrawlPage() {
       setJobStatus(data.status);
       if (data.status === "completed") {
         stopPolling();
-        setJobId(null);
         jobIdRef.current = null;
-        if (data.result) {
-          setCurrentResult(data.result as CompetitorSerpResult);
-        }
+        if (data.result) setResult(data.result as CompetitorSerpResult);
       } else if (data.status === "failed") {
         stopPolling();
-        setJobId(null);
         jobIdRef.current = null;
-        setActionError(String(data.error ?? "Crawl échoué"));
+        setActionError(String(data.error ?? "Analyse échouée"));
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher.data]);
 
-  const handleStart = () => {
-    setActionError(null);
-    setJobStatus("pending");
-    fetcher.submit({ intent: "start_job" }, { method: "post" });
-  };
-
-  const competitors = currentResult?.competitors ?? [];
-  const filteredCompetitors = competitors.filter(
-    (c) => domainFilter === "all" || c.domain === domainFilter,
-  );
-
-  const allPageTypes = Array.from(
-    new Set(competitors.flatMap((c) => c.urls.map((u) => u.page_type || "unknown"))),
+  const competitors = result?.competitors ?? [];
+  const filtered = useMemo(
+    () => competitors.filter((c) => domainFilter === "all" || c.domain === domainFilter),
+    [competitors, domainFilter],
   );
 
   const domainOptions = [
@@ -593,150 +502,127 @@ export default function CompetitorCrawlPage() {
     ...competitors.map((c) => ({ label: c.domain, value: c.domain })),
   ];
 
-  const pageTypeOptions = [
-    { label: locale === "fr" ? "Tous les types de pages" : "All page types", value: "all" },
-    ...["product", "collection", "blog", "faq", "guide", "unknown"]
-      .filter((t) => allPageTypes.includes(t))
-      .map((t) => ({ label: pageTypeLabel(t, locale), value: t })),
-  ];
-
-  const totalUrls = currentResult?.total_urls_crawled ?? 0;
-  const keywordsUsed = currentResult?.keywords_used ?? 0;
+  const noMarketAnalysis = result?.error === "no_market_analysis";
+  const hasData = competitors.length > 0;
 
   return (
     <Page
-      title={locale === "fr" ? "Analyse concurrentielle SERP" : "SERP Competitor Analysis"}
+      title={locale === "fr" ? "Concurrents" : "Competitors"}
       subtitle={
         locale === "fr"
-          ? "Tous les concurrents identifiés, leurs URLs rankantes et métriques SEO/GEO."
-          : "All identified competitors, their ranking URLs and SEO/GEO metrics."
+          ? "Ce que font tes concurrents et comment t'en inspirer pour ton SEO."
+          : "What your competitors do and how to take inspiration for your SEO."
       }
       backAction={{ content: locale === "fr" ? "Accueil" : "Dashboard", url: localizedPath("/app", locale) }}
       primaryAction={
-        <Button
-          variant="primary"
-          onClick={handleStart}
-          loading={isRunning}
-          disabled={isRunning}
-        >
-          {isRunning
-            ? locale === "fr" ? "Crawl en cours…" : "Crawling…"
-            : locale === "fr" ? "Lancer l'analyse SERP" : "Run SERP analysis"}
-        </Button>
+        hasData
+          ? {
+              content: isEnriched
+                ? locale === "fr" ? "Régénérer l'analyse" : "Regenerate analysis"
+                : locale === "fr" ? "Générer l'analyse détaillée" : "Generate detailed analysis",
+              onAction: handleEnrich,
+              loading: isRunning,
+              disabled: isRunning,
+            }
+          : undefined
       }
     >
       <BlockStack gap="400">
         {(loaderError || actionError) && (
-          <Banner tone="critical">
-            <Text as="p">{loaderError ?? actionError}</Text>
+          <Banner tone="critical"><Text as="p">{loaderError ?? actionError}</Text></Banner>
+        )}
+
+        {noMarketAnalysis && (
+          <Banner tone="warning">
+            <BlockStack gap="200">
+              <Text as="p">
+                {locale === "fr"
+                  ? "Aucune analyse marché trouvée. Lance d'abord une analyse marché pour identifier tes concurrents."
+                  : "No market analysis found. Run a market analysis first to identify your competitors."}
+              </Text>
+              <Button url={localizedPath("/app/market-analysis", locale)} variant="plain">
+                {locale === "fr" ? "Lancer l'analyse marché" : "Run market analysis"}
+              </Button>
+            </BlockStack>
           </Banner>
         )}
 
-        {isRunning && (
+        {hasData && (
           <Card>
             <BlockStack gap="300">
-              <InlineStack gap="200" blockAlign="center">
-                <Spinner size="small" />
-                <Text as="p">
-                  {locale === "fr" ? "Crawl concurrent en cours — cela peut prendre 1 à 2 minutes…" : "Competitor crawl running — this may take 1–2 minutes…"}
-                </Text>
-              </InlineStack>
-              <ProgressBar progress={jobStatus === "running" ? 50 : 10} />
-            </BlockStack>
-          </Card>
-        )}
-
-        {currentResult && (
-          <Card>
-            <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center" wrap>
+              <InlineStack align="space-between" blockAlign="center" wrap gap="300">
                 <BlockStack gap="050">
                   <Text as="h2" variant="headingMd">
-                    {locale === "fr" ? "Vue concurrentielle" : "Competitor overview"}
+                    {locale === "fr" ? "Vue d'ensemble" : "Overview"}
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {locale === "fr"
-                      ? `Mis à jour le ${new Date(currentResult.created_at).toLocaleDateString("fr-FR")}`
-                      : `Updated ${new Date(currentResult.created_at).toLocaleDateString("en-US")}`}
+                    {isEnriched
+                      ? locale === "fr"
+                        ? "Analyse détaillée disponible"
+                        : "Detailed analysis available"
+                      : locale === "fr"
+                        ? "Profils SERP — génère l'analyse détaillée pour les recommandations"
+                        : "SERP profiles — generate the detailed analysis for recommendations"}
                   </Text>
                 </BlockStack>
               </InlineStack>
-              <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="300">
+              <InlineGrid columns={{ xs: 1, sm: 3 }} gap="300">
                 {metricLabel(locale === "fr" ? "Concurrents" : "Competitors", competitors.length)}
-                {metricLabel("URLs crawlées", totalUrls)}
-                {metricLabel(locale === "fr" ? "Mots-clés SERP" : "SERP keywords", keywordsUsed)}
+                {metricLabel(locale === "fr" ? "Mots-clés SERP" : "SERP keywords", asNumber(result?.keywords_used))}
                 {metricLabel(
-                  locale === "fr" ? "Produit / Collection / Blog / FAQ" : "Product / Collection / Blog / FAQ",
-                  (() => {
-                    const urls = competitors.flatMap((c) => c.urls);
-                    const cnt = (t: string) => urls.filter((u) => (u.page_type || "unknown") === t).length;
-                    return `${cnt("product")} / ${cnt("collection")} / ${cnt("blog")} / ${cnt("faq")}`;
-                  })(),
+                  locale === "fr" ? "Analyse détaillée" : "Detailed analysis",
+                  isEnriched ? (locale === "fr" ? "Oui" : "Yes") : (locale === "fr" ? "Non" : "No"),
                 )}
               </InlineGrid>
-              <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+              {competitors.length > 1 && (
                 <Select
-                  label={locale === "fr" ? "Concurrent" : "Competitor"}
+                  label={locale === "fr" ? "Filtrer par concurrent" : "Filter by competitor"}
                   options={domainOptions}
                   value={domainFilter}
                   onChange={setDomainFilter}
                 />
-                <Select
-                  label={locale === "fr" ? "Type de page" : "Page type"}
-                  options={pageTypeOptions}
-                  value={pageTypeFilter}
-                  onChange={setPageTypeFilter}
-                />
-              </InlineGrid>
+              )}
             </BlockStack>
           </Card>
         )}
 
-        {!currentResult && !isRunning && (
+        {isRunning && (
+          <Banner tone="info">
+            <InlineStack gap="200" blockAlign="center">
+              <Spinner size="small" />
+              <Text as="p">
+                {locale === "fr"
+                  ? "Génération de l'analyse détaillée — ~30 s. Les recommandations apparaîtront ci-dessous."
+                  : "Generating detailed analysis — ~30s. Recommendations will appear below."}
+              </Text>
+            </InlineStack>
+          </Banner>
+        )}
+
+        {!hasData && !noMarketAnalysis && (
           <EmptyState
-            heading={locale === "fr" ? "Aucune analyse concurrentielle" : "No competitor analysis yet"}
-            action={{ content: locale === "fr" ? "Lancer l'analyse SERP" : "Run SERP analysis", onAction: handleStart }}
+            heading={locale === "fr" ? "Aucun concurrent identifié" : "No competitor identified"}
+            action={{
+              content: locale === "fr" ? "Lancer l'analyse marché" : "Run market analysis",
+              url: localizedPath("/app/market-analysis", locale),
+            }}
             image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
           >
             <Text as="p">
               {locale === "fr"
-                ? "Lancez l'analyse pour crawler tous les concurrents identifiés par DataForSeo sur vos mots-clés produits."
-                : "Run the analysis to crawl all competitors identified by DataForSeo on your product keywords."}
+                ? "Lance une analyse marché : elle interroge DataForSeo et alimente cette page avec tes concurrents réels."
+                : "Run a market analysis: it queries DataForSeo and populates this page with your real competitors."}
             </Text>
           </EmptyState>
         )}
 
-        {currentResult?.error === "no_market_analysis" && (
-          <Banner tone="warning">
-            <Text as="p">
-              {locale === "fr"
-                ? "Aucune analyse marché trouvée. Lancez d'abord une analyse marché pour alimenter le cache SERP."
-                : "No market analysis found. Run a market analysis first to populate the SERP cache."}
-            </Text>
-            <Button url={localizedPath("/app/market-analysis", locale)} variant="plain">
-              {locale === "fr" ? "Lancer l'analyse marché" : "Run market analysis"}
-            </Button>
-          </Banner>
-        )}
+        {filtered.map((profile) => (
+          <CompetitorCard key={profile.domain} profile={profile} locale={locale} />
+        ))}
 
-        {filteredCompetitors.length > 0 && (
-          <BlockStack gap="400">
-            {filteredCompetitors.map((competitor) => (
-              <CompetitorSection
-                key={competitor.domain}
-                competitor={competitor}
-                locale={locale}
-                pageTypeFilter={pageTypeFilter}
-              />
-            ))}
-          </BlockStack>
-        )}
-
-        {currentResult && filteredCompetitors.length === 0 && !currentResult.error && (
+        {hasData && filtered.length === 0 && (
           <Banner tone="info">
-            <Text as="p">
-              {locale === "fr" ? "Aucun concurrent ne correspond aux filtres." : "No competitor matches the filters."}
-            </Text>
+            <Text as="p">{locale === "fr" ? "Aucun concurrent ne correspond au filtre." : "No competitor matches the filter."}</Text>
           </Banner>
         )}
       </BlockStack>

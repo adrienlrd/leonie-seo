@@ -353,27 +353,45 @@ export interface ProductResult {
   opportunity_score_before_competitor_boost?: number;
 }
 
-// ── Competitor SERP page types ────────────────────────────────────────────────
+// ── Competitor profile page types ─────────────────────────────────────────────
 
-export interface CompetitorSerpUrl extends CompetitorCrawlTopUrl {
-  from_cache?: boolean;
-  error?: string;
-  blocked_by_robots?: boolean;
+export interface CompetitorSynthesis {
+  title_style: string;
+  strengths: string[];
+  opportunities: string[];
+  inspiration: string[];
 }
 
-export interface CompetitorSerpDomain {
+export interface CompetitorRankedKeyword {
+  keyword: string;
+  rank: number;
+  title: string;
+  url: string;
+}
+
+export interface CompetitorProfile {
   domain: string;
-  source: "serp_per_product" | "domain_level" | "manual" | string;
   estimated_strength: number;
-  urls: CompetitorSerpUrl[];
+  strength_label: string;
+  ranked_keyword_count: number;
+  best_rank: number;
+  avg_rank: number;
+  ranked_keywords: CompetitorRankedKeyword[];
+  sample_titles: string[];
+  paa_questions: string[];
+  top_page_url?: string;
+  top_page_title?: string;
+  top_page?: CompetitorCrawlTopUrl | null;
+  synthesis?: CompetitorSynthesis | null;
 }
 
 export interface CompetitorSerpResult {
   created_at: string;
   shop?: string;
-  competitors: CompetitorSerpDomain[];
-  total_urls_crawled: number;
+  competitors: CompetitorProfile[];
   keywords_used: number;
+  enriched: boolean;
+  total_pages_crawled?: number;
   error?: string;
 }
 
