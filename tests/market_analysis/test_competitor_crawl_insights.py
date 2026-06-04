@@ -115,6 +115,66 @@ def test_produces_prompt_summary_without_competitor_text_when_insights_exist() -
     assert "Fontaine A" not in insights["prompt_summary"]
 
 
+def _rich_features() -> list[dict]:
+    base = _features()
+    base[0].update({
+        "title": "Fontaine à eau pour chat — silencieuse",
+        "h2_texts": ["Pourquoi une fontaine ?", "Comment l'entretenir", "Pourquoi une fontaine ?"],
+        "serp_featured_snippet": "Une fontaine à eau encourage le chat à boire davantage.",
+    })
+    base[1].update({
+        "title": "Meilleure fontaine chat 2024",
+        "meta_description": "Comparatif des fontaines pour chat: débit, silence, entretien.",
+        "h2_texts": ["Comment l'entretenir", "Quel débit choisir"],
+    })
+    return base
+
+
+def test_prompt_surfaces_actionable_competitor_detail() -> None:
+    insights = build_competitor_crawl_insights({}, _rich_features(), {})
+    prompt = format_competitor_crawl_for_prompt(insights)
+
+    # Titles and metas surfaced for meta_title / meta_description inspiration
+    assert "TITRES SEO CONCURRENTS" in prompt
+    assert "Fontaine à eau pour chat — silencieuse" in prompt
+    assert "META DESCRIPTIONS CONCURRENTES" in prompt
+    assert "Découvrez une fontaine chat avec livraison rapide." in prompt
+    # H2 subtopics surfaced for blog outline, deduplicated
+    assert "SOUS-THÈMES / H2 CONCURRENTS" in prompt
+    assert prompt.count("Pourquoi une fontaine ?") == 1
+    assert "Comment l'entretenir" in prompt
+    # Featured snippet surfaced for geo answer block
+    assert "EXTRAIT REPRIS PAR GOOGLE" in prompt
+    assert "encourage le chat à boire" in prompt
+    # Target length guidance + guardrails preserved
+    assert "vise cette longueur pour proposed_product_description" in prompt
+    assert "Do not copy competitor text" in prompt
+
+
+def test_prompt_caps_titles_and_h2() -> None:
+    features = []
+    for i in range(6):
+        features.append({
+            "url": f"https://x{i}.fr/p",
+            "domain": f"x{i}.fr",
+            "rank": i + 1,
+            "keyword": "fontaine chat",
+            "title": f"Titre concurrent {i}",
+            "h2_texts": [f"H2 numero {j}" for j in range(i * 3, i * 3 + 3)],
+            "word_count": 800,
+        })
+    insights = build_competitor_crawl_insights({}, features, {})
+    prompt = format_competitor_crawl_for_prompt(insights)
+
+    assert prompt.count("Titre concurrent ") <= 3
+    h2_count = sum(1 for line in prompt.splitlines() if line.startswith("- H2 numero "))
+    assert h2_count <= 8
+
+
+def test_prompt_empty_when_no_sample() -> None:
+    assert format_competitor_crawl_for_prompt({"sample_size": 0}) == ""
+
+
 def test_top_urls_expose_detailed_crawl_sections() -> None:
     insights = build_competitor_crawl_insights({}, _features(), {})
     top = insights["top_urls"][0]

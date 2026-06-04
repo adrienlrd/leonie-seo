@@ -1092,12 +1092,12 @@ def _build_pass2_prompt(
         f"\n▶ proposed_meta_title (45-60 caractères) :\n"
         f'   • Contient naturellement le mot-clé #1 ("{top_kw_1}") OU une variation proche.\n'
         f"   • Chaque mot-clé primary/secondary du TOP 5 doit apparaître dans proposed_meta_title OU proposed_meta_description.\n"
-        f"   • Différenciant vs CONCURRENTS SERP listés (jamais copier leur formulation).\n"
+        f"   • Différenciant vs CONCURRENTS SERP et TITRES SEO CONCURRENTS listés : reprends l'angle gagnant mais formule-le autrement (jamais copier).\n"
         f"\n▶ proposed_meta_description (120-160 caractères) :\n"
         f"   • Contient naturellement le mot-clé #1 ; ajoute une cible secondaire seulement si la phrase reste utile et lisible.\n"
         f"   • Doit compléter proposed_meta_title pour couvrir les mots-clés primary/secondary absents du titre.\n"
         f"   • Bénéfice produit ou CTA seulement s'il est confirmé par les données produit fournies.\n"
-        f"   • Si des concurrents sont listés, adopte une formulation propre sans prétendre couvrir un manque non vérifié.\n"
+        f"   • Inspire-toi des META DESCRIPTIONS CONCURRENTES (angle, bénéfice mis en avant) sans reprendre leur formulation ni leurs promesses non vérifiées.\n"
         f"\n▶ proposed_image_alts (tableau JSON — UNE ENTRÉE POUR CHAQUE image listée dans IMAGES PRODUIT) :\n"
         f'   • Chaque objet : {{"image_id": "<id exact>", "proposed_alt": "<alt proposé>"}}\n'
         f"   • Réutilise l'`image_id` EXACT de chaque image listée ; n'en oublie aucune.\n"
@@ -1113,15 +1113,17 @@ def _build_pass2_prompt(
         f"   • Couvre l'intention principale puis des sujets secondaires uniquement lorsqu'ils apportent une information vérifiée.\n"
         f"   • Première phrase peut contenir le mot-clé #1 si cela reste naturel.\n"
         f"   • Explique seulement les caractéristiques et usages confirmés dans le contexte produit.\n"
+        f"   • Vise la longueur médiane du BENCHMARK STRUCTUREL CONCURRENTS et couvre les SOUS-THÈMES / H2 CONCURRENTS pertinents (matériaux, usage, entretien…) lorsqu'un fait produit confirmé existe.\n"
         f"\n▶ proposed_faq (5-8 entrées) :\n"
         f"   • Génère toujours une FAQ dès qu'un mot-clé principal existe.\n"
-        f"   • Utilise en priorité les QUESTIONS GEO/IA DÉTECTÉES, puis les QUESTIONS PAA Google si présentes.\n"
+        f"   • Utilise en priorité les QUESTIONS GEO/IA DÉTECTÉES, puis les QUESTIONS PAA Google, puis les thèmes des SOUS-THÈMES / H2 CONCURRENTS.\n"
         f"   • Si une réponse manque de preuve produit, formule une réponse prudente et ajoute le fait manquant dans facts_missing.\n"
         f"   • Utilise les mots-clés naturellement, sans répétition forcée dans chaque question.\n"
         f"   • Réponses 2-4 phrases factuelles ; pas de blabla marketing.\n"
         f"\n▶ proposed_geo_answer_block :\n"
         f"   • Si la surface est marquée NE PAS GÉNÉRER, retourne une chaîne vide.\n"
         f"   • Fournit une réponse courte uniquement à partir des faits confirmés.\n"
+        f"   • Si un EXTRAIT REPRIS PAR GOOGLE est fourni, inspire-toi de son format court et extractible (sans copier le texte).\n"
         f"\n▶ proposed_blog_title :\n"
         f"   • Si la surface blog est marquée NE PAS GÉNÉRER, retourne title/intro vides et outline vide.\n"
         f"   • S'il est généré, contient un mot-clé longue traîne ou un intent informationnel depuis la liste.\n"
@@ -1130,11 +1132,13 @@ def _build_pass2_prompt(
         f"   • Seulement si le blog est généré : introduit naturellement l'intention ciblée.\n"
         f"\n▶ proposed_blog_outline (5-7 sections H2) :\n"
         f"   • Seulement si le blog est généré : chaque H2 couvre une intention ou question pertinente.\n"
+        f"   • Structure-toi à partir des SOUS-THÈMES / H2 CONCURRENTS et des QUESTIONS PAA pour couvrir les angles qui rankent, reformulés à ta façon.\n"
         f"   • Si des concurrents sont présents, différencie le cadrage sans affirmer ce qu'ils ne traitent pas.\n"
         f"\n▶ proposed_blog_ideas :\n"
         f"   • Propose exactement 5 idées d'articles.\n"
         f"   • Chaque objet contient title, target_keyword, intro, outline (5-7 H2).\n"
         f"   • Chaque idée cible un mot-clé différent ou une intention très liée aux mots-clés sélectionnés.\n"
+        f"   • Appuie-toi sur les SOUS-THÈMES / H2 CONCURRENTS et les QUESTIONS PAA pour identifier des angles d'articles à fort potentiel.\n"
         f"   • Ces idées doivent pouvoir être générées en article séparé par le marchand.\n"
         f"\n▶ recommended_content_actions :\n"
         f"   • Si des CONCURRENTS DE DOMAINE sont listés, propose au plus une analyse comparative fondée sur les titres observés ;\n"
@@ -5346,7 +5350,7 @@ def run_market_analysis(
     dataforseo_provider = DataForSEOProvider()
     google_ads_provider = GoogleAdsKeywordProvider()
     paid_providers = [p for p in (dataforseo_provider, google_ads_provider) if p.available]
-    competitor_crawl_config = CompetitorCrawlConfig.from_env()
+    competitor_crawl_config = CompetitorCrawlConfig.for_market_analysis()
 
     provider_status: dict[str, Any] = {
         "free": True,
