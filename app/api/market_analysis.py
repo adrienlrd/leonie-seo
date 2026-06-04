@@ -623,17 +623,17 @@ async def get_latest_market_analysis(
 
         meta = meta_by_product.get(pid) or {}
         active_keys = {q.get("key") for q in active_qs if isinstance(q, dict) and q.get("key")}
+        product_facts = merchant_facts.get(pid) or {}
 
-        # Keys answered by merchant (source=merchant_confirmation) but not active
+        # Keys answered by merchant: from confirmed_facts OR from the merchant_facts file
         confirmed_facts = pack.get("confirmed_facts") or []
         answered_keys = {
             f.get("key") for f in confirmed_facts
             if isinstance(f, dict) and f.get("source") == "merchant_confirmation" and f.get("key")
         }
+        # Also pick up any key saved via /facts that hasn't been merged yet by a re-analysis
+        answered_keys |= set(product_facts.keys())
         auto_completed_keys = answered_keys - active_keys - retired_keys_set
-
-        # Build answers map from merchant facts file
-        product_facts = merchant_facts.get(pid) or {}
 
         completed_questions: list[dict[str, Any]] = []
         for k in retired_keys_list:

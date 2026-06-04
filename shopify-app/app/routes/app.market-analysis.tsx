@@ -751,6 +751,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ type: "removeProducts", error: null });
   }
 
+  if (intent === "validateQuestion") {
+    const productId = String(formData.get("productId") ?? "");
+    const key = String(formData.get("key") ?? "");
+    const answer = String(formData.get("answer") ?? "");
+    if (key && answer.trim()) {
+      try {
+        await callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/market-analysis/facts/${encodeURIComponent(productId)}`,
+          {
+            accessToken: session.accessToken,
+            method: "POST",
+            body: JSON.stringify({ answers: { [key]: answer } }),
+            signal: AbortSignal.timeout(10_000),
+          },
+        );
+      } catch { /* best-effort */ }
+    }
+    return json({ type: "validateQuestion", ok: true, error: null });
+  }
+
   if (intent === "retireQuestion" || intent === "restoreQuestion") {
     const productId = String(formData.get("productId") ?? "");
     const key = String(formData.get("key") ?? "");
@@ -1230,6 +1251,11 @@ function ProductCard({
       { intent: "restoreQuestion", productId: product.product_id, key },
       { method: "post" },
     );
+  const onValidateQuestion = (key: string, answer: string) =>
+    questionFetcher.submit(
+      { intent: "validateQuestion", productId: product.product_id, key, answer },
+      { method: "post" },
+    );
 
   // ── Apply-to-Shopify state ─────────────────────────────────────────────────
   const applyFetcher = useFetcher<{ type: string; ok: boolean; results?: Record<string, { applied: boolean; error: string | null }>; error?: string | null }>();
@@ -1510,6 +1536,7 @@ function ProductCard({
           onToggleApplyField={onToggleApplyField}
           onRetireQuestion={onRetireQuestion}
           onRestoreQuestion={onRestoreQuestion}
+          onValidateQuestion={onValidateQuestion}
         />
 
         {/* Uncommitted keywords = those not yet in localTags as keyword type */}

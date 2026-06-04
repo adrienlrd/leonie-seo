@@ -58,6 +58,7 @@ export function ProductContentProposals({
   onToggleApplyField,
   onRetireQuestion,
   onRestoreQuestion,
+  onValidateQuestion,
 }: {
   product: ProductResult;
   locale: Locale;
@@ -70,6 +71,7 @@ export function ProductContentProposals({
   onToggleApplyField?: (field: FieldKey) => void;
   onRetireQuestion?: (key: string) => void;
   onRestoreQuestion?: (key: string) => void;
+  onValidateQuestion?: (key: string, answer: string) => void;
 }) {
   const pack = product.content_test_pack;
   // Optimistic local state — updates immediately on retire/restore without waiting for server
@@ -606,10 +608,20 @@ export function ProductContentProposals({
     </Tooltip>
   ) : null;
 
-  const activeEnrichmentQuestions = enrichmentQuestions.filter((q) => !localRetiredKeys.has(q.key));
   const [showCompletedQuestions, setShowCompletedQuestions] = useState(false);
 
-  // Optimistic retire/restore: update local state immediately + call parent callback
+  // Optimistic state for validated questions (saved answer, moved out of active list)
+  const [localValidated, setLocalValidated] = useState<Record<string, string>>({});
+
+  // "Déjà complété" = backend completed_questions
+  // + optimistically retired/validated questions not yet acknowledged by backend
+  const inBackend = new Set(completedQuestions.map((q) => q.key));
+
+  const activeEnrichmentQuestions = enrichmentQuestions.filter(
+    (q) => !localRetiredKeys.has(q.key) && !localValidated[q.key] && !inBackend.has(q.key),
+  );
+
+  // Optimistic retire/restore/validate: update local state immediately + call parent callback
   const handleRetire = (key: string) => {
     setLocalRetiredKeys((prev) => new Set([...prev, key]));
     onRetireQuestion?.(key);
@@ -618,18 +630,26 @@ export function ProductContentProposals({
     setLocalRetiredKeys((prev) => { const next = new Set(prev); next.delete(key); return next; });
     onRestoreQuestion?.(key);
   };
+  const handleValidate = (key: string) => {
+    const answer = enrichmentAnswers[key] ?? "";
+    if (!answer.trim()) return;
+    setLocalValidated((prev) => ({ ...prev, [key]: answer }));
+    onValidateQuestion?.(key, answer);
+  };
+  const optimisticExtra: Array<{ key: string; question: string; why_it_matters: string; placeholder: string; is_retired: boolean; answer: string }> = [];
+  for (const key of localRetiredKeys) {
+    if (inBackend.has(key)) continue;
+    const q = enrichmentQuestions.find((eq) => eq.key === key);
+    if (q) optimisticExtra.push({ ...q, is_retired: true, answer: enrichmentAnswers[key] ?? "" });
+  }
+  for (const [key, answer] of Object.entries(localValidated)) {
+    if (inBackend.has(key) || localRetiredKeys.has(key)) continue;
+    const q = enrichmentQuestions.find((eq) => eq.key === key);
+    if (q) optimisticExtra.push({ ...q, is_retired: false, answer });
+  }
 
-  // "Déjà complété" = completed_questions from backend (retired + auto-answered)
-  // + any questions just retired optimistically that aren't in completed_questions yet
-  const optimisticRetiredKeys = [...localRetiredKeys].filter(
-    (k) => !completedQuestions.some((q) => q.key === k),
-  );
-  const optimisticCompleted = optimisticRetiredKeys
-    .map((k) => enrichmentQuestions.find((q) => q.key === k))
-    .filter(Boolean)
-    .map((q) => ({ ...q!, is_retired: true, answer: enrichmentAnswers[q!.key] ?? "" }));
-
-  const allCompletedQuestions = [...completedQuestions, ...optimisticCompleted];
+  const allCompletedQuestions = [...completedQuestions, ...optimisticExtra];
+  const completedKeys = new Set(allCompletedQuestions.map((q) => q.key));
 
   const hasContent = activeEnrichmentQuestions.length > 0 || allCompletedQuestions.length > 0;
 
@@ -659,7 +679,15 @@ export function ProductContentProposals({
                 multiline={2}
               />
             </Box>
-            <div style={{ paddingTop: 28, flexShrink: 0 }}>
+            <div style={{ paddingTop: 28, flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+              <Button
+                size="slim"
+                variant="primary"
+                disabled={!(enrichmentAnswers[question.key] ?? "").trim()}
+                onClick={() => handleValidate(question.key)}
+              >
+                {locale === "fr" ? "Valider" : "Save"}
+              </Button>
               <Button size="slim" variant="plain" tone="critical" onClick={() => handleRetire(question.key)}>
                 {locale === "fr" ? "Retirer" : "Dismiss"}
               </Button>
