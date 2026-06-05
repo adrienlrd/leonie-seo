@@ -13,6 +13,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app.agent_schedule.evaluation import evaluate_agent_effectiveness
 from app.agent_schedule.export import build_export
 from app.agent_schedule.scheduler import (
     disable,
@@ -87,6 +88,15 @@ async def test_agent_in_5_min(
     """Queue a single test run ~5 minutes out. Does not enable the daily agent."""
     settings = schedule_test_in_5_min(ctx.shop, db_path=DB_PATH)
     return {"shop": ctx.shop, "schedule": settings.to_dict()}
+
+
+@router.get("/shops/{shop}/agent-schedule/effectiveness")
+async def get_agent_effectiveness(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Return whether the agent improves SEO and GEO, with how-to-improve advice."""
+    return await asyncio.to_thread(evaluate_agent_effectiveness, ctx.shop, db_path=DB_PATH)
 
 
 @router.get("/shops/{shop}/agent-schedule/export")

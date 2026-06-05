@@ -159,6 +159,31 @@ interface AgentScheduleData {
   };
 }
 
+type EffectivenessVerdict = "improving" | "regressing" | "no_effect" | "inconclusive";
+
+interface EffectivenessRecommendation {
+  code: string;
+  severity: "critical" | "warning" | "info" | "success";
+  fr: string;
+  en: string;
+}
+
+interface AgentEffectivenessData {
+  overall_verdict: string;
+  sample_size: number;
+  avg_confidence: number;
+  seo: { verdict: EffectivenessVerdict; score: number; sample: number };
+  geo: { verdict: EffectivenessVerdict; score: number; sample: number };
+  by_field: Array<{
+    field: string;
+    sample: number;
+    seo_score: number;
+    geo_score: number;
+    avg_outcome: number;
+  }>;
+  recommendations: EffectivenessRecommendation[];
+}
+
 interface LoaderData {
   locale: Locale;
   shop: string;
@@ -166,6 +191,7 @@ interface LoaderData {
   learning: LearningStatusData | null;
   approvals: LearningApproval[];
   schedule: AgentScheduleData | null;
+  effectiveness: AgentEffectivenessData | null;
   error: string | null;
 }
 
@@ -173,28 +199,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const locale = getLocale(request);
   try {
-    const [resp, learningResp, approvalsResp, scheduleResp] = await Promise.all([
-      callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/geo/continuous-improvement?limit=100`,
-        { accessToken: session.accessToken },
-      ),
-      callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/learning/status`,
-        { accessToken: session.accessToken },
-      ),
-      callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/learning/pending-approvals?limit=100`,
-        { accessToken: session.accessToken },
-      ),
-      callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/agent-schedule/status`,
-        { accessToken: session.accessToken },
-      ),
-    ]);
+    const [resp, learningResp, approvalsResp, scheduleResp, effectivenessResp] =
+      await Promise.all([
+        callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/geo/continuous-improvement?limit=100`,
+          { accessToken: session.accessToken },
+        ),
+        callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/learning/status`,
+          { accessToken: session.accessToken },
+        ),
+        callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/learning/pending-approvals?limit=100`,
+          { accessToken: session.accessToken },
+        ),
+        callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/agent-schedule/status`,
+          { accessToken: session.accessToken },
+        ),
+        callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/agent-schedule/effectiveness`,
+          { accessToken: session.accessToken },
+        ),
+      ]);
     if (!resp.ok) {
       return json<LoaderData>({
         locale,
@@ -203,6 +235,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         learning: null,
         approvals: [],
         schedule: null,
+        effectiveness: null,
         error: await resp.text(),
       });
     }
@@ -215,6 +248,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ? ((await approvalsResp.json()) as LearningApprovalsData).approvals
         : [],
       schedule: scheduleResp.ok ? ((await scheduleResp.json()) as AgentScheduleData) : null,
+      effectiveness: effectivenessResp.ok
+        ? ((await effectivenessResp.json()) as AgentEffectivenessData)
+        : null,
       error: null,
     });
   } catch (err) {
@@ -225,6 +261,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       learning: null,
       approvals: [],
       schedule: null,
+      effectiveness: null,
       error: String(err),
     });
   }
@@ -434,6 +471,38 @@ function statusTone(status: string): "success" | "critical" | "attention" | "inf
   return "info";
 }
 
+function verdictTone(verdict: string): "success" | "critical" | "attention" | "info" {
+  if (verdict === "improving") return "success";
+  if (verdict === "regressing") return "critical";
+  if (verdict === "no_effect") return "attention";
+  return "info";
+}
+
+function verdictLabel(verdict: string, locale: Locale): string {
+  const fr: Record<string, string> = {
+    improving: "En amélioration",
+    regressing: "En régression",
+    no_effect: "Sans effet",
+    inconclusive: "Non concluant",
+    partially_improving: "Partiellement en amélioration",
+  };
+  const en: Record<string, string> = {
+    improving: "Improving",
+    regressing: "Regressing",
+    no_effect: "No effect",
+    inconclusive: "Inconclusive",
+    partially_improving: "Partially improving",
+  };
+  return (locale === "fr" ? fr : en)[verdict] ?? verdict;
+}
+
+function recommendationTone(severity: string): "success" | "critical" | "warning" | "info" {
+  if (severity === "success") return "success";
+  if (severity === "critical") return "critical";
+  if (severity === "warning") return "warning";
+  return "info";
+}
+
 function ProductCard({ product, locale }: { product: ProductRow; locale: Locale }) {
   const improved = product.elements.filter((element) => element.improved).length;
   return (
@@ -607,7 +676,7 @@ function formatDateTime(value: string | null, locale: Locale): string {
 }
 
 export default function ContinuousImprovement() {
-  const { locale, shop, data, learning, approvals, schedule, error } =
+  const { locale, shop, data, learning, approvals, schedule, effectiveness, error } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionResult>();
   const busy = fetcher.state !== "idle";
@@ -864,6 +933,45 @@ export default function ContinuousImprovement() {
                 </Text>
               )}
             </InlineStack>
+
+            <div style={{ borderTop: "1px solid #e1e3e5", paddingTop: 12 }}>
+              <BlockStack gap="200">
+                <InlineStack align="space-between" blockAlign="center" wrap>
+                  <Text as="h3" variant="headingSm">
+                    {locale === "fr"
+                      ? "L'agent améliore-t-il le SEO et le GEO ?"
+                      : "Is the agent improving SEO and GEO?"}
+                  </Text>
+                  <InlineStack gap="100">
+                    <Badge tone={verdictTone(effectiveness?.seo.verdict ?? "inconclusive")}>
+                      {`SEO: ${verdictLabel(effectiveness?.seo.verdict ?? "inconclusive", locale)}`}
+                    </Badge>
+                    <Badge tone={verdictTone(effectiveness?.geo.verdict ?? "inconclusive")}>
+                      {`GEO: ${verdictLabel(effectiveness?.geo.verdict ?? "inconclusive", locale)}`}
+                    </Badge>
+                  </InlineStack>
+                </InlineStack>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {locale === "fr"
+                    ? `Basé sur ${effectiveness?.sample_size ?? 0} mesure(s) mûre(s) (J+14/J+28), confiance moyenne ${effectiveness?.avg_confidence ?? 0}/100.`
+                    : `Based on ${effectiveness?.sample_size ?? 0} matured measurement(s) (J+14/J+28), average confidence ${effectiveness?.avg_confidence ?? 0}/100.`}
+                </Text>
+                {(effectiveness?.recommendations ?? []).slice(0, 4).map((rec) => (
+                  <Banner key={rec.code} tone={recommendationTone(rec.severity)}>
+                    <Text as="p" variant="bodySm">{locale === "fr" ? rec.fr : rec.en}</Text>
+                  </Banner>
+                ))}
+                {(effectiveness?.by_field?.length ?? 0) > 0 && (
+                  <InlineStack gap="100" wrap>
+                    {effectiveness?.by_field.slice(0, 6).map((field) => (
+                      <Badge key={field.field} tone={field.avg_outcome >= 0 ? "success" : "critical"}>
+                        {`${field.field}: ${field.avg_outcome >= 0 ? "+" : ""}${field.avg_outcome} (${field.sample})`}
+                      </Badge>
+                    ))}
+                  </InlineStack>
+                )}
+              </BlockStack>
+            </div>
 
             {scheduleFetcher.data?.ok && (
               <Banner tone="success">

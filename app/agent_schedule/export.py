@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from app.agent_schedule.evaluation import evaluate_agent_effectiveness
 from app.agent_schedule.store import get_schedule
 from app.geo.continuous_improvement import list_continuous_improvement
 from app.geo.ledger import list_geo_events
@@ -44,11 +45,16 @@ def build_export(shop: str, *, db_path: Path | None = None) -> dict[str, Any]:
         "geo_events",
         lambda: list_geo_events(shop, limit=500, db_path=db_path).get("events", []),
     )
+    effectiveness = _section(
+        "effectiveness",
+        lambda: evaluate_agent_effectiveness(shop, db_path=db_path),
+    )
 
     continuous = continuous or {}
     return {
         "exported_at": datetime.now(UTC).isoformat(),
         "shop": shop,
+        "effectiveness": effectiveness,
         "settings": {
             "schedule": schedule.to_dict() if schedule is not None else None,
             "learning": (

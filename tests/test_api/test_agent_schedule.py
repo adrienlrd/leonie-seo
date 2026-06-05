@@ -154,6 +154,23 @@ def test_export_contains_all_sections(client: TestClient, db: Path) -> None:
     assert "events" in body
 
 
+def test_effectiveness_endpoint_returns_verdicts(client: TestClient) -> None:
+    response = client.get(f"/api/shops/{SHOP}/agent-schedule/effectiveness")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["seo"]["verdict"] in {"improving", "regressing", "no_effect", "inconclusive"}
+    assert body["geo"]["verdict"] in {"improving", "regressing", "no_effect", "inconclusive"}
+    assert len(body["recommendations"]) >= 1
+
+
+def test_export_includes_effectiveness(client: TestClient) -> None:
+    response = client.get(f"/api/shops/{SHOP}/agent-schedule/export")
+
+    assert response.status_code == 200
+    assert response.json()["effectiveness"] is not None
+
+
 def test_internal_run_due_requires_secret(client: TestClient) -> None:
     unauth = client.post("/api/internal/agent-schedule/run-due")
     assert unauth.status_code == 403
