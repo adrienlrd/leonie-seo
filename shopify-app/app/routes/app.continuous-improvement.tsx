@@ -267,14 +267,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
+interface CycleDiagnostics {
+  reason: string;
+  proposals: number;
+  fr: string;
+  en: string;
+}
+
 interface ActionResult {
   ok: boolean;
   error: string | null;
   result?: {
-    run_id: number;
-    summary: Record<string, unknown>;
-    proposals: Array<Record<string, unknown>>;
-    errors: Array<Record<string, unknown>>;
+    run_id?: number;
+    status?: string;
+    summary?: Record<string, unknown>;
+    proposals?: Array<Record<string, unknown>>;
+    errors?: Array<Record<string, unknown>>;
+    diagnostics?: CycleDiagnostics;
+    continuous_agent?: {
+      summary?: Record<string, unknown>;
+      proposals?: Array<Record<string, unknown>>;
+      errors?: Array<Record<string, unknown>>;
+    } | null;
   };
   exportData?: unknown;
 }
@@ -683,8 +697,23 @@ export default function ContinuousImprovement() {
 
   const scheduleFetcher = useFetcher<ActionResult>();
   const exportFetcher = useFetcher<ActionResult>();
+  const cycleFetcher = useFetcher<ActionResult>();
   const scheduleBusy = scheduleFetcher.state !== "idle";
   const exportBusy = exportFetcher.state !== "idle";
+  const cycleBusy = cycleFetcher.state !== "idle";
+
+  const downloadJson = (payload: unknown, filename: string) => {
+    if (typeof document === "undefined") return;
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
 
   const [scheduleMode, setScheduleMode] = useState<"semi_auto" | "auto_apply">(
     schedule?.mode ?? "semi_auto",
@@ -693,24 +722,11 @@ export default function ContinuousImprovement() {
 
   // Trigger a client-side download once the export payload comes back.
   useEffect(() => {
-    if (
-      typeof document === "undefined"
-      || !exportFetcher.data?.ok
-      || exportFetcher.data.exportData === undefined
-    ) {
-      return;
-    }
-    const blob = new Blob([JSON.stringify(exportFetcher.data.exportData, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `leonie-agent-results-${shop}-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
+    if (!exportFetcher.data?.ok || exportFetcher.data.exportData === undefined) return;
+    downloadJson(
+      exportFetcher.data.exportData,
+      `leonie-agent-results-${shop}-${new Date().toISOString().slice(0, 10)}.json`,
+    );
   }, [exportFetcher.data, shop]);
 
   const enableDailyAgent = () => {
@@ -767,7 +783,23 @@ export default function ContinuousImprovement() {
     const fd = new FormData();
     fd.set("intent", "runLearningCycle");
     fd.set("confirm_live_write", learningMode === "auto_apply" ? "true" : "false");
-    fetcher.submit(fd, { method: "post" });
+    cycleFetcher.submit(fd, { method: "post" });
+  };
+
+  const downloadCycleResult = () => {
+    if (!cycleFetcher.data?.result) return;
+    downloadJson(
+      cycleFetcher.data.result,
+      `leonie-cycle-${shop}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`,
+    );
+  };
+
+  const downloadAgentResult = () => {
+    if (!fetcher.data?.result) return;
+    downloadJson(
+      fetcher.data.result,
+      `leonie-agent-run-${shop}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`,
+    );
   };
 
   const saveLearningSettings = () => {
@@ -817,7 +849,7 @@ export default function ContinuousImprovement() {
                 </Button>
               </InlineStack>
             </InlineStack>
-            {fetcher.data?.ok && (
+            {fetcher.data?.ok && fetcher.data.result?.diagnostics && (
               <Banner tone="success">
                 <Text as="p">
                   {locale === "fr"
@@ -825,6 +857,26 @@ export default function ContinuousImprovement() {
                     : `Run #${fetcher.data.result?.run_id} completed. Proposals: ${fetcher.data.result?.proposals?.length ?? 0}.`}
                 </Text>
               </Banner>
+            )}
+            {fetcher.data?.ok
+              && fetcher.data.result?.diagnostics
+              && (fetcher.data.result.proposals?.length ?? 0) === 0 && (
+              <Banner tone="info">
+                <Text as="p">
+                  {locale === "fr"
+                    ? fetcher.data.result.diagnostics.fr
+                    : fetcher.data.result.diagnostics.en}
+                </Text>
+              </Banner>
+            )}
+            {fetcher.data?.ok && fetcher.data.result?.diagnostics && (
+              <InlineStack gap="200">
+                <Button onClick={downloadAgentResult}>
+                  {locale === "fr"
+                    ? "Télécharger le JSON (raisonnement + résultat)"
+                    : "Download JSON (reasoning + result)"}
+                </Button>
+              </InlineStack>
             )}
             {fetcher.data && !fetcher.data.ok && (
               <Banner tone="warning">
@@ -1008,11 +1060,38 @@ export default function ContinuousImprovement() {
                 <Button loading={busy} onClick={saveLearningSettings}>
                   {locale === "fr" ? "Enregistrer" : "Save"}
                 </Button>
-                <Button variant="primary" loading={busy} onClick={runLearningCycle}>
+                <Button variant="primary" loading={cycleBusy} onClick={runLearningCycle}>
                   {locale === "fr" ? "Lancer un cycle maintenant" : "Run cycle now"}
                 </Button>
               </InlineStack>
             </InlineStack>
+            {cycleFetcher.data?.result?.diagnostics && (
+              <Banner
+                tone={
+                  cycleFetcher.data.result.diagnostics.reason === "ok" ? "success" : "info"
+                }
+              >
+                <Text as="p">
+                  {locale === "fr"
+                    ? cycleFetcher.data.result.diagnostics.fr
+                    : cycleFetcher.data.result.diagnostics.en}
+                </Text>
+              </Banner>
+            )}
+            {cycleFetcher.data && !cycleFetcher.data.ok && (
+              <Banner tone="warning">
+                <Text as="p">{cycleFetcher.data.error}</Text>
+              </Banner>
+            )}
+            {cycleFetcher.data?.result && (
+              <InlineStack gap="200">
+                <Button onClick={downloadCycleResult}>
+                  {locale === "fr"
+                    ? "Télécharger le JSON de ce cycle (raisonnement + résultat)"
+                    : "Download this cycle's JSON (reasoning + result)"}
+                </Button>
+              </InlineStack>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
               <Select
                 label={locale === "fr" ? "Statut" : "Status"}
