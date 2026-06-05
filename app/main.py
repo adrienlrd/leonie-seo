@@ -35,6 +35,7 @@ from app.api.market_analysis import router as market_analysis_router  # noqa: E4
 from app.api.business_profile import router as business_profile_router  # noqa: E402
 from app.api.llms_txt import router as llms_txt_router  # noqa: E402
 from app.api.learning import router as learning_router  # noqa: E402
+from app.api.agent_schedule import router as agent_schedule_router  # noqa: E402
 from app.api.shops import router as shops_router  # noqa: E402
 from app.api.crawl import router as crawl_router  # noqa: E402  (onboarding snapshot)
 from app.api.help import router as help_router  # noqa: E402
@@ -102,18 +103,56 @@ def _missing_required_env() -> list[str]:
 # ── Lifespan — background job worker ─────────────────────────────────────────
 
 
+def _agent_schedule_ticker_enabled() -> bool:
+    return os.getenv("AGENT_SCHEDULE_TICKER", "true").lower() in ("1", "true", "yes")
+
+
+def _agent_schedule_tick_seconds() -> float:
+    try:
+        return max(60.0, float(os.getenv("AGENT_SCHEDULE_TICK_SECONDS", "300")))
+    except ValueError:
+        return 300.0
+
+
+async def _agent_schedule_loop() -> None:
+    """Periodically run due daily agent schedules.
+
+    Cheap by design: each tick is a DB scan and only triggers a learning cycle
+    when a shop is genuinely due (see app.agent_schedule.scheduler). Failures are
+    logged and never crash the app. Can be disabled with AGENT_SCHEDULE_TICKER=false
+    to rely solely on the internal cron endpoint.
+    """
+    from app.agent_schedule.scheduler import run_due_agent_schedules  # noqa: PLC0415
+
+    interval = _agent_schedule_tick_seconds()
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await asyncio.to_thread(run_due_agent_schedules)
+        except Exception:  # noqa: BLE001 — background loop must survive any error
+            logging.getLogger("app.agent_schedule").exception("agent schedule tick failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     worker = JobWorker()
     task = asyncio.create_task(worker.run())
+    schedule_task = (
+        asyncio.create_task(_agent_schedule_loop()) if _agent_schedule_ticker_enabled() else None
+    )
     try:
         yield
     finally:
         task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+        if schedule_task is not None:
+            schedule_task.cancel()
+        for pending in (task, schedule_task):
+            if pending is None:
+                continue
+            try:
+                await pending
+            except asyncio.CancelledError:
+                pass
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -162,6 +201,7 @@ app.include_router(market_analysis_router)
 app.include_router(business_profile_router)
 app.include_router(llms_txt_router)
 app.include_router(learning_router)
+app.include_router(agent_schedule_router)
 app.include_router(dashboard_router)
 app.include_router(help_router)
 app.include_router(jobs_router)
