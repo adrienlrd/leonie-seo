@@ -19,6 +19,8 @@ def update_weights_from_observation(
     db_path: Path | None = None,
 ) -> int:
     """Update merchant and anonymized global weights for one observation."""
+    if observation.metadata.get("learnable") is False:
+        return 0
     if observation.confidence_score < 35:
         return 0
     normalized_outcome = observation.outcome_score / 100.0

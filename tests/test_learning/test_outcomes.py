@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from app.learning.outcomes import calculate_confidence, calculate_outcome
+from app.learning.outcomes import (
+    build_observation_from_event,
+    calculate_confidence,
+    calculate_outcome,
+)
 
 
 def test_outcome_score_positive_when_metrics_improve() -> None:
@@ -316,3 +320,51 @@ def test_confidence_score_falls_back_without_gsc_or_ga4() -> None:
     )
 
     assert 0 < confidence < 70
+
+
+def test_observation_payload_marks_polluted_windows_as_not_learnable() -> None:
+    payload = build_observation_from_event(
+        {
+            "id": 7,
+            "resource_type": "product",
+            "resource_id": "p1",
+            "action_type": "meta_title",
+            "metrics_before": {"gsc": {"impressions": 500, "clicks": 20}},
+            "metrics_after": {"gsc": {"impressions": 700, "clicks": 35}},
+            "estimated_impact": {
+                "optimization_attribution": {
+                    "field": "meta_title",
+                    "target_keyword": "harnais chien",
+                    "keyword_source": "gsc",
+                    "reinforce_tags": ["comfort"],
+                }
+            },
+        },
+        window_days=28,
+        pollution_flags=["overlapping_same_resource_actions"],
+    )
+
+    assert payload["ledger_event_id"] == 7
+    assert payload["metadata"]["experiment_verdict"] == "polluted_window"
+    assert payload["metadata"]["learnable"] is False
+    assert payload["metadata"]["optimization_attribution"]["target_keyword"] == "harnais chien"
+
+
+def test_observation_payload_marks_strong_result_as_high_confidence_positive() -> None:
+    payload = build_observation_from_event(
+        {
+            "id": 8,
+            "resource_type": "product",
+            "resource_id": "p1",
+            "action_type": "meta_description",
+            "metrics_before": {"gsc": {"impressions": 2000, "clicks": 80}},
+            "metrics_after": {"gsc": {"impressions": 3000, "clicks": 150}},
+            "estimated_impact": {"keyword_source": "gsc"},
+        },
+        window_days=28,
+        control_metrics={"impressions_before": 2000, "impressions_after": 2100},
+    )
+
+    assert payload["metadata"]["experiment_verdict"] == "positive_high_confidence"
+    assert payload["metadata"]["learnable"] is True
+    assert payload["control_metrics"]["impressions_after"] == 2100

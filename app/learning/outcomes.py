@@ -6,7 +6,7 @@ import math
 from datetime import UTC, datetime
 from typing import Any
 
-from app.learning.models import PRIMARY_WINDOW_DAYS
+from app.learning.models import PRIMARY_WINDOW_DAYS, LearningVerdict
 
 
 def _num(value: Any) -> float:
@@ -153,11 +153,100 @@ def calculate_confidence(
     return max(0, min(100, round(score)))
 
 
+def classify_verdict(
+    *,
+    outcome_score: float,
+    confidence_score: int,
+    pollution_flags: list[str] | None = None,
+) -> LearningVerdict:
+    """Classify one observed optimization into a stable learning verdict."""
+    if pollution_flags:
+        return LearningVerdict.POLLUTED_WINDOW
+    if confidence_score < 35:
+        return LearningVerdict.INCONCLUSIVE
+    if outcome_score >= 15 and confidence_score >= 70:
+        return LearningVerdict.POSITIVE_HIGH_CONFIDENCE
+    if outcome_score >= 5:
+        return LearningVerdict.POSITIVE_LOW_CONFIDENCE
+    if outcome_score <= -5:
+        return LearningVerdict.NEGATIVE
+    return LearningVerdict.NEUTRAL
+
+
+def _learning_status(verdict: LearningVerdict) -> str:
+    if verdict in {LearningVerdict.POLLUTED_WINDOW, LearningVerdict.INCONCLUSIVE}:
+        return verdict.value
+    return "learnable"
+
+
+def _attribution_from_event(event: dict[str, Any]) -> dict[str, Any]:
+    estimated = (
+        event.get("estimated_impact") if isinstance(event.get("estimated_impact"), dict) else {}
+    )
+    before = event.get("before_snapshot") if isinstance(event.get("before_snapshot"), dict) else {}
+    after = event.get("after_snapshot") if isinstance(event.get("after_snapshot"), dict) else {}
+    for container in (estimated, before, after):
+        attribution = container.get("optimization_attribution")
+        if isinstance(attribution, dict):
+            return attribution
+    return {}
+
+
+def _experiment_metadata(
+    *,
+    event: dict[str, Any],
+    outcome: dict[str, Any],
+    confidence_score: int,
+    window_days: int,
+    pollution_flags: list[str] | None,
+) -> dict[str, Any]:
+    attribution = _attribution_from_event(event)
+    verdict = classify_verdict(
+        outcome_score=float(outcome["outcome_score"]),
+        confidence_score=confidence_score,
+        pollution_flags=pollution_flags,
+    )
+    after = event.get("after_snapshot") if isinstance(event.get("after_snapshot"), dict) else {}
+    estimated = (
+        event.get("estimated_impact") if isinstance(event.get("estimated_impact"), dict) else {}
+    )
+    queries = (
+        after.get("queries_targeted") if isinstance(after.get("queries_targeted"), list) else []
+    )
+    facts = after.get("facts_used") if isinstance(after.get("facts_used"), list) else []
+    return {
+        "ledger_event_id": event.get("id"),
+        "window_days": window_days,
+        "experiment_verdict": verdict.value,
+        "learning_status": _learning_status(verdict),
+        "learnable": _learning_status(verdict) == "learnable",
+        "pollution_flags": list(pollution_flags or []),
+        "outcome_deltas": outcome["deltas"],
+        "control_uplift": outcome.get("control_uplift", 0),
+        "optimization_attribution": attribution,
+        "field": str(
+            attribution.get("field") or estimated.get("field") or event.get("action_type") or ""
+        ),
+        "target_keyword": str(attribution.get("target_keyword") or ""),
+        "keyword_source": str(
+            attribution.get("keyword_source")
+            or estimated.get("keyword_source")
+            or event.get("keyword_source")
+            or "unknown"
+        ),
+        "context_version": str(attribution.get("context_version") or ""),
+        "content_quality_score": int(estimated.get("quality_score") or 0),
+        "queries_targeted_count": len(queries),
+        "facts_used_count": len(facts),
+    }
+
+
 def build_observation_from_event(
     event: dict[str, Any],
     *,
     window_days: int,
     control_metrics: dict[str, Any] | None = None,
+    pollution_flags: list[str] | None = None,
 ) -> dict[str, Any]:
     """Build a serializable learning observation payload from a ledger event."""
     before = event.get("metrics_before") or {}
@@ -178,7 +267,15 @@ def build_observation_from_event(
         window_days=window_days,
         outcome_deltas=outcome["deltas"],
     )
+    metadata = _experiment_metadata(
+        event=event,
+        outcome=outcome,
+        confidence_score=confidence,
+        window_days=window_days,
+        pollution_flags=pollution_flags,
+    )
     return {
+        "ledger_event_id": event.get("id"),
         "resource_type": str(event.get("resource_type") or "product"),
         "resource_id": str(event.get("resource_id") or ""),
         "action_type": str(event.get("action_type") or "unknown"),
@@ -197,11 +294,12 @@ def build_observation_from_event(
         "outcome_score": outcome["outcome_score"],
         "confidence_score": confidence,
         "deltas": outcome["deltas"],
+        "metadata": metadata,
     }
 
 
-def event_age_days(event: dict[str, Any], *, now: datetime | None = None) -> int | None:
-    """Return event age in whole days from its applied or created date."""
+def event_applied_at(event: dict[str, Any]) -> datetime | None:
+    """Return the first applied/measured timestamp for an event."""
     value = str(event.get("created_at") or "")
     for entry in event.get("status_history") or []:
         if str(entry.get("status") or "").lower() in {"applied", "measured"}:
@@ -210,9 +308,17 @@ def event_age_days(event: dict[str, Any], *, now: datetime | None = None) -> int
     if not value:
         return None
     try:
-        created = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
-    if created.tzinfo is None:
-        created = created.replace(tzinfo=UTC)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def event_age_days(event: dict[str, Any], *, now: datetime | None = None) -> int | None:
+    """Return event age in whole days from its applied or created date."""
+    created = event_applied_at(event)
+    if created is None:
+        return None
     return ((now or datetime.now(UTC)).astimezone(UTC) - created.astimezone(UTC)).days

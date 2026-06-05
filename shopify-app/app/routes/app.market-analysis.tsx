@@ -303,6 +303,7 @@ interface ProductResult {
   keyword_clusters?: KeywordCluster[];
   improvement_tags?: ImprovementTag[];
   improvement_elements?: ImprovementElement[];
+  optimization_context?: Record<string, unknown>;
 }
 
 interface JobState {

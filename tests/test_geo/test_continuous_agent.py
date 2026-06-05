@@ -9,7 +9,7 @@ from pathlib import Path
 from app.db import init_db
 from app.geo.continuous_agent import run_continuous_improvement_agent
 from app.geo.continuous_improvement import set_product_tag
-from app.geo.ledger import create_geo_event
+from app.geo.ledger import create_geo_event, list_geo_events
 
 SHOP = "store.myshopify.com"
 PRODUCT_ID = "gid://shopify/Product/1"
@@ -51,6 +51,9 @@ def _latest_result() -> dict:
                         "query": "harnais chien confortable",
                         "product_fit_score": 80,
                         "data_source": "gsc",
+                        "gsc_impressions": 320,
+                        "gsc_clicks": 16,
+                        "gsc_position": 8.5,
                         "reason": "Good fit.",
                     }
                 ],
@@ -136,3 +139,13 @@ def test_agent_updates_tags_from_positive_feedback_and_creates_proposal(
     assert result["tag_decisions"][0]["status_after"] == "positive"
     assert result["proposals"][0]["content_type"] == "meta_title"
     assert result["proposals"][0]["applied"] is False
+    events = list_geo_events(SHOP, limit=10, db_path=db)["events"]
+    proposal_event = next(
+        event for event in events if event["event_type"] == "continuous_improvement_proposal"
+    )
+    attribution = proposal_event["before_snapshot"]["optimization_attribution"]
+    assert attribution["target_keyword"] == "harnais chien confortable"
+    assert attribution["keyword_source"] == "gsc"
+    assert "reinforce_tags" in attribution
+    assert proposal_event["metrics_before"]["gsc"]["impressions"] == 320
+    assert proposal_event["metrics_before"]["gsc"]["clicks"] == 16

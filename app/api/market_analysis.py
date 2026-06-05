@@ -415,6 +415,8 @@ def _run_analysis_background(
                 shop_domain,
                 completed_data,
                 persist_tags=True,
+                business_profile=business_profile,
+                niche_hypothesis=niche_hypothesis,
             )
             save_latest_result(shop_domain, completed_data)
             _auto_sync_schema_facts(shop_domain, completed_data["products"])
@@ -427,9 +429,16 @@ def _run_analysis_background(
                 shop_domain,
                 completed_data,
                 persist_tags=True,
+                business_profile=business_profile,
+                niche_hypothesis=niche_hypothesis,
             )
         else:
-            completed_data = enrich_market_analysis_result(shop_domain, completed_data)
+            completed_data = enrich_market_analysis_result(
+                shop_domain,
+                completed_data,
+                business_profile=business_profile,
+                niche_hypothesis=niche_hypothesis,
+            )
         update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
     except Exception as exc:
         import logging  # noqa: PLC0415

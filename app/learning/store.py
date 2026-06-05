@@ -162,19 +162,30 @@ def observation_exists(
     resource_id: str,
     action_type: str,
     window_label: str,
+    ledger_event_id: int | None = None,
     db_path: Path | None = None,
 ) -> bool:
     """Return True when an observation already exists for the event window."""
     path = db_path if db_path is not None else DB_PATH
     with get_conn(path) as conn:
-        row = conn.execute(
-            """
-            SELECT id FROM learning_observations
-            WHERE shop = ? AND resource_id = ? AND action_type = ? AND window_label = ?
-            LIMIT 1
-            """,
-            (shop, resource_id, action_type, window_label),
-        ).fetchone()
+        if ledger_event_id is not None:
+            row = conn.execute(
+                """
+                SELECT id FROM learning_observations
+                WHERE shop = ? AND ledger_event_id = ? AND window_label = ?
+                LIMIT 1
+                """,
+                (shop, ledger_event_id, window_label),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """
+                SELECT id FROM learning_observations
+                WHERE shop = ? AND resource_id = ? AND action_type = ? AND window_label = ?
+                LIMIT 1
+                """,
+                (shop, resource_id, action_type, window_label),
+            ).fetchone()
     return row is not None
 
 
@@ -194,6 +205,8 @@ def create_observation(
     is_primary_window: bool,
     outcome_score: float,
     confidence_score: int,
+    ledger_event_id: int | None = None,
+    metadata: dict[str, Any] | None = None,
     db_path: Path | None = None,
 ) -> int:
     """Persist one learning observation and return its ID."""
@@ -203,15 +216,16 @@ def create_observation(
         conn.execute(
             """
             INSERT INTO learning_observations (
-                shop, resource_type, resource_id, action_type, surface, keyword_source,
-                before_metrics_json, after_metrics_json, control_metrics_json,
+                shop, ledger_event_id, resource_type, resource_id, action_type, surface,
+                keyword_source, before_metrics_json, after_metrics_json, control_metrics_json,
                 window_days, window_label, is_primary_window, outcome_score,
-                confidence_score, created_at
+                confidence_score, metadata_json, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 shop,
+                ledger_event_id,
                 resource_type,
                 resource_id,
                 action_type,
@@ -225,6 +239,7 @@ def create_observation(
                 int(is_primary_window),
                 outcome_score,
                 confidence_score,
+                _json_dumps(metadata or {}),
                 now,
             ),
         )
@@ -263,6 +278,7 @@ def list_observations(
             "before_metrics": _json_loads(row.get("before_metrics_json"), {}),
             "after_metrics": _json_loads(row.get("after_metrics_json"), {}),
             "control_metrics": _json_loads(row.get("control_metrics_json"), {}),
+            "metadata": _json_loads(row.get("metadata_json"), {}),
             "is_primary_window": _bool(row.get("is_primary_window")),
         }
         for row in rows

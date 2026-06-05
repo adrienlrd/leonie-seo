@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from app.db_adapter import DB_PATH, get_conn
+from app.product_optimization.context import build_product_optimization_context
 
 _TAG_TYPES = frozenset({"keyword", "analysis_axis", "content_axis", "risk", "merchant"})
 _TAG_STATUSES = frozenset({"positive", "neutral", "negative", "forced"})
@@ -390,6 +391,8 @@ def enrich_market_analysis_result(
     result: dict[str, Any],
     *,
     persist_tags: bool = False,
+    business_profile: dict[str, Any] | None = None,
+    niche_hypothesis: dict[str, Any] | None = None,
     db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Attach tags and per-element improvement statuses to a market analysis result."""
@@ -414,6 +417,12 @@ def enrich_market_analysis_result(
                 if el.get("key") == "internal_links":
                     el["improved"] = True
                     el["status"] = "improved"
+        product_copy["optimization_context"] = build_product_optimization_context(
+            shop,
+            product_copy,
+            business_profile=business_profile,
+            niche_hypothesis=niche_hypothesis,
+        )
         products.append(product_copy)
     enriched["products"] = products
     return enriched

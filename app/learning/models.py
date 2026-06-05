@@ -35,6 +35,15 @@ class ApprovalStatus(StrEnum):
     FAILED = "failed"
 
 
+class LearningVerdict(StrEnum):
+    POSITIVE_HIGH_CONFIDENCE = "positive_high_confidence"
+    POSITIVE_LOW_CONFIDENCE = "positive_low_confidence"
+    NEUTRAL = "neutral"
+    NEGATIVE = "negative"
+    INCONCLUSIVE = "inconclusive"
+    POLLUTED_WINDOW = "polluted_window"
+
+
 PRIMARY_WINDOW_DAYS = 28
 LEARNING_WINDOWS_DAYS = (14, 28, 60)
 PRIMARY_WINDOW_LABEL = "J+28"
@@ -68,6 +77,8 @@ class LearningObservation:
     is_primary_window: bool
     outcome_score: float
     confidence_score: int
+    ledger_event_id: int | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     features: list[tuple[str, str]] = field(default_factory=list)
 
 

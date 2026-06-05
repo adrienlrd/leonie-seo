@@ -219,6 +219,13 @@ def rank_candidates(
                     "product_title": candidate.resource_title,
                     "content_action_id": candidate.metadata.get("action_id"),
                     "content_type": candidate.metadata.get("content_type", candidate.action_type),
+                    "ledger_event_id": candidate.metadata.get("ledger_event_id"),
+                    "optimization_attribution": candidate.metadata.get(
+                        "optimization_attribution", {}
+                    ),
+                    "optimization_context_version": candidate.metadata.get(
+                        "optimization_context_version", ""
+                    ),
                 },
                 db_path=db_path,
             )

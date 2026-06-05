@@ -97,6 +97,100 @@ def test_create_due_observations_does_not_duplicate_existing_observation(
     assert len(list_observations(SHOP, db_path=db)) == 1
 
 
+def test_create_due_observations_marks_overlapping_actions_as_polluted(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "history.db"
+    init_db(db)
+    first_event_id = _event(db, age_days=60)
+    second_event_id = _event(db, age_days=50)
+
+    observations, _skipped = create_due_observations(SHOP, db_path=db)
+
+    first_j28 = next(
+        observation
+        for observation in observations
+        if observation.ledger_event_id == first_event_id and observation.window_label == "J+28"
+    )
+    second_j28 = next(
+        observation
+        for observation in observations
+        if observation.ledger_event_id == second_event_id and observation.window_label == "J+28"
+    )
+    assert first_j28.metadata["experiment_verdict"] == "polluted_window"
+    assert first_j28.metadata["learnable"] is False
+    assert second_j28.metadata["learnable"] is True
+
+
+def test_create_due_observations_builds_automatic_control_group(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    db = tmp_path / "history.db"
+    init_db(db)
+    data_dir = tmp_path / "data"
+    shop_dir = data_dir / SHOP
+    shop_dir.mkdir(parents=True)
+    control_products = [
+        {
+            "product_id": PRODUCT_ID,
+            "product_title": "Harnais chien",
+            "product_type": "Harnais",
+            "opportunity_score": 70,
+            "seo_keywords": [
+                {
+                    "query": "harnais chien",
+                    "target_role": "primary",
+                    "data_source": "gsc",
+                    "gsc_impressions": 1000,
+                    "gsc_clicks": 50,
+                    "gsc_position": 8,
+                }
+            ],
+        }
+    ]
+    for index, before in enumerate((100, 200, 300), start=2):
+        control_products.append(
+            {
+                "product_id": f"gid://shopify/Product/{index}",
+                "product_title": f"Harnais témoin {index}",
+                "product_type": "Harnais",
+                "opportunity_score": 70,
+                "seo_keywords": [
+                    {
+                        "query": "harnais chien",
+                        "target_role": "primary",
+                        "data_source": "gsc",
+                        "gsc_impressions": 1000,
+                        "gsc_clicks": 50,
+                        "gsc_position": 8,
+                    }
+                ],
+                "learning_metrics": {
+                    "J+28": {
+                        "before": {"gsc": {"impressions": before, "clicks": before // 10}},
+                        "after": {
+                            "gsc": {"impressions": int(before * 1.1), "clicks": before // 10 + 1}
+                        },
+                    }
+                },
+            }
+        )
+    (shop_dir / "market_analysis_latest.json").write_text(
+        json.dumps({"products": control_products}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("app.market_analysis.jobs._DATA_DIR", data_dir)
+    _event(db, age_days=28)
+
+    observations, _skipped = create_due_observations(SHOP, db_path=db)
+
+    j28 = next(observation for observation in observations if observation.window_label == "J+28")
+    assert j28.control_metrics["control_size"] == 3
+    assert j28.control_metrics["impressions_before"] == 200
+    assert j28.control_metrics["impressions_after"] == 220
+
+
 def test_create_due_observations_keeps_j60_as_historical_window(tmp_path: Path) -> None:
     db = tmp_path / "history.db"
     init_db(db)

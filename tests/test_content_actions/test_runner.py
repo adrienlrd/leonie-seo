@@ -43,7 +43,9 @@ def _mock_llm_router(text: str = "Harnais nylon chien réglable confort quotidie
     from app.llm.provider import CompletionResult  # noqa: PLC0415
 
     router = MagicMock()
-    router.complete.return_value = CompletionResult(text=text, provider="openai", model="gpt-4o-mini")
+    router.complete.return_value = CompletionResult(
+        text=text, provider="openai", model="gpt-4o-mini"
+    )
     return router
 
 
@@ -243,3 +245,47 @@ def test_run_meta_title_with_validated_niche():
 
     assert result.output.primary_text != ""
     assert result.action_id != ""
+
+
+def test_run_meta_title_injects_optimization_context_feedback(tmp_path):
+    from app.content_actions.runner import run_content_action  # noqa: PLC0415
+
+    router = _mock_llm_router("Harnais nylon chien réglable confort quotidien")
+    request = ContentActionRequest(
+        content_type=ContentType.META_TITLE,
+        resource=ResourceInput(id="gid://shopify/Product/1", title="Harnais"),
+        optimization_context={
+            "tags": {
+                "guidance": {
+                    "reinforce": ["harnais chien confortable"],
+                    "avoid": ["collier chat"],
+                    "forced": [],
+                    "auto_apply_blockers": [],
+                }
+            },
+            "competitors": {
+                "structural_actions": [{"gap": "missing_faq_block", "action_type": "faq"}]
+            },
+            "questions": {"pending": [{"key": "materials"}]},
+        },
+    )
+
+    with (
+        patch("app.observability.metrics.check_budget", return_value={"over_budget": False}),
+        patch("app.content_actions.runner._persist_action"),
+        patch("app.content_actions.runner._llm_cache_lookup", return_value=None),
+        patch("app.content_actions.runner._llm_cache_store"),
+    ):
+        run_content_action(
+            request,
+            "shop.myshopify.com",
+            niche_hypothesis=None,
+            llm_router=router,
+            plan="pro",
+            db_path=tmp_path / "actions.db",
+        )
+
+    rendered_prompt = router.complete.call_args.args[0]
+    assert "harnais chien confortable" in rendered_prompt
+    assert "collier chat" in rendered_prompt
+    assert "missing_faq_block" in rendered_prompt

@@ -27,7 +27,7 @@ from app.geo.continuous_improvement import (
     merge_product_tags,
     upsert_product_tags,
 )
-from app.geo.ledger import create_geo_event, list_geo_events
+from app.geo.ledger import create_geo_event, list_geo_events, update_geo_event_status
 from app.learning.models import CandidateAction, LearningMode, RiskLevel
 from app.learning.policy import learning_boost_for_action, rank_candidates
 from app.learning.risk import assess_action_risk
@@ -267,6 +267,53 @@ def _niche_context(product: dict[str, Any], tags: list[dict[str, Any]]) -> Niche
     )
 
 
+def _optimization_context(product: dict[str, Any]) -> dict[str, Any]:
+    value = product.get("optimization_context")
+    return value if isinstance(value, dict) else {}
+
+
+def _optimization_attribution(
+    product: dict[str, Any],
+    *,
+    element_key: str,
+) -> dict[str, Any]:
+    context = _optimization_context(product)
+    keywords = context.get("keywords") if isinstance(context.get("keywords"), dict) else {}
+    primary = keywords.get("primary") if isinstance(keywords.get("primary"), dict) else {}
+    tags = context.get("tags") if isinstance(context.get("tags"), dict) else {}
+    tag_guidance = tags.get("guidance") if isinstance(tags.get("guidance"), dict) else {}
+    competitors = context.get("competitors") if isinstance(context.get("competitors"), dict) else {}
+    questions = context.get("questions") if isinstance(context.get("questions"), dict) else {}
+    pending_questions = [
+        item for item in (questions.get("pending") or []) if isinstance(item, dict)
+    ]
+    structural_actions = [
+        item for item in (competitors.get("structural_actions") or []) if isinstance(item, dict)
+    ]
+    return {
+        "context_version": str(context.get("version") or ""),
+        "field": element_key,
+        "target_keyword": str(primary.get("query") or ""),
+        "keyword_source": str(primary.get("data_source") or "unknown"),
+        "target_role": str(primary.get("target_role") or ""),
+        "reinforce_tags": list(tag_guidance.get("reinforce") or [])[:8],
+        "avoid_tags": list(tag_guidance.get("avoid") or [])[:8],
+        "forced_tags": list(tag_guidance.get("forced") or [])[:6],
+        "auto_apply_blockers": list(tag_guidance.get("auto_apply_blockers") or [])[:6],
+        "competitor_gaps": [
+            {
+                "gap": str(item.get("gap") or ""),
+                "action_type": str(item.get("action_type") or ""),
+                "priority_boost": int(item.get("priority_boost") or 0),
+            }
+            for item in structural_actions[:5]
+        ],
+        "pending_question_keys": [
+            str(item.get("key") or item.get("field_key") or "") for item in pending_questions[:6]
+        ],
+    }
+
+
 def _request_for_product(
     product: dict[str, Any],
     content_type: ContentType,
@@ -304,6 +351,7 @@ def _request_for_product(
         niche_context=_niche_context(product, tags),
         constraints=Constraints(locale="fr"),
         previous_content=PreviousContent(content="", feedback=feedback),
+        optimization_context=_optimization_context(product),
     )
 
 
@@ -363,6 +411,32 @@ def _keyword_source(product: dict[str, Any]) -> str:
         if isinstance(keyword, dict) and keyword.get("data_source"):
             return str(keyword.get("data_source"))
     return "unknown"
+
+
+def _baseline_metrics(product: dict[str, Any]) -> dict[str, Any]:
+    direct = product.get("metrics") if isinstance(product.get("metrics"), dict) else {}
+    if direct:
+        return direct
+    for keyword in product.get("seo_keywords") or []:
+        if not isinstance(keyword, dict):
+            continue
+        impressions = keyword.get("gsc_impressions")
+        clicks = keyword.get("gsc_clicks")
+        position = keyword.get("gsc_position")
+        if impressions is None and clicks is None and position is None:
+            continue
+        impressions_value = int(impressions or 0)
+        clicks_value = int(clicks or 0)
+        ctr = round(clicks_value / impressions_value, 4) if impressions_value else 0.0
+        return {
+            "gsc": {
+                "impressions": impressions_value,
+                "clicks": clicks_value,
+                "ctr": ctr,
+                "position": float(position or 0.0),
+            }
+        }
+    return {}
 
 
 def _mark_action_approved(
@@ -526,6 +600,7 @@ def run_continuous_improvement_agent(
                     f"Generated from continuous feedback and tags. Quality score {result.quality.score}/100."
                 ),
             }
+            attribution = _optimization_attribution(product, element_key=element_key)
             score_before = int(product.get("opportunity_score") or 0)
             score_after = min(100, score_before + max(1, round(result.quality.score / 20)))
             event_id = create_geo_event(
@@ -540,15 +615,24 @@ def run_continuous_improvement_agent(
                 hypothesis=proposal["justification"],
                 score_before=score_before,
                 score_after=score_after,
-                before_snapshot={"tags": tags, "element": element_key},
+                before_snapshot={
+                    "tags": tags,
+                    "element": element_key,
+                    "optimization_attribution": attribution,
+                },
                 after_snapshot={
                     "action_id": result.action_id,
                     "quality_score": result.quality.score,
+                    "content_type": content_type.value,
+                    "queries_targeted": result.queries_targeted,
+                    "facts_used": [fact.model_dump() for fact in result.facts_used],
                 },
-                metrics_before={},
+                metrics_before=_baseline_metrics(product),
                 estimated_impact={
                     "quality_score": result.quality.score,
                     "expected_score_delta": score_after - score_before,
+                    "optimization_attribution": attribution,
+                    "keyword_source": attribution.get("keyword_source") or _keyword_source(product),
                 },
                 notes=f"action_id={result.action_id}",
                 db_path=db_path,
@@ -583,6 +667,8 @@ def run_continuous_improvement_agent(
                     "content_type": content_type.value,
                     "generated_at": result.generated_at,
                     "ledger_event_id": event_id,
+                    "optimization_attribution": attribution,
+                    "optimization_context_version": attribution["context_version"],
                 },
             )
             decisions = rank_candidates(
@@ -635,7 +721,23 @@ def run_continuous_improvement_agent(
                         db_path=db_path,
                     )
                     proposal.update(apply_result)
-                    applied += 1 if apply_result.get("applied") else 0
+                    if apply_result.get("applied"):
+                        applied += 1
+                        update_geo_event_status(
+                            shop=shop,
+                            event_id=event_id,
+                            status="applied",
+                            measurement_status="waiting_for_window",
+                            after_snapshot={
+                                "action_id": result.action_id,
+                                "content_type": content_type.value,
+                                "field": apply_result.get("field"),
+                                "quality_score": result.quality.score,
+                                "optimization_attribution": attribution,
+                            },
+                            notes="Applied automatically by continuous improvement agent.",
+                            db_path=db_path,
+                        )
 
             proposals.append(proposal)
         except Exception as exc:

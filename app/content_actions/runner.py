@@ -21,6 +21,7 @@ from app.content_actions.schema import (
     LLMMeta,
     QualityResult,
 )
+from app.product_optimization.context import content_action_feedback_from_context
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -92,9 +93,7 @@ _TASK_NAME = "content_actions"
 
 
 def _stable_hash(data: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(data, sort_keys=True, ensure_ascii=False).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 def _niche_context_from_hypothesis(niche_hypothesis: dict[str, Any] | None) -> dict[str, Any]:
@@ -108,7 +107,10 @@ def _niche_context_from_hypothesis(niche_hypothesis: dict[str, Any] | None) -> d
         "customer_segments": niche_hypothesis.get("customer_segments", []),
         "forbidden_promises": niche_hypothesis.get("forbidden_promises", []),
         "conversational_intents": [
-            {"intent": str(ci.get("intent") or ""), "example_queries": ci.get("example_queries", [])}
+            {
+                "intent": str(ci.get("intent") or ""),
+                "example_queries": ci.get("example_queries", []),
+            }
             for ci in niche_hypothesis.get("conversational_intents", [])[:5]
         ],
     }
@@ -170,8 +172,17 @@ def _llm_cache_store(
                    (shop, task_name, prompt_version, content_hash, response_json,
                     tokens_in, tokens_out, created_at, expires_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (shop, task_name, prompt_version, content_hash,
-                 json.dumps(result), 0, 0, now.isoformat(), expires),
+                (
+                    shop,
+                    task_name,
+                    prompt_version,
+                    content_hash,
+                    json.dumps(result),
+                    0,
+                    0,
+                    now.isoformat(),
+                    expires,
+                ),
             )
     except Exception:
         pass
@@ -304,11 +315,30 @@ def _build_prompt_vars(
     primary_keyword = top_queries[0].get("query", resource.title) if top_queries else resource.title
     secondary_keywords = [q.get("query", "") for q in top_queries[1:4]]
 
-    materials_facts = [f.value for f in facts if f.key in {"materials", "matières", "dimensions", "certifications"}]
+    materials_facts = [
+        f.value for f in facts if f.key in {"materials", "matières", "dimensions", "certifications"}
+    ]
 
     brand_voice = niche_ctx.get("brand_voice", {})
     do_not_say = brand_voice.get("do_not_say", [])
     forbidden_promises = niche_ctx.get("forbidden_promises", [])
+    optimization_feedback = content_action_feedback_from_context(request.optimization_context)
+    feedback_parts = [
+        text
+        for text in (request.previous_content.feedback or "", optimization_feedback)
+        if text.strip()
+    ]
+    feedback = "\n".join(feedback_parts)
+    tag_guidance = (
+        request.optimization_context.get("tags", {}).get("guidance", {})
+        if isinstance(request.optimization_context, dict)
+        else {}
+    )
+    competitor_guidance = (
+        request.optimization_context.get("competitors", {})
+        if isinstance(request.optimization_context, dict)
+        else {}
+    )
 
     return {
         "product_title": resource.title,
@@ -342,7 +372,10 @@ def _build_prompt_vars(
         "top_keywords": [primary_keyword] + secondary_keywords,
         # feedback
         "previous_content": request.previous_content.content or "",
-        "feedback": request.previous_content.feedback or "",
+        "feedback": feedback,
+        "optimization_context": request.optimization_context,
+        "tag_guidance": tag_guidance,
+        "competitor_guidance": competitor_guidance,
     }
 
 
@@ -369,14 +402,17 @@ def _call_llm(
         raise ValueError(f"Prompt '{prompt_name}' not found: {exc}") from exc
 
     vars_dict = _build_prompt_vars(request, niche_ctx)
-    content_hash = _stable_hash({
-        "resource_id": request.resource.id,
-        "content_type": ct.value,
-        "niche_version": niche_ctx.get("primary_niche", ""),
-        "prompt_version": prompt_template.version,
-        "facts_count": len(request.confirmed_facts),
-        "feedback": request.previous_content.feedback or "",
-    })
+    content_hash = _stable_hash(
+        {
+            "resource_id": request.resource.id,
+            "content_type": ct.value,
+            "niche_version": niche_ctx.get("primary_niche", ""),
+            "prompt_version": prompt_template.version,
+            "facts_count": len(request.confirmed_facts),
+            "feedback": request.previous_content.feedback or "",
+            "optimization_context": request.optimization_context,
+        }
+    )
 
     cached = _llm_cache_lookup(shop, ct, prompt_template.version, content_hash, db_path=db_path)
     if cached is not None:
@@ -413,7 +449,9 @@ def _call_llm(
         cache_hit=False,
     )
 
-    _llm_cache_store(shop, ct, prompt_template.version, content_hash, {"text": text}, db_path=db_path)
+    _llm_cache_store(
+        shop, ct, prompt_template.version, content_hash, {"text": text}, db_path=db_path
+    )
 
     return text, meta
 
@@ -504,7 +542,9 @@ def _parse_multilingual_output(text: str) -> ContentOutput:
     if en_title or en_desc:
         structured["en"] = {"title": en_title, "description": en_desc}
     summary = " | ".join(f"{k}: {v.get('title', '')}" for k, v in structured.items())
-    return ContentOutput(primary_text=summary or text, structured=structured if structured else None)
+    return ContentOutput(
+        primary_text=summary or text, structured=structured if structured else None
+    )
 
 
 def _parse_output(text: str, content_type: ContentType) -> ContentOutput:
@@ -627,7 +667,8 @@ def run_content_action(
     # Step 8: Build facts_used from confirmed_facts present in text
     text_lower = output.primary_text.lower()
     facts_used = [
-        f for f in request.confirmed_facts
+        f
+        for f in request.confirmed_facts
         if str(f.value).lower() in text_lower or f.key in text_lower
     ]
 
@@ -635,17 +676,19 @@ def run_content_action(
     claims_unverified: list[dict[str, str]] = []
     for mf in request.missing_facts:
         if mf.severity == "sensitive":
-            claims_unverified.append({
-                "claim": f"Missing fact: {mf.key}",
-                "category": "factual",
-            })
+            claims_unverified.append(
+                {
+                    "claim": f"Missing fact: {mf.key}",
+                    "category": "factual",
+                }
+            )
 
     queries_targeted = [
         q.get("query", "") for q in request.gsc_signals.top_queries[:5] if q.get("query")
     ]
-    intents_targeted = list({
-        k for k, v in request.gsc_signals.intent_distribution.items() if v > 0.2
-    })
+    intents_targeted = list(
+        {k for k, v in request.gsc_signals.intent_distribution.items() if v > 0.2}
+    )
 
     result = ContentActionResult(
         action_id=action_id,

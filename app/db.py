@@ -323,6 +323,7 @@ _SQLITE_DDL = [
     """CREATE TABLE IF NOT EXISTS learning_observations (
         id                   INTEGER PRIMARY KEY AUTOINCREMENT,
         shop                 TEXT NOT NULL,
+        ledger_event_id      INTEGER,
         resource_type        TEXT NOT NULL,
         resource_id          TEXT NOT NULL,
         action_type          TEXT NOT NULL,
@@ -336,6 +337,7 @@ _SQLITE_DDL = [
         is_primary_window    INTEGER NOT NULL DEFAULT 0,
         outcome_score        REAL NOT NULL DEFAULT 0,
         confidence_score     INTEGER NOT NULL DEFAULT 0,
+        metadata_json        TEXT NOT NULL DEFAULT '{}',
         created_at           TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS learning_weights (
@@ -685,6 +687,7 @@ _PG_DDL = [
     """CREATE TABLE IF NOT EXISTS learning_observations (
         id                   SERIAL PRIMARY KEY,
         shop                 TEXT NOT NULL,
+        ledger_event_id      INTEGER,
         resource_type        TEXT NOT NULL,
         resource_id          TEXT NOT NULL,
         action_type          TEXT NOT NULL,
@@ -698,6 +701,7 @@ _PG_DDL = [
         is_primary_window    BOOLEAN NOT NULL DEFAULT FALSE,
         outcome_score        DOUBLE PRECISION NOT NULL DEFAULT 0,
         confidence_score     INTEGER NOT NULL DEFAULT 0,
+        metadata_json        TEXT NOT NULL DEFAULT '{}',
         created_at           TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS learning_weights (
@@ -784,6 +788,10 @@ _GEO_IMPACT_EVENT_COLUMNS = {
     "measurement_status": "TEXT NOT NULL DEFAULT 'not_started'",
     "status_history": "TEXT",
 }
+_LEARNING_OBSERVATION_COLUMNS = {
+    "ledger_event_id": "INTEGER",
+    "metadata_json": "TEXT NOT NULL DEFAULT '{}'",
+}
 
 
 def _sqlite_has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
@@ -804,6 +812,13 @@ def _migrate_sqlite_geo_impact_events(conn: sqlite3.Connection) -> None:
     for column, definition in _GEO_IMPACT_EVENT_COLUMNS.items():
         if not _sqlite_has_column(conn, "geo_impact_events", column):
             conn.execute(f"ALTER TABLE geo_impact_events ADD COLUMN {column} {definition}")
+
+
+def _migrate_sqlite_learning_observations(conn: sqlite3.Connection) -> None:
+    """Add experiment tracking columns to legacy learning observations."""
+    for column, definition in _LEARNING_OBSERVATION_COLUMNS.items():
+        if not _sqlite_has_column(conn, "learning_observations", column):
+            conn.execute(f"ALTER TABLE learning_observations ADD COLUMN {column} {definition}")
 
 
 def _pg_has_column(cur, table: str, column: str) -> bool:
@@ -829,6 +844,13 @@ def _migrate_postgres_geo_impact_events(cur) -> None:
             cur.execute(f"ALTER TABLE geo_impact_events ADD COLUMN {column} {definition}")
 
 
+def _migrate_postgres_learning_observations(cur) -> None:
+    """Add experiment tracking columns to legacy learning observations."""
+    for column, definition in _LEARNING_OBSERVATION_COLUMNS.items():
+        if not _pg_has_column(cur, "learning_observations", column):
+            cur.execute(f"ALTER TABLE learning_observations ADD COLUMN {column} {definition}")
+
+
 def _init_postgres(database_url: str) -> None:
     import psycopg2  # noqa: PLC0415
 
@@ -844,6 +866,7 @@ def _init_postgres(database_url: str) -> None:
             cur.execute(_PG_SHOP_CONFIG)
             _migrate_postgres_add_shop_columns(cur)
             _migrate_postgres_geo_impact_events(cur)
+            _migrate_postgres_learning_observations(cur)
         conn.commit()
 
 
@@ -867,3 +890,4 @@ def init_db(db_path: Path | None = None) -> None:
             conn.execute(stmt)
         _migrate_sqlite_add_shop_columns(conn)
         _migrate_sqlite_geo_impact_events(conn)
+        _migrate_sqlite_learning_observations(conn)

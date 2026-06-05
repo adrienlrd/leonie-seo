@@ -81,6 +81,72 @@ def test_update_learning_weights_when_observation_has_confidence(tmp_path: Path)
     assert weight.sample_size == 1
 
 
+def test_update_learning_weights_ignores_polluted_observation(tmp_path: Path) -> None:
+    db = tmp_path / "history.db"
+    init_db(db)
+    observation = LearningObservation(
+        **{
+            **_observation().__dict__,
+            "metadata": {"learnable": False, "experiment_verdict": "polluted_window"},
+        }
+    )
+
+    updated = update_weights_from_observation(observation, db_path=db)
+
+    assert updated == 0
+    assert (
+        get_weight(
+            scope="merchant",
+            shop=SHOP,
+            feature_key="action_type",
+            feature_value="meta_title",
+            db_path=db,
+        )
+        is None
+    )
+
+
+def test_candidate_scoring_uses_tag_and_competitor_gap_weights(tmp_path: Path) -> None:
+    db = tmp_path / "history.db"
+    init_db(db)
+    observation = LearningObservation(
+        **{
+            **_observation().__dict__,
+            "features": [
+                ("reinforce_tag", "comfort"),
+                ("competitor_gap_action", "faq"),
+            ],
+            "outcome_score": 80,
+            "confidence_score": 90,
+            "metadata": {"learnable": True},
+        }
+    )
+    update_weights_from_observation(observation, db_path=db)
+    candidate = _candidate()
+    candidate = CandidateAction(
+        **{
+            **candidate.__dict__,
+            "metadata": {
+                "optimization_attribution": {
+                    "reinforce_tags": ["comfort"],
+                    "competitor_gaps": [{"action_type": "faq"}],
+                }
+            },
+        }
+    )
+
+    decisions = rank_candidates(
+        SHOP,
+        [candidate],
+        plan="free",
+        writer_supported_by_field={"meta_title": True},
+        confirm_live_write=False,
+        db_path=db,
+    )
+
+    assert decisions[0].learning_score > 0
+
+
 def test_no_auto_apply_when_confidence_too_low(tmp_path: Path) -> None:
     db = tmp_path / "history.db"
     init_db(db)

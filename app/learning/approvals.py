@@ -9,6 +9,7 @@ from typing import Any
 from app.apply.shopify_writer import ShopifyWriter
 from app.content_actions.schema import ContentType
 from app.db_adapter import DB_PATH, get_conn
+from app.geo.ledger import update_geo_event_status
 from app.learning.models import ApprovalStatus
 from app.learning.risk import is_auto_apply_field_allowed
 from app.learning.store import (
@@ -91,6 +92,27 @@ def apply_approval(
         try:
             record_content_decision(shop, str(action_id), "accept", db_path=db_path)
         except ValueError:
+            pass
+    ledger_event_id = (row.get("explanation") or {}).get("ledger_event_id")
+    if ledger_event_id:
+        try:
+            update_geo_event_status(
+                shop=shop,
+                event_id=int(ledger_event_id),
+                status="applied",
+                measurement_status="waiting_for_window",
+                after_snapshot={
+                    "approval_id": approval_id,
+                    "content_action_id": action_id,
+                    "field": FIELD_FOR_CONTENT_TYPE.get(content_type, str(row["field"])),
+                    "optimization_attribution": (row.get("explanation") or {}).get(
+                        "optimization_attribution", {}
+                    ),
+                },
+                notes="Applied after merchant approval.",
+                db_path=db_path,
+            )
+        except (TypeError, ValueError):
             pass
     path = db_path if db_path is not None else DB_PATH
     with get_conn(path) as conn:

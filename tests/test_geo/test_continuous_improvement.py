@@ -95,4 +95,6 @@ def test_enrich_market_analysis_result_attaches_tags_and_elements(tmp_path: Path
     product = enriched["products"][0]
     assert product["improvement_tags"]
     assert product["improvement_elements"]
+    assert product["optimization_context"]["resource"]["id"] == PRODUCT_ID
+    assert product["optimization_context"]["tags"]["guidance"]["reinforce"]
     assert any(tag["status"] == "negative" for tag in product["improvement_tags"])

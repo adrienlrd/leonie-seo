@@ -347,6 +347,7 @@ export interface ProductResult {
   keyword_clusters?: KeywordCluster[];
   improvement_tags?: ImprovementTag[];
   improvement_elements?: ImprovementElement[];
+  optimization_context?: Record<string, unknown>;
   competitor_crawl_insights?: CompetitorCrawlInsights;
   competitor_pattern_boost?: number;
   competitor_pattern_gaps?: CompetitorCrawlGap[];

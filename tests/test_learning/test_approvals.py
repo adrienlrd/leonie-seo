@@ -9,6 +9,7 @@ import pytest
 
 from app.db import init_db
 from app.db_adapter import get_conn
+from app.geo.ledger import create_geo_event, list_geo_events
 from app.learning.approvals import (
     apply_approval,
     bulk_approve_safe,
@@ -28,6 +29,7 @@ def _approval(
     risk_level: str = "low",
     confidence: int = 90,
     resource_id: str = "gid://shopify/Product/1",
+    explanation: dict | None = None,
 ) -> int:
     return create_pending_approval(
         shop=SHOP,
@@ -40,7 +42,7 @@ def _approval(
         confidence_score=confidence,
         risk_level=risk_level,
         expected_impact={"summary": "expected"},
-        explanation={"content_action_id": "action-1"},
+        explanation=explanation or {"content_action_id": "action-1"},
         db_path=db,
     )
 
@@ -66,7 +68,26 @@ def test_bulk_approval_filter_accepts_only_safe_actions() -> None:
 def test_apply_approval_uses_mocked_writer_and_records_trace(tmp_path: Path) -> None:
     db = tmp_path / "history.db"
     init_db(db)
-    approval_id = _approval(db)
+    event_id = create_geo_event(
+        shop=SHOP,
+        event_type="continuous_improvement_proposal",
+        resource_type="product",
+        resource_id="gid://shopify/Product/1",
+        resource_title="Product",
+        action_type="meta_title",
+        before_snapshot={},
+        metrics_before={},
+        estimated_impact={},
+        db_path=db,
+    )
+    approval_id = _approval(
+        db,
+        explanation={
+            "content_action_id": "action-1",
+            "ledger_event_id": event_id,
+            "optimization_attribution": {"target_keyword": "harnais chien"},
+        },
+    )
 
     with (
         patch("app.learning.approvals.ShopifyWriter") as writer_cls,
@@ -93,6 +114,12 @@ def test_apply_approval_uses_mocked_writer_and_records_trace(tmp_path: Path) -> 
         trace = conn.execute("SELECT * FROM seo_changes WHERE shop = ?", (SHOP,)).fetchone()
     assert approval["status"] == "applied"
     assert trace["new_value"] == "New"
+    event = next(
+        item for item in list_geo_events(SHOP, db_path=db)["events"] if item["id"] == event_id
+    )
+    assert event["status"] == "applied"
+    assert event["measurement_status"] == "waiting_for_window"
+    assert event["after_snapshot"]["optimization_attribution"]["target_keyword"] == "harnais chien"
 
 
 def test_apply_approval_requires_confirmation(tmp_path: Path) -> None:

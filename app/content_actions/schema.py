@@ -99,6 +99,7 @@ class ContentActionRequest(BaseModel):
     niche_context: NicheContext = Field(default_factory=NicheContext)
     constraints: Constraints = Field(default_factory=Constraints)
     previous_content: PreviousContent = Field(default_factory=PreviousContent)
+    optimization_context: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Output models ─────────────────────────────────────────────────────────────

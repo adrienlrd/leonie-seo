@@ -53,6 +53,7 @@ def test_create_and_list_observation_round_trips_json(tmp_path: Path) -> None:
 
     observation_id = create_observation(
         shop=SHOP,
+        ledger_event_id=12,
         resource_type="product",
         resource_id="p1",
         action_type="meta_title",
@@ -66,15 +67,58 @@ def test_create_and_list_observation_round_trips_json(tmp_path: Path) -> None:
         is_primary_window=True,
         outcome_score=42,
         confidence_score=80,
+        metadata={"experiment_verdict": "positive_high_confidence"},
         db_path=db,
     )
 
     rows = list_observations(SHOP, db_path=db)
     assert observation_id > 0
+    assert rows[0]["ledger_event_id"] == 12
     assert rows[0]["before_metrics"]["gsc"]["impressions"] == 10
     assert rows[0]["is_primary_window"] is True
+    assert rows[0]["metadata"]["experiment_verdict"] == "positive_high_confidence"
     assert observation_exists(
         shop=SHOP,
+        resource_id="p1",
+        action_type="meta_title",
+        window_label="J+28",
+        db_path=db,
+    )
+
+
+def test_observation_exists_can_scope_to_ledger_event_id(tmp_path: Path) -> None:
+    db = tmp_path / "history.db"
+    init_db(db)
+    create_observation(
+        shop=SHOP,
+        ledger_event_id=12,
+        resource_type="product",
+        resource_id="p1",
+        action_type="meta_title",
+        surface="product_page",
+        keyword_source="gsc",
+        before_metrics={},
+        after_metrics={},
+        control_metrics={},
+        window_days=28,
+        window_label="J+28",
+        is_primary_window=True,
+        outcome_score=0,
+        confidence_score=40,
+        db_path=db,
+    )
+
+    assert observation_exists(
+        shop=SHOP,
+        ledger_event_id=12,
+        resource_id="p1",
+        action_type="meta_title",
+        window_label="J+28",
+        db_path=db,
+    )
+    assert not observation_exists(
+        shop=SHOP,
+        ledger_event_id=13,
         resource_id="p1",
         action_type="meta_title",
         window_label="J+28",
