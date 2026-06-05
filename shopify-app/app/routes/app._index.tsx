@@ -52,7 +52,7 @@ import {
   WatchIcon,
 } from "@shopify/polaris-icons";
 import type { IconSource } from "@shopify/polaris";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
@@ -199,6 +199,8 @@ interface LoaderData {
   activeProducts: ActiveProduct[];
   productResults: Record<string, ProductResult>;
   competitorSignals: string[];
+  manualCompetitors: string[];
+  excludedDomains: string[];
   auditJobId: string | null;
   businessProfile: BusinessProfile | null;
   error: string | null;
@@ -217,16 +219,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let activeProducts: ActiveProduct[] = [];
   let productResults: Record<string, ProductResult> = {};
   let competitorSignals: string[] = [];
+  let manualCompetitors: string[] = [];
+  let excludedDomains: string[] = [];
   let auditJobId: string | null = null;
   let businessProfile: BusinessProfile | null = null;
 
   try {
-    const [dashResp, productsResp, bizProfileResp, marketResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken }),
       callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken }),
       callBackendForShop(shop, `/api/shops/${shop}/market-analysis/latest`, { accessToken: session.accessToken }),
+      callBackendForShop(shop, `/api/shops/${shop}/market-analysis/competitors`, { accessToken: session.accessToken }),
     ]);
+
+    if (competitorsResp.status === "fulfilled" && competitorsResp.value.ok) {
+      try {
+        const data = (await competitorsResp.value.json()) as {
+          competitors?: { domain?: string }[];
+          excluded?: string[];
+        };
+        manualCompetitors = [
+          ...new Set((data.competitors ?? []).map((c) => (c.domain ?? "").trim()).filter(Boolean)),
+        ];
+        excludedDomains = [...new Set((data.excluded ?? []).map((d) => d.trim()).filter(Boolean))];
+      } catch (_parseErr) { /* ignore */ }
+    }
 
     if (productsResp.status === "fulfilled" && productsResp.value.ok) {
       try {
@@ -271,6 +289,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         activeProducts,
         productResults,
         competitorSignals,
+        manualCompetitors,
+        excludedDomains,
         auditJobId: null,
         businessProfile,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
@@ -283,7 +303,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirect(localizedPath("/app/onboarding", locale));
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, auditJobId, businessProfile, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -291,6 +311,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       activeProducts,
       productResults,
       competitorSignals,
+      manualCompetitors,
+      excludedDomains,
       auditJobId,
       businessProfile,
       error: err instanceof Error ? err.message : "Network error",
@@ -604,6 +626,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ type: "pollProductAnalysis", job, error: null });
     } catch (err) {
       return json({ type: "pollProductAnalysis", job: null, error: String(err) });
+    }
+  }
+
+  if (intent === "saveCompetitors") {
+    const payload = formData.get("competitorsJson") as string;
+    try {
+      const body = JSON.parse(payload) as { competitors: { domain: string }[]; excluded: string[] };
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/competitors`,
+        {
+          accessToken: session.accessToken,
+          method: "PUT",
+          body: JSON.stringify(body),
+        },
+      );
+      if (!resp.ok) {
+        return json({ type: "saveCompetitors", ok: false, error: `HTTP ${resp.status}` });
+      }
+      return json({ type: "saveCompetitors", ok: true, error: null });
+    } catch (err) {
+      return json({ type: "saveCompetitors", ok: false, error: String(err) });
     }
   }
 
@@ -1626,7 +1670,144 @@ function getNicheIcon(profile: BusinessProfile): IconSource {
   return StarFilledIcon;
 }
 
-function BizProfileCards({ profile, competitorSignals, locale }: { profile: BusinessProfile; competitorSignals: string[]; locale: Locale }) {
+function normalizeDomain(value: string): string {
+  let raw = value.trim().toLowerCase();
+  if (!raw) return "";
+  raw = raw.replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
+  return raw.replace(/^www\./, "");
+}
+
+function CompetitorsCard({
+  competitorSignals,
+  manualCompetitors,
+  excludedDomains,
+  insights,
+  locale,
+}: {
+  competitorSignals: string[];
+  manualCompetitors: string[];
+  excludedDomains: string[];
+  insights: string[];
+  locale: Locale;
+}) {
+  const fetcher = useFetcher();
+  const [manual, setManual] = useState<string[]>(() =>
+    [...new Set(manualCompetitors.map(normalizeDomain).filter(Boolean))],
+  );
+  const [excluded, setExcluded] = useState<string[]>(() =>
+    [...new Set(excludedDomains.map(normalizeDomain).filter(Boolean))],
+  );
+  const [draft, setDraft] = useState("");
+
+  const signals = useMemo(
+    () => [...new Set(competitorSignals.map(normalizeDomain).filter(Boolean))],
+    [competitorSignals],
+  );
+  const manualSet = useMemo(() => new Set(manual), [manual]);
+  const excludedSet = useMemo(() => new Set(excluded), [excluded]);
+  const displayed = useMemo(
+    () => [...new Set([...signals, ...manual])].filter((d) => !excludedSet.has(d)).sort(),
+    [signals, manual, excludedSet],
+  );
+
+  const persist = (nextManual: string[], nextExcluded: string[]) => {
+    setManual(nextManual);
+    setExcluded(nextExcluded);
+    const fd = new FormData();
+    fd.set("intent", "saveCompetitors");
+    fd.set(
+      "competitorsJson",
+      JSON.stringify({
+        competitors: nextManual.map((domain) => ({ domain })),
+        excluded: nextExcluded,
+      }),
+    );
+    fetcher.submit(fd, { method: "post" });
+  };
+
+  const handleAdd = () => {
+    const d = normalizeDomain(draft);
+    if (!d) return;
+    setDraft("");
+    persist(
+      [...new Set([...manual, d])],
+      excluded.filter((x) => x !== d),
+    );
+  };
+
+  const handleRemove = (d: string) => {
+    persist(
+      manual.filter((x) => x !== d),
+      [...new Set([...excluded, d])],
+    );
+  };
+
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <SectionTitle source={GlobeIcon}>{locale === "fr" ? "Concurrents" : "Competitors"}</SectionTitle>
+        <Text as="p" tone="subdued" variant="bodySm">
+          {locale === "fr"
+            ? "Ces concurrents nourrissent l'analyse produit. Ajoute les tiens ou retire ceux qui ne sont pas pertinents."
+            : "These competitors feed the product analysis. Add your own or remove the irrelevant ones."}
+        </Text>
+
+        {displayed.length > 0 ? (
+          <BlockStack gap="100">
+            {displayed.map((d) => (
+              <InlineStack key={d} align="space-between" blockAlign="center" gap="200">
+                <InlineStack gap="150" blockAlign="center">
+                  <Text as="span" variant="bodyMd">{d}</Text>
+                  {!manualSet.has(d) && (
+                    <Badge tone="info" size="small">{locale === "fr" ? "auto" : "auto"}</Badge>
+                  )}
+                </InlineStack>
+                <Button
+                  variant="plain"
+                  tone="critical"
+                  onClick={() => handleRemove(d)}
+                  accessibilityLabel={`${locale === "fr" ? "Retirer" : "Remove"} ${d}`}
+                >
+                  ✕
+                </Button>
+              </InlineStack>
+            ))}
+          </BlockStack>
+        ) : (
+          <Text as="p" tone="subdued" variant="bodySm">
+            {locale === "fr" ? "Aucun concurrent pour l'instant." : "No competitor yet."}
+          </Text>
+        )}
+
+        <InlineStack gap="200" blockAlign="end">
+          <div style={{ flex: 1 }}>
+            <TextField
+              label={locale === "fr" ? "Ajouter un concurrent" : "Add a competitor"}
+              labelHidden
+              placeholder={locale === "fr" ? "exemple.fr" : "example.com"}
+              autoComplete="off"
+              value={draft}
+              onChange={setDraft}
+            />
+          </div>
+          <Button onClick={handleAdd} disabled={!normalizeDomain(draft)}>
+            {locale === "fr" ? "Ajouter" : "Add"}
+          </Button>
+        </InlineStack>
+
+        {insights.length > 0 && (
+          <BlockStack gap="050">
+            {insights.map((i) => (
+              <Text as="p" tone="subdued" variant="bodySm" key={i}>• {i}</Text>
+            ))}
+          </BlockStack>
+        )}
+      </BlockStack>
+    </Card>
+  );
+}
+
+function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale }) {
   const intensityTone = (i: string): "success" | "warning" | "info" =>
     i === "high" ? "success" : i === "medium" ? "warning" : "info";
   const NicheIcon = getNicheIcon(profile);
@@ -1710,33 +1891,13 @@ function BizProfileCards({ profile, competitorSignals, locale }: { profile: Busi
 
       {/* Row 3 — Concurrents + Opportunités */}
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
-        <Card>
-          <BlockStack gap="200">
-            <SectionTitle source={GlobeIcon}>{locale === "fr" ? "Concurrents" : "Competitors"}</SectionTitle>
-            {(() => {
-              const domains = [...new Set([...(profile.competitor_domains ?? []), ...competitorSignals])];
-              return domains.length > 0 ? (
-                <InlineStack gap="150" wrap>
-                  {domains.map((d) => (
-                    <Badge key={d} tone="info">{d}</Badge>
-                  ))}
-                </InlineStack>
-              ) : null;
-            })()}
-            {(profile.competitor_insights ?? []).length > 0 && (
-              <BlockStack gap="050">
-                {profile.competitor_insights.map((i) => (
-                  <Text as="p" tone="subdued" variant="bodySm" key={i}>• {i}</Text>
-                ))}
-              </BlockStack>
-            )}
-            <InlineStack>
-              <Button url={localizedPath("/app/competitor-crawl", locale)} variant="secondary" size="slim">
-                {locale === "fr" ? "Voir le crawl SERP" : "View SERP crawl"}
-              </Button>
-            </InlineStack>
-          </BlockStack>
-        </Card>
+        <CompetitorsCard
+          competitorSignals={competitorSignals}
+          manualCompetitors={manualCompetitors}
+          excludedDomains={excludedDomains}
+          insights={profile.competitor_insights ?? []}
+          locale={locale}
+        />
 
         <Card>
           <BlockStack gap="300">
@@ -1770,11 +1931,15 @@ function BizProfileCards({ profile, competitorSignals, locale }: { profile: Busi
 function BusinessProfileSection({
   initialProfile,
   competitorSignals,
+  manualCompetitors,
+  excludedDomains,
   locale,
   onProfileDraftChange,
 }: {
   initialProfile: BusinessProfile | null;
   competitorSignals: string[];
+  manualCompetitors: string[];
+  excludedDomains: string[];
   locale: Locale;
   onProfileDraftChange?: (profile: BusinessProfile) => void;
 }) {
@@ -2126,7 +2291,7 @@ function BusinessProfileSection({
       {bizError && (
         <Banner tone="critical"><p>{bizError.split("\n")[0]}</p></Banner>
       )}
-      <BizProfileCards profile={displayProfile} competitorSignals={competitorSignals} locale={locale} />
+      <BizProfileCards profile={displayProfile} competitorSignals={competitorSignals} manualCompetitors={manualCompetitors} excludedDomains={excludedDomains} locale={locale} />
     </BlockStack>
   );
 }
@@ -2134,7 +2299,7 @@ function BusinessProfileSection({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { locale, plan, dashboard, activeProducts, productResults, competitorSignals, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
   const gscConnected = activeProducts.some((p) => p.gsc_connected);
   const [profileForDashboard, setProfileForDashboard] = useState<BusinessProfile | null>(businessProfile);
 
@@ -2768,6 +2933,8 @@ export default function IndexPage() {
         <BusinessProfileSection
           initialProfile={profileForDashboard}
           competitorSignals={competitorSignals}
+          manualCompetitors={manualCompetitors}
+          excludedDomains={excludedDomains}
           locale={locale}
           onProfileDraftChange={handleProfileDraftChange}
         />

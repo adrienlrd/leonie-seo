@@ -22,7 +22,10 @@ from app.market_analysis.competitor_crawl.models import CompetitorCrawlTarget
 from app.market_analysis.competitor_crawl.prompt import format_competitor_crawl_for_prompt
 from app.market_analysis.competitor_crawl.store import record_competitor_crawl_run
 from app.market_analysis.competitor_crawl.url_selection import select_competitor_urls_for_product
-from app.market_analysis.competitors import build_competitor_signals
+from app.market_analysis.competitors import (
+    build_competitor_signals,
+    load_excluded_competitors,
+)
 from app.market_analysis.providers.dataforseo_provider import DataForSEOProvider
 from app.market_analysis.providers.free_provider import (
     FreeProvider,
@@ -1531,6 +1534,17 @@ def _normalize_domain_value(value: str) -> str:
     if "://" in raw:
         raw = urlsplit(raw).netloc
     return raw.split("/")[0].split(":")[0].removeprefix("www.")
+
+
+def _drop_excluded_signals(
+    signals: list[dict[str, Any]], excluded: set[str]
+) -> list[dict[str, Any]]:
+    """Remove competitor signals whose domain is in the merchant exclusion set."""
+    return [
+        signal
+        for signal in signals
+        if _normalize_domain_value(str(signal.get("domain", ""))) not in excluded
+    ]
 
 
 def _merchant_public_domains(
@@ -5585,11 +5599,14 @@ def run_market_analysis(
             state["pack"].get("seo_keywords", []) or []
         )
 
+    # Domains the merchant excluded must feed neither the crawl nor the signals.
+    excluded_competitor_domains = load_excluded_competitors(shop)
+
     competitor_crawl_feature_count = 0
     if competitor_crawl_config.enabled:
         _, competitor_crawl_feature_count = _run_competitor_crawl_analysis(
             shop=shop,
-            merchant_domains=merchant_domains,
+            merchant_domains=merchant_domains + sorted(excluded_competitor_domains),
             pass1_states=pass1_states,
             serp_intel=serp_intel,
             config=competitor_crawl_config,
@@ -5634,6 +5651,14 @@ def run_market_analysis(
             competitor_signals = list(competitor_signals) + raw_domain_signals
             if "dataforseo_domain_competitors" not in sources_used:
                 sources_used.append("dataforseo_domain_competitors")
+
+    if excluded_competitor_domains:
+        competitor_signals = _drop_excluded_signals(
+            competitor_signals, excluded_competitor_domains
+        )
+        domain_competitor_signals = _drop_excluded_signals(
+            domain_competitor_signals, excluded_competitor_domains
+        )
 
     # ── Budget gate: skip pass 2 (content) when over the monthly LLM budget ──
     budget_usd = _PLAN_BUDGETS_USD.get(plan or "", _DEFAULT_BUDGET_USD)

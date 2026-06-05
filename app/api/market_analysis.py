@@ -30,7 +30,12 @@ from app.geo.continuous_improvement import (
 )
 from app.gsc.client import ensure_fresh_gsc
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
-from app.market_analysis.competitors import load_competitors, save_competitors
+from app.market_analysis.competitors import (
+    load_competitors,
+    load_excluded_competitors,
+    save_competitors,
+    save_excluded_competitors,
+)
 from app.market_analysis.engine import run_market_analysis
 from app.market_analysis.identifier import generate_product_labels
 from app.market_analysis.jobs import (
@@ -954,8 +959,11 @@ async def remove_market_analysis_products(
 async def list_competitors(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict[str, Any]:
-    """Return the manual competitor list for this shop."""
-    return {"competitors": load_competitors(ctx.shop)}
+    """Return the manual competitor list and excluded domains for this shop."""
+    return {
+        "competitors": load_competitors(ctx.shop),
+        "excluded": sorted(load_excluded_competitors(ctx.shop)),
+    }
 
 
 @router.put("/shops/{shop}/market-analysis/competitors")
@@ -963,12 +971,25 @@ async def replace_competitors(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     body: dict[str, Any],
 ) -> dict[str, Any]:
-    """Replace the merchant competitor list. Body: {"competitors": [...]}"""
-    raw = body.get("competitors", [])
-    if not isinstance(raw, list):
-        raise HTTPException(status_code=400, detail="competitors must be a list")
-    save_competitors(ctx.shop, raw)
-    return {"competitors": load_competitors(ctx.shop)}
+    """Replace the merchant competitor list and/or excluded domains.
+
+    Body: {"competitors"?: [...], "excluded"?: [...]}. Only the keys present
+    are updated, so older clients sending only "competitors" keep working.
+    """
+    if "competitors" in body:
+        raw = body.get("competitors", [])
+        if not isinstance(raw, list):
+            raise HTTPException(status_code=400, detail="competitors must be a list")
+        save_competitors(ctx.shop, raw)
+    if "excluded" in body:
+        raw_excluded = body.get("excluded", [])
+        if not isinstance(raw_excluded, list):
+            raise HTTPException(status_code=400, detail="excluded must be a list")
+        save_excluded_competitors(ctx.shop, raw_excluded)
+    return {
+        "competitors": load_competitors(ctx.shop),
+        "excluded": sorted(load_excluded_competitors(ctx.shop)),
+    }
 
 
 # Legacy synchronous endpoint kept for backward compatibility

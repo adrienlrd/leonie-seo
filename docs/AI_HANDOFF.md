@@ -10,6 +10,20 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-05
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Masquer la page Concurrents SERP et gérer les concurrents (ajout + exclusion) depuis un aperçu sur l'accueil, qui alimente l'analyse produit.
+- **Summary:** **Masquage** : retrait du lien `/app/competitor-crawl` du menu (`app.tsx`) et du bouton « Voir le crawl SERP » de l'accueil — la route et le backend `competitor_serp` restent sur disque (accessibles par URL directe). **Liste d'exclusion** : nouveau `market_analysis_competitors_excluded.json` via `load_excluded_competitors`/`save_excluded_competitors` (competitors.py). Les endpoints `GET/PUT /market-analysis/competitors` renvoient/acceptent désormais `{competitors, excluded}` (PUT ne touche que les clés présentes → `settings.competitors.tsx` reste compatible). L'engine charge l'exclusion tôt, l'ajoute aux `merchant_domains` passés au crawl par produit (donc exclus du contenu) et filtre `competitor_signals` + `domain_competitor_signals` via `_drop_excluded_signals`. **Accueil** : nouveau composant `CompetitorsCard` (état local optimiste + `useFetcher`, intent `saveCompetitors`) qui affiche `union(competitorSignals, manuels) − exclus` avec badge « auto » pour les détectés, une croix [✕] par concurrent (l'exclure : ajout à excluded + retrait de manual, robuste même si re-détecté) et un champ d'ajout (ajout à manual + retrait d'excluded). Le loader accueil charge en plus la liste competitors.
+- **Files created:** `tests/market_analysis/test_competitor_exclusion.py`.
+- **Files modified:** `app/market_analysis/competitors.py`, `app/api/market_analysis.py` (endpoints étendus), `app/market_analysis/engine.py` (`_drop_excluded_signals` + application exclusion crawl/signals), `shopify-app/app/routes/app.tsx` (nav), `shopify-app/app/routes/app._index.tsx` (loader + action `saveCompetitors` + `CompetitorsCard` + prop drilling), `docs/AI_HANDOFF.md`.
+- **Decisions made:** Réutiliser `market_analysis_competitors.json` (manuels, déjà branché via `build_competitor_signals`) + fichier d'exclusion séparé plutôt qu'un nouveau modèle. [✕] = exclusion robuste (peu importe la source) pour qu'un domaine détecté ne revienne pas à la prochaine analyse. Page seulement masquée (pas supprimée) — `competitor_serp_engine` conservé, exclusion non appliquée à cette page masquée (non requis). Endpoint PUT rétro-compatible (clés optionnelles).
+- **Validations run:** `ruff check` (competitors/api/engine/tests) ✅ ; `pytest tests/market_analysis/test_competitor_exclusion.py` → **5 passed** ✅ ; `pytest` → **1740 passed, 188 skipped** ✅ ; `npm run typecheck` ✅ ; `npm run build` ✅.
+- **Validations skipped:** Pas de test API TestClient des endpoints competitors (auth lourde à scaffolder ; endpoints = fins wrappers sur des fonctions de persistance déjà testées unitairement). Pas de test live.
+- **Open issues:** Le `market_analysis_latest.json` existant garde un domaine exclu dans `competitor_signals` jusqu'à la prochaine analyse — l'aperçu accueil le masque déjà via le filtre `excluded`, et l'analyse ne le reprendra plus. L'édition `competitor_domains` du profil (textarea) coexiste toujours (vue « ce que l'IA comprend »).
+- **Next recommended action:** Déployer (frontend + backend), vérifier sur l'accueil : ajout d'un domaine → apparaît ; [✕] sur un détecté → disparaît ; relancer une analyse marché → le domaine exclu n'apparaît plus dans les concurrents ni dans les sources de contenu produit ; menu sans « Concurrents SERP ».
+
+## Earlier task (2026-06-04) — contenu produit nourri par les concurrents
+
 - **Date:** 2026-06-04
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Nourrir le contenu produit (meta titre/description, FAQ, blog, description) avec les données concurrents SERP, automatiquement pendant l'analyse marché.

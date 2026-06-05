@@ -32,6 +32,10 @@ def _competitors_path(shop: str) -> Path:
     return _DATA_DIR / shop / "market_analysis_competitors.json"
 
 
+def _excluded_path(shop: str) -> Path:
+    return _DATA_DIR / shop / "market_analysis_competitors_excluded.json"
+
+
 def load_competitors(shop: str) -> list[dict[str, Any]]:
     """Load merchant-entered competitors, or [] if none."""
     path = _competitors_path(shop)
@@ -42,6 +46,31 @@ def load_competitors(shop: str) -> list[dict[str, Any]]:
         return []
     except (OSError, json.JSONDecodeError):
         return []
+
+
+def load_excluded_competitors(shop: str) -> set[str]:
+    """Load the set of normalized competitor domains the merchant excluded."""
+    path = _excluded_path(shop)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    if not isinstance(data, list):
+        return set()
+    return {domain for raw in data if (domain := _extract_domain(str(raw)))}
+
+
+def save_excluded_competitors(shop: str, domains: list[str]) -> None:
+    """Persist a deduplicated set of excluded competitor domains."""
+    try:
+        shop_dir = _DATA_DIR / shop
+        shop_dir.mkdir(parents=True, exist_ok=True)
+        cleaned = sorted({d for raw in domains if (d := _extract_domain(str(raw)))})
+        _excluded_path(shop).write_text(
+            json.dumps(cleaned, ensure_ascii=False), encoding="utf-8"
+        )
+    except OSError as exc:
+        logger.warning("Failed to persist excluded competitors for %s: %s", shop, exc)
 
 
 def save_competitors(shop: str, competitors: list[dict[str, Any]]) -> None:
