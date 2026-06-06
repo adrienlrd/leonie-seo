@@ -2467,8 +2467,8 @@ export default function MarketAnalysisPage() {
       title={t(locale, "marketAnalysis")}
       subtitle={t(locale, "marketAnalysisSubtitle")}
       backAction={{
-        content: t(locale, "hubInsights"),
-        url: localizedPath("/app/insights", locale),
+        content: t(locale, "backDashboard"),
+        url: localizedPath("/app", locale),
       }}
     >
       <BlockStack gap="400">
