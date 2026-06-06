@@ -50,7 +50,7 @@ Verify each one before submitting.
 | **App name** ("Léonie SEO") unique on the App Store | Partner Dashboard → App setup → Name | Must not collide with another app |
 | **App URL** = `https://pilot.leoniedelacroix.com` (will change for production app) | App setup → URLs | Use a non-pilot URL when going GA |
 | **Allowed redirection URLs** | App setup → URLs | Currently in `shopify.app.pilot.toml` |
-| **Access scopes** = `read_products,write_products,read_orders` | App setup → Access scopes | Minimal set — App Store reviewers scrutinize unused scopes |
+| **Access scopes** = `read_products,write_products,write_content,read_themes,write_themes` | App setup → Access scopes | Matches `shopify.app.toml`. `read_orders` removed (unused) — App Store reviewers scrutinize unused scopes |
 | **API version** ≥ `2025-01` | App setup → Webhooks | Already set |
 | **Embedded** = true | App setup | Already set |
 | **App Bridge ≥ 4.x** | Auto via `@shopify/app-bridge-react` | Verify console.log in browser shows "AppBridge 4.x" |
@@ -96,7 +96,7 @@ Required to submit. None are in the repo yet.
 | Item | Status | Action |
 |---|---|---|
 | **Privacy policy URL** (publicly accessible) | ✅ | `https://leonie-seo-pilot-api.onrender.com/privacy` — confirm content covers GDPR + cookies + data retention |
-| **Terms of service URL** | ❌ | À rédiger + héberger (route HTML statique ou page Notion) |
+| **Terms of service URL** | ✅ | `GET /terms` (HTML bilingue FR/EN, `app/api/privacy.py`) — clause explicite « aucune garantie de ranking » |
 | **Support email** (replied within 24-48 h) | ❌ | À créer (suggestion `support@leoniedelacroix.com`) |
 | **Support URL** (FAQ or help center) | 🔄 | `docs/guide-utilisateur.fr.md` existe — à publier publiquement |
 | **Emergency developer contact** (Partner Dashboard) | 📋 | À renseigner |
@@ -166,7 +166,7 @@ Before submitting:
 | Partner Dashboard config | 📋 Manual verification |
 | **App Store listing assets** | ⚠️ **MISSING — blocker** (icon + 5 screenshots) |
 | Required text content | 🔄 Drafts in `docs/app-store-listing-copy.md` |
-| Legal & support | ⚠️ Privacy ✅, ToS + support email ❌ |
+| Legal & support | ⚠️ Privacy ✅, ToS ✅ (`/terms`), support email ❌ |
 | Reviewer test plan | ✅ `docs/app-store-test-instructions.md` |
 | Technical validation | 🔄 To run before submission |
 | App Store policies | 📋 Self-check |
