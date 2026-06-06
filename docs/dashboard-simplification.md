@@ -1,4 +1,4 @@
-# Merchant-Friendly Dashboard Simplification — Léonie SEO
+# Merchant-Friendly Dashboard Simplification — Giulio Geo
 
 > Référence canonique du dashboard marchand non-expert. Définit la vue d'accueil unique qui synthétise les sorties des 6 modules précédents (127-136) en cartes lisibles, sans jargon SEO/GEO en premier niveau, avec séparation stricte Google / IA et coût LLM visible.
 >

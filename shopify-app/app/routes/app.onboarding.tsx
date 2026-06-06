@@ -304,8 +304,8 @@ function GuidedOnboardingFlow({
           </Text>
           <Text as="p" tone="subdued">
             {fr
-              ? "Suivez ce chemin une seule fois, puis Léonie pourra vous proposer les actions prioritaires."
-              : "Follow this path once, then Léonie can suggest your priority actions."}
+              ? "Suivez ce chemin une seule fois, puis Giulio Geo pourra vous proposer les actions prioritaires."
+              : "Follow this path once, then Giulio Geo can suggest your priority actions."}
           </Text>
         </BlockStack>
 
@@ -314,8 +314,8 @@ function GuidedOnboardingFlow({
           title={fr ? "Connecter Google" : "Connect Google"}
           body={
             fr
-              ? "Léonie lit vos requêtes Google pour comprendre où votre boutique est déjà visible."
-              : "Léonie reads your Google queries to understand where your store is already visible."
+              ? "Giulio Geo lit vos requêtes Google pour comprendre où votre boutique est déjà visible."
+              : "Giulio Geo reads your Google queries to understand where your store is already visible."
           }
           done={googleReady}
           active={activeStep === 1}
@@ -409,8 +409,8 @@ function GuidedOnboardingFlow({
           title={fr ? "Voir les 3 actions prioritaires" : "See the 3 priority actions"}
           body={
             fr
-              ? "Une fois la compréhension validée, Léonie limite le choix aux actions les plus utiles maintenant."
-              : "Once the understanding is validated, Léonie limits the choice to the most useful actions now."
+              ? "Une fois la compréhension validée, Giulio Geo limite le choix aux actions les plus utiles maintenant."
+              : "Once the understanding is validated, Giulio Geo limits the choice to the most useful actions now."
           }
           done={false}
           active={activeStep === 4}

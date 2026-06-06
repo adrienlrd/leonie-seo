@@ -1,6 +1,6 @@
-# LLM Strategy & Provider Routing — Léonie SEO
+# LLM Strategy & Provider Routing — Giulio Geo
 
-> Référence canonique de l'usage LLM dans Léonie SEO. Tout module consommateur LLM (existant ou futur, en particulier les tâches 130-134 de la Phase 11.7) doit respecter les règles documentées ici.
+> Référence canonique de l'usage LLM dans Giulio Geo. Tout module consommateur LLM (existant ou futur, en particulier les tâches 130-134 de la Phase 11.7) doit respecter les règles documentées ici.
 >
 > Statut : décisions produit/architecture figées au 2026-05-19 (tâche 129). Les seuils chiffrés sont des valeurs de départ ajustables, pas des contrats immuables.
 

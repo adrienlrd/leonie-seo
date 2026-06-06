@@ -9,14 +9,14 @@ _API_VERSION = "2025-01"
 # Pricing catalog — Free has no Shopify charge (default plan on install).
 BILLING_PLANS: dict[str, dict] = {
     "pro": {
-        "display_name": "Léonie SEO Pro",
+        "display_name": "Giulio Geo Pro",
         "price": "29.00",
         "currency": "USD",
         "interval": "EVERY_30_DAYS",
         "features": ["Audit", "Apply meta/alt", "Reports", "Email alerts", "1 store"],
     },
     "agency": {
-        "display_name": "Léonie SEO Agency",
+        "display_name": "Giulio Geo Agency",
         "price": "99.00",
         "currency": "USD",
         "interval": "EVERY_30_DAYS",

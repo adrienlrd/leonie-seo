@@ -262,7 +262,7 @@ def test_subscription_webhook_updates_status(client, db, monkeypatch):
         {
             "admin_graphql_api_id": SUB_GID,
             "status": "ACTIVE",
-            "name": "Léonie SEO Pro",
+            "name": "Giulio Geo Pro",
         }
     ).encode()
     resp = client.post(

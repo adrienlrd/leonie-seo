@@ -1,4 +1,4 @@
-# Human Review & Safe Apply Workflow — Léonie SEO
+# Human Review & Safe Apply Workflow — Giulio Geo
 
 > Référence canonique du workflow de revue humaine et d'application Shopify. Étend le workflow meta existant à **tous les `content_type`** de la tâche 134 et verrouille les garde-fous d'écriture pour la V1 publique.
 >

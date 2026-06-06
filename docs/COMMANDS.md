@@ -1,4 +1,4 @@
-# COMMANDS.md — Léonie SEO
+# COMMANDS.md — Giulio Geo
 
 Ce fichier liste les commandes détectées dans le dépôt. Ne pas inventer de commande : si une commande n'existe pas dans `pyproject.toml`, `package.json`, le README ou la documentation projet, elle doit rester recommandée mais non obligatoire.
 
