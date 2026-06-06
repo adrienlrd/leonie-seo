@@ -32,7 +32,8 @@ account with read-only scopes on a public test property.
 1. From the Partner Dashboard, click **Test app on development store** and
    pick your store.
 2. Shopify shows the standard install screen listing scopes:
-   `read_products, write_products, read_orders`. Click **Install app**.
+   `read_products, write_products, write_content, read_themes, write_themes`.
+   Click **Install app**.
 3. You are redirected into the embedded Léonie SEO **Dashboard** inside the
    Shopify Admin chrome.
 4. Confirm the following appears immediately:

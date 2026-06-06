@@ -284,6 +284,149 @@ _PRIVACY_HTML_SELF_HOSTED = """<!DOCTYPE html>
 </html>"""
 
 
+_TERMS_HTML = """<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conditions d'utilisation — Léonie SEO</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           max-width: 800px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.6; }
+    h1 { font-size: 1.8rem; border-bottom: 2px solid #111; padding-bottom: 8px; }
+    h2 { font-size: 1.2rem; margin-top: 2rem; }
+    a { color: #3b82f6; }
+    .lang { font-size: 0.85rem; color: #666; margin-bottom: 2rem; }
+  </style>
+</head>
+<body>
+  <p class="lang"><a href="#english">English version below</a></p>
+
+  <h1>Conditions d'utilisation — Léonie SEO</h1>
+  <p><em>Mise à jour : 2026-06-06</em></p>
+
+  <h2>1. Objet</h2>
+  <p>
+    Léonie SEO est une application Shopify d'aide au référencement (SEO) : audit,
+    recommandations supervisées, génération de contenu assistée et suivi d'impact.
+    En installant l'application, le marchand accepte les présentes conditions.
+  </p>
+
+  <h2>2. Facturation</h2>
+  <p>
+    L'abonnement est géré exclusivement via la Shopify Billing API. Aucun paiement
+    n'est collecté en dehors de Shopify. Les plans, prix et fonctionnalités sont
+    décrits dans l'application. La résiliation s'effectue depuis l'application ou en
+    désinstallant l'app ; elle prend effet à la fin de la période de facturation en cours.
+  </p>
+
+  <h2>3. Usage acceptable</h2>
+  <p>
+    Le marchand s'engage à utiliser l'application conformément aux règles de Shopify et
+    à la législation applicable. Toute modification appliquée à la boutique passe par une
+    validation humaine (revue puis confirmation explicite) ; le mode dry-run est le défaut.
+  </p>
+
+  <h2>4. Absence de garantie de résultat</h2>
+  <p>
+    Léonie SEO fournit des recommandations et des optimisations SEO. <strong>Aucune
+    position dans Google ni aucune apparition dans des moteurs de réponse IA (ChatGPT,
+    Perplexity, Gemini, Google AI Overviews) n'est garantie.</strong> La visibilité
+    constitue un signal mesuré, jamais une promesse. Les estimations d'impact sont
+    indicatives et dépendent de facteurs externes hors du contrôle de l'éditeur.
+  </p>
+
+  <h2>5. Contenu généré par IA</h2>
+  <p>
+    Les contenus produits avec assistance d'un modèle de langage doivent être relus et
+    validés par le marchand avant publication. Le marchand reste responsable du contenu
+    publié sur sa boutique.
+  </p>
+
+  <h2>6. Limitation de responsabilité</h2>
+  <p>
+    L'application est fournie « en l'état ». Dans les limites permises par la loi,
+    l'éditeur ne saurait être tenu responsable des pertes indirectes (perte de chiffre
+    d'affaires, de classement ou de données) résultant de l'utilisation de l'application.
+  </p>
+
+  <h2>7. Données personnelles</h2>
+  <p>
+    Le traitement des données est décrit dans la
+    <a href="/privacy">politique de confidentialité</a>. La suppression des données
+    intervient à la désinstallation via le webhook <code>shop/redact</code>.
+  </p>
+
+  <h2>8. Évolution et contact</h2>
+  <p>
+    Ces conditions peuvent évoluer ; la version en vigueur est celle publiée sur cette page.
+    Contact : <a href="mailto:support@leonie-seo.com">support@leonie-seo.com</a>.
+  </p>
+
+  <hr id="english" style="margin: 3rem 0;">
+
+  <h1>Terms of Service — Léonie SEO</h1>
+  <p><em>Updated: 2026-06-06</em></p>
+
+  <h2>1. Purpose</h2>
+  <p>
+    Léonie SEO is a Shopify SEO assistance app: audits, supervised recommendations,
+    AI-assisted content generation and impact tracking. By installing the app, the
+    merchant agrees to these terms.
+  </p>
+
+  <h2>2. Billing</h2>
+  <p>
+    Subscriptions are managed exclusively through the Shopify Billing API. No payment is
+    collected outside Shopify. Plans, prices and features are described in the app.
+    Cancellation is done from the app or by uninstalling it, and takes effect at the end
+    of the current billing period.
+  </p>
+
+  <h2>3. Acceptable use</h2>
+  <p>
+    The merchant agrees to use the app in compliance with Shopify rules and applicable law.
+    Any change applied to the store goes through human validation (review then explicit
+    confirmation); dry-run is the default.
+  </p>
+
+  <h2>4. No guarantee of results</h2>
+  <p>
+    Léonie SEO provides SEO recommendations and optimizations. <strong>No Google ranking
+    and no appearance in AI answer engines (ChatGPT, Perplexity, Gemini, Google AI
+    Overviews) is guaranteed.</strong> Visibility is a measured signal, never a promise.
+    Impact estimates are indicative and depend on external factors beyond the publisher's
+    control.
+  </p>
+
+  <h2>5. AI-generated content</h2>
+  <p>
+    Content produced with language-model assistance must be reviewed and approved by the
+    merchant before publication. The merchant remains responsible for the content published
+    on their store.
+  </p>
+
+  <h2>6. Limitation of liability</h2>
+  <p>
+    The app is provided "as is". To the extent permitted by law, the publisher shall not be
+    liable for indirect losses (loss of revenue, ranking or data) arising from use of the app.
+  </p>
+
+  <h2>7. Personal data</h2>
+  <p>
+    Data processing is described in the <a href="/privacy">privacy policy</a>. Data is
+    erased on uninstall via the <code>shop/redact</code> webhook.
+  </p>
+
+  <h2>8. Changes and contact</h2>
+  <p>
+    These terms may change; the version in force is the one published on this page.
+    Contact: <a href="mailto:support@leonie-seo.com">support@leonie-seo.com</a>.
+  </p>
+</body>
+</html>"""
+
+
 @router.get("/privacy", response_class=HTMLResponse, include_in_schema=False)
 async def privacy_policy() -> str:
     """Public privacy policy page — required for Shopify App Store listing.
@@ -293,6 +436,16 @@ async def privacy_policy() -> str:
     - 'self_hosted': merchant is data controller, no third-party hosting.
     """
     return _PRIVACY_HTML_APP_STORE if _mode() == "app_store" else _PRIVACY_HTML_SELF_HOSTED
+
+
+@router.get("/terms", response_class=HTMLResponse, include_in_schema=False)
+async def terms_of_service() -> str:
+    """Public terms of service page — required for the Shopify App Store listing.
+
+    Bilingual (FR/EN). Explicitly states no ranking / AI-visibility guarantee to
+    stay within App Store policy on misleading claims (launch-readiness §3.7).
+    """
+    return _TERMS_HTML
 
 
 @router.get("/api/gdpr/export")
