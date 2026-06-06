@@ -281,6 +281,19 @@ _SQLITE_DDL = [
         last_webhook_tick_at TEXT,
         is_published         INTEGER NOT NULL DEFAULT 0
     )""",
+    # Audit trail for every theme write (publish / unpublish / regeneration_pending).
+    # Proves to App Store review that write_themes only ever touches the 3 AI files.
+    """CREATE TABLE IF NOT EXISTS theme_write_log (
+        id           TEXT PRIMARY KEY,
+        shop         TEXT NOT NULL,
+        theme_id     TEXT,
+        action       TEXT NOT NULL,
+        filenames    TEXT NOT NULL DEFAULT '[]',
+        hash_before  TEXT,
+        hash_after   TEXT,
+        user_action  INTEGER NOT NULL DEFAULT 0,
+        created_at   TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS product_improvement_tags (
         shop                TEXT NOT NULL,
         product_id          TEXT NOT NULL,
@@ -644,6 +657,19 @@ _PG_DDL = [
         last_published_at    TEXT,
         last_webhook_tick_at TEXT,
         is_published         INTEGER NOT NULL DEFAULT 0
+    )""",
+    # Audit trail for every theme write (publish / unpublish / regeneration_pending).
+    # Proves to App Store review that write_themes only ever touches the 3 AI files.
+    """CREATE TABLE IF NOT EXISTS theme_write_log (
+        id           TEXT PRIMARY KEY,
+        shop         TEXT NOT NULL,
+        theme_id     TEXT,
+        action       TEXT NOT NULL,
+        filenames    TEXT NOT NULL DEFAULT '[]',
+        hash_before  TEXT,
+        hash_after   TEXT,
+        user_action  INTEGER NOT NULL DEFAULT 0,
+        created_at   TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS product_improvement_tags (
         shop                TEXT NOT NULL,

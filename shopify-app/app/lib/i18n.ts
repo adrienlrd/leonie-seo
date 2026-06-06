@@ -593,6 +593,19 @@ const FR: Dictionary = {
   llmsTxtLastPublished: "Dernière publication",
   llmsTxtAutoUpdate:
     "Les fichiers sont régénérés automatiquement quand votre catalogue change.",
+  llmsTxtConfirmTitle: "Avant de publier sur votre thème",
+  llmsTxtConfirmFilesIntro:
+    "Ces 3 fichiers seront créés ou mis à jour sur votre thème publié :",
+  llmsTxtConfirmNoOther:
+    "L'app ne modifie aucun autre fichier de votre thème (design, mise en page, sections, snippets, assets ou code marchand).",
+  llmsTxtConfirmRemovable:
+    "Vous pouvez désactiver ou supprimer ces fichiers à tout moment via « Dépublier ».",
+  llmsTxtConfirmCheckbox:
+    "Je comprends et j'autorise la création de ces fichiers IA sur mon thème.",
+  llmsTxtPublishCta: "Publier les fichiers IA sur mon thème",
+  llmsTxtDisabledTitle: "Publication sur le thème désactivée",
+  llmsTxtDisabledBody:
+    "Le mode actuel n'autorise pas l'écriture sur le thème. Vous pouvez prévisualiser et exporter les fichiers, mais pas les publier.",
   llmsTxtWarnings: "Points d'attention",
   llmsTxtError: "Une erreur est survenue. Réessayez dans quelques instants.",
   llmsTxtNoSnapshot:
@@ -1190,6 +1203,19 @@ const EN: Dictionary = {
   llmsTxtLastPublished: "Last published",
   llmsTxtAutoUpdate:
     "Files are regenerated automatically whenever your catalog changes.",
+  llmsTxtConfirmTitle: "Before publishing to your theme",
+  llmsTxtConfirmFilesIntro:
+    "These 3 files will be created or updated on your published theme:",
+  llmsTxtConfirmNoOther:
+    "The app does not modify any other theme file (design, layout, sections, snippets, assets or merchant code).",
+  llmsTxtConfirmRemovable:
+    "You can disable or remove these files at any time via “Unpublish”.",
+  llmsTxtConfirmCheckbox:
+    "I understand and authorize creating these AI files on my theme.",
+  llmsTxtPublishCta: "Publish the AI files to my theme",
+  llmsTxtDisabledTitle: "Theme publishing is disabled",
+  llmsTxtDisabledBody:
+    "The current mode does not allow theme writes. You can preview and export the files, but not publish them.",
   llmsTxtWarnings: "Things to review",
   llmsTxtError: "Something went wrong. Please try again in a moment.",
   llmsTxtNoSnapshot: "Run a store audit first to generate the files.",

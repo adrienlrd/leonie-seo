@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -13,6 +14,16 @@ from app.llms_txt import publisher, store
 
 SHOP = "shop.myshopify.com"
 THEME_ID = "gid://shopify/OnlineStoreTheme/1"
+
+
+@pytest.fixture(autouse=True)
+def _review_safe_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests exercise the publish path, so writes must be allowed.
+
+    The default theme-write mode under pytest is ``disabled``; opt into
+    ``review_safe`` here. Individual tests override it when needed.
+    """
+    monkeypatch.setenv("LEONIE_THEME_WRITE_MODE", "review_safe")
 
 _BUSINESS = {"brand_name": "Léonie", "niche_summary": "Accessoires premium pour animaux."}
 
@@ -89,6 +100,38 @@ def test_publish_writes_three_templates_and_saves_state(db: Path) -> None:
     row = store.get_publication(SHOP, db_path=db)
     assert row["is_published"] == 1
     assert row["theme_id"] == THEME_ID
+
+
+def test_publish_blocked_when_mode_disabled(db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LEONIE_THEME_WRITE_MODE", "disabled")
+    theme = FakeTheme()
+    with pytest.raises(publisher.ThemeWriteDisabledError):
+        publisher.publish(
+            SHOP, "token", _snapshot(), _BUSINESS, db_path=db, theme_writer=theme
+        )
+    assert theme.upserts == []  # nothing written even though the file is allowlisted
+    assert store.get_publication(SHOP, db_path=db) is None
+
+
+def test_publish_logs_theme_write_with_user_action(db: Path) -> None:
+    publisher.publish(
+        SHOP, "token", _snapshot(), _BUSINESS, db_path=db, theme_writer=FakeTheme(),
+        user_action=True,
+    )
+    rows = store.get_theme_write_log(SHOP, db_path=db)
+    assert len(rows) == 1
+    assert rows[0]["action"] == "publish"
+    assert rows[0]["user_action"] == 1
+    assert set(json.loads(rows[0]["filenames"])) == set(publisher.TEMPLATE_FILENAMES)
+
+
+def test_unpublish_logs_theme_write(db: Path) -> None:
+    publisher.publish(SHOP, "token", _snapshot(), _BUSINESS, db_path=db, theme_writer=FakeTheme())
+    publisher.unpublish(
+        SHOP, "token", db_path=db, theme_writer=FakeTheme(), user_action=True
+    )
+    actions = [r["action"] for r in store.get_theme_write_log(SHOP, db_path=db)]
+    assert "unpublish" in actions
 
 
 def test_publish_is_idempotent_for_unchanged_content(db: Path) -> None:

@@ -81,31 +81,52 @@ def test_generate_404_without_snapshot(snapshot_file: Path) -> None:
     assert resp.status_code == 404
 
 
-def test_publish_delegates_to_publisher(client) -> None:
+def test_publish_delegates_to_publisher(client, monkeypatch) -> None:
+    monkeypatch.setenv("LEONIE_THEME_WRITE_MODE", "review_safe")
     stub = {"skipped": False, "cdn_url": "https://cdn/llms.txt", "public_url": "x"}
     with patch("app.api.llms_txt.publisher.publish", return_value=stub) as pub:
-        resp = client.post(f"/api/shops/{SHOP}/llms-txt/publish")
+        resp = client.post(f"/api/shops/{SHOP}/llms-txt/publish?confirm=true")
     assert resp.status_code == 200
     assert resp.json() == stub
     assert pub.call_args.args[0] == SHOP
+    # The publish is recorded as an explicit merchant action.
+    assert pub.call_args.kwargs["user_action"] is True
 
 
-def test_publish_returns_502_on_theme_error(client) -> None:
+def test_publish_requires_confirmation(client, monkeypatch) -> None:
+    monkeypatch.setenv("LEONIE_THEME_WRITE_MODE", "review_safe")
+    with patch("app.api.llms_txt.publisher.publish") as pub:
+        resp = client.post(f"/api/shops/{SHOP}/llms-txt/publish")
+    assert resp.status_code == 409
+    pub.assert_not_called()  # never publishes without explicit confirmation
+
+
+def test_publish_blocked_when_mode_disabled(client, monkeypatch) -> None:
+    monkeypatch.setenv("LEONIE_THEME_WRITE_MODE", "disabled")
+    with patch("app.api.llms_txt.publisher.publish") as pub:
+        resp = client.post(f"/api/shops/{SHOP}/llms-txt/publish?confirm=true")
+    assert resp.status_code == 403
+    pub.assert_not_called()
+
+
+def test_publish_returns_502_on_theme_error(client, monkeypatch) -> None:
     from app.apply.shopify_theme_files import ShopifyThemeError
 
+    monkeypatch.setenv("LEONIE_THEME_WRITE_MODE", "review_safe")
     with patch("app.api.llms_txt.publisher.publish", side_effect=ShopifyThemeError("boom")):
-        resp = client.post(f"/api/shops/{SHOP}/llms-txt/publish")
+        resp = client.post(f"/api/shops/{SHOP}/llms-txt/publish?confirm=true")
     assert resp.status_code == 502
 
 
-def test_publish_returns_403_on_scope_error(client) -> None:
+def test_publish_returns_403_on_scope_error(client, monkeypatch) -> None:
     from app.apply.shopify_theme_files import ShopifyThemeScopeError
 
+    monkeypatch.setenv("LEONIE_THEME_WRITE_MODE", "review_safe")
     with patch(
         "app.api.llms_txt.publisher.publish",
         side_effect=ShopifyThemeScopeError("Reinstall the app to grant themes"),
     ):
-        resp = client.post(f"/api/shops/{SHOP}/llms-txt/publish")
+        resp = client.post(f"/api/shops/{SHOP}/llms-txt/publish?confirm=true")
     assert resp.status_code == 403
     assert "Reinstall" in resp.json()["detail"]
 
@@ -142,6 +163,7 @@ def test_webhook_tick_skips_when_not_published(monkeypatch) -> None:
 
 def test_webhook_tick_schedules_recrawl_and_republish(monkeypatch) -> None:
     monkeypatch.setenv("INTERNAL_API_SECRET", "s3cret")
+    monkeypatch.setenv("LEONIE_THEME_WRITE_MODE", "review_safe")
     monkeypatch.setattr("app.api.llms_txt.get_token", lambda shop: {"access_token": "tok"})
     monkeypatch.setattr(
         "app.api.llms_txt.publisher.should_regenerate", lambda shop: (True, "regenerate")
@@ -164,3 +186,33 @@ def test_webhook_tick_schedules_recrawl_and_republish(monkeypatch) -> None:
     assert resp.json() == {"regenerated": True, "reason": "scheduled"}
     # Background task ran the re-crawl + republish.
     assert captured == {"shop": SHOP, "token": "tok"}
+
+
+def test_webhook_tick_does_not_write_when_mode_disabled(monkeypatch) -> None:
+    """A catalogue webhook must never write to the theme while disabled."""
+    monkeypatch.setenv("INTERNAL_API_SECRET", "s3cret")
+    monkeypatch.setenv("LEONIE_THEME_WRITE_MODE", "disabled")
+    monkeypatch.setattr("app.api.llms_txt.get_token", lambda shop: {"access_token": "tok"})
+    monkeypatch.setattr(
+        "app.api.llms_txt.publisher.should_regenerate", lambda shop: (True, "regenerate")
+    )
+
+    def _fail_regen(*a, **k):  # pragma: no cover - must never be scheduled
+        raise AssertionError("regeneration must not run while disabled")
+
+    monkeypatch.setattr("app.api.llms_txt._regenerate_published", _fail_regen)
+    logged: dict = {}
+    monkeypatch.setattr(
+        "app.api.llms_txt.store.log_theme_write",
+        lambda shop, **kw: logged.update({"shop": shop, **kw}),
+    )
+
+    resp = TestClient(app).post(
+        f"/api/shops/{SHOP}/llms-txt/webhook-tick",
+        json={"shop": SHOP},
+        headers={"X-Internal-Secret": "s3cret"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json() == {"regenerated": False, "reason": "theme_write_disabled"}
+    assert logged["action"] == "regeneration_pending"

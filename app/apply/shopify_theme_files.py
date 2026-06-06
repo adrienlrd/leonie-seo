@@ -22,6 +22,36 @@ logger = logging.getLogger(__name__)
 _GRAPHQL_PATH = "/admin/api/2025-01/graphql.json"
 _TIMEOUT = 30
 
+# Strict allowlist — the ONLY theme files this app may ever create/update/delete.
+# Any attempt to touch another file (layout/*, sections/*, snippets/*, assets/*,
+# templates/product*, templates/collection*, theme.liquid, …) is refused before
+# any network call. This is the hard guarantee that write_themes can never be
+# used to modify a merchant's existing theme design or code.
+#
+# REVIEW_NOTE: This feature assumes Shopify serves /llms.txt, /llms-full.txt and
+# /agents.md from these template files on the published theme. This MUST be
+# verified on a real store before App Store submission (publish, then GET
+# https://<shop>/llms.txt and confirm a 200 with the generated content). If
+# Shopify does NOT serve these root paths from templates, do not force it: keep
+# LEONIE_THEME_WRITE_MODE=disabled (preview/export only) and drop write_themes.
+ALLOWED_THEME_FILES = frozenset(
+    {
+        "templates/llms.txt.liquid",
+        "templates/llms-full.txt.liquid",
+        "templates/agents.md.liquid",
+    }
+)
+
+
+def _assert_allowlisted(filenames: list[str]) -> None:
+    """Refuse any filename outside the strict AI-template allowlist."""
+    blocked = sorted(f for f in filenames if f not in ALLOWED_THEME_FILES)
+    if blocked:
+        raise ShopifyThemeError(
+            "Refused to touch non-allowlisted theme files: "
+            f"{blocked}. Only {sorted(ALLOWED_THEME_FILES)} may be written."
+        )
+
 _MAIN_THEME = """
 query MainTheme {
   themes(roles: [MAIN], first: 1) {
@@ -144,7 +174,11 @@ class ShopifyThemeWriter:
         Args:
             theme_id: Published theme GID.
             files: Mapping of ``filename`` → text content (already Liquid-safe).
+
+        Raises:
+            ShopifyThemeError: If any filename is outside the strict allowlist.
         """
+        _assert_allowlisted(list(files.keys()))
         variables = {
             "themeId": theme_id,
             "files": [
@@ -158,7 +192,12 @@ class ShopifyThemeWriter:
         return [f["filename"] for f in (payload.get("upsertedThemeFiles") or [])]
 
     def delete_templates(self, theme_id: str, filenames: list[str]) -> list[str]:
-        """Delete theme template files. Returns the deleted filenames."""
+        """Delete theme template files. Returns the deleted filenames.
+
+        Raises:
+            ShopifyThemeError: If any filename is outside the strict allowlist.
+        """
+        _assert_allowlisted(filenames)
         variables = {"themeId": theme_id, "files": filenames}
         data = self._post(_THEME_FILES_DELETE, variables)
         payload = (data.get("data") or {}).get("themeFilesDelete") or {}
