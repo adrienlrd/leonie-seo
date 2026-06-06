@@ -35,6 +35,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
+import { SaveBar } from "@shopify/app-bridge-react";
 import { useEffect, useState } from "react";
 
 import { callBackendForShop } from "../lib/api.server";
@@ -369,6 +370,24 @@ function DraftListItem({
   );
 }
 
+// Only the fields persisted by the `saveDraft` action, serialized in a fixed key
+// order so the contextual Save Bar can reliably detect unsaved changes regardless
+// of object key ordering.
+function serializeEditableDraft(d: Draft | null): string {
+  if (!d) return "";
+  return JSON.stringify({
+    blog_title: d.blog_title,
+    intro: d.intro,
+    summary: d.summary,
+    sections: d.sections,
+    internal_links: d.internal_links ?? [],
+    tags: d.tags ?? [],
+    author_type: d.author_type ?? "Organization",
+    author_name: d.author_name ?? "",
+    author_url: d.author_url ?? null,
+  });
+}
+
 export default function BlogIndexPage() {
   const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
@@ -450,6 +469,12 @@ export default function BlogIndexPage() {
       { method: "post" },
     );
   };
+
+  // Drives the App Bridge contextual Save Bar (Built for Shopify requirement for
+  // forms with editable inputs). Dirty = the editable draft differs from the
+  // last saved version returned by the loader.
+  const dirty = draft != null && serializeEditableDraft(draft) !== serializeEditableDraft(selected);
+  const onDiscard = () => setDraft(selected);
 
   const onRegenerate = (h2: string) => {
     if (!draft || !productCtx) return;
@@ -552,6 +577,24 @@ export default function BlogIndexPage() {
   };
 
   return (
+    <>
+      {/*
+        App Bridge contextual Save Bar — shows in the admin chrome whenever the
+        draft has unsaved edits. The button with variant="primary" is Save, the
+        other is Discard (per the ui-save-bar contract).
+      */}
+      <SaveBar id="blog-draft-save-bar" open={dirty} discardConfirmation>
+        <button
+          {...({ variant: "primary" } as Record<string, unknown>)}
+          onClick={onSave}
+          disabled={isBusy}
+        >
+          {fr ? "Enregistrer" : "Save"}
+        </button>
+        <button onClick={onDiscard} disabled={isBusy}>
+          {fr ? "Annuler" : "Discard"}
+        </button>
+      </SaveBar>
     <Page title="Blog" fullWidth>
       <BlockStack gap="400">
         {error && (
@@ -1119,5 +1162,6 @@ export default function BlogIndexPage() {
         </Modal.Section>
       </Modal>
     </Page>
+    </>
   );
 }

@@ -225,12 +225,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let businessProfile: BusinessProfile | null = null;
 
   try {
+    // Bound every backend call so a cold/slow backend cannot hang the page
+    // indefinitely. The dashboard call drives the above-the-fold content (and the
+    // onboarding redirect) so it gets a more generous budget; the secondary calls
+    // degrade to their default empty values on timeout via Promise.allSettled.
+    const DASHBOARD_TIMEOUT_MS = 12_000;
+    const SECONDARY_TIMEOUT_MS = 8_000;
     const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp] = await Promise.allSettled([
-      callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken }),
-      callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken }),
-      callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken }),
-      callBackendForShop(shop, `/api/shops/${shop}/market-analysis/latest`, { accessToken: session.accessToken }),
-      callBackendForShop(shop, `/api/shops/${shop}/market-analysis/competitors`, { accessToken: session.accessToken }),
+      callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken, signal: AbortSignal.timeout(DASHBOARD_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/market-analysis/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/market-analysis/competitors`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
     ]);
 
     if (competitorsResp.status === "fulfilled" && competitorsResp.value.ok) {

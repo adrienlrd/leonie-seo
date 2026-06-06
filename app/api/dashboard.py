@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -316,26 +317,11 @@ def _build_banners(shop: str, snapshot: dict) -> dict:
     }
 
 
-@router.get("/shops/{shop}/dashboard")
-async def get_dashboard(
-    shop: str,
-    ctx: Annotated[ShopContext, Depends(get_shop_context)],
-    plan: str = Query(default="free", pattern="^(free|pro|agency)$"),
-) -> dict[str, Any]:
-    """Return the unified merchant dashboard payload aggregating all 6 zones.
+def _assemble_dashboard(ctx: ShopContext, plan: str) -> dict[str, Any]:
+    """Assemble the full dashboard payload (synchronous, disk + DB heavy).
 
-    Single call designed to power the app._index.tsx view. Aggregates:
-    - Header: LLM budget
-    - Zone 1: AI Search Readiness score + niche
-    - Zone 2: exactly 3 priority actions
-    - Zone 3: active optimizations count + next milestone + sparkline
-    - Zone 4: onboarding pending steps
-    - Zone 5: top 3 alerts
-    - Zone 6: AI visibility status (disabled V1)
-    - Banners: pilot_safe, stale_snapshot, bulk_apply
-
-    Args:
-        plan: Merchant plan (free|pro|agency).
+    Extracted from get_dashboard so the blocking file/SQLite reads can run in a
+    worker thread via asyncio.to_thread, keeping the event loop responsive.
     """
     snapshot = _load_snapshot(ctx)
     products = snapshot.get("products", [])
@@ -390,3 +376,30 @@ async def get_dashboard(
         "banners": banners,
         "generated_at": datetime.now(UTC).isoformat(),
     }
+
+
+@router.get("/shops/{shop}/dashboard")
+async def get_dashboard(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    plan: str = Query(default="free", pattern="^(free|pro|agency)$"),
+) -> dict[str, Any]:
+    """Return the unified merchant dashboard payload aggregating all 6 zones.
+
+    Single call designed to power the app._index.tsx view. Aggregates:
+    - Header: LLM budget
+    - Zone 1: AI Search Readiness score + niche
+    - Zone 2: exactly 3 priority actions
+    - Zone 3: active optimizations count + next milestone + sparkline
+    - Zone 4: onboarding pending steps
+    - Zone 5: top 3 alerts
+    - Zone 6: AI visibility status (disabled V1)
+    - Banners: pilot_safe, stale_snapshot, bulk_apply
+
+    The heavy assembly (snapshot file read, GSC CSV parsing, SQLite queries) runs
+    in a worker thread so it does not block the FastAPI event loop.
+
+    Args:
+        plan: Merchant plan (free|pro|agency).
+    """
+    return await asyncio.to_thread(_assemble_dashboard, ctx, plan)

@@ -10,6 +10,62 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-06
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Décision cold start : conserver la mise en veille du backend Render Free (choix utilisateur), pas de maintien éveillé.
+- **Summary:** Le cold start avait été diagnostiqué (`python -X importtime` : ~1,9 s d'imports, dont pandas ~242 ms et libs Google GA4 ~238 ms ; le gros du coût = reprovisioning ~30 s du conteneur Render après mise en veille à ~15 min d'inactivité). Un workflow keep-alive (`.github/workflows/keepalive.yml`) avait été ajouté pour garder l'instance chaude, **puis retiré** : l'utilisateur souhaite explicitement **conserver la mise en veille** (ne pas consommer les heures gratuites / coût). Net : aucun maintien éveillé. Le service dort comme prévu ; un cold start (~30 s) survient au 1er chargement après inactivité — accepté.
+- **Files created:** Aucun (le `.github/workflows/keepalive.yml` créé plus tôt dans la session a été supprimé).
+- **Files modified:** `docs/AI_HANDOFF.md`. **Supprimé :** `.github/workflows/keepalive.yml`.
+- **Decisions made:** Pas de keep-alive. Pas de lazy-import (gain nul au boot : pandas reste tiré par `crawl/client.py`). Pas de modif `init_db()`. La latence de reprise après veille (~30 s, dominée par le reprovisioning Render) reste non adressable en code et est assumée. Conséquence à connaître : le critère Web Vitals (LCP ≤ 2,5 s) de Built for Shopify ne sera pas tenu sur le 1er chargement post-veille tant que le backend dort — c'est un arbitrage coût/perf choisi par l'utilisateur.
+- **Validations run:** Aucune (suppression de fichier + doc).
+- **Validations skipped:** N/A.
+- **Open issues:** Si Built for Shopify (perf) devient prioritaire, il faudra soit un plan d'hébergement sans mise en veille, soit réintroduire un keep-alive — arbitrage à trancher à ce moment.
+- **Next recommended action:** Rien côté cold start. Poursuivre sur les autres axes (rollout Save Bar vérifiable en runtime, soumission App Store) si souhaité.
+
+## Previous completed task
+
+- **Date:** 2026-06-06
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Attaquer le cold start du backend Render Free (1er frein perf pour le critère Web Vitals de Built for Shopify) — par du code.
+- **Summary:** Mesure du démarrage (`python -X importtime`) : ~1,9 s d'imports, dont pandas ~242 ms (tiré au boot par `app/crawl/client.py` — 15 usages — et `app/api/gsc.py`), libs Google GA4 ~238 ms. **Conclusion** : le gros du cold start vient de la **mise en veille Render Free** (reprovisioning ~30 s du conteneur, non adressable en code), pas des imports. Levier code retenu = **empêcher la mise en veille**. Ajout du workflow `.github/workflows/keepalive.yml` : cron toutes les 10 min (< fenêtre d'inactivité de 15 min) + `workflow_dispatch`, qui pingue l'endpoint santé du backend (`/health`, trivial, sans DB) et optionnellement l'app Remix, avec timeout large (70 s) et retries pour absorber un cold start. URLs configurables via variables Actions (`BACKEND_HEALTH_URL` défaut Render pilote, `APP_HEALTH_URL`). `concurrency` pour éviter l'empilement, `::warning::` au lieu d'échec pour ne pas spammer.
+- **Files created:** `.github/workflows/keepalive.yml`.
+- **Files modified:** `docs/AI_HANDOFF.md`.
+- **Decisions made:** **Pas de lazy-import de pandas** : gain nul au boot car `crawl/client.py` (15 usages) le tire de toute façon ; lazy-importer seulement `gsc.py` (1 usage) n'enlèverait rien — pas worth le risque. **Pas de modif de `init_db()`** (nécessaire au boot, risqué). Le keep-alive est la solution code standard mais a un coût : garder un service Free éveillé consomme les heures gratuites (~750 h/mois) — la solution pérenne reste un plan payant. Limite connue : `/health` ne touche pas la DB, donc Neon Postgres (free) peut rester en veille même app chaude ; le 1er vrai requête réveille Neon (~1 s).
+- **Validations run:** mesure `importtime` ; YAML validé (`yaml.safe_load`) ; vérif `/health` trivial (env-only) et densité pandas.
+- **Validations skipped:** Le cron ne s'active que sur la branche par défaut (après merge) ; non exécuté ici. Effet réel sur le LCP à constater dans le Dev Dashboard après merge + déploiement.
+- **Open issues:** Neon Postgres free se suspend aussi (~5 min) — non couvert par le ping `/health`. Si besoin, ajouter un ping d'un endpoint léger touchant la DB (< 5 min) ou passer Neon en plan sans suspension. La vraie élimination du cold start = backend sur plan payant.
+- **Next recommended action:** Merger sur la branche par défaut, définir la variable Actions `BACKEND_HEALTH_URL` (et `APP_HEALTH_URL`), puis vérifier dans les logs du workflow que le ping renvoie 200 et suivre l'évolution du LCP.
+
+## Previous completed task
+
+- **Date:** 2026-06-06
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Conformité Built for Shopify / publiabilité App Store (code) : nettoyer les scopes OAuth et ajouter la Contextual Save Bar App Bridge.
+- **Summary:** **(1) Scopes OAuth** : retrait de `read_orders` (déclaré mais jamais utilisé dans le code — motif fréquent de rejet App Store) de `shopify.app.toml` et `.env.example`, et alignement de `.env.example` qui ne contenait pas `write_content`. Scopes finaux : `read_products,write_products,write_content,read_themes,write_themes`. **(2) Contextual Save Bar** (exigence d'intégration Built for Shopify) : ajout du composant App Bridge `<SaveBar>` (`@shopify/app-bridge-react`) sur l'éditeur de blog (`app.blog.tsx`), le formulaire « éditer puis enregistrer » le plus net. Suivi d'état « dirty » fiable via `serializeEditableDraft()` (comparaison des seuls champs persistés, ordre de clés fixe). La barre s'ouvre (`open={dirty}`) quand le brouillon a des modifications non enregistrées ; bouton primaire = Enregistrer (réutilise `onSave`), bouton secondaire = Annuler (`setDraft(selected)`), avec `discardConfirmation`.
+- **Files created:** Aucun.
+- **Files modified:** `shopify-app/shopify.app.toml`, `shopify-app/.env.example`, `shopify-app/app/routes/app.blog.tsx`, `docs/AI_HANDOFF.md`.
+- **Decisions made:** Save Bar implémentée d'abord sur l'éditeur de blog comme **référence réutilisable** ; les formulaires `settings` (lecture seule) et `competitors` (auto-save, pas d'état dirty) n'en ont pas besoin. **Non couvert volontairement** : rollout de la Save Bar au profil business (dans `app._index.tsx`, 2971 l.) — trop risqué à faire en aveugle, et le comportement Save Bar (chrome admin, logique dirty) n'est **vérifiable qu'à l'exécution** dans l'admin embarqué. Distinction explicite faite à l'utilisateur : « publiable App Store » (≈ scopes propres + OAuth/billing/RGPD déjà OK) vs « badge Built for Shopify » (perf Web Vitals + Save Bar + seuils opérationnels 50 installs/5 avis).
+- **Validations run:** `npm run typecheck` ✅ ; `npm run build` ✅ (client + SSR) ; vérif que `@shopify/app-bridge-react@4.1.5` exporte bien `SaveBar`/`useAppBridge` et grep confirmant `read_orders` inutilisé dans `app/` et `scripts/`.
+- **Validations skipped:** Comportement runtime de la Save Bar non testé (nécessite `npm run dev` + tunnel sur une vraie boutique). Le changement de scopes nécessitera un `shopify app deploy` + re-consentement marchand au prochain chargement.
+- **Open issues:** Save Bar à étendre aux autres formulaires multi-champs (profil business) lors d'une itération vérifiable en runtime. Critères Built for Shopify restants = perf Web Vitals réelle (dépend du cold start backend) + prérequis opérationnels non-code (App Store listing, 50 installs payants, 5 avis, partner standing).
+- **Next recommended action:** `shopify app deploy` pour propager les nouveaux scopes, puis vérifier en `npm run dev` que la Save Bar s'affiche bien à l'édition d'un brouillon de blog et que Save/Discard fonctionnent dans l'admin embarqué.
+
+## Previous completed task
+
+- **Date:** 2026-06-06
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Revue perf + conformité « Built for Shopify » : rendre l'app plus fluide et corriger un bloquant Built for Shopify, code uniquement (infra Render hors périmètre).
+- **Summary:** **(1) Built for Shopify — App Bridge dans le `<head>`** : `root.tsx` charge désormais le script CDN App Bridge (`https://cdn.shopify.com/shopifycloud/app-bridge.js` + `data-api-key`) comme premier élément du `<head>`, via un loader racine exposant `SHOPIFY_API_KEY`. Avant, App Bridge était injecté tardivement par `<AppProvider>` dans le body → Shopify ne pouvait pas mesurer les Web Vitals (LCP/CLS/INP) requis pour Built for Shopify. Pas de double-chargement : App Bridge s'auto-protège et `<AppProvider>` ne réinjecte pas si `window.shopify` existe déjà. **(2) Backend non bloquant** : `get_dashboard` (FastAPI async) faisait des lectures fichier + SQLite synchrones sur l'event loop. Extraction de toute l'assemblée dans `_assemble_dashboard()` (sync pur) appelée via `await asyncio.to_thread(...)`. **(3) Cache snapshot** : `load_snapshot_from_file_or_db` met en cache en mémoire les snapshots fichier (clé = chemin + mtime, invalidation auto au re-crawl, TTL 60 s, `threading.Lock`, copie superficielle au retour) ; le fallback DB n'est pas caché (chemin dégradé). Ajout de `clear_snapshot_cache()`. **(4) Anti-blocage loader** : le loader de `app._index.tsx` borne chaque appel backend via `AbortSignal.timeout` (dashboard 12 s, secondaires 8 s) → un backend froid ne fait plus pendre la page. **(5) CPU frontend** : `keywordCoverage()` (matching regex coûteux par mot-clé/produit) mémoïsé via `useMemo` dans `app.market-analysis.tsx`. **(6) Nettoyage** : suppression du `vite.config.js` redondant (Vite résout `.js` avant `.ts` → footgun), seul `vite.config.ts` reste.
+- **Files created:** Aucun.
+- **Files modified:** `shopify-app/app/root.tsx`, `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.market-analysis.tsx`, `app/api/dashboard.py`, `app/api/snapshot_store.py`, `docs/AI_HANDOFF.md`. **Supprimé :** `shopify-app/vite.config.js`.
+- **Decisions made:** Ne pas convertir le worker de jobs ni les handlers (`app/jobs/*`) — ils offloadent déjà via `asyncio.to_thread`, c'était une fausse piste. Ne pas cacher le fallback DB des snapshots (risque de péremption sans mtime, et fortement sollicité par les tests). **Refactor `defer()`/`<Await>` du dashboard et découpage des routes monolithiques (app._index 2971 l., market-analysis ~2800 l.) reportés** : ~91 lectures de champs différés interdépendantes, vérifiables seulement à l'exécution dans l'admin embarqué (frontières Suspense, CLS, hydratation, interaction polling) — trop risqué à shipper sans `npm run dev` sur une vraie boutique. Les timeouts de loader livrent l'essentiel du gain anti-blocage sans ce risque.
+- **Validations run:** `ruff check app/api/dashboard.py app/api/snapshot_store.py` ✅ ; `pytest tests/test_api/test_dashboard.py` → **21 passed** ✅ ; `pytest` complet → **72 failed, 1680 passed** — identique à la base (`git stash`) : **0 régression introduite** (les 72 échecs préexistent : auth JWT/401, providers LLM, billing, privacy — liés à l'environnement de cette session) ; `cd shopify-app && npm run typecheck` ✅ ; `cd shopify-app && npm run build` ✅ (client + SSR).
+- **Validations skipped:** Pas de test live dans l'admin Shopify embarqué (App Bridge `<head>`, mesure Web Vitals réelle, comportement defer) — nécessite `npm run dev` + tunnel sur une boutique. Échecs pytest préexistants non corrigés (hors périmètre, dus à l'environnement).
+- **Open issues:** Les 72 échecs pytest de l'environnement (JWT/cryptography réinstallés, providers LLM sans réseau) restent à investiguer si l'environnement doit faire tourner la suite complète. Le gain LCP maximal nécessitera le refactor `defer()` + découpage des grosses routes (itération suivante, à valider en runtime).
+- **Next recommended action:** Déployer, puis dans l'admin Shopify embarqué vérifier qu'un seul `<script app-bridge.js>` est présent dans le `<head>` (pas de doublon), et suivre les Web Vitals dans le Dev Dashboard. Ensuite, planifier l'itération `defer()`/découpage des routes avec validation `npm run dev`.
+
+## Previous completed task
+
 - **Date:** 2026-06-05
 - **Agent:** Codex (GPT-5)
 - **Goal:** Ajouter un groupe contrôle automatique pour la boucle d'apprentissage avancée, puis commit et push.

@@ -21,7 +21,7 @@ import {
   Tooltip,
 } from "@shopify/polaris";
 import { AlertTriangleIcon } from "@shopify/polaris-icons";
-import { Component, useEffect, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
@@ -1421,25 +1421,31 @@ function ProductCard({
   const displayedKeywords = product.seo_keywords.filter(
     (keyword) => (keyword.product_fit_score ?? 0) > 0,
   );
-  const selectedTargets = product.seo_keywords
-    .filter((keyword) => (keyword.target_rank ?? 999) <= 5)
-    .slice(0, 5);
-  const coverageTargets = selectedTargets.length > 0
-    ? selectedTargets
-    : product.seo_keywords.slice(0, 5);
-
   // Coverage badge reflects the saved pack; live edits revalidate on save.
-  const coverageByKeyword = new Map(
-    coverageTargets.map((keyword) => [
-      keyword.query.toLowerCase(),
-      keywordCoverage(keyword.query, pack),
-    ]),
-  );
-  const usedKeywords = new Set(
-    [...coverageByKeyword.entries()]
-      .filter(([, fields]) => fields.length > 0)
-      .map(([query]) => query),
-  );
+  // Memoized because keywordCoverage() runs regex-based substring matching over
+  // every proposal field for each target keyword — wasteful to recompute on each
+  // render (e.g. while typing or polling). Recomputes only when keywords/pack change.
+  const { coverageByKeyword, usedKeywords } = useMemo(() => {
+    const selectedTargets = product.seo_keywords
+      .filter((keyword) => (keyword.target_rank ?? 999) <= 5)
+      .slice(0, 5);
+    const coverageTargets = selectedTargets.length > 0
+      ? selectedTargets
+      : product.seo_keywords.slice(0, 5);
+
+    const byKeyword = new Map(
+      coverageTargets.map((keyword) => [
+        keyword.query.toLowerCase(),
+        keywordCoverage(keyword.query, pack),
+      ]),
+    );
+    const used = new Set(
+      [...byKeyword.entries()]
+        .filter(([, fields]) => fields.length > 0)
+        .map(([query]) => query),
+    );
+    return { coverageByKeyword: byKeyword, usedKeywords: used };
+  }, [product.seo_keywords, pack]);
 
 
   return (
