@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -63,6 +65,59 @@ def mark_unpublished(shop: str, db_path: Path | None = None) -> None:
             """,
             (shop,),
         )
+
+
+def log_theme_write(
+    shop: str,
+    *,
+    action: str,
+    filenames: list[str],
+    theme_id: str | None = None,
+    hash_before: dict[str, Any] | None = None,
+    hash_after: dict[str, Any] | None = None,
+    user_action: bool = False,
+    db_path: Path | None = None,
+) -> None:
+    """Append an immutable audit row for a theme write.
+
+    Args:
+        action: ``publish`` | ``unpublish`` | ``regeneration_pending``.
+        filenames: The theme files touched (always within the allowlist).
+        hash_before / hash_after: Content hashes before/after the write.
+        user_action: True when the merchant explicitly triggered the write.
+    """
+    with get_conn(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO theme_write_log (
+                id, shop, theme_id, action, filenames,
+                hash_before, hash_after, user_action, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                uuid.uuid4().hex,
+                shop,
+                theme_id,
+                action,
+                json.dumps(filenames),
+                json.dumps(hash_before) if hash_before is not None else None,
+                json.dumps(hash_after) if hash_after is not None else None,
+                1 if user_action else 0,
+                datetime.now(UTC).isoformat(),
+            ),
+        )
+
+
+def get_theme_write_log(
+    shop: str, db_path: Path | None = None, limit: int = 50
+) -> list[dict[str, Any]]:
+    """Return the most recent theme-write audit rows for a shop (newest first)."""
+    with get_conn(db_path) as conn:
+        return conn.execute(
+            "SELECT * FROM theme_write_log WHERE shop = ? "
+            "ORDER BY created_at DESC LIMIT ?",
+            (shop, limit),
+        ).fetchall()
 
 
 def record_webhook_tick(

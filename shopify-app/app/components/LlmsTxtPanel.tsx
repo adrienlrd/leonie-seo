@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useFetcher } from "@remix-run/react";
 import {
   Badge,
-  Banner,
   BlockStack,
   Button,
   Card,
@@ -17,21 +16,14 @@ interface LlmsTxtStatus {
   public_url: string;
 }
 
-interface ActionResult {
-  ok: boolean;
-  intent: string;
-  error?: string;
-  result?: { public_url?: string };
-}
-
 /**
- * Compact dashboard panel: lets the merchant publish/update the AI files
- * (llms.txt + llms-full.txt) in one click. The heavy lifting lives in the
- * /app/geo-llms-txt route; this panel reuses its loader + action via fetchers.
+ * Compact dashboard panel showing the AI files (llms.txt + llms-full.txt)
+ * publication status. Publishing itself happens on the /app/geo-llms-txt page,
+ * where the merchant sees exactly which files are written and confirms — so
+ * this panel only links there and never writes to the theme directly.
  */
 export function LlmsTxtPanel({ locale }: { locale: Locale }) {
   const statusFetcher = useFetcher<{ status: LlmsTxtStatus | null }>();
-  const actionFetcher = useFetcher<ActionResult>();
 
   useEffect(() => {
     if (statusFetcher.state === "idle" && !statusFetcher.data) {
@@ -39,23 +31,9 @@ export function LlmsTxtPanel({ locale }: { locale: Locale }) {
     }
   }, [statusFetcher]);
 
-  // Refresh status after a successful publish/unpublish.
-  useEffect(() => {
-    if (actionFetcher.state === "idle" && actionFetcher.data?.ok) {
-      statusFetcher.load("/app/geo-llms-txt");
-    }
-  }, [actionFetcher.state, actionFetcher.data]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const status = statusFetcher.data?.status ?? null;
   const published = Boolean(status?.is_published);
   const divergent = Boolean(status?.divergent);
-  const publishing = actionFetcher.state !== "idle";
-
-  const submitPublish = () => {
-    const fd = new FormData();
-    fd.set("intent", "publish");
-    actionFetcher.submit(fd, { method: "post", action: "/app/geo-llms-txt" });
-  };
 
   const badge = published ? (
     divergent ? (
@@ -67,11 +45,9 @@ export function LlmsTxtPanel({ locale }: { locale: Locale }) {
     <Badge>{t(locale, "llmsTxtStatusNotPublished")}</Badge>
   );
 
-  const buttonLabel = publishing
-    ? t(locale, "llmsTxtPublishing")
-    : published
-      ? t(locale, "llmsTxtRepublish")
-      : t(locale, "llmsTxtPublish");
+  const buttonLabel = published
+    ? t(locale, "llmsTxtManage")
+    : t(locale, "llmsTxtPublish");
 
   return (
     <Card>
@@ -87,25 +63,8 @@ export function LlmsTxtPanel({ locale }: { locale: Locale }) {
           {t(locale, "llmsTxtIntro")}
         </Text>
 
-        {actionFetcher.data && !actionFetcher.data.ok && (
-          <Banner tone="critical">
-            <p>{actionFetcher.data.error ?? t(locale, "llmsTxtError")}</p>
-          </Banner>
-        )}
-
-        {actionFetcher.data?.ok && actionFetcher.data.intent === "publish" && (
-          <Banner tone="success">
-            <p>{t(locale, "llmsTxtPublished")}</p>
-          </Banner>
-        )}
-
         <InlineStack gap="300" blockAlign="center">
-          <Button
-            variant="primary"
-            loading={publishing}
-            disabled={publishing}
-            onClick={submitPublish}
-          >
+          <Button variant="primary" url="/app/geo-llms-txt">
             {buttonLabel}
           </Button>
           {published && status?.public_url && (
@@ -113,9 +72,6 @@ export function LlmsTxtPanel({ locale }: { locale: Locale }) {
               {t(locale, "llmsTxtOpenFile")}
             </Button>
           )}
-          <Button url="/app/geo-llms-txt" variant="plain">
-            {t(locale, "llmsTxtManage")}
-          </Button>
         </InlineStack>
 
         <Text as="p" variant="bodySm" tone="subdued">

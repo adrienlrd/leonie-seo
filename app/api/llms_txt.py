@@ -19,6 +19,7 @@ from app.jobs.audit_snapshot import crawl_shopify_catalog_for_job
 from app.llms_txt import publisher, store
 from app.oauth.token_store import get_token
 from app.paths import data_dir
+from app.safety import require_theme_write_allowed, theme_write_mode
 
 logger = logging.getLogger(__name__)
 
@@ -64,14 +65,25 @@ def generate_llms_txt(
 @router.post("/shops/{shop}/llms-txt/publish")
 def publish_llms_txt(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    confirm: bool = False,
 ) -> dict:
-    """Publish the three AI templates (agents.md / llms.txt / llms-full.txt)."""
+    """Publish the three AI templates (agents.md / llms.txt / llms-full.txt).
+
+    Requires explicit merchant confirmation (``confirm=true``) and a theme-write
+    mode other than ``disabled``. Never auto-publishes — the merchant must click
+    the publish button in the UI, which sets ``confirm=true``.
+    """
+    require_theme_write_allowed(confirmed=confirm)
     snapshot = _load_snapshot_or_404(ctx)
     business_profile = load_business_profile(ctx.shop)
     try:
-        return publisher.publish(ctx.shop, ctx.access_token, snapshot, business_profile)
+        return publisher.publish(
+            ctx.shop, ctx.access_token, snapshot, business_profile, user_action=True
+        )
     except LlmsTxtGenerationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except publisher.ThemeWriteDisabledError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ShopifyThemeScopeError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except (ShopifyThemeError, publisher.LlmsPublishError) as exc:
@@ -84,7 +96,7 @@ def unpublish_llms_txt(
 ) -> dict:
     """Remove the three AI templates, reverting to Shopify's default content."""
     try:
-        return publisher.unpublish(ctx.shop, ctx.access_token)
+        return publisher.unpublish(ctx.shop, ctx.access_token, user_action=True)
     except ShopifyThemeScopeError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ShopifyThemeError as exc:
@@ -122,6 +134,8 @@ def llms_txt_status(
         "public_agents_url": f"https://{ctx.shop}{publisher.AGENTS_PATH}",
         "last_published_at": record.get("last_published_at") if record else None,
         "last_webhook_tick_at": record.get("last_webhook_tick_at") if record else None,
+        "theme_write_mode": theme_write_mode(),
+        "allowed_files": list(publisher.TEMPLATE_FILENAMES),
     }
 
 
@@ -178,6 +192,18 @@ def llms_txt_webhook_tick(
     regenerate, reason = publisher.should_regenerate(shop)
     if not regenerate:
         return {"regenerated": False, "reason": reason}
+
+    # The merchant has already opted in (is_published), but a catalogue webhook
+    # must never write to the theme while writes are disabled. Record the intent
+    # so a later merchant-initiated publish can pick it up, and skip the write.
+    if theme_write_mode() == "disabled":
+        store.log_theme_write(
+            shop,
+            action="regeneration_pending",
+            filenames=list(publisher.TEMPLATE_FILENAMES),
+            user_action=False,
+        )
+        return {"regenerated": False, "reason": "theme_write_disabled"}
 
     background_tasks.add_task(_regenerate_published, shop, record["access_token"])
     return {"regenerated": True, "reason": "scheduled"}

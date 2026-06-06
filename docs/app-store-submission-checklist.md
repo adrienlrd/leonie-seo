@@ -50,7 +50,7 @@ Verify each one before submitting.
 | **App name** ("Giulio Geo") unique on the App Store | Partner Dashboard → App setup → Name | Must not collide with another app |
 | **App URL** = `https://pilot.leoniedelacroix.com` (will change for production app) | App setup → URLs | Use a non-pilot URL when going GA |
 | **Allowed redirection URLs** | App setup → URLs | Currently in `shopify.app.pilot.toml` |
-| **Access scopes** = `read_products,write_products,write_content,read_themes,write_themes` | App setup → Access scopes | Matches `shopify.app.toml`. `read_orders` removed (unused) — App Store reviewers scrutinize unused scopes |
+| **Access scopes** = `read_products,write_products,write_content,read_themes,write_themes` | App setup → Access scopes | Matches `shopify.app.toml`. `read_orders` removed (unused). `write_themes` is tightly scoped, consented, reversible and audited — see `docs/shopify-write-themes-review-justification.md` (paste its summary into the review notes) |
 | **API version** ≥ `2025-01` | App setup → Webhooks | Already set |
 | **Embedded** = true | App setup | Already set |
 | **App Bridge ≥ 4.x** | Auto via `@shopify/app-bridge-react` | Verify console.log in browser shows "AppBridge 4.x" |

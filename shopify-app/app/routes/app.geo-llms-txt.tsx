@@ -8,6 +8,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   InlineStack,
   List,
   Page,
@@ -25,6 +26,8 @@ interface LlmsTxtStatus {
   public_full_url: string;
   public_agents_url: string;
   last_published_at: string | null;
+  theme_write_mode?: string;
+  allowed_files?: string[];
 }
 
 interface ActionResult {
@@ -74,10 +77,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json<ActionResult>({ ok: false, intent, error: "unknown_intent" }, { status: 400 });
   }
 
+  // Publishing requires explicit merchant confirmation (the UI gates this
+  // behind a checkbox). Forward confirm=true only for the publish intent.
+  const confirmed = intent === "publish" && String(form.get("confirm") ?? "") === "true";
+  const query = intent === "publish" ? `?confirm=${confirmed}` : "";
+
   try {
     const resp = await callBackendForShop(
       session.shop,
-      `/api/shops/${session.shop}/llms-txt/${segment}`,
+      `/api/shops/${session.shop}/llms-txt/${segment}${query}`,
       { method: "POST", accessToken: session.accessToken },
     );
     const data = await resp.json().catch(() => ({}));
@@ -103,9 +111,18 @@ export default function LlmsTxtPage() {
   };
   const fetcher = useFetcher<ActionResult>();
   const [preview, setPreview] = useState<string | null>(null);
+  const [confirmChecked, setConfirmChecked] = useState(false);
 
   const busy = fetcher.state !== "idle";
   const data = fetcher.data;
+
+  const themeWriteMode = status?.theme_write_mode ?? "review_safe";
+  const writesDisabled = themeWriteMode === "disabled";
+  const allowedFiles = status?.allowed_files ?? [
+    "templates/agents.md.liquid",
+    "templates/llms.txt.liquid",
+    "templates/llms-full.txt.liquid",
+  ];
 
   useEffect(() => {
     if (data?.ok && data.intent === "generate" && data.result?.llms_txt) {
@@ -125,6 +142,13 @@ export default function LlmsTxtPage() {
     fetcher.submit(fd, { method: "post" });
   };
 
+  const submitPublish = () => {
+    const fd = new FormData();
+    fd.set("intent", "publish");
+    fd.set("confirm", "true");
+    fetcher.submit(fd, { method: "post" });
+  };
+
   const statusBadge = published ? (
     divergent ? (
       <Badge tone="attention">{t(locale, "llmsTxtStatusDivergent")}</Badge>
@@ -138,9 +162,7 @@ export default function LlmsTxtPage() {
   const publishLabel =
     busy && fetcher.formData?.get("intent") === "publish"
       ? t(locale, "llmsTxtPublishing")
-      : published
-        ? t(locale, "llmsTxtRepublish")
-        : t(locale, "llmsTxtPublish");
+      : t(locale, "llmsTxtPublishCta");
 
   return (
     <Page title={t(locale, "llmsTxtTitle")}>
@@ -180,15 +202,55 @@ export default function LlmsTxtPage() {
               </Banner>
             )}
 
+            {writesDisabled && (
+              <Banner tone="info" title={t(locale, "llmsTxtDisabledTitle")}>
+                <p>{t(locale, "llmsTxtDisabledBody")}</p>
+              </Banner>
+            )}
+
+            <Box
+              background="bg-surface-secondary"
+              padding="300"
+              borderRadius="200"
+            >
+              <BlockStack gap="200">
+                <Text as="h3" variant="headingSm">
+                  {t(locale, "llmsTxtConfirmTitle")}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t(locale, "llmsTxtConfirmFilesIntro")}
+                </Text>
+                <List type="bullet">
+                  {allowedFiles.map((f) => (
+                    <List.Item key={f}>{f}</List.Item>
+                  ))}
+                </List>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t(locale, "llmsTxtConfirmNoOther")}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t(locale, "llmsTxtConfirmRemovable")}
+                </Text>
+                <Checkbox
+                  label={t(locale, "llmsTxtConfirmCheckbox")}
+                  checked={confirmChecked}
+                  disabled={writesDisabled || busy}
+                  onChange={setConfirmChecked}
+                />
+                <InlineStack gap="300">
+                  <Button
+                    variant="primary"
+                    loading={busy && fetcher.formData?.get("intent") === "publish"}
+                    disabled={busy || writesDisabled || !confirmChecked}
+                    onClick={submitPublish}
+                  >
+                    {publishLabel}
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            </Box>
+
             <InlineStack gap="300">
-              <Button
-                variant="primary"
-                loading={busy && fetcher.formData?.get("intent") === "publish"}
-                disabled={busy}
-                onClick={() => submit("publish")}
-              >
-                {publishLabel}
-              </Button>
               <Button
                 loading={busy && fetcher.formData?.get("intent") === "generate"}
                 disabled={busy}

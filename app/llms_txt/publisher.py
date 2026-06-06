@@ -16,6 +16,7 @@ from typing import Any, Protocol
 from app.apply.shopify_theme_files import ShopifyThemeError, ShopifyThemeWriter
 from app.geo.llms_txt import build_llms_payload, wrap_liquid_raw
 from app.llms_txt import store
+from app.safety import theme_write_mode
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,10 @@ class LlmsPublishError(Exception):
     """Raised when the theme publish flow fails for a non-scope reason."""
 
 
+class ThemeWriteDisabledError(LlmsPublishError):
+    """Raised when a theme write is attempted while the mode is ``disabled``."""
+
+
 def _public_urls(shop: str) -> dict[str, str]:
     return {
         "public_url": f"https://{shop}{LLMS_TXT_PATH}",
@@ -56,17 +61,32 @@ def publish(
     *,
     db_path: Path | None = None,
     theme_writer: _ThemeWriter | None = None,
+    user_action: bool = False,
 ) -> dict[str, Any]:
     """Write the three AI templates onto the published theme.
 
     Idempotent: when the three content hashes already match the published ones,
     nothing is written and ``skipped`` is True.
 
+    Backstop: refuses to write when ``LEONIE_THEME_WRITE_MODE=disabled`` — the
+    API and webhook entry points gate this too, this is defense-in-depth so no
+    code path can ever write while disabled.
+
+    Args:
+        user_action: True when the merchant explicitly triggered the publish
+            (False for webhook-driven regeneration) — recorded in the audit log.
+
     Raises:
+        ThemeWriteDisabledError: If the theme-write mode is ``disabled``.
         ShopifyThemeScopeError: If the write_themes scope is missing.
         ShopifyThemeError / LlmsPublishError: On other Shopify failures.
         LlmsTxtGenerationError: If the snapshot has no listable page.
     """
+    if theme_write_mode() == "disabled":
+        raise ThemeWriteDisabledError(
+            "Theme writes are disabled (LEONIE_THEME_WRITE_MODE=disabled)."
+        )
+
     payload = build_llms_payload(shop, snapshot, business_profile)
     existing = store.get_publication(shop, db_path)
 
@@ -104,6 +124,24 @@ def publish(
         published_at=published_at,
         db_path=db_path,
     )
+    store.log_theme_write(
+        shop,
+        action="publish",
+        filenames=list(files.keys()),
+        theme_id=theme_id,
+        hash_before={
+            "agents": existing.get("agents_hash") if existing else None,
+            "llms": existing.get("llms_hash") if existing else None,
+            "full": existing.get("full_hash") if existing else None,
+        },
+        hash_after={
+            "agents": payload["agents_content_hash"],
+            "llms": payload["content_hash"],
+            "full": payload["full_content_hash"],
+        },
+        user_action=user_action,
+        db_path=db_path,
+    )
 
     return {
         "skipped": False,
@@ -124,8 +162,13 @@ def unpublish(
     *,
     db_path: Path | None = None,
     theme_writer: _ThemeWriter | None = None,
+    user_action: bool = False,
 ) -> dict[str, Any]:
     """Delete the three AI templates, reverting to Shopify's default content.
+
+    Only ever deletes the 3 allowlisted AI files — never any other theme file
+    (the writer enforces the allowlist). Allowed in every mode: it is the
+    merchant's off-switch and only ever reduces the app's theme footprint.
 
     Best-effort: a Shopify error during delete is logged but never blocks
     clearing local state, so the merchant is never stuck half-published.
@@ -143,6 +186,14 @@ def unpublish(
             logger.warning("Failed to delete AI templates for %s: %s", shop, exc)
 
     store.mark_unpublished(shop, db_path)
+    store.log_theme_write(
+        shop,
+        action="unpublish",
+        filenames=list(TEMPLATE_FILENAMES),
+        theme_id=theme_id,
+        user_action=user_action,
+        db_path=db_path,
+    )
     return {"unpublished": True}
 
 
