@@ -12,6 +12,20 @@
 
 - **Date:** 2026-06-06
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Attaquer le cold start du backend Render Free (1er frein perf pour le critère Web Vitals de Built for Shopify) — par du code.
+- **Summary:** Mesure du démarrage (`python -X importtime`) : ~1,9 s d'imports, dont pandas ~242 ms (tiré au boot par `app/crawl/client.py` — 15 usages — et `app/api/gsc.py`), libs Google GA4 ~238 ms. **Conclusion** : le gros du cold start vient de la **mise en veille Render Free** (reprovisioning ~30 s du conteneur, non adressable en code), pas des imports. Levier code retenu = **empêcher la mise en veille**. Ajout du workflow `.github/workflows/keepalive.yml` : cron toutes les 10 min (< fenêtre d'inactivité de 15 min) + `workflow_dispatch`, qui pingue l'endpoint santé du backend (`/health`, trivial, sans DB) et optionnellement l'app Remix, avec timeout large (70 s) et retries pour absorber un cold start. URLs configurables via variables Actions (`BACKEND_HEALTH_URL` défaut Render pilote, `APP_HEALTH_URL`). `concurrency` pour éviter l'empilement, `::warning::` au lieu d'échec pour ne pas spammer.
+- **Files created:** `.github/workflows/keepalive.yml`.
+- **Files modified:** `docs/AI_HANDOFF.md`.
+- **Decisions made:** **Pas de lazy-import de pandas** : gain nul au boot car `crawl/client.py` (15 usages) le tire de toute façon ; lazy-importer seulement `gsc.py` (1 usage) n'enlèverait rien — pas worth le risque. **Pas de modif de `init_db()`** (nécessaire au boot, risqué). Le keep-alive est la solution code standard mais a un coût : garder un service Free éveillé consomme les heures gratuites (~750 h/mois) — la solution pérenne reste un plan payant. Limite connue : `/health` ne touche pas la DB, donc Neon Postgres (free) peut rester en veille même app chaude ; le 1er vrai requête réveille Neon (~1 s).
+- **Validations run:** mesure `importtime` ; YAML validé (`yaml.safe_load`) ; vérif `/health` trivial (env-only) et densité pandas.
+- **Validations skipped:** Le cron ne s'active que sur la branche par défaut (après merge) ; non exécuté ici. Effet réel sur le LCP à constater dans le Dev Dashboard après merge + déploiement.
+- **Open issues:** Neon Postgres free se suspend aussi (~5 min) — non couvert par le ping `/health`. Si besoin, ajouter un ping d'un endpoint léger touchant la DB (< 5 min) ou passer Neon en plan sans suspension. La vraie élimination du cold start = backend sur plan payant.
+- **Next recommended action:** Merger sur la branche par défaut, définir la variable Actions `BACKEND_HEALTH_URL` (et `APP_HEALTH_URL`), puis vérifier dans les logs du workflow que le ping renvoie 200 et suivre l'évolution du LCP.
+
+## Previous completed task
+
+- **Date:** 2026-06-06
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** Conformité Built for Shopify / publiabilité App Store (code) : nettoyer les scopes OAuth et ajouter la Contextual Save Bar App Bridge.
 - **Summary:** **(1) Scopes OAuth** : retrait de `read_orders` (déclaré mais jamais utilisé dans le code — motif fréquent de rejet App Store) de `shopify.app.toml` et `.env.example`, et alignement de `.env.example` qui ne contenait pas `write_content`. Scopes finaux : `read_products,write_products,write_content,read_themes,write_themes`. **(2) Contextual Save Bar** (exigence d'intégration Built for Shopify) : ajout du composant App Bridge `<SaveBar>` (`@shopify/app-bridge-react`) sur l'éditeur de blog (`app.blog.tsx`), le formulaire « éditer puis enregistrer » le plus net. Suivi d'état « dirty » fiable via `serializeEditableDraft()` (comparaison des seuls champs persistés, ordre de clés fixe). La barre s'ouvre (`open={dirty}`) quand le brouillon a des modifications non enregistrées ; bouton primaire = Enregistrer (réutilise `onSave`), bouton secondaire = Annuler (`setDraft(selected)`), avec `discardConfirmation`.
 - **Files created:** Aucun.
