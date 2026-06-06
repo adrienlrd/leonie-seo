@@ -575,7 +575,7 @@ export default function ContinuousImprovement() {
     <Page
       title={t(locale, "continuousImprovementTitle")}
       subtitle={t(locale, "continuousImprovementSubtitle")}
-      backAction={{ content: t(locale, "hubInsights"), url: localizedPath("/app/insights", locale) }}
+      backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}
     >
       <BlockStack gap="400">
         <Card>
