@@ -1,8 +1,8 @@
-# AGENTS.md — Léonie SEO
+# AGENTS.md — Giulio Geo
 
 ## 1. Project overview
 
-- **Name:** Léonie SEO
+- **Name:** Giulio Geo
 - **Goal:** Shopify SEO automation pipeline and public Shopify app for niche-first SEO recommendations, supervised content generation, SEO audits, and safe Shopify application.
 - **App type:** Shopify public app plus self-hosted/CLI mode.
 - **Short-term vision:** Complete Phase 10 parity between CLI capabilities and the embedded Shopify app, then prepare App Store go/no-go.

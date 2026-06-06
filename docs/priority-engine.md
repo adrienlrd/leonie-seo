@@ -1,4 +1,4 @@
-# Unified Priority Engine — Léonie SEO
+# Unified Priority Engine — Giulio Geo
 
 > Référence canonique du moteur qui transforme la liste des opportunités (tâche 132) en **exactement 3 actions prioritaires** consommables par un marchand non technique. Fusionne ICE, Revenue-Aware Prioritization, Weekly Actions et Risk Guard sans réécrire ce qui marche.
 >

@@ -1,4 +1,4 @@
-"""Structured JSON logging for the Léonie SEO app."""
+"""Structured JSON logging for the Giulio Geo app."""
 
 from __future__ import annotations
 

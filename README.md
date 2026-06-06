@@ -1,4 +1,4 @@
-# Léonie SEO
+# Giulio Geo
 
 > **FR** | [EN below](#english-version)
 
@@ -8,7 +8,7 @@ Outil d'audit et d'optimisation SEO pour boutiques Shopify. Crawle votre catalog
 
 ## Vision
 
-Léonie SEO est un **copilote SEO niche-first pour boutiques Shopify** — conçu pour évoluer de l'outil CLI personnel vers une **app SaaS embarquée dans l'admin Shopify**.
+Giulio Geo est un **copilote SEO niche-first pour boutiques Shopify** — conçu pour évoluer de l'outil CLI personnel vers une **app SaaS embarquée dans l'admin Shopify**.
 
 **Le marché est saturé sur** : meta tags automatiques, alt texts, compression images, schema basique (AVADA, Smart SEO, TinyIMG, Booster SEO le font tous).
 
@@ -36,7 +36,7 @@ Léonie SEO est un **copilote SEO niche-first pour boutiques Shopify** — conç
 
 ## Distribution & facturation
 
-Léonie SEO se distribue selon **deux modes** :
+Giulio Geo se distribue selon **deux modes** :
 
 | Mode | Cible | Auth | Facturation |
 |---|---|---|---|
@@ -47,7 +47,7 @@ Voir [`docs/plans.md`](docs/plans.md) pour le détail.
 
 ### Pilote marchand réel avant App Store
 
-Avant la soumission publique, Léonie SEO passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à l'URL stable `https://pilot.leoniedelacroix.com`. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md), et le plan de test réel dans [`docs/pilot-real-store-test-plan.md`](docs/pilot-real-store-test-plan.md).
+Avant la soumission publique, Giulio Geo passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à l'URL stable `https://pilot.leoniedelacroix.com`. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md), et le plan de test réel dans [`docs/pilot-real-store-test-plan.md`](docs/pilot-real-store-test-plan.md).
 
 Smoke check public du pilote :
 

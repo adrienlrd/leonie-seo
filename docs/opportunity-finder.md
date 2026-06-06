@@ -1,4 +1,4 @@
-# Unified Opportunity Finder — Léonie SEO
+# Unified Opportunity Finder — Giulio Geo
 
 > Référence canonique du module qui répond à **une seule question** : *« quelles pages produits actives méritent une action maintenant ? »*. Fusionne les 7 logiques d'opportunités existantes en une liste unifiée, scorée et explicable, consommée par le Priority Engine (133).
 >

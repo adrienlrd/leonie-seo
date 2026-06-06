@@ -1,4 +1,4 @@
-# Product Scope Simplification — Léonie SEO
+# Product Scope Simplification — Giulio Geo
 
 > Référence canonique du périmètre produit V1 public. Tout module qui calcule un score, classe des recommandations, ou affiche une liste de produits doit respecter les règles documentées ici.
 >

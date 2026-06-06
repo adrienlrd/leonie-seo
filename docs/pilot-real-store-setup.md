@@ -45,7 +45,7 @@ Neon Postgres
 
 ## Partner Dashboard setup
 
-1. Use the `Organically` Shopify Partner app for the pilot.
+1. Use the `Giulio Geo` Shopify Partner app for the pilot.
 2. Select **Custom distribution** for that app.
 3. Restrict the install target to `287c4a-bb.myshopify.com`.
 4. Generate the install link for the store owner.

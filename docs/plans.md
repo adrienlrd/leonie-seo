@@ -1,6 +1,6 @@
-# Plans & Pricing — Léonie SEO
+# Plans & Pricing — Giulio Geo
 
-> Léonie SEO se distribue selon **deux modes** complémentaires. Chacun a son propre système d'authentification et de facturation. Les fonctionnalités offertes par plan (Free/Pro/Agency) sont identiques entre les deux modes.
+> Giulio Geo se distribue selon **deux modes** complémentaires. Chacun a son propre système d'authentification et de facturation. Les fonctionnalités offertes par plan (Free/Pro/Agency) sont identiques entre les deux modes.
 
 ---
 

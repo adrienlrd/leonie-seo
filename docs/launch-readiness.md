@@ -1,4 +1,4 @@
-# Public Launch Readiness Criteria — Léonie SEO
+# Public Launch Readiness Criteria — Giulio Geo
 
 > Checklist canonique d'entrée en **Phase 12 (Soumission publique Shopify App Store)**. Distille les décisions produit/architecture des Phases 11.7–11.9 en critères go/no-go opérationnels. La tâche 150 (décision go/no-go) coche cette liste avant que la tâche 151 (soumission App Store) ne démarre.
 >
@@ -245,7 +245,7 @@ Aucun critère §3 ne peut être contourné par "ça marchera quand même". L'ob
 
 ## 8. État final attendu à la fin de la Phase 12
 
-À l'issue de la tâche 140 (soumission App Store finale), Léonie SEO doit présenter aux reviewers Shopify :
+À l'issue de la tâche 140 (soumission App Store finale), Giulio Geo doit présenter aux reviewers Shopify :
 
 - ✅ Une **app installable** depuis l'App Store.
 - ✅ Un **workflow complet** Connecter → Comprendre → Proposer → Valider → Appliquer → Mesurer démontrable en moins de 5 minutes.

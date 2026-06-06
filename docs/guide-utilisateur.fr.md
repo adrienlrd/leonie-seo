@@ -1,4 +1,4 @@
-# Guide utilisateur — Léonie SEO
+# Guide utilisateur — Giulio Geo
 
 ## Table des matières
 
@@ -15,7 +15,7 @@
 
 ## Présentation
 
-Léonie SEO automatise l'audit SEO de votre boutique Shopify. Il :
+Giulio Geo automatise l'audit SEO de votre boutique Shopify. Il :
 
 - Crawle votre catalogue (produits, collections, méta-données)
 - Récupère vos données Google Search Console (positions, clics, impressions)
@@ -152,7 +152,7 @@ leonie-seo apply redirects --file data/raw/redirects.csv --apply
 
 ## Application Shopify embedded
 
-> **Mode de distribution recommandé** pour les marchands Shopify : l'application Léonie SEO est embarquée dans l'admin Shopify (App Bridge + Polaris) via le scaffold Remix dans `shopify-app/`.
+> **Mode de distribution recommandé** pour les marchands Shopify : l'application Giulio Geo est embarquée dans l'admin Shopify (App Bridge + Polaris) via le scaffold Remix dans `shopify-app/`.
 
 ### Backend Python (API FastAPI)
 
@@ -253,7 +253,7 @@ LEONIE_API_KEY=LEO-<clé générée>
 Non. Tous les scripts `apply` fonctionnent en `--dry-run` par défaut. Vous devez explicitement passer `--apply` pour écrire sur Shopify.
 
 **Q : Mes données Shopify restent-elles sur mon serveur ?**
-Oui. Léonie SEO est un outil auto-hébergé. Vos tokens d'accès et données produits ne quittent jamais votre environnement (CLI local ou serveur Docker).
+Oui. Giulio Geo est un outil auto-hébergé. Vos tokens d'accès et données produits ne quittent jamais votre environnement (CLI local ou serveur Docker).
 
 **Q : Que se passe-t-il si ma licence expire ?**
 Le plan bascule automatiquement en Free. Vous conservez l'accès aux fonctions d'audit. Les fonctions d'écriture (apply, alertes, rapports) sont désactivées.

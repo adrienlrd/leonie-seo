@@ -1,4 +1,4 @@
-# Niche Understanding Gate — Léonie SEO
+# Niche Understanding Gate — Giulio Geo
 
 > Référence Phase 11.9, tâche 153. Ce document définit la règle produit qui fait de la compréhension IA validée le passage obligatoire avant les recommandations principales.
 >

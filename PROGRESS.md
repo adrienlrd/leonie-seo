@@ -52,7 +52,7 @@
 
 ### Objectif
 
-Rendre l'app Léonie SEO compréhensible par un marchand non expert en moins de 5 minutes, sans explication préalable. Tâches 155-163 : 8 documents canoniques + ajustements UX/i18n dans 5 routes Remix.
+Rendre l'app Giulio Geo compréhensible par un marchand non expert en moins de 5 minutes, sans explication préalable. Tâches 155-163 : 8 documents canoniques + ajustements UX/i18n dans 5 routes Remix.
 
 ### Tâches terminées
 
@@ -1134,7 +1134,7 @@ tests/test_api/test_jsonld_status.py::test_jsonld_status_extension_note_present 
 
 ## Reprise 2026-05-13 → 2026-05-15 — Tâche 77 terminée
 
-- L'app Shopify `Léonie SEO Pilot` a été créée dans l'organisation `Léonie Delacroix`.
+- L'app Shopify `Giulio Geo Pilot` a été créée dans l'organisation `Léonie Delacroix`.
 - `shopify-app/shopify.app.pilot.toml` est lié à cette app et versionné dans le repo.
 - L'origine stable retenue est `https://pilot.leoniedelacroix.com`.
 - Un Blueprint Render `render.yaml` prépare deux services :
@@ -1568,7 +1568,7 @@ La publication publique est volontairement différée derrière une nouvelle sé
 
 ## ⏳ Phase 9 — Pilote marchand réel avant App Store
 
-**Objectif** : installer et tester Léonie SEO sur la vraie boutique Shopify `leoniedelacroix.com`, observer les frictions réelles, adapter le produit, puis seulement soumettre l'app publiquement.
+**Objectif** : installer et tester Giulio Geo sur la vraie boutique Shopify `leoniedelacroix.com`, observer les frictions réelles, adapter le produit, puis seulement soumettre l'app publiquement.
 
 **Séquence ordonnée** :
 - **76** ✅ Préparer l'environnement pilote hors App Store : stratégie pilote custom séparée, URL publique de test, callbacks, secrets et workflow d'installation directe documentés.
@@ -1660,7 +1660,7 @@ La publication publique est volontairement différée derrière une nouvelle sé
 
 ### Session 2026-05-12 (Tâche 76 — préparation pilote marchand réel)
 
-**Mission** : préparer le cadre repo et opératoire pour tester Léonie SEO sur la vraie boutique Shopify avant toute soumission publique App Store.
+**Mission** : préparer le cadre repo et opératoire pour tester Giulio Geo sur la vraie boutique Shopify avant toute soumission publique App Store.
 
 **Livrables** :
 - `docs/pilot-real-store-setup.md` ajouté : architecture cible, app pilote custom séparée, lien d'installation direct, config `pilot`, secrets et checklist de readiness.

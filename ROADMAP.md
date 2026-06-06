@@ -157,12 +157,12 @@
 ---
 
 ## PHASE 9 — Pilote marchand réel avant App Store
-*Objectif : tester Léonie SEO sur la vraie boutique Shopify `leoniedelacroix.com`, récolter des retours terrain, adapter le produit, puis seulement lancer la publication App Store.*
+*Objectif : tester Giulio Geo sur la vraie boutique Shopify `leoniedelacroix.com`, récolter des retours terrain, adapter le produit, puis seulement lancer la publication App Store.*
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|
 | 76 | Préparer l'environnement pilote hors App Store — app non listée / install directe sur la boutique réelle, URLs publiques de test, secrets et callbacks actifs | 🔴 | ✅ | 2026-05-12 |
-| 77 | Installer Léonie SEO sur la boutique Shopify réelle et valider OAuth, sessions persistantes, Billing désactivé ou mode test, webhooks GDPR/app uninstall | 🔴 | ✅ | 2026-05-15 |
+| 77 | Installer Giulio Geo sur la boutique Shopify réelle et valider OAuth, sessions persistantes, Billing désactivé ou mode test, webhooks GDPR/app uninstall | 🔴 | ✅ | 2026-05-15 |
 | 78 | Activer un mode **pilot-safe** : analyses en lecture seule + dry-run obligatoire + confirmations explicites avant toute écriture Shopify | 🔴 | ✅ | 2026-05-15 |
 | 79 | Tester les parcours métier réels sur `leoniedelacroix.com` — onboarding, audit, review IA, niche intelligence, jobs, privacy, billing/settings | 🔴 | ✅ | 2026-05-16 |
 | 80 | Capturer les retours d'usage, bugs, incompréhensions UX, frictions de confiance et écarts entre promesse produit et réalité marchande | 🟡 | ✅ | 2026-05-16 |
@@ -318,7 +318,7 @@
 ---
 
 ## PHASE 11 — Différenciation GEO : AI Search Readiness & Revenue-Aware Shopify Intelligence
-*Objectif : transformer Léonie SEO en assistant GEO Shopify-native capable d'identifier quelles pages, produits et collections sont les plus importants à optimiser pour Google, ChatGPT, Perplexity, Gemini et les moteurs IA, en priorisant selon la complétude factuelle, le potentiel business, le risque SEO, le stock, la marge et la preuve d'impact.*
+*Objectif : transformer Giulio Geo en assistant GEO Shopify-native capable d'identifier quelles pages, produits et collections sont les plus importants à optimiser pour Google, ChatGPT, Perplexity, Gemini et les moteurs IA, en priorisant selon la complétude factuelle, le potentiel business, le risque SEO, le stock, la marge et la preuve d'impact.*
 
 | # | Tâche | Difficulté | Statut | Date |
 |---|---|---|---|---|

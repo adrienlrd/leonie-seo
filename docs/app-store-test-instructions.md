@@ -1,10 +1,10 @@
-# App Store Reviewer Test Instructions — Léonie SEO
+# App Store Reviewer Test Instructions — Giulio Geo
 
 > Audience: Shopify App Store review team
 > Estimated test duration: 15–20 minutes
 > Last updated: 2026-05-18
 
-Thank you for reviewing **Léonie SEO**. This document walks you through every
+Thank you for reviewing **Giulio Geo**. This document walks you through every
 flow you need to assess: install, value delivery, billing, GDPR webhooks,
 and uninstall. The app is fully embedded in Shopify Admin and requires no
 external account creation to evaluate.
@@ -34,7 +34,7 @@ account with read-only scopes on a public test property.
 2. Shopify shows the standard install screen listing scopes:
    `read_products, write_products, write_content, read_themes, write_themes`.
    Click **Install app**.
-3. You are redirected into the embedded Léonie SEO **Dashboard** inside the
+3. You are redirected into the embedded Giulio Geo **Dashboard** inside the
    Shopify Admin chrome.
 4. Confirm the following appears immediately:
    - Page title: **Tableau de bord** (or **Dashboard** with `?locale=en`)
@@ -101,9 +101,9 @@ Expected result: no blank screen, no untranslated keys, no console errors.
 
 1. From the dashboard, click **Compte & configuration** hub → **Abonnement**.
 2. You see three plans:
-   - **Léonie SEO Free** — $0 / month (active by default after install)
-   - **Léonie SEO Pro** — $29 USD / 30 days
-   - **Léonie SEO Agency** — $99 USD / 30 days
+   - **Giulio Geo Free** — $0 / month (active by default after install)
+   - **Giulio Geo Pro** — $29 USD / 30 days
+   - **Giulio Geo Agency** — $99 USD / 30 days
 3. Click **Passer en Pro** (or *Upgrade to Pro*).
 4. Shopify redirects you to the **Shopify Billing confirmation screen**
    signed by Shopify itself (URL contains `/admin/charges/...`).
@@ -134,7 +134,7 @@ You can also send `app/uninstalled` — it cleans up the OAuth token store.
 
 ## 8. Uninstall (≈ 1 min)
 
-1. From Shopify Admin → Settings → Apps → **Léonie SEO** → click **Delete**.
+1. From Shopify Admin → Settings → Apps → **Giulio Geo** → click **Delete**.
 2. Confirm uninstall in the Shopify modal.
 3. Within 30 seconds, the `app/uninstalled` webhook fires.
 4. Attempt to navigate back to the app URL — you should be redirected to

@@ -47,7 +47,7 @@ Verify each one before submitting.
 
 | Item | Where | Notes |
 |---|---|---|
-| **App name** ("Léonie SEO") unique on the App Store | Partner Dashboard → App setup → Name | Must not collide with another app |
+| **App name** ("Giulio Geo") unique on the App Store | Partner Dashboard → App setup → Name | Must not collide with another app |
 | **App URL** = `https://pilot.leoniedelacroix.com` (will change for production app) | App setup → URLs | Use a non-pilot URL when going GA |
 | **Allowed redirection URLs** | App setup → URLs | Currently in `shopify.app.pilot.toml` |
 | **Access scopes** = `read_products,write_products,write_content,read_themes,write_themes` | App setup → Access scopes | Matches `shopify.app.toml`. `read_orders` removed (unused) — App Store reviewers scrutinize unused scopes |

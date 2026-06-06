@@ -138,23 +138,23 @@ _FAQ: list[dict] = [
         # based on LEONIE_MODE env. In App Store mode we MUST NOT claim
         # "self-hosted" (false statement + App Review rejection risk).
         "answer_fr_app_store": (
-            "Léonie SEO est une application Shopify hébergée par son éditeur. Vos tokens "
+            "Giulio Geo est une application Shopify hébergée par son éditeur. Vos tokens "
             "OAuth (chiffrés Fernet), métadonnées produits, et historiques de modifications "
             "sont stockés sur Neon Postgres (UE). Aucune donnée client individuelle "
             "(noms, emails, commandes) n'est collectée. Détail complet : voir /privacy."
         ),
         "answer_fr_self_hosted": (
-            "En mode self-hosted (CLI), Léonie SEO tourne sur votre infrastructure. "
+            "En mode self-hosted (CLI), Giulio Geo tourne sur votre infrastructure. "
             "Vos tokens d'accès et données produits ne quittent jamais votre environnement."
         ),
         "answer_en_app_store": (
-            "Léonie SEO is a Shopify application operated by its publisher. Your OAuth "
+            "Giulio Geo is a Shopify application operated by its publisher. Your OAuth "
             "tokens (Fernet-encrypted), product metadata, and change history are stored "
             "on Neon Postgres (EU). No individual customer data (names, emails, orders) "
             "is collected. Full details: see /privacy."
         ),
         "answer_en_self_hosted": (
-            "In self-hosted (CLI) mode, Léonie SEO runs on your infrastructure. Your "
+            "In self-hosted (CLI) mode, Giulio Geo runs on your infrastructure. Your "
             "access tokens and product data never leave your environment."
         ),
     },

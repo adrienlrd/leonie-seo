@@ -46,7 +46,7 @@ Variants:
 ```markdown
 ## Le SEO Shopify, enfin guidé par l'IA
 
-Léonie SEO transforme l'optimisation SEO de votre boutique Shopify en parcours guidé. Plus besoin de Screaming Frog, de feuilles Excel ou d'un consultant : tout se passe dans l'admin Shopify.
+Giulio Geo transforme l'optimisation SEO de votre boutique Shopify en parcours guidé. Plus besoin de Screaming Frog, de feuilles Excel ou d'un consultant : tout se passe dans l'admin Shopify.
 
 ### Ce que vous obtenez en moins de 5 minutes
 
@@ -88,7 +88,7 @@ Essayez la version gratuite — aucune carte requise.
 ```markdown
 ## Shopify SEO, finally guided by AI
 
-Léonie SEO turns SEO optimization into a guided workflow inside Shopify Admin. No more Screaming Frog, spreadsheets, or external consultants — everything lives where you work.
+Giulio Geo turns SEO optimization into a guided workflow inside Shopify Admin. No more Screaming Frog, spreadsheets, or external consultants — everything lives where you work.
 
 ### What you get in under 5 minutes
 
@@ -165,7 +165,7 @@ Start with the free plan — no credit card required.
 4. **25-35 s** — Page Audit avec IndexTable, filtres, tooltip ICE. *"Léonie priorise les corrections les plus rentables."*
 5. **35-45 s** — Hub Contenu : FAQ générées + JSON-LD à copier. *"Et génère du contenu prêt à publier depuis vos vraies requêtes Google."*
 6. **45-55 s** — Hub Insights : funnel GA4 avec revenu. *"Vous voyez l'impact direct sur votre revenu organique."*
-7. **55-60 s** — Logo + call-to-action. *"Léonie SEO. Essayez la version gratuite."*
+7. **55-60 s** — Logo + call-to-action. *"Giulio Geo. Essayez la version gratuite."*
 
 ---
 

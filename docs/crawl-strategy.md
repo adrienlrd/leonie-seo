@@ -1,4 +1,4 @@
-# Crawl Strategy — Léonie SEO
+# Crawl Strategy — Giulio Geo
 
 > Référence canonique de la stratégie de découverte / vérification des URLs Shopify. Définit le **Crawl Level 3** comme socle V1 public et déclasse Screaming Frog en option avancée.
 >

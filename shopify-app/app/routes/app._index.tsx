@@ -2820,7 +2820,7 @@ export default function IndexPage() {
 
   if (error || !dashboard) {
     return (
-      <Page title="Léonie SEO">
+      <Page title="Giulio Geo">
         <Banner tone="critical" title={t(locale, "systemStatus")}>
           <p>{error ?? t(locale, "systemUnavailable")}</p>
         </Banner>
@@ -2831,7 +2831,7 @@ export default function IndexPage() {
   const { banners, zone1, zone3, zone4, zone5 } = dashboard;
 
   return (
-    <Page title="Léonie SEO">
+    <Page title="Giulio Geo">
       <BlockStack gap="400">
         {/* Banners */}
         {banners.pilot_safe && (

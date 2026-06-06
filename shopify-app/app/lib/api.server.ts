@@ -1,5 +1,5 @@
 /**
- * HTTP client for the Python backend (Léonie SEO engine).
+ * HTTP client for the Python backend (Giulio Geo engine).
  *
  * Two functions:
  * - callBackend()        — unauthenticated call (health checks, public endpoints)

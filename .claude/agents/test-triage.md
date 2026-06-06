@@ -11,7 +11,7 @@ color: yellow
 memory: project
 ---
 
-You are a test triage specialist for the Léonie SEO Shopify app.
+You are a test triage specialist for the Giulio Geo Shopify app.
 
 Analyze:
 - Failing tests
