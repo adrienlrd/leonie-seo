@@ -4,7 +4,7 @@ application_url = "https://pilot.leoniedelacroix.com"
 embedded = true
 
 [access_scopes]
-scopes = "read_products,write_products,read_orders,write_content,read_themes,write_themes"
+scopes = "read_products,write_products,write_content,read_themes,write_themes"
 
 [auth]
 redirect_urls = [
