@@ -12,6 +12,20 @@
 
 - **Date:** 2026-06-06
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Décision cold start : conserver la mise en veille du backend Render Free (choix utilisateur), pas de maintien éveillé.
+- **Summary:** Le cold start avait été diagnostiqué (`python -X importtime` : ~1,9 s d'imports, dont pandas ~242 ms et libs Google GA4 ~238 ms ; le gros du coût = reprovisioning ~30 s du conteneur Render après mise en veille à ~15 min d'inactivité). Un workflow keep-alive (`.github/workflows/keepalive.yml`) avait été ajouté pour garder l'instance chaude, **puis retiré** : l'utilisateur souhaite explicitement **conserver la mise en veille** (ne pas consommer les heures gratuites / coût). Net : aucun maintien éveillé. Le service dort comme prévu ; un cold start (~30 s) survient au 1er chargement après inactivité — accepté.
+- **Files created:** Aucun (le `.github/workflows/keepalive.yml` créé plus tôt dans la session a été supprimé).
+- **Files modified:** `docs/AI_HANDOFF.md`. **Supprimé :** `.github/workflows/keepalive.yml`.
+- **Decisions made:** Pas de keep-alive. Pas de lazy-import (gain nul au boot : pandas reste tiré par `crawl/client.py`). Pas de modif `init_db()`. La latence de reprise après veille (~30 s, dominée par le reprovisioning Render) reste non adressable en code et est assumée. Conséquence à connaître : le critère Web Vitals (LCP ≤ 2,5 s) de Built for Shopify ne sera pas tenu sur le 1er chargement post-veille tant que le backend dort — c'est un arbitrage coût/perf choisi par l'utilisateur.
+- **Validations run:** Aucune (suppression de fichier + doc).
+- **Validations skipped:** N/A.
+- **Open issues:** Si Built for Shopify (perf) devient prioritaire, il faudra soit un plan d'hébergement sans mise en veille, soit réintroduire un keep-alive — arbitrage à trancher à ce moment.
+- **Next recommended action:** Rien côté cold start. Poursuivre sur les autres axes (rollout Save Bar vérifiable en runtime, soumission App Store) si souhaité.
+
+## Previous completed task
+
+- **Date:** 2026-06-06
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** Attaquer le cold start du backend Render Free (1er frein perf pour le critère Web Vitals de Built for Shopify) — par du code.
 - **Summary:** Mesure du démarrage (`python -X importtime`) : ~1,9 s d'imports, dont pandas ~242 ms (tiré au boot par `app/crawl/client.py` — 15 usages — et `app/api/gsc.py`), libs Google GA4 ~238 ms. **Conclusion** : le gros du cold start vient de la **mise en veille Render Free** (reprovisioning ~30 s du conteneur, non adressable en code), pas des imports. Levier code retenu = **empêcher la mise en veille**. Ajout du workflow `.github/workflows/keepalive.yml` : cron toutes les 10 min (< fenêtre d'inactivité de 15 min) + `workflow_dispatch`, qui pingue l'endpoint santé du backend (`/health`, trivial, sans DB) et optionnellement l'app Remix, avec timeout large (70 s) et retries pour absorber un cold start. URLs configurables via variables Actions (`BACKEND_HEALTH_URL` défaut Render pilote, `APP_HEALTH_URL`). `concurrency` pour éviter l'empilement, `::warning::` au lieu d'échec pour ne pas spammer.
 - **Files created:** `.github/workflows/keepalive.yml`.
