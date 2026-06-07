@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   Checkbox,
+  InlineGrid,
   InlineStack,
   List,
   Page,
@@ -28,6 +29,15 @@ interface LlmsTxtStatus {
   last_published_at: string | null;
   theme_write_mode?: string;
   allowed_files?: string[];
+  crawler_prefs?: CrawlerPrefs;
+  known_agents?: string[];
+}
+
+interface CrawlerPrefs {
+  include_products: boolean;
+  include_collections: boolean;
+  include_pages: boolean;
+  welcomed_agents: string[];
 }
 
 interface ActionResult {
@@ -72,6 +82,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
+
+  // Save AI crawler preferences (content filters + welcomed agents).
+  if (intent === "save-prefs") {
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/llms-txt/crawler-prefs`,
+        {
+          method: "PUT",
+          accessToken: session.accessToken,
+          body: String(form.get("prefs_json") ?? "{}"),
+        },
+      );
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        return json<ActionResult>({ ok: false, intent, status: resp.status, error: "error" });
+      }
+      return json<ActionResult>({ ok: true, intent, result: data });
+    } catch (err) {
+      console.error("[llms-txt] save-prefs failed:", err);
+      return json<ActionResult>({ ok: false, intent, error: String(err) });
+    }
+  }
+
   const segment = INTENT_SEGMENTS[intent];
   if (!segment) {
     return json<ActionResult>({ ok: false, intent, error: "unknown_intent" }, { status: 400 });
@@ -110,8 +144,33 @@ export default function LlmsTxtPage() {
     status: LlmsTxtStatus | null;
   };
   const fetcher = useFetcher<ActionResult>();
+  const prefsFetcher = useFetcher<ActionResult>();
   const [preview, setPreview] = useState<string | null>(null);
   const [confirmChecked, setConfirmChecked] = useState(false);
+
+  const knownAgents = status?.known_agents ?? [];
+  const [prefs, setPrefs] = useState<CrawlerPrefs>(
+    status?.crawler_prefs ?? {
+      include_products: true,
+      include_collections: true,
+      include_pages: true,
+      welcomed_agents: knownAgents,
+    },
+  );
+  const savePrefs = () => {
+    const fd = new FormData();
+    fd.set("intent", "save-prefs");
+    fd.set("prefs_json", JSON.stringify(prefs));
+    prefsFetcher.submit(fd, { method: "post" });
+  };
+  const toggleAgent = (agent: string, checked: boolean) => {
+    setPrefs((p) => ({
+      ...p,
+      welcomed_agents: checked
+        ? [...p.welcomed_agents, agent]
+        : p.welcomed_agents.filter((a) => a !== agent),
+    }));
+  };
 
   const busy = fetcher.state !== "idle";
   const data = fetcher.data;
@@ -294,6 +353,86 @@ export default function LlmsTxtPage() {
 
             <Text as="p" variant="bodySm" tone="subdued">
               {t(locale, "llmsTxtAutoUpdate")}
+            </Text>
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="300">
+            <Text as="h2" variant="headingMd">
+              {t(locale, "llmsTxtPrefsTitle")}
+            </Text>
+            <Text as="p" tone="subdued">
+              {t(locale, "llmsTxtPrefsIntro")}
+            </Text>
+
+            {prefsFetcher.data?.ok && prefsFetcher.data.intent === "save-prefs" && (
+              <Banner tone="success">
+                <p>{t(locale, "llmsTxtPrefsSaved")}</p>
+              </Banner>
+            )}
+
+            <BlockStack gap="100">
+              <Checkbox
+                label={t(locale, "llmsTxtPrefsProducts")}
+                checked={prefs.include_products}
+                onChange={(v) => setPrefs((p) => ({ ...p, include_products: v }))}
+              />
+              <Checkbox
+                label={t(locale, "llmsTxtPrefsCollections")}
+                checked={prefs.include_collections}
+                onChange={(v) => setPrefs((p) => ({ ...p, include_collections: v }))}
+              />
+              <Checkbox
+                label={t(locale, "llmsTxtPrefsPages")}
+                checked={prefs.include_pages}
+                onChange={(v) => setPrefs((p) => ({ ...p, include_pages: v }))}
+              />
+            </BlockStack>
+
+            {knownAgents.length > 0 && (
+              <BlockStack gap="100">
+                <Text as="p" variant="bodySm" fontWeight="semibold">
+                  {t(locale, "llmsTxtPrefsAgents")}
+                </Text>
+                <InlineGrid columns={3} gap="100">
+                  {knownAgents.map((agent) => (
+                    <Checkbox
+                      key={agent}
+                      label={agent}
+                      checked={prefs.welcomed_agents.includes(agent)}
+                      onChange={(v) => toggleAgent(agent, v)}
+                    />
+                  ))}
+                </InlineGrid>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t(locale, "llmsTxtPrefsAgentsNote")}
+                </Text>
+              </BlockStack>
+            )}
+
+            <InlineStack>
+              <Button
+                loading={prefsFetcher.state !== "idle"}
+                disabled={prefsFetcher.state !== "idle"}
+                onClick={savePrefs}
+              >
+                {t(locale, "llmsTxtPrefsSave")}
+              </Button>
+            </InlineStack>
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="200">
+            <InlineStack gap="200" blockAlign="center">
+              <Text as="h2" variant="headingMd">
+                {t(locale, "aiVisibilityTitle")}
+              </Text>
+              <Badge>{t(locale, "aiVisibilityComingSoon")}</Badge>
+            </InlineStack>
+            <Text as="p" tone="subdued">
+              {t(locale, "aiVisibilityNote")}
             </Text>
           </BlockStack>
         </Card>

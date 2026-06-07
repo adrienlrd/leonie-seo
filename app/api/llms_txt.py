@@ -14,7 +14,12 @@ from app.api.deps import ShopContext, get_shop_context, require_internal_secret
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_theme_files import ShopifyThemeError, ShopifyThemeScopeError
 from app.business_profile.jobs import load_business_profile
-from app.geo.llms_txt import LlmsTxtGenerationError, build_llms_payload
+from app.geo.llms_txt import (
+    KNOWN_AI_AGENTS,
+    LlmsTxtGenerationError,
+    build_llms_payload,
+    resolve_crawler_prefs,
+)
 from app.jobs.audit_snapshot import crawl_shopify_catalog_for_job
 from app.llms_txt import publisher, store
 from app.oauth.token_store import get_token
@@ -40,8 +45,9 @@ def _load_snapshot_or_404(ctx: ShopContext) -> dict:
 
 def _build_payload_or_422(ctx: ShopContext, snapshot: dict) -> dict:
     business_profile = load_business_profile(ctx.shop)
+    prefs = store.get_crawler_prefs(ctx.shop)
     try:
-        return build_llms_payload(ctx.shop, snapshot, business_profile)
+        return build_llms_payload(ctx.shop, snapshot, business_profile, prefs=prefs)
     except LlmsTxtGenerationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -111,13 +117,16 @@ def llms_txt_status(
     record = store.get_publication(ctx.shop)
     is_published = bool(record and record.get("is_published"))
 
+    prefs = resolve_crawler_prefs(store.get_crawler_prefs(ctx.shop))
     divergent = False
     current_hash: str | None = None
     snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
     if snapshot:
         business_profile = load_business_profile(ctx.shop)
         try:
-            current_hash = build_llms_payload(ctx.shop, snapshot, business_profile)["content_hash"]
+            current_hash = build_llms_payload(
+                ctx.shop, snapshot, business_profile, prefs=prefs
+            )["content_hash"]
         except LlmsTxtGenerationError:
             current_hash = None
         if is_published and current_hash and record:
@@ -136,7 +145,36 @@ def llms_txt_status(
         "last_webhook_tick_at": record.get("last_webhook_tick_at") if record else None,
         "theme_write_mode": theme_write_mode(),
         "allowed_files": list(publisher.TEMPLATE_FILENAMES),
+        "crawler_prefs": prefs,
+        "known_agents": list(KNOWN_AI_AGENTS),
     }
+
+
+class CrawlerPrefsRequest(BaseModel):
+    include_products: bool = True
+    include_collections: bool = True
+    include_pages: bool = True
+    welcomed_agents: list[str] = []
+
+
+@router.get("/shops/{shop}/llms-txt/crawler-prefs")
+def get_crawler_prefs_endpoint(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Return the merchant AI-crawler preferences (resolved with defaults)."""
+    prefs = resolve_crawler_prefs(store.get_crawler_prefs(ctx.shop))
+    return {"crawler_prefs": prefs, "known_agents": list(KNOWN_AI_AGENTS)}
+
+
+@router.put("/shops/{shop}/llms-txt/crawler-prefs")
+def put_crawler_prefs_endpoint(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    body: CrawlerPrefsRequest,
+) -> dict:
+    """Persist the merchant AI-crawler preferences (validated + normalised)."""
+    prefs = resolve_crawler_prefs(body.model_dump())
+    store.save_crawler_prefs(ctx.shop, prefs)
+    return {"crawler_prefs": prefs, "known_agents": list(KNOWN_AI_AGENTS)}
 
 
 class WebhookTickRequest(BaseModel):

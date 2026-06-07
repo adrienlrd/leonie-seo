@@ -294,6 +294,13 @@ _SQLITE_DDL = [
         user_action  INTEGER NOT NULL DEFAULT 0,
         created_at   TEXT NOT NULL
     )""",
+    # Merchant AI-crawler preferences for the AI files (content-type filters +
+    # welcomed agents). Stored as a JSON blob, one row per shop.
+    """CREATE TABLE IF NOT EXISTS llms_txt_prefs (
+        shop       TEXT PRIMARY KEY,
+        prefs_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL
+    )""",
     """CREATE TABLE IF NOT EXISTS product_improvement_tags (
         shop                TEXT NOT NULL,
         product_id          TEXT NOT NULL,
@@ -670,6 +677,13 @@ _PG_DDL = [
         hash_after   TEXT,
         user_action  INTEGER NOT NULL DEFAULT 0,
         created_at   TEXT NOT NULL
+    )""",
+    # Merchant AI-crawler preferences for the AI files (content-type filters +
+    # welcomed agents). Stored as a JSON blob, one row per shop.
+    """CREATE TABLE IF NOT EXISTS llms_txt_prefs (
+        shop       TEXT PRIMARY KEY,
+        prefs_json TEXT NOT NULL DEFAULT '{}',
+        updated_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS product_improvement_tags (
         shop                TEXT NOT NULL,

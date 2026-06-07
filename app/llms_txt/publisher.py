@@ -87,7 +87,8 @@ def publish(
             "Theme writes are disabled (LEONIE_THEME_WRITE_MODE=disabled)."
         )
 
-    payload = build_llms_payload(shop, snapshot, business_profile)
+    prefs = store.get_crawler_prefs(shop, db_path)
+    payload = build_llms_payload(shop, snapshot, business_profile, prefs=prefs)
     existing = store.get_publication(shop, db_path)
 
     if (

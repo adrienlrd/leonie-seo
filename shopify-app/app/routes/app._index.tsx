@@ -894,6 +894,7 @@ function Zone1({
     <Card>
       <BlockStack gap="300">
         <SectionTitle source={GaugeIcon}>{t(locale, "dashboardZone1Title")}</SectionTitle>
+        <Text as="p" tone="subdued" variant="bodySm">{t(locale, "dashboardZone1Explain")}</Text>
         {data.global_score !== null ? (
           <BlockStack gap="200">
             <InlineStack gap="300" blockAlign="center">

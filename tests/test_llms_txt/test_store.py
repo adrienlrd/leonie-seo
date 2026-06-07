@@ -75,3 +75,19 @@ def test_webhook_tick_does_not_flip_published_flag(db: Path) -> None:
     store.record_webhook_tick(SHOP, "2026-05-31T11:00:00+00:00", db_path=db)
     row = store.get_publication(SHOP, db_path=db)
     assert row["is_published"] == 1  # tick must not unpublish a live template
+
+
+def test_crawler_prefs_roundtrip(db: Path) -> None:
+    assert store.get_crawler_prefs(SHOP, db_path=db) is None
+    store.save_crawler_prefs(
+        SHOP, {"include_products": False, "welcomed_agents": ["GPTBot"]}, db_path=db
+    )
+    prefs = store.get_crawler_prefs(SHOP, db_path=db)
+    assert prefs["include_products"] is False
+    assert prefs["welcomed_agents"] == ["GPTBot"]
+
+
+def test_crawler_prefs_upsert_overwrites(db: Path) -> None:
+    store.save_crawler_prefs(SHOP, {"include_products": False}, db_path=db)
+    store.save_crawler_prefs(SHOP, {"include_products": True}, db_path=db)
+    assert store.get_crawler_prefs(SHOP, db_path=db)["include_products"] is True

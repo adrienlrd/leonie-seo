@@ -54,7 +54,7 @@ from app.api.help import router as help_router  # noqa: E402
 # from app.api.priorities import router as priorities_router
 # from app.api.content_actions import router as content_actions_router
 # from app.api.safe_apply import router as safe_apply_router
-# from app.api.ai_visibility import router as ai_visibility_router
+from app.api.ai_visibility import router as ai_visibility_router  # noqa: E402
 # from app.api.longtail import router as longtail_router
 # from app.api.cannibalization import router as cannibalization_router
 # from app.api.internal_links import router as internal_links_router
@@ -180,7 +180,7 @@ app.include_router(competitor_serp_router)
 # app.include_router(priorities_router)
 # app.include_router(content_actions_router)
 # app.include_router(safe_apply_router)
-# app.include_router(ai_visibility_router)
+app.include_router(ai_visibility_router)
 # app.include_router(longtail_router)
 # app.include_router(cannibalization_router)
 # app.include_router(internal_links_router)

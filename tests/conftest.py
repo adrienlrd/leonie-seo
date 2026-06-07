@@ -3,7 +3,6 @@
 import pytest
 
 _ARCHIVED_API_TESTS = {
-    "tests/test_api/test_ai_visibility.py",
     "tests/test_api/test_alerts.py",
     "tests/test_api/test_alt_text.py",
     "tests/test_api/test_apply.py",

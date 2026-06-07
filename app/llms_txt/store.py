@@ -120,6 +120,37 @@ def get_theme_write_log(
         ).fetchall()
 
 
+def get_crawler_prefs(shop: str, db_path: Path | None = None) -> dict[str, Any] | None:
+    """Return the merchant AI-crawler prefs for a shop, or None if never set."""
+    with get_conn(db_path) as conn:
+        row = conn.execute(
+            "SELECT prefs_json FROM llms_txt_prefs WHERE shop = ?", (shop,)
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        return json.loads(row["prefs_json"])
+    except (ValueError, TypeError):
+        return None
+
+
+def save_crawler_prefs(
+    shop: str, prefs: dict[str, Any], db_path: Path | None = None
+) -> None:
+    """Insert or update the merchant AI-crawler prefs for a shop."""
+    with get_conn(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO llms_txt_prefs (shop, prefs_json, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(shop) DO UPDATE SET
+                prefs_json = excluded.prefs_json,
+                updated_at = excluded.updated_at
+            """,
+            (shop, json.dumps(prefs), datetime.now(UTC).isoformat()),
+        )
+
+
 def record_webhook_tick(
     shop: str, tick_at: str | None = None, db_path: Path | None = None
 ) -> str | None:
