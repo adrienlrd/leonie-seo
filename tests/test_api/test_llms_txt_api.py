@@ -29,6 +29,16 @@ _SNAPSHOT = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _isolated_db(tmp_path: Path, monkeypatch) -> None:
+    """Point the default DB at a fresh per-test SQLite file (no cross-test bleed)."""
+    from app.db import init_db
+
+    db = tmp_path / "history.db"
+    monkeypatch.setattr("app.db_adapter.DB_PATH", db)
+    init_db(db)
+
+
 @pytest.fixture()
 def snapshot_file(tmp_path: Path) -> Path:
     p = tmp_path / "shopify_snapshot.json"
@@ -216,3 +226,32 @@ def test_webhook_tick_does_not_write_when_mode_disabled(monkeypatch) -> None:
     assert resp.status_code == 200
     assert resp.json() == {"regenerated": False, "reason": "theme_write_disabled"}
     assert logged["action"] == "regeneration_pending"
+
+
+def test_get_crawler_prefs_returns_defaults(client) -> None:
+    resp = client.get(f"/api/shops/{SHOP}/llms-txt/crawler-prefs")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["crawler_prefs"]["include_products"] is True
+    assert "GPTBot" in body["known_agents"]
+
+
+def test_put_crawler_prefs_persists_and_normalises(client, tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("DATA_DIR", str(tmp_path / "raw"))
+    resp = client.put(
+        f"/api/shops/{SHOP}/llms-txt/crawler-prefs",
+        json={
+            "include_products": False,
+            "include_collections": True,
+            "include_pages": True,
+            "welcomed_agents": ["GPTBot", "EvilBot"],
+        },
+    )
+    assert resp.status_code == 200
+    prefs = resp.json()["crawler_prefs"]
+    assert prefs["include_products"] is False
+    assert prefs["welcomed_agents"] == ["GPTBot"]  # unknown agent dropped
+
+    # Persisted: a follow-up GET reflects it.
+    again = client.get(f"/api/shops/{SHOP}/llms-txt/crawler-prefs").json()
+    assert again["crawler_prefs"]["include_products"] is False

@@ -41,6 +41,58 @@ class LlmsTxtGenerationError(ValueError):
     """Raised when the snapshot lacks the minimum data to build llms.txt."""
 
 
+# Well-known AI crawler user-agents a merchant may welcome in their AI files.
+KNOWN_AI_AGENTS: tuple[str, ...] = (
+    "GPTBot",
+    "OAI-SearchBot",
+    "ChatGPT-User",
+    "ClaudeBot",
+    "anthropic-ai",
+    "PerplexityBot",
+    "Google-Extended",
+    "Applebot-Extended",
+    "Bingbot",
+)
+
+DEFAULT_CRAWLER_PREFS: dict[str, Any] = {
+    "include_products": True,
+    "include_collections": True,
+    "include_pages": True,
+    "welcomed_agents": list(KNOWN_AI_AGENTS),
+}
+
+
+def resolve_crawler_prefs(prefs: dict[str, Any] | None) -> dict[str, Any]:
+    """Merge merchant prefs over defaults; normalise welcomed_agents to known set.
+
+    Content-type toggles are real (they gate what is listed). ``welcomed_agents``
+    is advisory: it is expressed as an ``## AI access`` note inside the AI files
+    for well-behaved crawlers. Hard blocking is a robots.txt concern and is out
+    of scope here so the app keeps writing only its 3 allowlisted theme files.
+    """
+    merged = dict(DEFAULT_CRAWLER_PREFS)
+    if isinstance(prefs, dict):
+        for key in ("include_products", "include_collections", "include_pages"):
+            if key in prefs:
+                merged[key] = bool(prefs[key])
+        agents = prefs.get("welcomed_agents")
+        if isinstance(agents, list):
+            merged["welcomed_agents"] = [a for a in KNOWN_AI_AGENTS if a in set(agents)]
+    return merged
+
+
+def _ai_access_lines(prefs: dict[str, Any]) -> list[str]:
+    """Advisory ``## AI access`` block, only when the merchant narrowed the set."""
+    welcomed = prefs.get("welcomed_agents", list(KNOWN_AI_AGENTS))
+    if set(welcomed) == set(KNOWN_AI_AGENTS):
+        return []  # default = welcome all → no need to clutter the file
+    if welcomed:
+        body = "This store welcomes the following AI crawlers: " + ", ".join(welcomed) + "."
+    else:
+        body = "This store does not list any AI crawler as welcomed."
+    return ["## AI access", "", f"> {body}", ""]
+
+
 def content_hash(text: str) -> str:
     """Return a stable sha256 hex digest for an llms.txt payload."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -177,6 +229,7 @@ def build_llms_txt(
     *,
     top_products: int = 50,
     top_collections: int = 30,
+    prefs: dict[str, Any] | None = None,
 ) -> str:
     """Build a spec-compliant ``llms.txt`` index file.
 
@@ -193,11 +246,20 @@ def build_llms_txt(
     Raises:
         LlmsTxtGenerationError: If the snapshot has no listable page.
     """
+    resolved = resolve_crawler_prefs(prefs)
     domain = shop_domain(shop, snapshot)
     shop_name = _resolve_shop_name(shop, snapshot, business_profile)
     included_products, _ = product_rows(_active_products(snapshot))
     included_collections, _ = collection_rows(_listable_collections(snapshot))
     optional_pages = _optional_pages(snapshot)
+
+    # Content-type filters (merchant-controlled): drop a section entirely when off.
+    if not resolved["include_products"]:
+        included_products = []
+    if not resolved["include_collections"]:
+        included_collections = []
+    if not resolved["include_pages"]:
+        optional_pages = []
 
     included_products = included_products[:top_products]
     included_collections = included_collections[:top_collections]
@@ -220,6 +282,8 @@ def build_llms_txt(
     )
 
     lines = [f"# {shop_name}", "", f"> {summary}", ""]
+
+    lines.extend(_ai_access_lines(resolved))
 
     lines.append("## Policies")
     for path, title in POLICY_PATHS:
@@ -265,11 +329,17 @@ def build_llms_txt(
 def _full_sections(
     domain: str,
     snapshot: dict[str, Any],
+    prefs: dict[str, Any] | None = None,
 ) -> list[tuple[str, str]]:
     """Return (heading, body) markdown blocks for every listable page."""
+    resolved = resolve_crawler_prefs(prefs)
     sections: list[tuple[str, str]] = []
     included_products, _ = product_rows(_active_products(snapshot))
     included_collections, _ = collection_rows(_listable_collections(snapshot))
+    if not resolved["include_products"]:
+        included_products = []
+    if not resolved["include_collections"]:
+        included_collections = []
     product_by_handle = {
         str(p.get("handle") or "").strip(): p for p in _active_products(snapshot)
     }
@@ -294,7 +364,7 @@ def _full_sections(
         heading = f"## {row['title']}\n{absolute_url(domain, row['path'])}"
         sections.append((heading, body))
 
-    for page in _optional_pages(snapshot):
+    for page in (_optional_pages(snapshot) if resolved["include_pages"] else []):
         body = strip_html(
             next(
                 (
@@ -342,13 +412,16 @@ def build_llms_full_txt(
     business_profile: dict[str, Any] | None = None,
     *,
     budget_bytes: int = DEFAULT_FULL_BUDGET_BYTES,
+    prefs: dict[str, Any] | None = None,
 ) -> str:
     """Build a spec-compliant ``llms-full.txt`` file within a byte budget.
 
     Raises:
         LlmsTxtGenerationError: If the snapshot has no listable page.
     """
-    text, _ = _build_full_with_omitted(shop, snapshot, business_profile, budget_bytes=budget_bytes)
+    text, _ = _build_full_with_omitted(
+        shop, snapshot, business_profile, budget_bytes=budget_bytes, prefs=prefs
+    )
     return text
 
 
@@ -358,16 +431,22 @@ def _build_full_with_omitted(
     business_profile: dict[str, Any] | None,
     *,
     budget_bytes: int,
+    prefs: dict[str, Any] | None = None,
 ) -> tuple[str, int]:
+    resolved = resolve_crawler_prefs(prefs)
     domain = shop_domain(shop, snapshot)
     shop_name = _resolve_shop_name(shop, snapshot, business_profile)
-    sections = _full_sections(domain, snapshot)
+    sections = _full_sections(domain, snapshot, resolved)
     if not sections:
         raise LlmsTxtGenerationError(
             "Snapshot contains no product, collection, or page content for llms-full.txt."
         )
     included_products, _ = product_rows(_active_products(snapshot))
     included_collections, _ = collection_rows(_listable_collections(snapshot))
+    if not resolved["include_products"]:
+        included_products = []
+    if not resolved["include_collections"]:
+        included_collections = []
     summary = _summary_line(
         shop_name,
         snapshot,
@@ -382,6 +461,8 @@ def build_agents_md(
     shop: str,
     snapshot: dict[str, Any],
     business_profile: dict[str, Any] | None = None,
+    *,
+    prefs: dict[str, Any] | None = None,
 ) -> str:
     """Build the ``agents.md`` discovery file.
 
@@ -393,7 +474,7 @@ def build_agents_md(
     Raises:
         LlmsTxtGenerationError: If the snapshot has no listable page.
     """
-    return build_llms_txt(shop, snapshot, business_profile)
+    return build_llms_txt(shop, snapshot, business_profile, prefs=prefs)
 
 
 def build_llms_payload(
@@ -402,16 +483,24 @@ def build_llms_payload(
     business_profile: dict[str, Any] | None = None,
     *,
     budget_bytes: int = DEFAULT_FULL_BUDGET_BYTES,
+    prefs: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the three files plus summary metadata and warnings for the API layer."""
-    llms_txt = build_llms_txt(shop, snapshot, business_profile)
-    agents_md = build_agents_md(shop, snapshot, business_profile)
+    resolved = resolve_crawler_prefs(prefs)
+    llms_txt = build_llms_txt(shop, snapshot, business_profile, prefs=resolved)
+    agents_md = build_agents_md(shop, snapshot, business_profile, prefs=resolved)
     llms_full_txt, omitted = _build_full_with_omitted(
-        shop, snapshot, business_profile, budget_bytes=budget_bytes
+        shop, snapshot, business_profile, budget_bytes=budget_bytes, prefs=resolved
     )
     included_products, _ = product_rows(_active_products(snapshot))
     included_collections, _ = collection_rows(_listable_collections(snapshot))
     optional_pages = _optional_pages(snapshot)
+    if not resolved["include_products"]:
+        included_products = []
+    if not resolved["include_collections"]:
+        included_collections = []
+    if not resolved["include_pages"]:
+        optional_pages = []
 
     warnings: list[str] = []
     if not included_products:
@@ -441,5 +530,6 @@ def build_llms_payload(
             "omitted_full_pages": omitted,
             "dry_run": True,
         },
+        "crawler_prefs": resolved,
         "warnings": warnings,
     }

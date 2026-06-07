@@ -135,7 +135,9 @@ const FR: Dictionary = {
   hubContentSubtitle: "Générez et validez le contenu utile sans entrer dans les outils techniques.",
   hubInsights: "Mesure",
   hubInsightsSubtitle: "Suivez l'impact et les prochaines décisions à prendre.",
-  dashboardZone1Title: "État de votre boutique",
+  dashboardZone1Title: "GEO Score — visibilité IA & SEO",
+  dashboardZone1Explain:
+    "Une note unique (0–100) qui mesure à quel point votre boutique est prête à être comprise et citée par Google et les moteurs IA.",
   dashboardZone1Niche: "Ce que l'IA a compris de votre boutique",
   dashboardZone1NicheUnvalidated: "L'IA n'a pas encore analysé votre boutique.",
   dashboardZone1Cta: "Voir ce que l'IA a compris",
@@ -606,6 +608,19 @@ const FR: Dictionary = {
   llmsTxtDisabledTitle: "Publication sur le thème désactivée",
   llmsTxtDisabledBody:
     "Le mode actuel n'autorise pas l'écriture sur le thème. Vous pouvez prévisualiser et exporter les fichiers, mais pas les publier.",
+  llmsTxtPrefsTitle: "Préférences crawlers IA",
+  llmsTxtPrefsIntro:
+    "Choisissez ce que les moteurs IA voient dans vos fichiers IA.",
+  llmsTxtPrefsProducts: "Inclure les produits",
+  llmsTxtPrefsCollections: "Inclure les collections",
+  llmsTxtPrefsPages: "Inclure les pages",
+  llmsTxtPrefsAgents: "Crawlers IA bienvenus",
+  llmsTxtPrefsAgentsNote:
+    "Indicatif : pour bloquer réellement un robot, modifiez votre robots.txt. Ici, vous exprimez une préférence dans vos fichiers IA.",
+  llmsTxtPrefsSave: "Enregistrer les préférences",
+  llmsTxtPrefsSaved: "Préférences enregistrées.",
+  aiVisibilityNote:
+    "La présence dans les moteurs IA (ChatGPT, Perplexity, Gemini) n'est jamais garantie ; il s'agit d'un signal mesuré, pas d'une promesse. La mesure automatique arrivera dans une prochaine version.",
   llmsTxtWarnings: "Points d'attention",
   llmsTxtError: "Une erreur est survenue. Réessayez dans quelques instants.",
   llmsTxtNoSnapshot:
@@ -745,7 +760,9 @@ const EN: Dictionary = {
   hubContentSubtitle: "Generate and validate useful content without entering technical tools.",
   hubInsights: "Measure",
   hubInsightsSubtitle: "Track impact and the next decisions to take.",
-  dashboardZone1Title: "Your store's health",
+  dashboardZone1Title: "GEO Score — AI & SEO readiness",
+  dashboardZone1Explain:
+    "A single 0–100 score for how ready your store is to be understood and cited by Google and AI engines.",
   dashboardZone1Niche: "What the AI understood about your store",
   dashboardZone1NicheUnvalidated: "The AI has not yet analyzed your store.",
   dashboardZone1Cta: "See what the AI understood",
@@ -1216,6 +1233,18 @@ const EN: Dictionary = {
   llmsTxtDisabledTitle: "Theme publishing is disabled",
   llmsTxtDisabledBody:
     "The current mode does not allow theme writes. You can preview and export the files, but not publish them.",
+  llmsTxtPrefsTitle: "AI crawler preferences",
+  llmsTxtPrefsIntro: "Choose what AI engines see in your AI files.",
+  llmsTxtPrefsProducts: "Include products",
+  llmsTxtPrefsCollections: "Include collections",
+  llmsTxtPrefsPages: "Include pages",
+  llmsTxtPrefsAgents: "Welcomed AI crawlers",
+  llmsTxtPrefsAgentsNote:
+    "Advisory: to truly block a bot, edit your robots.txt. Here you express a preference inside your AI files.",
+  llmsTxtPrefsSave: "Save preferences",
+  llmsTxtPrefsSaved: "Preferences saved.",
+  aiVisibilityNote:
+    "Presence in AI engines (ChatGPT, Perplexity, Gemini) is never guaranteed; it is a measured signal, not a promise. Automatic measurement is coming in a future version.",
   llmsTxtWarnings: "Things to review",
   llmsTxtError: "Something went wrong. Please try again in a moment.",
   llmsTxtNoSnapshot: "Run a store audit first to generate the files.",
