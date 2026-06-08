@@ -163,6 +163,7 @@ class BlogPublisher:
         tags: list[str] | None = None,
         author_name: str = "",
         image_url: str | None = None,
+        image_alt: str | None = None,
     ) -> dict[str, Any]:
         """Create the article as ``isPublished=false`` (draft) so the merchant reviews first."""
         article: dict[str, Any] = {
@@ -177,7 +178,10 @@ class BlogPublisher:
             article["tags"] = list(tags)
         article["author"] = {"name": author_name or "Author"}
         if image_url:
-            article["image"] = {"url": image_url}
+            image: dict[str, Any] = {"url": image_url}
+            if image_alt:
+                image["altText"] = image_alt
+            article["image"] = image
 
         data = self._post(_CREATE_ARTICLE_MUTATION, {"article": article})
         _raise_for_graphql_errors(data, "articleCreate")
