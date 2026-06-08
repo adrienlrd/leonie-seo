@@ -429,6 +429,21 @@ _SQLITE_DDL = [
         require_approval_for_medium_risk  INTEGER NOT NULL DEFAULT 1,
         updated_at                        TEXT NOT NULL
     )""",
+    # Daily GEO agent automation schedule, one row per shop. Orchestrates
+    # run_learning_cycle(); the mode lives in merchant_learning_settings.
+    """CREATE TABLE IF NOT EXISTS agent_schedule_settings (
+        shop         TEXT PRIMARY KEY,
+        enabled      INTEGER NOT NULL DEFAULT 0,
+        mode         TEXT NOT NULL DEFAULT 'semi_auto',
+        frequency    TEXT NOT NULL DEFAULT 'daily',
+        local_time   TEXT NOT NULL DEFAULT '08:00',
+        timezone     TEXT NOT NULL DEFAULT 'Europe/Paris',
+        next_run_at  TEXT,
+        last_run_at  TEXT,
+        last_run_id  INTEGER,
+        test_run_at  TEXT,
+        updated_at   TEXT NOT NULL
+    )""",
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
@@ -812,6 +827,19 @@ _PG_DDL = [
         min_confidence_to_suggest         INTEGER NOT NULL DEFAULT 45,
         require_approval_for_medium_risk  BOOLEAN NOT NULL DEFAULT TRUE,
         updated_at                        TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS agent_schedule_settings (
+        shop         TEXT PRIMARY KEY,
+        enabled      BOOLEAN NOT NULL DEFAULT FALSE,
+        mode         TEXT NOT NULL DEFAULT 'semi_auto',
+        frequency    TEXT NOT NULL DEFAULT 'daily',
+        local_time   TEXT NOT NULL DEFAULT '08:00',
+        timezone     TEXT NOT NULL DEFAULT 'Europe/Paris',
+        next_run_at  TEXT,
+        last_run_at  TEXT,
+        last_run_id  INTEGER,
+        test_run_at  TEXT,
+        updated_at   TEXT NOT NULL
     )""",
 ]
 

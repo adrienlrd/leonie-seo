@@ -204,6 +204,96 @@ def create_due_observations(
     return created, skipped
 
 
+def diagnose_cycle_outcome(
+    *,
+    learning_enabled: bool,
+    continuous_result: dict[str, Any] | None,
+    cycle_errors: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Explain, in plain language, why a cycle produced (or not) proposals.
+
+    Makes the "0 proposals" case understandable instead of silent: covers
+    learning disabled, missing market analysis, nothing eligible to optimize,
+    and per-candidate generation failures.
+    """
+    if not learning_enabled:
+        return {
+            "reason": "learning_disabled",
+            "proposals": 0,
+            "fr": "L'agent learning est désactivé dans les réglages : aucun cycle d'amélioration "
+            "n'a été exécuté. Activez le learning (ou l'agent quotidien) pour générer des "
+            "propositions.",
+            "en": "The learning agent is disabled in settings: no improvement cycle ran. Enable "
+            "learning (or the daily agent) to generate proposals.",
+        }
+
+    for error in cycle_errors:
+        message = str(error.get("error") or "")
+        if error.get("stage") == "continuous_agent" and "market analysis" in message.lower():
+            return {
+                "reason": "no_market_analysis",
+                "proposals": 0,
+                "fr": "Aucune analyse de marché n'est disponible. Lancez d'abord une Analyse "
+                "marché : l'agent s'appuie dessus pour proposer des optimisations.",
+                "en": "No market analysis is available. Run a Market analysis first: the agent "
+                "relies on it to propose optimizations.",
+            }
+
+    if continuous_result is None:
+        return {
+            "reason": "agent_not_run",
+            "proposals": 0,
+            "fr": "L'agent d'amélioration n'a pas pu s'exécuter. Consultez les erreurs du cycle.",
+            "en": "The improvement agent could not run. Check the cycle errors.",
+        }
+
+    summary = continuous_result.get("summary") or {}
+    proposals = int(summary.get("proposals_created") or 0)
+    if proposals > 0:
+        return {
+            "reason": "ok",
+            "proposals": proposals,
+            "fr": f"{proposals} proposition(s) générée(s).",
+            "en": f"{proposals} proposal(s) generated.",
+        }
+    if int(summary.get("products_seen") or 0) == 0:
+        return {
+            "reason": "no_products",
+            "proposals": 0,
+            "fr": "Aucun produit exploitable dans l'analyse de marché. Régénérez l'analyse pour "
+            "obtenir des produits avec tags et éléments à améliorer.",
+            "en": "No usable products in the market analysis. Re-run the analysis to get products "
+            "with tags and improvement elements.",
+        }
+    if int(summary.get("candidate_actions") or 0) == 0:
+        return {
+            "reason": "no_candidates",
+            "proposals": 0,
+            "fr": "Aucune action candidate : tous les éléments éligibles (meta-titre, "
+            "meta-description, description) semblent déjà optimisés et aucun tag négatif ne "
+            "justifie une réécriture. Relancez une Analyse marché pour détecter de nouvelles "
+            "opportunités.",
+            "en": "No candidate action: all eligible elements (meta title, meta description, "
+            "description) already look optimized and no negative tag warrants a rewrite. Re-run a "
+            "Market analysis to surface new opportunities.",
+        }
+    if continuous_result.get("errors"):
+        return {
+            "reason": "all_candidates_failed",
+            "proposals": 0,
+            "fr": "Des candidats existaient mais toutes les générations ont échoué. Consultez les "
+            "erreurs détaillées (clé LLM, faits manquants, quotas).",
+            "en": "Candidates existed but every generation failed. Check the detailed errors "
+            "(LLM key, missing facts, quotas).",
+        }
+    return {
+        "reason": "no_proposals",
+        "proposals": 0,
+        "fr": "Aucune proposition générée pour ce cycle.",
+        "en": "No proposal was generated for this cycle.",
+    }
+
+
 def run_learning_cycle(
     shop: str,
     *,
@@ -224,6 +314,7 @@ def run_learning_cycle(
     auto_applied_count = 0
     errors: list[dict[str, Any]] = []
     continuous_result: dict[str, Any] | None = None
+    learning_enabled = True
     status = "completed"
     try:
         observations, _skipped = create_due_observations(shop, db_path=db_path)
@@ -236,6 +327,7 @@ def run_learning_cycle(
 
     try:
         settings = get_settings(shop, db_path=db_path)
+        learning_enabled = settings.enabled
         token = access_token
         if token is None:
             record = get_token(shop, db_path=db_path)
@@ -260,6 +352,12 @@ def run_learning_cycle(
         status = "completed_with_errors"
         errors.append({"stage": "continuous_agent", "error": str(exc)})
 
+    diagnostics = diagnose_cycle_outcome(
+        learning_enabled=learning_enabled,
+        continuous_result=continuous_result,
+        cycle_errors=errors,
+    )
+
     run_id = record_run(
         shop=shop,
         status=status,
@@ -281,6 +379,7 @@ def run_learning_cycle(
         "approvals_created": approvals_created,
         "auto_applied_count": auto_applied_count,
         "errors": errors,
+        "diagnostics": diagnostics,
         "continuous_agent": continuous_result,
     }
 

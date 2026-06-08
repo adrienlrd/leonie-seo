@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useFetcher, useLoaderData } from "@remix-run/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Badge,
   Banner,
@@ -145,11 +145,53 @@ interface LearningApprovalsData {
   approvals: LearningApproval[];
 }
 
+interface AgentScheduleData {
+  enabled: boolean;
+  mode: "semi_auto" | "auto_apply";
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_run_id: number | null;
+  test_run_at: string | null;
+  schedule: {
+    frequency: string;
+    local_time: string;
+    timezone: string;
+  };
+}
+
+type EffectivenessVerdict = "improving" | "regressing" | "no_effect" | "inconclusive";
+
+interface EffectivenessRecommendation {
+  code: string;
+  severity: "critical" | "warning" | "info" | "success";
+  fr: string;
+  en: string;
+}
+
+interface AgentEffectivenessData {
+  overall_verdict: string;
+  sample_size: number;
+  avg_confidence: number;
+  seo: { verdict: EffectivenessVerdict; score: number; sample: number };
+  geo: { verdict: EffectivenessVerdict; score: number; sample: number };
+  by_field: Array<{
+    field: string;
+    sample: number;
+    seo_score: number;
+    geo_score: number;
+    avg_outcome: number;
+  }>;
+  recommendations: EffectivenessRecommendation[];
+}
+
 interface LoaderData {
   locale: Locale;
+  shop: string;
   data: ContinuousImprovementData | null;
   learning: LearningStatusData | null;
   approvals: LearningApproval[];
+  schedule: AgentScheduleData | null;
+  effectiveness: AgentEffectivenessData | null;
   error: string | null;
 }
 
@@ -157,61 +199,98 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const locale = getLocale(request);
   try {
-    const [resp, learningResp, approvalsResp] = await Promise.all([
-      callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/geo/continuous-improvement?limit=100`,
-        { accessToken: session.accessToken },
-      ),
-      callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/learning/status`,
-        { accessToken: session.accessToken },
-      ),
-      callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/learning/pending-approvals?limit=100`,
-        { accessToken: session.accessToken },
-      ),
-    ]);
+    const [resp, learningResp, approvalsResp, scheduleResp, effectivenessResp] =
+      await Promise.all([
+        callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/geo/continuous-improvement?limit=100`,
+          { accessToken: session.accessToken },
+        ),
+        callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/learning/status`,
+          { accessToken: session.accessToken },
+        ),
+        callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/learning/pending-approvals?limit=100`,
+          { accessToken: session.accessToken },
+        ),
+        callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/agent-schedule/status`,
+          { accessToken: session.accessToken },
+        ),
+        callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/agent-schedule/effectiveness`,
+          { accessToken: session.accessToken },
+        ),
+      ]);
     if (!resp.ok) {
       return json<LoaderData>({
         locale,
+        shop: session.shop,
         data: null,
         learning: null,
         approvals: [],
+        schedule: null,
+        effectiveness: null,
         error: await resp.text(),
       });
     }
     return json<LoaderData>({
       locale,
+      shop: session.shop,
       data: (await resp.json()) as ContinuousImprovementData,
       learning: learningResp.ok ? ((await learningResp.json()) as LearningStatusData) : null,
       approvals: approvalsResp.ok
         ? ((await approvalsResp.json()) as LearningApprovalsData).approvals
         : [],
+      schedule: scheduleResp.ok ? ((await scheduleResp.json()) as AgentScheduleData) : null,
+      effectiveness: effectivenessResp.ok
+        ? ((await effectivenessResp.json()) as AgentEffectivenessData)
+        : null,
       error: null,
     });
   } catch (err) {
     return json<LoaderData>({
       locale,
+      shop: session.shop,
       data: null,
       learning: null,
       approvals: [],
+      schedule: null,
+      effectiveness: null,
       error: String(err),
     });
   }
 };
 
+interface CycleDiagnostics {
+  reason: string;
+  proposals: number;
+  fr: string;
+  en: string;
+}
+
 interface ActionResult {
   ok: boolean;
   error: string | null;
   result?: {
-    run_id: number;
-    summary: Record<string, unknown>;
-    proposals: Array<Record<string, unknown>>;
-    errors: Array<Record<string, unknown>>;
+    run_id?: number;
+    status?: string;
+    summary?: Record<string, unknown>;
+    proposals?: Array<Record<string, unknown>>;
+    errors?: Array<Record<string, unknown>>;
+    diagnostics?: CycleDiagnostics;
+    continuous_agent?: {
+      summary?: Record<string, unknown>;
+      proposals?: Array<Record<string, unknown>>;
+      errors?: Array<Record<string, unknown>>;
+    } | null;
   };
+  exportData?: unknown;
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -291,6 +370,56 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     }
 
+    if (intent === "saveAgentSchedule") {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/agent-schedule/settings`,
+        {
+          method: "PUT",
+          accessToken: session.accessToken,
+          body: JSON.stringify({
+            enabled: String(form.get("enabled") ?? "true") === "true",
+            mode: String(form.get("mode") ?? "semi_auto"),
+            frequency: "daily",
+            local_time: String(form.get("local_time") ?? "08:00"),
+          }),
+        },
+      );
+      const data = await resp.json().catch(() => ({}));
+      return json<ActionResult>({
+        ok: resp.ok,
+        error: resp.ok ? null : ((data as { detail?: string }).detail ?? `Backend ${resp.status}`),
+      });
+    }
+
+    if (intent === "disableAgentSchedule" || intent === "testAgentIn5Min") {
+      const endpoint = intent === "disableAgentSchedule" ? "disable" : "test-in-5-min";
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/agent-schedule/${endpoint}`,
+        { method: "POST", accessToken: session.accessToken },
+      );
+      const data = await resp.json().catch(() => ({}));
+      return json<ActionResult>({
+        ok: resp.ok,
+        error: resp.ok ? null : ((data as { detail?: string }).detail ?? `Backend ${resp.status}`),
+      });
+    }
+
+    if (intent === "exportAgentSchedule") {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/agent-schedule/export`,
+        { accessToken: session.accessToken },
+      );
+      const data = await resp.json().catch(() => ({}));
+      return json<ActionResult>({
+        ok: resp.ok,
+        error: resp.ok ? null : `Backend ${resp.status}`,
+        exportData: resp.ok ? data : undefined,
+      });
+    }
+
     if (intent === "bulkApproveSafe") {
       const resp = await callBackendForShop(
         session.shop,
@@ -353,6 +482,38 @@ function statusTone(status: string): "success" | "critical" | "attention" | "inf
   if (status === "measured") return "success";
   if (status === "failed" || status === "rejected") return "critical";
   if (status === "planned") return "attention";
+  return "info";
+}
+
+function verdictTone(verdict: string): "success" | "critical" | "attention" | "info" {
+  if (verdict === "improving") return "success";
+  if (verdict === "regressing") return "critical";
+  if (verdict === "no_effect") return "attention";
+  return "info";
+}
+
+function verdictLabel(verdict: string, locale: Locale): string {
+  const fr: Record<string, string> = {
+    improving: "En amélioration",
+    regressing: "En régression",
+    no_effect: "Sans effet",
+    inconclusive: "Non concluant",
+    partially_improving: "Partiellement en amélioration",
+  };
+  const en: Record<string, string> = {
+    improving: "Improving",
+    regressing: "Regressing",
+    no_effect: "No effect",
+    inconclusive: "Inconclusive",
+    partially_improving: "Partially improving",
+  };
+  return (locale === "fr" ? fr : en)[verdict] ?? verdict;
+}
+
+function recommendationTone(severity: string): "success" | "critical" | "warning" | "info" {
+  if (severity === "success") return "success";
+  if (severity === "critical") return "critical";
+  if (severity === "warning") return "warning";
   return "info";
 }
 
@@ -518,10 +679,82 @@ function ApprovalCard({
   );
 }
 
+function formatDateTime(value: string | null, locale: Locale): string {
+  if (!value) return locale === "fr" ? "—" : "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale === "fr" ? "fr-FR" : "en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
 export default function ContinuousImprovement() {
-  const { locale, data, learning, approvals, error } = useLoaderData<typeof loader>();
+  const { locale, shop, data, learning, approvals, schedule, effectiveness, error } =
+    useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionResult>();
   const busy = fetcher.state !== "idle";
+
+  const scheduleFetcher = useFetcher<ActionResult>();
+  const exportFetcher = useFetcher<ActionResult>();
+  const cycleFetcher = useFetcher<ActionResult>();
+  const scheduleBusy = scheduleFetcher.state !== "idle";
+  const exportBusy = exportFetcher.state !== "idle";
+  const cycleBusy = cycleFetcher.state !== "idle";
+
+  const downloadJson = (payload: unknown, filename: string) => {
+    if (typeof document === "undefined") return;
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
+  const [scheduleMode, setScheduleMode] = useState<"semi_auto" | "auto_apply">(
+    schedule?.mode ?? "semi_auto",
+  );
+  const [scheduleTime, setScheduleTime] = useState(schedule?.schedule.local_time ?? "08:00");
+
+  // Trigger a client-side download once the export payload comes back.
+  useEffect(() => {
+    if (!exportFetcher.data?.ok || exportFetcher.data.exportData === undefined) return;
+    downloadJson(
+      exportFetcher.data.exportData,
+      `leonie-agent-results-${shop}-${new Date().toISOString().slice(0, 10)}.json`,
+    );
+  }, [exportFetcher.data, shop]);
+
+  const enableDailyAgent = () => {
+    const fd = new FormData();
+    fd.set("intent", "saveAgentSchedule");
+    fd.set("enabled", "true");
+    fd.set("mode", scheduleMode);
+    fd.set("local_time", scheduleTime);
+    scheduleFetcher.submit(fd, { method: "post" });
+  };
+
+  const disableDailyAgent = () => {
+    const fd = new FormData();
+    fd.set("intent", "disableAgentSchedule");
+    scheduleFetcher.submit(fd, { method: "post" });
+  };
+
+  const testAgentIn5Min = () => {
+    const fd = new FormData();
+    fd.set("intent", "testAgentIn5Min");
+    scheduleFetcher.submit(fd, { method: "post" });
+  };
+
+  const exportResults = () => {
+    const fd = new FormData();
+    fd.set("intent", "exportAgentSchedule");
+    exportFetcher.submit(fd, { method: "post" });
+  };
 
   const [learningMode, setLearningMode] = useState<"semi_auto" | "auto_apply">(
     learning?.settings.mode ?? "semi_auto",
@@ -550,7 +783,23 @@ export default function ContinuousImprovement() {
     const fd = new FormData();
     fd.set("intent", "runLearningCycle");
     fd.set("confirm_live_write", learningMode === "auto_apply" ? "true" : "false");
-    fetcher.submit(fd, { method: "post" });
+    cycleFetcher.submit(fd, { method: "post" });
+  };
+
+  const downloadCycleResult = () => {
+    if (!cycleFetcher.data?.result) return;
+    downloadJson(
+      cycleFetcher.data.result,
+      `leonie-cycle-${shop}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`,
+    );
+  };
+
+  const downloadAgentResult = () => {
+    if (!fetcher.data?.result) return;
+    downloadJson(
+      fetcher.data.result,
+      `leonie-agent-run-${shop}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`,
+    );
   };
 
   const saveLearningSettings = () => {
@@ -600,7 +849,7 @@ export default function ContinuousImprovement() {
                 </Button>
               </InlineStack>
             </InlineStack>
-            {fetcher.data?.ok && (
+            {fetcher.data?.ok && fetcher.data.result?.diagnostics && (
               <Banner tone="success">
                 <Text as="p">
                   {locale === "fr"
@@ -609,9 +858,188 @@ export default function ContinuousImprovement() {
                 </Text>
               </Banner>
             )}
+            {fetcher.data?.ok
+              && fetcher.data.result?.diagnostics
+              && (fetcher.data.result.proposals?.length ?? 0) === 0 && (
+              <Banner tone="info">
+                <Text as="p">
+                  {locale === "fr"
+                    ? fetcher.data.result.diagnostics.fr
+                    : fetcher.data.result.diagnostics.en}
+                </Text>
+              </Banner>
+            )}
+            {fetcher.data?.ok && fetcher.data.result?.diagnostics && (
+              <InlineStack gap="200">
+                <Button onClick={downloadAgentResult}>
+                  {locale === "fr"
+                    ? "Télécharger le JSON (raisonnement + résultat)"
+                    : "Download JSON (reasoning + result)"}
+                </Button>
+              </InlineStack>
+            )}
             {fetcher.data && !fetcher.data.ok && (
               <Banner tone="warning">
                 <Text as="p">{fetcher.data.error}</Text>
+              </Banner>
+            )}
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="300">
+            <InlineStack align="space-between" blockAlign="center" wrap>
+              <BlockStack gap="050">
+                <Text as="h2" variant="headingMd">
+                  {locale === "fr" ? "Automatisation de l'agent" : "Agent automation"}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {locale === "fr"
+                    ? "Laissez l'agent tourner automatiquement chaque jour. Le test ne fait qu'un seul passage et n'active pas le quotidien."
+                    : "Let the agent run automatically every day. The test runs once and does not enable the daily schedule."}
+                </Text>
+              </BlockStack>
+              <Badge tone={schedule?.enabled ? "success" : "info"}>
+                {schedule?.enabled
+                  ? (locale === "fr" ? "Activé" : "Enabled")
+                  : (locale === "fr" ? "Désactivé" : "Disabled")}
+              </Badge>
+            </InlineStack>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              <Select
+                label={locale === "fr" ? "Mode" : "Mode"}
+                options={[
+                  {
+                    label: locale === "fr"
+                      ? "Semi-automatique — recommandé"
+                      : "Semi-automatic — recommended",
+                    value: "semi_auto",
+                  },
+                  {
+                    label: locale === "fr" ? "Auto-apply — avancé" : "Auto-apply — advanced",
+                    value: "auto_apply",
+                  },
+                ]}
+                value={scheduleMode}
+                onChange={(value) => setScheduleMode(value as "semi_auto" | "auto_apply")}
+              />
+              <Select
+                label={locale === "fr" ? "Fréquence" : "Frequency"}
+                options={[
+                  { label: locale === "fr" ? "Tous les jours" : "Every day", value: "daily" },
+                ]}
+                value="daily"
+                disabled
+                onChange={() => {}}
+              />
+              <TextField
+                label={locale === "fr" ? "Heure locale" : "Local time"}
+                value={scheduleTime}
+                onChange={setScheduleTime}
+                type="time"
+                autoComplete="off"
+              />
+            </div>
+
+            {scheduleMode === "auto_apply" && (
+              <Banner tone="warning">
+                <Text as="p">
+                  {locale === "fr"
+                    ? "Mode auto-apply : l'agent peut appliquer des modifications Shopify automatiquement, dans la limite des garde-fous existants (faible risque + confiance élevée). Le mode semi-automatique reste recommandé."
+                    : "Auto-apply mode: the agent may apply Shopify changes automatically, within existing guardrails (low risk + high confidence). Semi-automatic mode remains recommended."}
+                </Text>
+              </Banner>
+            )}
+
+            <InlineStack gap="200" wrap>
+              <Button variant="primary" loading={scheduleBusy} onClick={enableDailyAgent}>
+                {locale === "fr" ? "Activer l'agent quotidien" : "Enable daily agent"}
+              </Button>
+              <Button tone="critical" loading={scheduleBusy} onClick={disableDailyAgent}>
+                {locale === "fr" ? "Désactiver l'agent" : "Disable agent"}
+              </Button>
+              <Button loading={scheduleBusy} onClick={testAgentIn5Min}>
+                {locale === "fr" ? "Lancer un test dans 5 minutes" : "Run a test in 5 minutes"}
+              </Button>
+              <Button loading={exportBusy} onClick={exportResults}>
+                {locale === "fr" ? "Exporter les résultats" : "Export results"}
+              </Button>
+            </InlineStack>
+
+            <InlineStack gap="300" wrap>
+              <Text as="p" variant="bodySm">
+                <strong>{locale === "fr" ? "Prochain lancement" : "Next run"}:</strong>{" "}
+                {schedule?.enabled
+                  ? formatDateTime(schedule?.next_run_at ?? null, locale)
+                  : (locale === "fr" ? "Désactivé" : "Disabled")}
+              </Text>
+              <Text as="p" variant="bodySm">
+                <strong>{locale === "fr" ? "Dernier lancement" : "Last run"}:</strong>{" "}
+                {formatDateTime(schedule?.last_run_at ?? null, locale)}
+              </Text>
+              {schedule?.test_run_at && (
+                <Text as="p" variant="bodySm">
+                  <strong>{locale === "fr" ? "Test prévu" : "Test scheduled"}:</strong>{" "}
+                  {formatDateTime(schedule.test_run_at, locale)}
+                </Text>
+              )}
+            </InlineStack>
+
+            <div style={{ borderTop: "1px solid #e1e3e5", paddingTop: 12 }}>
+              <BlockStack gap="200">
+                <InlineStack align="space-between" blockAlign="center" wrap>
+                  <Text as="h3" variant="headingSm">
+                    {locale === "fr"
+                      ? "L'agent améliore-t-il le SEO et le GEO ?"
+                      : "Is the agent improving SEO and GEO?"}
+                  </Text>
+                  <InlineStack gap="100">
+                    <Badge tone={verdictTone(effectiveness?.seo.verdict ?? "inconclusive")}>
+                      {`SEO: ${verdictLabel(effectiveness?.seo.verdict ?? "inconclusive", locale)}`}
+                    </Badge>
+                    <Badge tone={verdictTone(effectiveness?.geo.verdict ?? "inconclusive")}>
+                      {`GEO: ${verdictLabel(effectiveness?.geo.verdict ?? "inconclusive", locale)}`}
+                    </Badge>
+                  </InlineStack>
+                </InlineStack>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {locale === "fr"
+                    ? `Basé sur ${effectiveness?.sample_size ?? 0} mesure(s) mûre(s) (J+14/J+28), confiance moyenne ${effectiveness?.avg_confidence ?? 0}/100.`
+                    : `Based on ${effectiveness?.sample_size ?? 0} matured measurement(s) (J+14/J+28), average confidence ${effectiveness?.avg_confidence ?? 0}/100.`}
+                </Text>
+                {(effectiveness?.recommendations ?? []).slice(0, 4).map((rec) => (
+                  <Banner key={rec.code} tone={recommendationTone(rec.severity)}>
+                    <Text as="p" variant="bodySm">{locale === "fr" ? rec.fr : rec.en}</Text>
+                  </Banner>
+                ))}
+                {(effectiveness?.by_field?.length ?? 0) > 0 && (
+                  <InlineStack gap="100" wrap>
+                    {effectiveness?.by_field.slice(0, 6).map((field) => (
+                      <Badge key={field.field} tone={field.avg_outcome >= 0 ? "success" : "critical"}>
+                        {`${field.field}: ${field.avg_outcome >= 0 ? "+" : ""}${field.avg_outcome} (${field.sample})`}
+                      </Badge>
+                    ))}
+                  </InlineStack>
+                )}
+              </BlockStack>
+            </div>
+
+            {scheduleFetcher.data?.ok && (
+              <Banner tone="success">
+                <Text as="p">
+                  {locale === "fr" ? "Automatisation mise à jour." : "Automation updated."}
+                </Text>
+              </Banner>
+            )}
+            {scheduleFetcher.data && !scheduleFetcher.data.ok && (
+              <Banner tone="warning">
+                <Text as="p">{scheduleFetcher.data.error}</Text>
+              </Banner>
+            )}
+            {exportFetcher.data && !exportFetcher.data.ok && (
+              <Banner tone="warning">
+                <Text as="p">{exportFetcher.data.error}</Text>
               </Banner>
             )}
           </BlockStack>
@@ -632,11 +1060,38 @@ export default function ContinuousImprovement() {
                 <Button loading={busy} onClick={saveLearningSettings}>
                   {locale === "fr" ? "Enregistrer" : "Save"}
                 </Button>
-                <Button variant="primary" loading={busy} onClick={runLearningCycle}>
+                <Button variant="primary" loading={cycleBusy} onClick={runLearningCycle}>
                   {locale === "fr" ? "Lancer un cycle maintenant" : "Run cycle now"}
                 </Button>
               </InlineStack>
             </InlineStack>
+            {cycleFetcher.data?.result?.diagnostics && (
+              <Banner
+                tone={
+                  cycleFetcher.data.result.diagnostics.reason === "ok" ? "success" : "info"
+                }
+              >
+                <Text as="p">
+                  {locale === "fr"
+                    ? cycleFetcher.data.result.diagnostics.fr
+                    : cycleFetcher.data.result.diagnostics.en}
+                </Text>
+              </Banner>
+            )}
+            {cycleFetcher.data && !cycleFetcher.data.ok && (
+              <Banner tone="warning">
+                <Text as="p">{cycleFetcher.data.error}</Text>
+              </Banner>
+            )}
+            {cycleFetcher.data?.result && (
+              <InlineStack gap="200">
+                <Button onClick={downloadCycleResult}>
+                  {locale === "fr"
+                    ? "Télécharger le JSON de ce cycle (raisonnement + résultat)"
+                    : "Download this cycle's JSON (reasoning + result)"}
+                </Button>
+              </InlineStack>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
               <Select
                 label={locale === "fr" ? "Statut" : "Status"}

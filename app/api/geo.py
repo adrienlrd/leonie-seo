@@ -293,9 +293,15 @@ async def run_geo_continuous_improvement_agent(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    from app.learning.scheduler import diagnose_cycle_outcome
+
+    diagnostics = diagnose_cycle_outcome(
+        learning_enabled=True, continuous_result=result, cycle_errors=[]
+    )
     return {
         "shop": ctx.shop,
         "available": True,
+        "diagnostics": diagnostics,
         **result,
     }
 
