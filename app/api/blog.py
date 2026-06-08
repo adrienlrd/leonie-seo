@@ -14,12 +14,15 @@ from pydantic import BaseModel, Field
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_writer import ShopifyWriteError
+from app.blog.clusters import build_blog_idea_clusters
 from app.blog.internal_links import (
     build_source_product_link,
     render_internal_links_html,
     select_blog_internal_links,
+    suggest_cluster_links,
     suggest_links_for_article,
 )
+from app.blog.quality import check_keyword_placement
 from app.blog.schema import build_article_jsonld, build_faqpage_jsonld, render_jsonld_blocks
 from app.blog.section_generator import generate_all_sections, generate_section
 from app.blog.shopify_articles import BlogPublisher
@@ -101,6 +104,7 @@ class DraftUpdateRequest(BaseModel):
     author_name: str | None = None
     author_url: str | None = None
     image_url: str | None = None
+    image_alt: str | None = None
 
 
 class LinkSuggestionsRequest(BaseModel):
@@ -108,6 +112,68 @@ class LinkSuggestionsRequest(BaseModel):
     exclude_urls: list[str] = Field(default_factory=list)
 
 
+class IdeaClusterItem(BaseModel):
+    key: str
+    target_keyword: str = ""
+    outline: list[str] = Field(default_factory=list)
+
+
+class IdeaClustersRequest(BaseModel):
+    items: list[IdeaClusterItem] = Field(default_factory=list)
+
+
+def _apply_keyword_check(draft: dict[str, Any]) -> None:
+    """Run the keyword-placement guardrail and attach its result to the draft in-place.
+
+    Advisory only — never blocks generation or persistence. Skipped silently
+    when the draft has no ``target_keyword`` (e.g. blank drafts created from a
+    free-form title).
+    """
+    keyword = str(draft.get("target_keyword") or "").strip()
+    if not keyword:
+        draft.pop("keyword_check", None)
+        return
+    draft["keyword_check"] = check_keyword_placement(
+        title=str(draft.get("blog_title") or ""),
+        intro=str(draft.get("intro") or ""),
+        h2_questions=[str(q) for q in (draft.get("outline") or [])],
+        sections=[s for s in (draft.get("sections") or []) if isinstance(s, dict)],
+        target_keyword=keyword,
+    )
+
+
+def _default_blog_image_alt(title: str, keyword: str) -> str:
+    """Deterministic cover-image alt text: article title plus its target keyword.
+
+    Same convention as ``market_analysis._default_image_alt`` (title + a
+    value-adding keyword, capped at Shopify's ~125-char practical limit) —
+    template-based, no LLM call needed.
+    """
+    base = title.strip()
+    kw = keyword.strip()
+    if kw and kw.lower() not in base.lower():
+        base = f"{base} – {kw}"
+    return base[:125].rstrip()
+
+
+def _apply_image_alt(draft: dict[str, Any]) -> None:
+    """Auto-fill the cover image's alt text the first time an image is set.
+
+    Advisory only — pre-fills a sensible default so the merchant never faces a
+    blank alt-text field, but never overwrites text the merchant already typed
+    (the field stays editable in the draft, like the rest of generated content).
+    Cleared if the image is removed.
+    """
+    image_url = str(draft.get("image_url") or "").strip()
+    if not image_url:
+        draft.pop("image_alt", None)
+        return
+    if str(draft.get("image_alt") or "").strip():
+        return
+    draft["image_alt"] = _default_blog_image_alt(
+        str(draft.get("blog_title") or ""),
+        str(draft.get("target_keyword") or ""),
+    )
 
 
 def _draft_from_product(
@@ -136,6 +202,15 @@ def _draft_from_product(
     blog_title = selected_idea.get("title") or pack.get("proposed_blog_title", "")
     intro = selected_idea.get("intro") or pack.get("proposed_blog_intro", "")
     outline = selected_idea.get("outline") or pack.get("proposed_blog_outline") or []
+    fallback_keyword = next(
+        (
+            str(kw.get("query") or "").strip()
+            for kw in (product.get("seo_keywords") or [])
+            if isinstance(kw, dict) and kw.get("query")
+        ),
+        "",
+    )
+    target_keyword = str(selected_idea.get("target_keyword") or "").strip() or fallback_keyword
     raw_internal_links = [
         link
         for link in [
@@ -155,6 +230,7 @@ def _draft_from_product(
         "product_summary": product.get("product_summary", ""),
         "target_customer": product.get("target_customer", ""),
         "blog_title": blog_title,
+        "target_keyword": target_keyword,
         "intro": intro,
         "summary": (intro or "")[:200],
         "outline": list(outline or []),
@@ -201,6 +277,7 @@ def create_blog_draft(
                 target_customer=draft["target_customer"],
                 shop=ctx.shop,
             )
+            _apply_keyword_check(draft)
     else:
         draft = {
             "product_title": "",
@@ -256,14 +333,37 @@ def get_link_suggestions(
     products = (load_latest_result(ctx.shop) or {}).get("products") or snapshot.get("products") or []
     collections = snapshot.get("collections") or []
     other_drafts = [d for d in list_drafts(ctx.shop) if d.get("id") != draft_id]
+    exclude_urls = set(body.exclude_urls)
+
+    current_draft = get_draft(ctx.shop, draft_id) or {}
+    cluster_links = suggest_cluster_links(
+        current_keyword=str(current_draft.get("target_keyword") or ""),
+        current_outline=list(current_draft.get("outline") or []),
+        other_drafts=other_drafts,
+        exclude_urls=exclude_urls,
+    )
     suggestions = suggest_links_for_article(
         keywords=body.keywords,
         products=products,
         collections=collections,
         other_drafts=other_drafts,
-        exclude_urls=set(body.exclude_urls),
+        exclude_urls=exclude_urls | {link["target_url"] for link in cluster_links},
     )
-    return {"suggestions": suggestions}
+    return {"suggestions": select_blog_internal_links(cluster_links + suggestions)}
+
+
+@router.post("/shops/{shop}/blog/idea-clusters")
+def get_idea_clusters(
+    body: IdeaClustersRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Group submitted blog ideas/drafts into topic clusters with a suggested pillar.
+
+    Pure grouping over the items the client already has (ideas from the latest
+    market analysis, or existing drafts) — no extra LLM or Shopify calls.
+    """
+    clusters = build_blog_idea_clusters([item.model_dump() for item in body.items])
+    return {"clusters": clusters}
 
 
 @router.put("/shops/{shop}/blog/drafts/{draft_id}")
@@ -286,6 +386,10 @@ def update_blog_draft(
             for link in patch["internal_links"]
         ]
     draft.update(patch)
+    if {"blog_title", "intro", "sections"} & set(patch):
+        _apply_keyword_check(draft)
+    if "image_url" in patch:
+        _apply_image_alt(draft)
     return save_draft(ctx.shop, draft)
 
 
@@ -330,6 +434,7 @@ def regenerate_draft_section(
     if not replaced:
         existing.append(section)
     draft["sections"] = existing
+    _apply_keyword_check(draft)
     return save_draft(ctx.shop, draft)
 
 
@@ -468,6 +573,7 @@ def publish_blog_draft(
             tags=draft.get("tags") or [],
             author_name=draft.get("author_name", ""),
             image_url=draft.get("image_url"),
+            image_alt=draft.get("image_alt"),
         )
     except ShopifyWriteError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

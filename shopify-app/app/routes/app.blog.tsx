@@ -36,10 +36,11 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { SaveBar } from "@shopify/app-bridge-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, type Locale } from "../lib/i18n";
+import { scoreTone } from "../lib/marketAnalysisShared";
 import { authenticate } from "../shopify.server";
 
 interface Section { h2: string; direct_answer: string; body: string }
@@ -49,11 +50,19 @@ interface InternalLink {
   target_title?: string;
   reason?: string;
 }
+interface KeywordCheck {
+  ok: boolean;
+  score: number;
+  label: string;
+  issues: string[];
+}
 interface Draft {
   id: string;
   product_id?: string;
   product_title: string;
   blog_title: string;
+  target_keyword?: string;
+  keyword_check?: KeywordCheck;
   intro: string;
   summary?: string;
   sections: Section[];
@@ -63,6 +72,8 @@ interface Draft {
   author_type?: "Organization" | "Person";
   author_name?: string;
   author_url?: string | null;
+  image_url?: string;
+  image_alt?: string;
   confirmed_facts?: Array<{ key: string; value: string }>;
   target_customer?: string;
   product_summary?: string;
@@ -91,6 +102,7 @@ interface LoaderData {
   prefillTitle: string | null;
   prefillCluster: string | null;
   blogIdeas: BlogIdeaFlat[];
+  pillarIdeaKeys: string[];
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -147,6 +159,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   } catch { /* analysis not available yet */ }
 
+  // Group ideas sharing a similar target keyword and flag a suggested pillar
+  let pillarIdeaKeys: string[] = [];
+  if (blogIdeas.length > 1) {
+    try {
+      const clustersRes = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/blog/idea-clusters`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: JSON.stringify({
+            items: blogIdeas.map((idea) => ({
+              key: `${idea.product_id}:${idea.idea_index}`,
+              target_keyword: idea.target_keyword,
+              outline: idea.outline,
+            })),
+          }),
+        },
+      );
+      if (clustersRes.ok) {
+        const data = (await clustersRes.json()) as { clusters?: Array<{ pillar_key?: string }> };
+        pillarIdeaKeys = (data.clusters ?? []).map((c) => c.pillar_key ?? "").filter(Boolean);
+      }
+    } catch { /* clustering is advisory only */ }
+  }
+
   return json<LoaderData>({
     locale,
     shop: session.shop,
@@ -156,6 +194,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     prefillTitle,
     prefillCluster,
     blogIdeas,
+    pillarIdeaKeys,
   });
 };
 
@@ -385,11 +424,29 @@ function serializeEditableDraft(d: Draft | null): string {
     author_type: d.author_type ?? "Organization",
     author_name: d.author_name ?? "",
     author_url: d.author_url ?? null,
+    image_url: d.image_url ?? "",
+    image_alt: d.image_alt ?? "",
   });
 }
 
+function linkReasonBadge(reason: string, fr: boolean): { tone: "info" | "success" | "attention"; label: string } {
+  switch (reason) {
+    case "related_article":
+      return { tone: "info", label: fr ? "Article" : "Article" };
+    case "collection_parent":
+      return { tone: "success", label: fr ? "Collection" : "Collection" };
+    case "cluster_pillar":
+      return { tone: "success", label: fr ? "Article pilier" : "Pillar article" };
+    case "cluster_sibling":
+      return { tone: "info", label: fr ? "Article satellite" : "Cluster article" };
+    default:
+      return { tone: "attention", label: fr ? "Produit" : "Product" };
+  }
+}
+
 export default function BlogIndexPage() {
-  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas } = useLoaderData<typeof loader>();
+  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas, pillarIdeaKeys } = useLoaderData<typeof loader>();
+  const pillarIdeaKeySet = useMemo(() => new Set(pillarIdeaKeys), [pillarIdeaKeys]);
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
   const navigate = useNavigate();
@@ -464,6 +521,8 @@ export default function BlogIndexPage() {
           author_type: draft.author_type ?? "Organization",
           author_name: draft.author_name ?? "",
           author_url: draft.author_url ?? null,
+          image_url: draft.image_url ?? "",
+          image_alt: draft.image_alt ?? "",
         }),
       },
       { method: "post" },
@@ -709,6 +768,7 @@ export default function BlogIndexPage() {
                             </Text>
                             {ideas.map((idea) => {
                               const isActive = selectedIdea?.product_id === idea.product_id && selectedIdea?.idea_index === idea.idea_index;
+                              const isPillar = pillarIdeaKeySet.has(`${idea.product_id}:${idea.idea_index}`);
                               return (
                                 <div
                                   key={`${pid}-${idea.idea_index}`}
@@ -724,9 +784,16 @@ export default function BlogIndexPage() {
                                     marginBottom: 2,
                                   }}
                                 >
-                                  <Text as="span" variant="bodySm" fontWeight={isActive ? "semibold" : "regular"}>
-                                    {idea.title || (fr ? "(sans titre)" : "(untitled)")}
-                                  </Text>
+                                  <InlineStack gap="150" blockAlign="center">
+                                    <Text as="span" variant="bodySm" fontWeight={isActive ? "semibold" : "regular"}>
+                                      {idea.title || (fr ? "(sans titre)" : "(untitled)")}
+                                    </Text>
+                                    {isPillar && (
+                                      <Badge tone="success" size="small">
+                                        {fr ? "Pilier suggéré" : "Suggested pillar"}
+                                      </Badge>
+                                    )}
+                                  </InlineStack>
                                 </div>
                               );
                             })}
@@ -827,6 +894,37 @@ export default function BlogIndexPage() {
                   </Banner>
                 )}
 
+                {draft.keyword_check && (
+                  <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                    <BlockStack gap="150">
+                      <InlineStack gap="200" blockAlign="center">
+                        <Text as="h3" variant="headingSm">
+                          {fr ? "Vérification mot-clé" : "Keyword check"}
+                        </Text>
+                        {draft.target_keyword && <Badge tone="info">{draft.target_keyword}</Badge>}
+                        <Badge tone={scoreTone(draft.keyword_check.score)}>
+                          {`${draft.keyword_check.score}/100`}
+                        </Badge>
+                      </InlineStack>
+                      {draft.keyword_check.issues.length > 0 ? (
+                        <BlockStack gap="050">
+                          {draft.keyword_check.issues.map((issue) => (
+                            <Text as="p" variant="bodySm" tone="subdued" key={issue}>
+                              {`• ${issue}`}
+                            </Text>
+                          ))}
+                        </BlockStack>
+                      ) : (
+                        <Text as="p" variant="bodySm" tone="subdued">
+                          {fr
+                            ? "Le mot-clé cible est bien placé (titre, sous-titres, début d'article, densité)."
+                            : "The target keyword is well placed (title, subheadings, opening, density)."}
+                        </Text>
+                      )}
+                    </BlockStack>
+                  </Box>
+                )}
+
                 <Tabs
                   tabs={[
                     { id: "edit", content: fr ? "Édition" : "Edit" },
@@ -851,6 +949,30 @@ export default function BlogIndexPage() {
                       multiline={3}
                       autoComplete="off"
                     />
+
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">{fr ? "Image de couverture" : "Cover image"}</Text>
+                      <TextField
+                        label={fr ? "URL de l'image" : "Image URL"}
+                        value={draft.image_url ?? ""}
+                        onChange={(v) => setDraft((p) => p ? { ...p, image_url: v } : p)}
+                        autoComplete="off"
+                        helpText={fr
+                          ? "Réutilise une image déjà présente sur ta boutique (produit, fichiers Shopify…)."
+                          : "Reuse an image already hosted on your store (product, Shopify files…)."}
+                      />
+                      {draft.image_url && (
+                        <TextField
+                          label={fr ? "Texte alternatif (alt)" : "Alt text"}
+                          value={draft.image_alt ?? ""}
+                          onChange={(v) => setDraft((p) => p ? { ...p, image_alt: v } : p)}
+                          autoComplete="off"
+                          helpText={fr
+                            ? "Pré-rempli automatiquement à partir du titre de l'article — modifiable."
+                            : "Pre-filled automatically from the article title — editable."}
+                        />
+                      )}
+                    </BlockStack>
 
                     {draft.sections.map((section, idx) => (
                       <Card key={`${section.h2}-${idx}`} padding="300">
@@ -1002,26 +1124,20 @@ export default function BlogIndexPage() {
                                 </Text>
                               ) : (
                                 <BlockStack gap="150">
-                                  {(suggestionsFetcher.data?.suggestions ?? []).map((s, i) => (
-                                    <InlineStack key={`${s.target_url}-${i}`} align="space-between" blockAlign="center">
-                                      <BlockStack gap="025">
-                                        <Text as="span" variant="bodySm">{s.target_title || s.anchor}</Text>
-                                        <Badge
-                                          tone={s.reason === "related_article" ? "info" : s.reason === "collection_parent" ? "success" : "attention"}
-                                          size="small"
-                                        >
-                                          {s.reason === "related_article"
-                                            ? (fr ? "Article" : "Article")
-                                            : s.reason === "collection_parent"
-                                              ? (fr ? "Collection" : "Collection")
-                                              : (fr ? "Produit" : "Product")}
-                                        </Badge>
-                                      </BlockStack>
-                                      <Button size="slim" onClick={() => addSuggestedLink(s)}>
-                                        {fr ? "Ajouter" : "Add"}
-                                      </Button>
-                                    </InlineStack>
-                                  ))}
+                                  {(suggestionsFetcher.data?.suggestions ?? []).map((s, i) => {
+                                    const badge = linkReasonBadge(s.reason, fr);
+                                    return (
+                                      <InlineStack key={`${s.target_url}-${i}`} align="space-between" blockAlign="center">
+                                        <BlockStack gap="025">
+                                          <Text as="span" variant="bodySm">{s.target_title || s.anchor}</Text>
+                                          <Badge tone={badge.tone} size="small">{badge.label}</Badge>
+                                        </BlockStack>
+                                        <Button size="slim" onClick={() => addSuggestedLink(s)}>
+                                          {fr ? "Ajouter" : "Add"}
+                                        </Button>
+                                      </InlineStack>
+                                    );
+                                  })}
                                 </BlockStack>
                               )}
                             </BlockStack>
