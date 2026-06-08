@@ -206,9 +206,6 @@ export function ProductContentProposals({
   };
 
   const enrichmentQuestions = editedPack.enrichment_questions ?? [];
-  const canSubmitEnrichment = enrichmentQuestions.some(
-    (question) => (enrichmentAnswers[question.key] ?? "").trim().length > 0,
-  );
 
   // Compact quality warning shown behind a warning icon (sections layout only;
   // the buttons layout renders it next to the product title in the parent).
@@ -655,99 +652,113 @@ export function ProductContentProposals({
 
   const enrichmentBlock = !editMode && hasContent ? (
     <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
-      <BlockStack gap="300">
-        <Text as="p" variant="bodySm" fontWeight="semibold">
-          {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
-        </Text>
-        <Text as="p" variant="bodySm" tone="subdued">
-          {locale === "fr"
-            ? "Vos réponses sont persistées et réinjectées automatiquement dans chaque analyse."
-            : "Your answers are persisted and automatically re-injected into every analysis."}
-        </Text>
+      <BlockStack gap="200">
+        <InlineStack>
+          <Button
+            size="slim"
+            pressed={showEnrichmentQuestions}
+            onClick={() => setShowEnrichmentQuestions((v) => !v)}
+          >
+            {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
+            {activeEnrichmentQuestions.length > 0 ? ` (${activeEnrichmentQuestions.length})` : ""}
+          </Button>
+        </InlineStack>
+        <Collapsible id={`enrichment-${product.product_id}`} open={showEnrichmentQuestions}>
+          <BlockStack gap="300">
+            <Text as="p" variant="bodySm" tone="subdued">
+              {locale === "fr"
+                ? "Vos réponses sont persistées et réinjectées automatiquement dans chaque analyse."
+                : "Your answers are persisted and automatically re-injected into every analysis."}
+            </Text>
 
-        {/* Questions actives — toujours visibles, bouton Retirer inline */}
-        {activeEnrichmentQuestions.map((question) => (
-          <InlineStack key={question.key} align="space-between" blockAlign="start" wrap={false} gap="200">
-            <Box width="100%">
-              <TextField
-                label={question.question}
-                helpText={question.why_it_matters}
-                placeholder={question.placeholder}
-                value={enrichmentAnswers[question.key] ?? ""}
-                onChange={(value) => setEnrichmentAnswers((answers) => ({ ...answers, [question.key]: value }))}
-                autoComplete="off"
-                multiline={2}
-              />
-            </Box>
-            <div style={{ paddingTop: 28, flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-              <Button
-                size="slim"
-                variant="primary"
-                disabled={!(enrichmentAnswers[question.key] ?? "").trim()}
-                onClick={() => handleValidate(question.key)}
-              >
-                {locale === "fr" ? "Valider" : "Save"}
-              </Button>
-              <Button size="slim" variant="plain" tone="critical" onClick={() => handleRetire(question.key)}>
-                {locale === "fr" ? "Retirer" : "Dismiss"}
-              </Button>
-            </div>
-          </InlineStack>
-        ))}
+            {/* Questions actives — toujours visibles, bouton Retirer inline */}
+            {activeEnrichmentQuestions.map((question) => (
+              <InlineStack key={question.key} align="space-between" blockAlign="start" wrap={false} gap="200">
+                <Box width="100%">
+                  <TextField
+                    label={question.question}
+                    helpText={question.why_it_matters}
+                    placeholder={question.placeholder}
+                    value={enrichmentAnswers[question.key] ?? ""}
+                    onChange={(value) => setEnrichmentAnswers((answers) => ({ ...answers, [question.key]: value }))}
+                    autoComplete="off"
+                    multiline={2}
+                  />
+                </Box>
+                <div style={{ paddingTop: 28, flexShrink: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <Button
+                    size="slim"
+                    variant="primary"
+                    disabled={!(enrichmentAnswers[question.key] ?? "").trim()}
+                    onClick={() => handleValidate(question.key)}
+                  >
+                    {locale === "fr" ? "Valider" : "Save"}
+                  </Button>
+                  <Button size="slim" variant="plain" tone="critical" onClick={() => handleRetire(question.key)}>
+                    {locale === "fr" ? "Retirer" : "Dismiss"}
+                  </Button>
+                </div>
+              </InlineStack>
+            ))}
 
-        {activeEnrichmentQuestions.length > 0 && (
-          <InlineStack>
-            <Button
-              variant="primary"
-              loading={isAnalyzing}
-              disabled={!canSubmitEnrichment || analyzeDisabled}
-              onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
-            >
-              {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
-            </Button>
-          </InlineStack>
-        )}
-
-        {/* Déjà complété = retirées + déjà répondues */}
-        {allCompletedQuestions.length > 0 && (
-          <>
-            <Button
-              size="slim"
-              variant="plain"
-              onClick={() => setShowCompletedQuestions((v) => !v)}
-            >
-              {showCompletedQuestions
-                ? (locale === "fr" ? "Masquer" : "Hide")
-                : `${locale === "fr" ? "Déjà complété" : "Already completed"} (${allCompletedQuestions.length})`}
-            </Button>
-            <Collapsible id={`completed-questions-${product.product_id}`} open={showCompletedQuestions}>
-              <BlockStack gap="200">
-                {allCompletedQuestions.map((question) => (
-                  <InlineStack key={question.key} align="space-between" blockAlign="start" wrap>
-                    <BlockStack gap="050">
-                      <Text as="p" variant="bodySm" fontWeight="semibold">{question.question}</Text>
-                      {question.answer && (
-                        <Text as="p" variant="bodySm" tone="subdued">→ {question.answer}</Text>
-                      )}
-                      {!question.answer && (
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          {locale === "fr" ? "Non pertinente" : "Not relevant"}
-                        </Text>
-                      )}
-                    </BlockStack>
-                    {question.is_retired && (
-                      <Button size="slim" variant="plain" onClick={() => handleRestore(question.key)}>
-                        {locale === "fr" ? "Restaurer" : "Restore"}
-                      </Button>
-                    )}
-                  </InlineStack>
-                ))}
-              </BlockStack>
-            </Collapsible>
-          </>
-        )}
+            {/* Déjà complété = retirées + déjà répondues */}
+            {allCompletedQuestions.length > 0 && (
+              <>
+                <Button
+                  size="slim"
+                  variant="plain"
+                  onClick={() => setShowCompletedQuestions((v) => !v)}
+                >
+                  {showCompletedQuestions
+                    ? (locale === "fr" ? "Masquer" : "Hide")
+                    : `${locale === "fr" ? "Déjà complété" : "Already completed"} (${allCompletedQuestions.length})`}
+                </Button>
+                <Collapsible id={`completed-questions-${product.product_id}`} open={showCompletedQuestions}>
+                  <BlockStack gap="200">
+                    {allCompletedQuestions.map((question) => (
+                      <InlineStack key={question.key} align="space-between" blockAlign="start" wrap>
+                        <BlockStack gap="050">
+                          <Text as="p" variant="bodySm" fontWeight="semibold">{question.question}</Text>
+                          {question.answer && (
+                            <Text as="p" variant="bodySm" tone="subdued">→ {question.answer}</Text>
+                          )}
+                          {!question.answer && (
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {locale === "fr" ? "Non pertinente" : "Not relevant"}
+                            </Text>
+                          )}
+                        </BlockStack>
+                        {question.is_retired && (
+                          <Button size="slim" variant="plain" onClick={() => handleRestore(question.key)}>
+                            {locale === "fr" ? "Restaurer" : "Restore"}
+                          </Button>
+                        )}
+                      </InlineStack>
+                    ))}
+                  </BlockStack>
+                </Collapsible>
+              </>
+            )}
+          </BlockStack>
+        </Collapsible>
       </BlockStack>
     </Box>
+  ) : null;
+
+  // Sole single-product analyze action — replaces the old "Analyze this product"
+  // button. Always available (not gated on having enrichment questions): it saves
+  // whatever draft answers exist, then relaunches and persists the analysis.
+  const regenerateAction = !editMode ? (
+    <InlineStack>
+      <Button
+        variant="primary"
+        loading={isAnalyzing}
+        disabled={analyzeDisabled}
+        onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
+      >
+        {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
+      </Button>
+    </InlineStack>
   ) : null;
 
   // Transparency: where each targeted keyword comes from and where it is used.
@@ -827,6 +838,7 @@ export function ProductContentProposals({
       <BlockStack gap="200">
         {saveError}
         {successBanner}
+        {regenerateAction}
         {enrichmentBlock}
         <InlineStack gap="150" wrap>
           {keywordSourcesPanel && (
@@ -882,6 +894,7 @@ export function ProductContentProposals({
       <InlineStack gap="200" align="end">{editButtons}</InlineStack>
       {saveError}
       {successBanner}
+      {regenerateAction}
       {warningIcon}
       {keywordSourcesPanel}
       {enrichmentBlock}

@@ -1083,16 +1083,18 @@ function ActiveProductsCard({
                           </Tooltip>
                         )}
                       </InlineStack>
-                      {analyzingThis ? (
-                        <Spinner size="small" />
-                      ) : (
-                        <Button
-                          size="slim"
-                          onClick={() => onAnalyzeProduct(product.id)}
-                          disabled={isAnalyzingSingle}
-                        >
-                          {t(locale, "dashboardAnalyseProduct")}
-                        </Button>
+                      {!pack && (
+                        analyzingThis ? (
+                          <Spinner size="small" />
+                        ) : (
+                          <Button
+                            size="slim"
+                            onClick={() => onAnalyzeProduct(product.id)}
+                            disabled={isAnalyzingSingle}
+                          >
+                            {t(locale, "dashboardAnalyseProduct")}
+                          </Button>
+                        )
                       )}
                     </InlineStack>
                     {pack && (

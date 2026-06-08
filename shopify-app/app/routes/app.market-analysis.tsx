@@ -1224,7 +1224,6 @@ function ProductCard({
   locale,
   shop,
   isAnalyzing,
-  onAnalyze,
   onEnrichAndAnalyze,
   analyzeDisabled,
 }: {
@@ -1232,7 +1231,6 @@ function ProductCard({
   locale: Locale;
   shop: string;
   isAnalyzing: boolean;
-  onAnalyze: () => void;
   onEnrichAndAnalyze: (answers: Record<string, string>) => void;
   analyzeDisabled: boolean;
 }) {
@@ -1475,13 +1473,7 @@ function ProductCard({
             {product.business_profile_context_status === "unknown" && (
               <Badge tone="attention">{t(locale, "marketAnalysisProfileContextUnknownBadge")}</Badge>
             )}
-            {isAnalyzing ? (
-              <Spinner size="small" />
-            ) : (
-              <Button size="slim" onClick={onAnalyze} disabled={analyzeDisabled}>
-                {t(locale, "marketAnalysisAnalyzeOne")}
-              </Button>
-            )}
+            {isAnalyzing && <Spinner size="small" />}
             {checkedApplyFields.size > 0 && (
               <Button size="slim" variant="primary" loading={applyLoading} onClick={handleApplyProposals}>
                 {fr ? "Valider les propositions" : "Apply proposals"}
@@ -2770,7 +2762,6 @@ export default function MarketAnalysisPage() {
                         locale={locale}
                         shop={shop}
                         isAnalyzing={singleProductId === product.product_id && isSingleRunning}
-                        onAnalyze={() => handleAnalyzeSingle(product.product_id)}
                         onEnrichAndAnalyze={(answers) => handleEnrichAndAnalyze(product.product_id, answers)}
                         analyzeDisabled={isSingleRunning || isInProgress}
                       />
