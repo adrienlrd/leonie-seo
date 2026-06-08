@@ -64,7 +64,7 @@ def _build_prompt(
         "RÈGLES STRICTES :\n"
         "1. direct_answer : 40-60 mots, répond DIRECTEMENT au H2 dès la première phrase. "
         "Format extractible (préférable pour les featured snippets et les citations LLM).\n"
-        "2. body : 150-300 mots. Paragraphes de 2-3 phrases max. Liste à puces (3-5 items) "
+        "2. body : 220-320 mots. Paragraphes de 2-3 phrases max. Liste à puces (3-5 items) "
         "quand c'est pertinent. Vocabulaire stable, pas de répétition du mot-clé principal.\n"
         "3. claims_used : liste d'objets {claim, fact_keys}. Chaque affirmation factuelle "
         "vérifiable DOIT pointer vers une ou plusieurs clés présentes dans les FAITS CONFIRMÉS. "

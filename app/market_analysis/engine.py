@@ -3455,6 +3455,7 @@ def _default_blog_outline(keyword: str) -> list[str]:
         f"Comprendre l'intention derrière {label}",
         f"Quand {label} est pertinent",
         "Les critères à vérifier avant de choisir",
+        "Les erreurs courantes à éviter",
         "Les faits produit à confirmer",
         "Questions fréquentes des clients",
     ]
