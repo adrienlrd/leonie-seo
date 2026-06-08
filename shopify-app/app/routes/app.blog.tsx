@@ -456,23 +456,31 @@ export default function BlogIndexPage() {
 
   // Editable copy of the selected draft.
   const [draft, setDraft] = useState<Draft | null>(selected);
-  useEffect(() => { setDraft(selected); }, [selected?.id]);
+  // 0 = édition, 1 = aperçu — saving auto-switches to preview so the merchant
+  // immediately sees the cleanly-rendered article; switching drafts goes back
+  // to édition so every editable field (incl. cover image) is reachable.
+  const [tabIndex, setTabIndex] = useState(0);
+  const [selectedIdea, setSelectedIdea] = useState<BlogIdeaFlat | null>(null);
+  useEffect(() => {
+    setDraft(selected);
+    setTabIndex(0);
+    // Generating from an idea redirects to ?draft={newId} — switch the panel
+    // over to the freshly generated draft instead of staying stuck on the idea card.
+    setSelectedIdea(null);
+  }, [selected?.id]);
 
   const fetcher = useFetcher<typeof action>();
   const blogsFetcher = useFetcher<{ ok?: boolean; blogs?: Array<{ id: string; handle: string; title: string }> }>();
   const articlesFetcher = useFetcher<ActionResult>();
   const suggestionsFetcher = useFetcher<ActionResult>();
   const isBusy = fetcher.state !== "idle";
+  const isGeneratingArticle = navigation.state !== "idle" && navigation.formData?.get("intent") === "createFromProduct";
   const [showArticlePicker, setShowArticlePicker] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
-  const [selectedIdea, setSelectedIdea] = useState<BlogIdeaFlat | null>(null);
   const [showPublished, setShowPublished] = useState(true);
   const [showIdeas, setShowIdeas] = useState(true);
-  // 0 = édition, 1 = aperçu — saving auto-switches to preview so the merchant
-  // immediately sees the cleanly-rendered article.
-  const [tabIndex, setTabIndex] = useState(0);
 
   useEffect(() => {
     if (blogsFetcher.data?.blogs && blogsFetcher.data.blogs.length && !selectedBlog) {
@@ -858,18 +866,28 @@ export default function BlogIndexPage() {
                 )}
 
                 <Box paddingBlockStart="200">
-                  <Form method="post">
-                    <input type="hidden" name="intent" value="createFromProduct" />
-                    <input type="hidden" name="productId" value={selectedIdea.product_id} />
-                    <input type="hidden" name="blogIdeaIndex" value={String(selectedIdea.idea_index)} />
-                    <Button
-                      variant="primary"
-                      submit
-                      loading={navigation.state !== "idle" && navigation.formData?.get("intent") === "createFromProduct"}
-                    >
-                      {fr ? "Générer l'article" : "Generate article"}
-                    </Button>
-                  </Form>
+                  <BlockStack gap="150">
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="createFromProduct" />
+                      <input type="hidden" name="productId" value={selectedIdea.product_id} />
+                      <input type="hidden" name="blogIdeaIndex" value={String(selectedIdea.idea_index)} />
+                      <Button
+                        variant="primary"
+                        submit
+                        disabled={isGeneratingArticle}
+                        loading={isGeneratingArticle}
+                      >
+                        {fr ? "Générer l'article" : "Generate article"}
+                      </Button>
+                    </Form>
+                    {isGeneratingArticle && (
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {fr
+                          ? "Génération en cours… cela peut prendre 1 à 2 minutes (plusieurs appels IA, un par section). Inutile de cliquer à nouveau."
+                          : "Generating… this can take 1-2 minutes (several AI calls, one per section). No need to click again."}
+                      </Text>
+                    )}
+                  </BlockStack>
                 </Box>
               </BlockStack>
             </Card>
