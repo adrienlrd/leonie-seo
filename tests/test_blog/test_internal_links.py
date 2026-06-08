@@ -5,7 +5,11 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from app.api.blog import BlogSection, _assemble_body_html, _draft_from_product
-from app.blog.internal_links import render_internal_links_html, select_blog_internal_links
+from app.blog.internal_links import (
+    render_internal_links_html,
+    select_blog_internal_links,
+    suggest_cluster_links,
+)
 
 
 def test_select_blog_internal_links_deduplicates_and_prefers_anchor() -> None:
@@ -131,6 +135,95 @@ def test_draft_from_product_carries_market_analysis_internal_links() -> None:
             "reason": "collection_parent",
         },
     ]
+
+
+def test_suggest_cluster_links_self_pillar_links_down_to_siblings() -> None:
+    other_drafts = [
+        {
+            "id": "draft-1",
+            "blog_title": "Croquettes sans céréales pour chien sensible",
+            "target_keyword": "croquettes sans céréales chien",
+            "outline": ["Pourquoi choisir ?", "Comment doser ?"],
+            "shopify_article_handle": "croquettes-sans-cereales-chien-sensible",
+        },
+        {
+            "id": "draft-2",
+            "blog_title": "Quelle alimentation pour un chien allergique ?",
+            "target_keyword": "alimentation chien allergique",
+            "outline": ["Les signes d'allergie"],
+            "shopify_article_handle": "",
+        },
+    ]
+
+    links = suggest_cluster_links(
+        current_keyword="croquettes sans céréales chien sensible",
+        current_outline=["A", "B", "C", "D"],
+        other_drafts=other_drafts,
+    )
+
+    assert links == [
+        {
+            "target_url": "/blogs/blog/croquettes-sans-cereales-chien-sensible",
+            "anchor": "Croquettes sans céréales pour chien sensible",
+            "target_title": "Croquettes sans céréales pour chien sensible",
+            "reason": "cluster_sibling",
+        }
+    ]
+
+
+def test_suggest_cluster_links_self_sibling_links_up_to_pillar() -> None:
+    other_drafts = [
+        {
+            "id": "draft-1",
+            "blog_title": "Le guide complet des croquettes sans céréales pour chien",
+            "target_keyword": "croquettes sans céréales chien",
+            "outline": ["A", "B", "C", "D", "E"],
+            "shopify_article_handle": "guide-croquettes-sans-cereales-chien",
+        },
+    ]
+
+    links = suggest_cluster_links(
+        current_keyword="croquettes sans céréales chien sensible",
+        current_outline=["A"],
+        other_drafts=other_drafts,
+    )
+
+    assert links == [
+        {
+            "target_url": "/blogs/blog/guide-croquettes-sans-cereales-chien",
+            "anchor": "Le guide complet des croquettes sans céréales pour chien",
+            "target_title": "Le guide complet des croquettes sans céréales pour chien",
+            "reason": "cluster_pillar",
+        }
+    ]
+
+
+def test_suggest_cluster_links_returns_empty_without_similar_draft() -> None:
+    other_drafts = [
+        {
+            "id": "draft-1",
+            "blog_title": "Quelle litière choisir pour un chat d'intérieur ?",
+            "target_keyword": "litière chat intérieur",
+            "outline": ["A"],
+            "shopify_article_handle": "litiere-chat-interieur",
+        },
+    ]
+
+    assert (
+        suggest_cluster_links(
+            current_keyword="croquettes sans céréales chien sensible",
+            current_outline=["A"],
+            other_drafts=other_drafts,
+        )
+        == []
+    )
+
+
+def test_suggest_cluster_links_returns_empty_without_target_keyword() -> None:
+    assert (
+        suggest_cluster_links(current_keyword="", current_outline=["A"], other_drafts=[{"id": "draft-1"}])
+        == []
+    )
 
 
 def test_draft_from_product_adds_source_product_link_without_recommendations() -> None:

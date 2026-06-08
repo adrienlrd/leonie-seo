@@ -12,6 +12,7 @@ from typing import Any
 
 _MAX_BLOG_LINKS = 5
 _DYNAMIC_SIM_THRESHOLD = 0.3
+_CLUSTER_SIM_THRESHOLD = 0.5
 
 
 def build_source_product_link(
@@ -177,6 +178,80 @@ def suggest_links_for_article(
         if len(result) >= max_links:
             break
     return result
+
+
+def suggest_cluster_links(
+    *,
+    current_keyword: str,
+    current_outline: list[str],
+    other_drafts: list[dict[str, Any]],
+    exclude_urls: set[str] | None = None,
+    threshold: float = _CLUSTER_SIM_THRESHOLD,
+) -> list[dict[str, str]]:
+    """Suggest hub-and-spoke links inside a topic cluster of blog drafts.
+
+    Groups the current article with ``other_drafts`` whose ``target_keyword``
+    is similar (Jaccard on normalized tokens — same mechanism as
+    `keyword_normalization.build_clusters`). The member with the richest
+    outline is the cluster's pillar. Siblings get a single suggested link up
+    to the pillar (``cluster_pillar``); the pillar gets one suggested link
+    down to each sibling (``cluster_sibling``) — the standard hub-and-spoke
+    pattern that spreads link equity without the merchant picking anchors.
+    """
+    from app.market_analysis.keyword_normalization import build_clusters
+
+    keyword = (current_keyword or "").strip()
+    if not keyword:
+        return []
+    exclude = exclude_urls or set()
+
+    candidates: list[dict[str, Any]] = [
+        {"query": keyword, "_self": True, "_outline_len": len(current_outline or [])}
+    ]
+    for draft in other_drafts:
+        query = str(draft.get("target_keyword") or "").strip()
+        if not query:
+            continue
+        candidates.append(
+            {
+                "query": query,
+                "_self": False,
+                "_draft": draft,
+                "_outline_len": len(draft.get("outline") or []),
+            }
+        )
+
+    cluster = next(
+        (
+            c
+            for c in build_clusters(candidates, threshold=threshold)
+            if len(c["members"]) >= 2 and any(m.get("_self") for m in c["members"])
+        ),
+        None,
+    )
+    if not cluster:
+        return []
+
+    members = cluster["members"]
+    pillar = max(members, key=lambda m: m["_outline_len"])
+    is_self_pillar = bool(pillar.get("_self"))
+
+    def _link_to(member: dict[str, Any], reason: str) -> dict[str, str] | None:
+        draft = member.get("_draft")
+        title = str((draft or {}).get("blog_title") or "").strip()
+        if not draft or not title:
+            return None
+        handle = str(draft.get("shopify_article_handle") or "").strip()
+        url = f"/blogs/blog/{handle}" if handle else f"#draft-{draft.get('id', '')}"
+        if url in exclude:
+            return None
+        return {"target_url": url, "anchor": title, "target_title": title, "reason": reason}
+
+    if is_self_pillar:
+        links = [_link_to(m, "cluster_sibling") for m in members if not m.get("_self")]
+    else:
+        links = [_link_to(pillar, "cluster_pillar")]
+    return [link for link in links if link]
 
 
 def render_internal_links_html(
