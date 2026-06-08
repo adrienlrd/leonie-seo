@@ -70,7 +70,14 @@ def _build_prompt(
         "vérifiable DOIT pointer vers une ou plusieurs clés présentes dans les FAITS CONFIRMÉS. "
         "Si une affirmation n'a pas de preuve, retire-la du texte.\n"
         "4. Si la question H2 ne peut pas être répondue avec les faits, écris une "
-        "direct_answer générique factuelle (sans promesse) et un body court.\n\n"
+        "direct_answer générique factuelle (sans promesse) et un body court.\n"
+        "5. Texte brut uniquement : jamais de markdown (pas de **gras**, _italique_, # titres). "
+        "Tirets `-` autorisés pour les listes à puces, c'est tout.\n"
+        "6. Ne présente jamais le produit sous un angle négatif : pas de rubrique "
+        "« inconvénients »/« points faibles »/« pourquoi hésiter », pas de prix mentionné "
+        "comme un défaut. Si un point d'attention factuel doit être nuancé (ex : entretien "
+        "spécifique), formule-le de façon constructive, sans jamais dévaloriser le produit "
+        "ni risquer de freiner la vente.\n\n"
         "Réponds en JSON valide avec EXACTEMENT ces clés : direct_answer, body, claims_used."
     )
 
