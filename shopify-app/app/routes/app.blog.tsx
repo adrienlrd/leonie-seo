@@ -14,6 +14,7 @@ import {
   useFetcher,
   useLoaderData,
   useNavigate,
+  useNavigation,
   useSubmit,
 } from "@remix-run/react";
 import {
@@ -450,6 +451,7 @@ export default function BlogIndexPage() {
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
   const navigate = useNavigate();
+  const navigation = useNavigation();
   const fr = locale === "fr";
 
   // Editable copy of the selected draft.
@@ -681,7 +683,12 @@ export default function BlogIndexPage() {
               <Form method="post">
                 <input type="hidden" name="intent" value="createBlank" />
                 <input type="hidden" name="blogTitle" value={prefillTitle} />
-                <Button variant="primary" size="slim" submit>
+                <Button
+                  variant="primary"
+                  size="slim"
+                  submit
+                  loading={navigation.state !== "idle" && navigation.formData?.get("intent") === "createBlank"}
+                >
                   {fr ? "Créer le brouillon" : "Create draft"}
                 </Button>
               </Form>
@@ -858,7 +865,7 @@ export default function BlogIndexPage() {
                     <Button
                       variant="primary"
                       submit
-                      loading={fetcher.state !== "idle" && fetcher.formData?.get("intent") === "createFromProduct"}
+                      loading={navigation.state !== "idle" && navigation.formData?.get("intent") === "createFromProduct"}
                     >
                       {fr ? "Générer l'article" : "Generate article"}
                     </Button>
