@@ -583,7 +583,7 @@ export default function CompetitorCrawlPage() {
                   ? "Aucune analyse marché trouvée. Lance d'abord une analyse marché pour identifier tes concurrents."
                   : "No market analysis found. Run a market analysis first to identify your competitors."}
               </Text>
-              <Button url={localizedPath("/app/market-analysis", locale)} variant="plain">
+              <Button url={localizedPath("/app/products", locale)} variant="plain">
                 {locale === "fr" ? "Lancer l'analyse marché" : "Run market analysis"}
               </Button>
             </BlockStack>
@@ -647,7 +647,7 @@ export default function CompetitorCrawlPage() {
             heading={locale === "fr" ? "Aucun concurrent identifié" : "No competitor identified"}
             action={{
               content: locale === "fr" ? "Lancer l'analyse marché" : "Run market analysis",
-              url: localizedPath("/app/market-analysis", locale),
+              url: localizedPath("/app/products", locale),
             }}
             image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
           >

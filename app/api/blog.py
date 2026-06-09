@@ -27,6 +27,7 @@ from app.blog.schema import build_article_jsonld, build_faqpage_jsonld, render_j
 from app.blog.section_generator import generate_all_sections, generate_section
 from app.blog.shopify_articles import BlogPublisher
 from app.blog.store import delete_draft, get_draft, list_drafts, save_draft
+from app.geo.apply_tracking import record_live_apply_impact
 from app.market_analysis.jobs import load_latest_result
 
 router = APIRouter(prefix="/api", tags=["blog"])
@@ -622,4 +623,15 @@ def publish_draft(
         )
     except ShopifyWriteError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    article_id = str(created.get("id") or created.get("admin_graphql_api_id") or body.title)
+    record_live_apply_impact(
+        shop=ctx.shop,
+        resource_type="article",
+        resource_id=article_id,
+        resource_title=body.title,
+        field="blog",
+        old_value=None,
+        new_value={"title": body.title, "summary": body.summary, "tags": body.tags},
+        source="blog_publish",
+    )
     return {"shop": ctx.shop, "article": created}

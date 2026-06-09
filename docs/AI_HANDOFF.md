@@ -1515,6 +1515,66 @@
   - `cd shopify-app && npm run typecheck` ✅
   - `cd shopify-app && npm run build` ✅
 
+## 2026-06-09 — Codex — Merchant journey alignment Task 1
+
+- **Task goal:** Rebuild onboarding around the real Google → business profile → product labels → deep market analysis flow.
+- **Summary of changes:** Replaced the legacy `/niche/understand` onboarding with a four-step wizard using `business-profile/analyze`, `business-profile`, `market-analysis/identify`, `market-analysis/identifications`, and `market-analysis/jobs` through `callBackendForShop()`. Added shared editable panels for business profile and product identification. Added dashboard loader redirect to onboarding when no validated business profile exists. Added FR/EN i18n keys for new UI copy.
+- **Files created:** `shopify-app/app/components/BusinessProfilePanel.tsx`, `shopify-app/app/components/ProductIdentificationPanel.tsx`.
+- **Files modified:** `shopify-app/app/routes/app.onboarding.tsx`, `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/lib/i18n.ts`.
+- **Decisions made:** Kept Google popup behavior and used backend job polling every 5 seconds for the two analysis jobs. GA4 connect is included in the Google step without changing OAuth scopes or backend auth behavior.
+- **Validations run:** `cd shopify-app && npm run typecheck`; `cd shopify-app && npm run build`.
+- **Validations skipped:** Python `ruff check .` and `pytest` were skipped for this task because only Remix/TypeScript files were changed.
+- **Open issues:** The dashboard is still oversized and remaining dead links/navigation changes are left for Tasks 2-4.
+- **Next recommended action:** Task 2 — fix dead links and slim the dashboard using the new shared panels.
+
+## 2026-06-09 — Codex — Merchant journey alignment Task 2
+
+- **Task goal:** Remove known dead app links while preparing the dashboard for the simplified journey.
+- **Summary of changes:** Replaced legacy/404 links to niche understanding, safe apply, impact, priorities and GA4 with current journey destinations (`/app/onboarding`, `/app/products`, `/app/measure`). Updated blog and competitor crawl links to point at Products instead of Market Analysis.
+- **Files created:** None.
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.account.tsx`, `shopify-app/app/routes/app.market-analysis.tsx`, `shopify-app/app/routes/app.blog.tsx`, `shopify-app/app/routes/app.competitor-crawl.tsx`.
+- **Decisions made:** Kept endpoint behavior unchanged and limited this task to routing cleanup; the larger dashboard slimming remains partially open because it depends on Products/Measure routes from Tasks 3-4.
+- **Validations run:** `cd shopify-app && npm run typecheck && npm run build`.
+- **Validations skipped:** Python `ruff check .` and `pytest` were skipped because only Remix link targets changed.
+- **Open issues:** `/app/products` and `/app/measure` route implementations are completed in Tasks 3 and 4.
+- **Next recommended action:** Task 3 — create Products route and exact primary navigation.
+
+## 2026-06-09 — Codex — Merchant journey alignment Task 3
+
+- **Task goal:** Rename Analyse marché to Produits and restructure primary navigation.
+- **Summary of changes:** Moved the former market-analysis route implementation to `/app/products`, made `/app/market-analysis`, `/app/geo-llms-txt`, and `/app/continuous-improvement` redirect routes, and updated the embedded navigation to exactly Dashboard / Produits / Blog / Mesure / Réglages.
+- **Files created:** Redirect route replacements for legacy route paths.
+- **Files modified:** `shopify-app/app/routes/app.tsx`, `shopify-app/app/routes/app.products.tsx`, `shopify-app/app/routes/app.market-analysis.tsx`, `shopify-app/app/routes/app.geo-llms-txt.tsx`, `shopify-app/app/routes/app.continuous-improvement.tsx`, `shopify-app/app/routes/app._index.tsx`.
+- **Decisions made:** Reused `/app/account` as the current Réglages destination until the consolidated settings task expands it.
+- **Validations run:** `cd shopify-app && npm run typecheck`; `cd shopify-app && npm run build`.
+- **Validations skipped:** Python `ruff check .` and `pytest` were skipped because only Remix routes/navigation changed.
+- **Open issues:** `/app/measure` is still implemented in Task 4.
+- **Next recommended action:** Task 4 — create Mesure page using existing `/geo/*` endpoints.
+
+## 2026-06-09 — Codex — Merchant journey alignment Task 4
+
+- **Task goal:** Create the Mesure page backed by existing GEO measurement endpoints.
+- **Summary of changes:** Added `/app/measure` loader and Polaris UI consuming progress curve, ledger, retention milestones, impact reports, confidence scores, control groups and next-best actions via `callBackendForShop()`. Added FR/EN copy for measurement labels.
+- **Files created:** `shopify-app/app/routes/app.measure.tsx`.
+- **Files modified:** `shopify-app/app/lib/i18n.ts`, `docs/AI_HANDOFF.md`, `PROGRESS.md`.
+- **Decisions made:** Used plain loader fetching because these `/geo/*` endpoints are immediate reads, not jobs.
+- **Validations run:** `cd shopify-app && npm run typecheck && npm run build`.
+- **Validations skipped:** Python `ruff check .` and `pytest` were skipped because only Remix/i18n files changed.
+- **Open issues:** Rich chart rendering can be improved later; this task surfaces the measurement data in tables/KPI cards without adding dependencies.
+- **Next recommended action:** Task 5 — auto-create impact events on every live apply.
+
+## 2026-06-09 — Codex — Merchant journey alignment Task 5 (partial)
+
+- **Task goal:** Begin automatic measurement ledger creation after live Shopify writes.
+- **Summary of changes:** Added `app.geo.apply_tracking.record_live_apply_impact()` to create an applied GEO ledger event and, when a Shopify snapshot is available, a before-state optimization snapshot. Wired it into live market-analysis proposal applies, schema-facts sync and blog draft publication. Dry-run proposal applies still return before any tracking call.
+- **Files created:** `app/geo/apply_tracking.py`.
+- **Files modified:** `app/api/market_analysis.py`, `app/api/blog.py`.
+- **Decisions made:** Tracking is fail-open and idempotent per shop/resource/field/day so Shopify writes are not blocked by missing baseline data.
+- **Validations run:** `ruff check .`; `pytest tests/test_geo/test_ledger.py tests/test_geo/test_optimization_snapshots.py`.
+- **Validations skipped:** `pytest tests/test_api/test_geo.py` was attempted but collection failed because the environment is missing `python-multipart`; full `pytest` was not run for the same environment limitation. Frontend checks were skipped because this task only changed Python backend files.
+- **Open issues:** Learning approval apply paths and llms.txt publish tracking are not wired yet; dedicated endpoint tests for exactly-one event/snapshot still need to be added.
+- **Next recommended action:** Complete Task 5 coverage, then continue Task 6 history context injection.
+
 ## Open decisions
 
 | Decision | Status | Context | Recommended next step |
