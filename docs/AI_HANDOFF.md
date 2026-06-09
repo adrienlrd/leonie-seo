@@ -10,6 +10,20 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-09
+- **Agent:** Claude (Fable)
+- **Goal:** Analyse read-only de l'écart entre l'app réellement en prod (routes Remix montées, routers FastAPI montés dans `app/main.py`, scheduler) et le parcours marchand cible (Google → analyse 1 « ce qu'on a compris » → ajustement → grosse analyse → Dashboard/Produits/Blog/Mesure/Réglages → re-analyse auto 14/28 j informée des mesures), puis production d'un prompt d'implémentation détaillé pour Codex.
+- **Summary:** Constats vérifiés dans le code : (1) `app.onboarding.tsx` est obsolète — il appelle l'ancien flux `/niche/understand` et pointe vers `/app/niche-understanding` et `/app/priorities` qui n'existent pas, alors que le vrai flux 2 phases (business-profile → identify → market-analysis) vit dans `app._index.tsx` (2 981 lignes, surchargé). (2) Cinq liens morts dans l'UI : `/app/niche-understanding`, `/app/safe-apply`, `/app/impact`, `/app/priorities`, `/app/ga4` (référencés dans `app._index.tsx`, `app.onboarding.tsx`, `app.account.tsx`, `app.market-analysis.tsx`). (3) Aucune page Mesure frontend malgré un backend `/geo/*` complet (progress-curve, impact-report, jalons J+14/28/60, groupes contrôle). (4) La re-analyse automatique 14/28 j n'existe pas : `app/agent_schedule/scheduler.py` n'appelle que `run_learning_cycle` (re-priorisation des propositions existantes + auto-apply meta/alt), ne ré-importe jamais GSC/GA4 et ne relance jamais `run_market_analysis` (skip `no_market_analysis`). (5) Boucle non fermée : `app/market_analysis/engine.py` n'injecte pas les modifications passées ni les verdicts d'impact dans ses prompts. (6) Les applies ne créent pas automatiquement d'événements `geo_impact_events`. (7) Artefacts critiques (`market_analysis_latest.json`, `identifications.json`, `merchant_facts.json`) uniquement sur disque éphémère. Livrable : `docs/codex-prompt-merchant-journey.md` — prompt Codex en 9 tâches ordonnées (refonte onboarding, liens morts + dashboard allégé, nav Dashboard/Produits/Blog/Mesure/Réglages, page Mesure, événements d'impact auto, contexte d'historique dans l'engine, cycle de re-analyse 14/28 j, Réglages consolidés, persistance DB) avec critères d'acceptation et hors-scope.
+- **Files created:** `docs/codex-prompt-merchant-journey.md`.
+- **Files modified:** `docs/AI_HANDOFF.md` (cette entrée).
+- **Decisions made:** Aucun code applicatif modifié (analyse + livrable doc uniquement). Le prompt impose à Codex de réutiliser les endpoints/moteurs existants (pas de duplication), de garder les gardes dry-run, et interdit tout changement OAuth/billing/webhooks/scopes (AGENTS.md §4/§11).
+- **Validations run:** Aucune nécessaire (diff documentation uniquement).
+- **Validations skipped:** `pytest`/`ruff`/`typecheck`/`build` — aucun code touché.
+- **Open issues:** Les liens morts restent en prod tant que les tâches du prompt ne sont pas exécutées ; la « re-analyse automatique » perçue par le marchand n'existe pas encore (seul le learning cycle tourne).
+- **Next recommended action:** Exécuter `docs/codex-prompt-merchant-journey.md` tâche par tâche (ordre imposé), en commençant par la refonte de l'onboarding (Task 1) et les liens morts (Task 2).
+
+## Previous completed task
+
 - **Date:** 2026-06-08
 - **Agent:** Claude (Sonnet 4.6)
 - **Goal:** Corriger 3 bugs remontés par l'utilisateur après usage réel du flux blog : (1) contenu généré pouvant nuire aux ventes (rubrique « Inconvénients » + markdown brut affiché), (2) absence d'indicateur de chargement au clic sur « Générer l'article », (3) génération qui « tourne mais ne génère rien » + impossibilité d'ajouter une photo sur les brouillons existants.
