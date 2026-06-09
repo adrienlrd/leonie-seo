@@ -820,7 +820,7 @@ export default function BlogIndexPage() {
                 </>
               )}
 
-              <Button url="/app/market-analysis" variant="plain">
+              <Button url="/app/products" variant="plain">
                 {fr ? "Aller à Analyse marché →" : "Go to Market analysis →"}
               </Button>
             </BlockStack>
@@ -1224,7 +1224,7 @@ export default function BlogIndexPage() {
             <Card>
               <EmptyState
                 heading={fr ? "Aucun brouillon sélectionné" : "No draft selected"}
-                action={{ content: fr ? "Aller à Analyse marché" : "Go to Market analysis", url: "/app/market-analysis" }}
+                action={{ content: fr ? "Aller à Analyse marché" : "Go to Market analysis", url: "/app/products" }}
                 image=""
               >
                 <p>

@@ -1,3 +1,40 @@
+
+### Session 2026-06-09 (Merchant journey alignment — Task 5 partial)
+- Added `app.geo.apply_tracking.record_live_apply_impact()` for automatic GEO impact events after confirmed live writes.
+- Wired tracking into market-analysis live proposal apply, schema-facts sync and blog draft publish.
+- Dry-run market-analysis applies still return before tracking.
+- Validated with `ruff check .` and targeted GEO persistence tests.
+- Open: learning approval applies, llms.txt publish tracking and explicit endpoint tests remain to finish Task 5.
+
+
+### Session 2026-06-09 (Merchant journey alignment — Task 4)
+- Added `/app/measure` backed by existing `/geo/*` endpoints through `callBackendForShop()`.
+- Shows GSC/GA4 KPI cards, applied-event timeline, milestones, confidence, impact reports, control comparison and next-best actions.
+- Added FR/EN i18n labels for the Mesure page.
+- Validated with `cd shopify-app && npm run typecheck && npm run build`.
+
+
+### Session 2026-06-09 (Merchant journey alignment — Task 3)
+- Moved the market-analysis UI to `/app/products` and redirected the old `/app/market-analysis` route.
+- Removed llms.txt and continuous improvement from primary navigation by redirecting old routes to settings/measure destinations.
+- Updated primary nav to exactly Dashboard / Produits / Blog / Mesure / Réglages with FR/EN labels.
+- Validated with `cd shopify-app && npm run typecheck` and `cd shopify-app && npm run build`.
+
+
+### Session 2026-06-09 (Merchant journey alignment — Task 2)
+- Replaced known dead app links with current journey destinations: onboarding, products and measure.
+- Updated blog and competitor crawl navigation to use `/app/products` instead of `/app/market-analysis`.
+- Validated with `cd shopify-app && npm run typecheck && npm run build`.
+
+
+### Session 2026-06-09 (Merchant journey alignment — Task 1)
+- Rebuilt `app.onboarding.tsx` into a 4-step wizard: Google GSC/GA4 connection, first business-profile analysis, merchant profile/product-label validation, then deep market analysis.
+- Added shared editable components `BusinessProfilePanel` and `ProductIdentificationPanel` for reuse outside onboarding.
+- Removed onboarding usage of the legacy `/niche/understand` endpoint.
+- Dashboard loader now redirects fresh shops without a validated business profile to `/app/onboarding`.
+- Added FR/EN i18n keys for the new onboarding/product journey labels.
+- Validated with `cd shopify-app && npm run typecheck` and `cd shopify-app && npm run build`.
+
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global

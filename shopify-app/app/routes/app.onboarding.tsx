@@ -1,99 +1,63 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
-import {
-  Form,
-  useActionData,
-  useLoaderData,
-  useNavigation,
-  useRevalidator,
-} from "@remix-run/react";
-import { useEffect, useRef, type ReactNode } from "react";
-import {
-  Badge,
-  Banner,
-  BlockStack,
-  Button,
-  Card,
-  InlineGrid,
-  InlineStack,
-  Link,
-  Page,
-  Text,
-} from "@shopify/polaris";
-import { authenticate } from "../shopify.server";
-import {
-  callBackend,
-  callBackendForShop,
-  callBackendMultipartForShop,
-} from "../lib/api.server";
+import { json, redirect } from "@remix-run/node";
+import { Form, useActionData, useFetcher, useLoaderData, useNavigation, useRevalidator } from "@remix-run/react";
+import { useEffect, useRef } from "react";
+import { Badge, Banner, BlockStack, Button, Card, InlineGrid, InlineStack, Link, Page, ProgressBar, Text } from "@shopify/polaris";
+import { BusinessProfilePanel, type BusinessProfile } from "../components/BusinessProfilePanel";
+import { ProductIdentificationPanel, type ProductLabels } from "../components/ProductIdentificationPanel";
+import { callBackend, callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
-import { AuditLauncherCard } from "../components/onboarding/AuditLauncherCard";
-import { CrawlCard } from "../components/onboarding/CrawlCard";
-import { GoogleSearchConsoleCard } from "../components/onboarding/GoogleSearchConsoleCard";
-import { InstallationChecklistCard } from "../components/onboarding/InstallationChecklistCard";
-import { PageSpeedCard } from "../components/onboarding/PageSpeedCard";
-import type {
-  CrawlStatus,
-  GSCStatus,
-  Health,
-  OnboardingActionData,
-  PageSpeedStatus,
-  ShopStatus,
-} from "../components/onboarding/types";
+import { authenticate } from "../shopify.server";
 
-interface LoaderData {
-  locale: Locale;
-  shop: string;
-  health: Health | null;
-  status: ShopStatus | null;
-  gsc: GSCStatus | null;
-  pagespeed: PageSpeedStatus | null;
-  crawl: CrawlStatus | null;
-  niche: { available: boolean; status: string | null };
-  recentJobs: number;
-}
+interface GSCStatus { connected?: boolean; site_url?: string | null }
+interface GA4Status { connected?: boolean; property_id?: string | null }
+interface JobData { job_id?: string; status?: string; error?: string | null; profile?: BusinessProfile; labels?: Record<string, string>; product_titles?: Record<string, string>; progress?: number; products?: unknown[] }
+interface ActionData { authorizationUrl?: string; ga4AuthorizationUrl?: string; disconnected?: boolean; imported?: string; error?: string; job?: JobData; saved?: boolean; redirectTo?: string; intent?: string }
+interface LoaderData { locale: Locale; shop: string; gsc: GSCStatus | null; ga4: GA4Status | null; profile: BusinessProfile | null; identification: ProductLabels | null; marketReady: boolean }
 
 async function fetchOk<T>(promise: Promise<Response>): Promise<T | null> {
   try {
     const resp = await promise;
     if (!resp.ok) return null;
     return (await resp.json()) as T;
-  } catch {
+  } catch (_error) {
     return null;
   }
+}
+
+function textLines(value: FormDataEntryValue | null): string[] {
+  return String(value || "").split("\n").map((item) => item.trim()).filter(Boolean);
+}
+
+function personasFromText(value: FormDataEntryValue | null) {
+  return textLines(value).map((line) => {
+    const [name = "", description = "", mainNeed = "", buyingTrigger = ""] = line.split("—").map((part) => part.trim());
+    return { name, description, main_need: mainNeed, buying_trigger: buyingTrigger };
+  });
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
   const locale = getLocale(request);
+  const be = (path: string) => callBackendForShop(shop, path, { accessToken: session.accessToken });
 
-  const be = (path: string) =>
-    callBackendForShop(shop, path, { accessToken: session.accessToken });
-
-  const [health, status, jobs, gsc, pagespeed, crawl, niche] = await Promise.all([
-    fetchOk<Health>(callBackend("/health")),
-    fetchOk<ShopStatus>(be(`/api/shops/${shop}/status`)),
-    fetchOk<{ count: number }>(be(`/api/shops/${shop}/jobs?limit=10`)),
+  const [gsc, ga4, profile, identification, latestAnalysis] = await Promise.all([
     fetchOk<GSCStatus>(be(`/api/shops/${shop}/gsc/status`)),
-    fetchOk<PageSpeedStatus>(be(`/api/shops/${shop}/pagespeed/status`)),
-    fetchOk<CrawlStatus>(be(`/api/shops/${shop}/crawl/status`)),
-    fetchOk<{ hypothesis?: { status?: string } | null }>(be(`/api/shops/${shop}/niche/hypothesis`)),
+    fetchOk<GA4Status>(be(`/api/shops/${shop}/ga4/status`)),
+    fetchOk<BusinessProfile>(be(`/api/shops/${shop}/business-profile/latest`)),
+    fetchOk<ProductLabels>(be(`/api/shops/${shop}/market-analysis/identify/latest`)),
+    fetchOk<{ products?: unknown[] }>(be(`/api/shops/${shop}/market-analysis/latest`)),
   ]);
 
   return json<LoaderData>({
     locale,
     shop,
-    health,
-    status,
     gsc,
-    pagespeed,
-    crawl,
-    niche: {
-      available: Boolean(niche?.hypothesis),
-      status: niche?.hypothesis?.status ?? null,
-    },
-    recentJobs: jobs?.count ?? 0,
+    ga4,
+    profile,
+    identification,
+    marketReady: Boolean(latestAnalysis?.products?.length),
   });
 };
 
@@ -102,449 +66,181 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session.shop;
   const locale = getLocale(request);
   const form = await request.formData();
-  const intent = String(form.get("intent") || "audit");
-
-  const be = (path: string, init: RequestInit = {}) =>
-    callBackendForShop(shop, path, { accessToken: session.accessToken, ...init });
+  const intent = String(form.get("intent") || "");
+  const be = (path: string, init: RequestInit = {}) => callBackendForShop(shop, path, { accessToken: session.accessToken, ...init });
 
   try {
     if (intent === "gsc_connect") {
       const resp = await be(`/api/shops/${shop}/gsc/authorize`, { method: "POST" });
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
       const data = (await resp.json()) as { authorization_url: string };
-      return json<OnboardingActionData>({ authorizationUrl: data.authorization_url });
+      return json<ActionData>({ authorizationUrl: data.authorization_url });
     }
-
-    if (intent === "gsc_disconnect") {
-      const resp = await be(`/api/shops/${shop}/gsc/disconnect`, { method: "DELETE" });
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
-      return json<OnboardingActionData>({ disconnected: true });
+    if (intent === "ga4_connect") {
+      const resp = await be(`/api/shops/${shop}/ga4/authorize`, { method: "POST" });
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
+      const data = (await resp.json()) as { authorization_url: string };
+      return json<ActionData>({ ga4AuthorizationUrl: data.authorization_url });
     }
-
     if (intent === "gsc_import") {
-      const resp = await be(`/api/shops/${shop}/gsc/import`, {
-        method: "POST",
-        body: JSON.stringify({ days: 90 }),
-      });
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
+      const resp = await be(`/api/shops/${shop}/gsc/import`, { method: "POST", body: JSON.stringify({ days: 90 }) });
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
       const data = (await resp.json()) as { job_id: string };
-      return json<OnboardingActionData>({ jobId: data.job_id });
+      return json<ActionData>({ imported: data.job_id });
     }
-
-    if (intent === "pagespeed_import") {
-      const resp = await be(`/api/shops/${shop}/pagespeed/import`, {
-        method: "POST",
-        body: JSON.stringify({ max_urls: 3 }),
-      });
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
-      const data = (await resp.json()) as { job_id: string };
-      return json<OnboardingActionData>({ jobId: data.job_id });
+    if (intent === "business_profile_analyze") {
+      const resp = await be(`/api/shops/${shop}/business-profile/analyze`, { method: "POST", body: JSON.stringify({ force_refresh: true }) });
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
+      return json<ActionData>({ job: (await resp.json()) as JobData, intent });
     }
-
-    if (intent === "pagespeed_configure") {
-      const apiKey = String(form.get("pagespeed_api_key") || "").trim();
-      if (!apiKey) return json<OnboardingActionData>({ error: "Clé API manquante." });
-      const resp = await be(`/api/shops/${shop}/pagespeed/configure`, {
-        method: "POST",
-        body: JSON.stringify({ api_key: apiKey }),
-      });
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
-      return json<OnboardingActionData>({ jobId: "Clé PageSpeed enregistrée." });
+    if (intent === "business_profile_poll") {
+      const jobId = String(form.get("job_id") || "");
+      const resp = await be(`/api/shops/${shop}/business-profile/job/${jobId}`);
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
+      return json<ActionData>({ job: (await resp.json()) as JobData, intent });
     }
-
-    if (intent === "crawl_upload") {
-      const overviewFile = form.get("overview");
-      if (!overviewFile || !(overviewFile instanceof File) || overviewFile.size === 0) {
-        return json<OnboardingActionData>({ error: "Fichier overview CSV manquant." });
+    if (intent === "business_profile_save") {
+      const body = {
+        niche_summary: String(form.get("niche_summary") || ""),
+        brand_name: String(form.get("brand_name") || ""),
+        brand_voice: String(form.get("brand_voice") || ""),
+        target_personas: personasFromText(form.get("target_personas_text")),
+        competitor_domains: textLines(form.get("competitor_domains_text")),
+        key_themes: textLines(form.get("key_themes_text")),
+      };
+      const resp = await be(`/api/shops/${shop}/business-profile`, { method: "POST", body: JSON.stringify(body) });
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
+      return json<ActionData>({ saved: true });
+    }
+    if (intent === "identify_start") {
+      const resp = await be(`/api/shops/${shop}/market-analysis/identify`, { method: "POST" });
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
+      return json<ActionData>({ job: (await resp.json()) as JobData, intent });
+    }
+    if (intent === "identify_poll" || intent === "deep_poll") {
+      const jobId = String(form.get("job_id") || "");
+      const resp = await be(`/api/shops/${shop}/market-analysis/jobs/${jobId}`);
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
+      return json<ActionData>({ job: (await resp.json()) as JobData, intent });
+    }
+    if (intent === "save_identifications") {
+      const identifications: Record<string, string> = {};
+      for (const [key, value] of form.entries()) {
+        if (key.startsWith("label_")) identifications[key.slice(6)] = String(value || "").trim();
       }
-      const backendForm = new FormData();
-      backendForm.append("overview", overviewFile, overviewFile.name);
-      const redirectsFile = form.get("redirects");
-      if (redirectsFile instanceof File && redirectsFile.size > 0) {
-        backendForm.append("redirects", redirectsFile, redirectsFile.name);
-      }
-      const resp = await callBackendMultipartForShop(
-        shop,
-        `/api/shops/${shop}/crawl/upload`,
-        backendForm,
-        session.accessToken,
-      );
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
-      const data = (await resp.json()) as { url_count: number; issue_count: number };
-      return json<OnboardingActionData>({
-        jobId: `Crawl: ${data.url_count} URLs · ${data.issue_count} issues`,
-      });
+      const resp = await be(`/api/shops/${shop}/market-analysis/identifications`, { method: "POST", body: JSON.stringify({ identifications }) });
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
+      return json<ActionData>({ saved: true });
     }
-
-    if (intent === "niche_understand") {
-      const resp = await be(`/api/shops/${shop}/niche/understand`, {
-        method: "POST",
-        body: JSON.stringify({ force_refresh: true, use_llm: true }),
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
-      return json<OnboardingActionData>({
-        jobId: locale === "fr" ? "Analyse IA terminée." : "AI analysis completed.",
-      });
+    if (intent === "deep_start") {
+      const resp = await be(`/api/shops/${shop}/market-analysis/jobs`, { method: "POST" });
+      if (!resp.ok) return json<ActionData>({ error: `${resp.status}` });
+      return json<ActionData>({ job: (await resp.json()) as JobData, intent });
     }
-
-    // Default intent: launch a full audit.
-    const resp = await be("/api/jobs", {
-      method: "POST",
-      body: JSON.stringify({ queue: "seo_audit" }),
-    });
-    if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
-    const data = (await resp.json()) as { job_id: string };
-    return json<OnboardingActionData>({ jobId: data.job_id });
-  } catch {
-    return json<OnboardingActionData>({ error: t(locale, "backendOffline") });
+    if (intent === "finish") return redirect(localizedPath("/app", locale));
+  } catch (_error) {
+    return json<ActionData>({ error: t(locale, "backendOffline") });
   }
+  return json<ActionData>({ error: "Unsupported intent" });
 };
 
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-
-function computeNextAction(
-  locale: Locale,
-  status: ShopStatus | null,
-  health: Health | null,
-  gsc: GSCStatus | null,
-  niche: { available: boolean; status: string | null },
-): { label: string } | null {
-  const fr = locale === "fr";
-  if (!status?.installed) return { label: fr ? "Réinstaller la boutique" : "Reinstall store" };
-  if (health?.status !== "ok") {
-    return { label: fr ? "Vérifier la configuration serveur" : "Check server configuration" };
-  }
-  if (!status.snapshot_available) {
-    return { label: fr ? "Lancer le premier audit" : "Run first audit" };
-  }
-  if (!gsc?.connected) {
-    return {
-      label: fr ? "Connecter Google" : "Connect Google",
-    };
-  }
-  if (!niche.available) {
-    return {
-      label: fr ? "Analyser ma boutique avec l'IA" : "Analyze my store with AI",
-    };
-  }
-  if (niche.status !== "validated_by_merchant") {
-    return { label: fr ? "Valider ce que l'IA a compris" : "Validate what the AI understood" };
-  }
-  return { label: fr ? "Voir les 3 actions prioritaires" : "See the 3 priority actions" };
-}
-
-function GuidedStep({
-  index,
-  title,
-  body,
-  done,
-  active,
-  children,
-  locale,
-  keepChildrenWhenDone = false,
-}: {
-  index: number;
-  title: string;
-  body: string;
-  done: boolean;
-  active: boolean;
-  children?: ReactNode;
-  locale: Locale;
-  keepChildrenWhenDone?: boolean;
-}) {
-  const statusLabel = done
-    ? locale === "fr" ? "Terminé" : "Done"
-    : active
-      ? locale === "fr" ? "À faire maintenant" : "Do now"
-      : locale === "fr" ? "Ensuite" : "Next";
-
+function StepCard({ index, title, body, done, active, children }: { index: number; title: string; body: string; done: boolean; active: boolean; children: React.ReactNode }) {
   return (
     <Card>
-      <BlockStack gap="200">
-        <InlineStack align="space-between" blockAlign="center" gap="200">
-          <InlineStack gap="200" blockAlign="center">
-            <Badge tone={done ? "success" : active ? "info" : undefined}>{String(index)}</Badge>
-            <Text as="h3" variant="headingSm">{title}</Text>
-          </InlineStack>
-          <Badge tone={done ? "success" : active ? "info" : undefined}>{statusLabel}</Badge>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center">
+          <InlineStack gap="200" blockAlign="center"><Badge tone={done ? "success" : active ? "info" : undefined}>{String(index)}</Badge><Text as="h2" variant="headingMd">{title}</Text></InlineStack>
+          <Badge tone={done ? "success" : active ? "info" : undefined}>{done ? "OK" : active ? "Now" : "Next"}</Badge>
         </InlineStack>
         <Text as="p" tone="subdued">{body}</Text>
-        {(active || (done && keepChildrenWhenDone)) && children}
+        {(active || done) ? children : null}
       </BlockStack>
     </Card>
   );
 }
 
-function GuidedOnboardingFlow({
-  locale,
-  gsc,
-  niche,
-}: {
-  locale: Locale;
-  gsc: GSCStatus | null;
-  niche: { available: boolean; status: string | null };
-}) {
-  const navigation = useNavigation();
-  const submittingAction = String(navigation.formData?.get("intent") || "");
-  const fr = locale === "fr";
-  const googleReady = Boolean(gsc?.connected);
-  const nicheReady = Boolean(niche.available);
-  const nicheValidated = niche.status === "validated_by_merchant";
-  const activeStep = !googleReady ? 1 : !nicheReady ? 2 : !nicheValidated ? 3 : 4;
-
-  return (
-    <Card>
-      <BlockStack gap="400">
-        <BlockStack gap="100">
-          <Text as="h2" variant="headingMd">
-            {fr ? "Démarrer en 4 étapes" : "Start in 4 steps"}
-          </Text>
-          <Text as="p" tone="subdued">
-            {fr
-              ? "Suivez ce chemin une seule fois, puis Giulio Geo pourra vous proposer les actions prioritaires."
-              : "Follow this path once, then Giulio Geo can suggest your priority actions."}
-          </Text>
-        </BlockStack>
-
-        <GuidedStep
-          index={1}
-          title={fr ? "Connecter Google" : "Connect Google"}
-          body={
-            fr
-              ? "Giulio Geo lit vos requêtes Google pour comprendre où votre boutique est déjà visible."
-              : "Giulio Geo reads your Google queries to understand where your store is already visible."
-          }
-          done={googleReady}
-          active={activeStep === 1}
-          locale={locale}
-          keepChildrenWhenDone
-        >
-          {gsc?.connected ? (
-            <BlockStack gap="200">
-              <Text as="p" tone="subdued">
-                {fr ? "Connecté" : "Connected"}
-                {gsc.email ? ` : ${gsc.email}` : ""}
-              </Text>
-              <Form method="post">
-                <input type="hidden" name="intent" value="gsc_disconnect" />
-                <InlineStack gap="200">
-                  <Button
-                    submit
-                    tone="critical"
-                    loading={
-                      navigation.state !== "idle" && submittingAction === "gsc_disconnect"
-                    }
-                  >
-                    {fr ? "Déconnecter Google" : "Disconnect Google"}
-                  </Button>
-                  <Text as="span" tone="subdued" variant="bodySm">
-                    {fr
-                      ? "(libère le token — un nouveau consentement couvrira GSC + Analytics)"
-                      : "(clears the token — a new consent will cover GSC + Analytics)"}
-                  </Text>
-                </InlineStack>
-              </Form>
-            </BlockStack>
-          ) : (
-            <Form method="post">
-              <input type="hidden" name="intent" value="gsc_connect" />
-              <Button
-                submit
-                variant="primary"
-                disabled={!gsc?.configured}
-                loading={navigation.state !== "idle" && submittingAction === "gsc_connect"}
-              >
-                {fr ? "Connecter Google" : "Connect Google"}
-              </Button>
-            </Form>
-          )}
-        </GuidedStep>
-
-        <GuidedStep
-          index={2}
-          title={fr ? "Analyser ma boutique avec l'IA" : "Analyze my store with AI"}
-          body={
-            fr
-              ? "L'IA lit vos produits, collections et signaux Google pour formuler une première compréhension."
-              : "The AI reads your products, collections, and Google signals to form its first understanding."
-          }
-          done={nicheReady}
-          active={activeStep === 2}
-          locale={locale}
-        >
-          <Form method="post">
-            <input type="hidden" name="intent" value="niche_understand" />
-            <Button
-              submit
-              variant="primary"
-              loading={navigation.state !== "idle" && submittingAction === "niche_understand"}
-            >
-              {fr ? "Analyser ma boutique avec l'IA" : "Analyze my store with AI"}
-            </Button>
-          </Form>
-        </GuidedStep>
-
-        <GuidedStep
-          index={3}
-          title={fr ? "Valider ce que l'IA a compris" : "Validate what the AI understood"}
-          body={
-            fr
-              ? "Corrigez les clients, intentions et promesses à éviter avant toute recommandation."
-              : "Correct customers, intents, and promises to avoid before any recommendation."
-          }
-          done={nicheValidated}
-          active={activeStep === 3}
-          locale={locale}
-        >
-          <Button url={localizedPath("/app/niche-understanding", locale)} variant="primary">
-            {fr ? "Valider la compréhension IA" : "Validate store understanding"}
-          </Button>
-        </GuidedStep>
-
-        <GuidedStep
-          index={4}
-          title={fr ? "Voir les 3 actions prioritaires" : "See the 3 priority actions"}
-          body={
-            fr
-              ? "Une fois la compréhension validée, Giulio Geo limite le choix aux actions les plus utiles maintenant."
-              : "Once the understanding is validated, Giulio Geo limits the choice to the most useful actions now."
-          }
-          done={false}
-          active={activeStep === 4}
-          locale={locale}
-        >
-          <Button url={localizedPath("/app/priorities", locale)} variant="primary">
-            {fr ? "Voir mes actions" : "See my actions"}
-          </Button>
-        </GuidedStep>
-      </BlockStack>
-    </Card>
-  );
+function usePollingJob(intent: "business_profile_poll" | "identify_poll" | "deep_poll", jobId?: string) {
+  const fetcher = useFetcher<ActionData>();
+  useEffect(() => {
+    if (!jobId) return undefined;
+    const timer = window.setInterval(() => {
+      const data = new FormData();
+      data.set("intent", intent);
+      data.set("job_id", jobId);
+      fetcher.submit(data, { method: "post" });
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [fetcher, intent, jobId]);
+  return fetcher.data?.job;
 }
 
 export default function Onboarding() {
-  const { locale, shop, health, status, gsc, pagespeed, crawl, niche, recentJobs } =
-    useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
+  const { locale, gsc, ga4, profile, identification, marketReady } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>() as ActionData | undefined;
+  const navigation = useNavigation();
   const revalidator = useRevalidator();
   const openedUrlRef = useRef<string | null>(null);
+  const fr = locale === "fr";
+  const submittingAction = String(navigation.formData?.get("intent") || "");
+  const startedJob = actionData?.job;
+  const businessJob = usePollingJob("business_profile_poll", startedJob?.job_id && actionData?.intent === "business_profile_analyze" ? startedJob.job_id : undefined);
+  const identifyJob = usePollingJob("identify_poll", startedJob?.job_id && actionData?.intent === "identify_start" ? startedJob.job_id : undefined);
+  const deepJob = usePollingJob("deep_poll", startedJob?.job_id && actionData?.intent === "deep_start" ? startedJob.job_id : undefined);
+  const displayedProfile = businessJob?.profile ?? actionData?.job?.profile ?? profile;
+  const displayedIdentification = identifyJob?.labels ? { labels: identifyJob.labels, product_titles: identifyJob.product_titles } : identification;
+  const googleReady = Boolean(gsc?.connected && ga4?.connected);
+  const profileValidated = Boolean(displayedProfile?.status === "validated" || actionData?.saved);
+  const labelsReady = Boolean(displayedIdentification?.labels && Object.keys(displayedIdentification.labels).length > 0);
+  const activeStep = !googleReady ? 1 : !profileValidated ? 2 : !labelsReady ? 3 : 4;
 
-  // Auto-open Google's consent screen in a centered popup when the action returns
-  // an authorization URL. The OAuth callback posts a "leonie-google-oauth" message
-  // back to this window, so we revalidate status as soon as it succeeds.
   useEffect(() => {
-    const url = actionData?.authorizationUrl;
-    if (!url || openedUrlRef.current === url) return;
-    if (typeof window === "undefined") return;
+    const url = actionData?.authorizationUrl ?? actionData?.ga4AuthorizationUrl;
+    if (!url || openedUrlRef.current === url || typeof window === "undefined") return;
     openedUrlRef.current = url;
-    const w = 520;
-    const h = 720;
-    const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
-    const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
-    window.open(
-      url,
-      "leonie-google-oauth",
-      `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no`,
-    );
-  }, [actionData?.authorizationUrl]);
+    window.open(url, "leonie-google-oauth", "width=520,height=720,menubar=no,toolbar=no");
+  }, [actionData?.authorizationUrl, actionData?.ga4AuthorizationUrl]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined") return undefined;
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { source?: string; ok?: boolean } | null;
-      if (data?.source === "leonie-google-oauth" && data.ok) {
-        revalidator.revalidate();
-      }
+      if (data?.source === "leonie-google-oauth" && data.ok) revalidator.revalidate();
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [revalidator]);
 
-  // Refresh status after a disconnect so the UI flips back to "Connect".
   useEffect(() => {
-    if (actionData?.disconnected) revalidator.revalidate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actionData?.disconnected]);
-
-  const nextAction = computeNextAction(locale, status, health, gsc, niche);
+    if (businessJob?.status === "completed" || identifyJob?.status === "completed" || deepJob?.status === "completed" || actionData?.saved || actionData?.imported) revalidator.revalidate();
+  }, [actionData?.imported, actionData?.saved, businessJob?.status, deepJob?.status, identifyJob?.status, revalidator]);
 
   return (
-    <Page
-      title={t(locale, "onboarding")}
-      backAction={{
-        content: t(locale, "backDashboard"),
-        url: localizedPath("/app", locale),
-      }}
-    >
+    <Page title={t(locale, "onboardingJourneyTitle")} backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}>
       <BlockStack gap="400">
-        {nextAction && (
-          <Banner
-            tone="info"
-            title={locale === "fr" ? "Prochaine étape recommandée" : "Recommended next step"}
-          >
-            <Text as="p">{nextAction.label}</Text>
-          </Banner>
-        )}
-
-        {actionData?.authorizationUrl && (
-          <Banner
-            tone="info"
-            title={
-              locale === "fr"
-                ? "Autorisation Google requise"
-                : "Google authorization required"
-            }
-          >
-            <Text as="p">
-              {locale === "fr"
-                ? "Une fenêtre Google s'est ouverte. Termine le consentement, puis cette page se mettra à jour automatiquement."
-                : "A Google window opened. Complete the consent and this page will refresh automatically."}
-            </Text>
-            <Text as="p" variant="bodySm" tone="subdued">
-              {locale === "fr" ? "Si la fenêtre est bloquée :" : "If the popup is blocked:"}{" "}
-              <Link
-                url={actionData.authorizationUrl}
-                target="_blank"
-                accessibilityLabel={
-                  locale === "fr"
-                    ? "Ouvrir l'autorisation Google dans un nouvel onglet"
-                    : "Open Google authorization in a new tab"
-                }
-              >
-                {locale === "fr" ? "ouvrir l'autorisation Google →" : "open Google authorization →"}
-              </Link>
-            </Text>
-          </Banner>
-        )}
-
-        <GuidedOnboardingFlow locale={locale} gsc={gsc} niche={niche} />
-
-        <details>
-          <summary>{locale === "fr" ? "Outils avancés" : "Advanced tools"}</summary>
-          <div style={{ marginTop: "var(--p-space-300)" }}>
-            <BlockStack gap="400">
-              <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
-                <InstallationChecklistCard
-                  locale={locale}
-                  shop={shop}
-                  status={status}
-                  health={health}
-                  gsc={gsc}
-                  pagespeed={pagespeed}
-                  crawl={crawl}
-                />
-                <AuditLauncherCard locale={locale} recentJobs={recentJobs} actionData={actionData} />
-              </InlineGrid>
-
-              <GoogleSearchConsoleCard locale={locale} gsc={gsc} actionData={actionData} />
-              <PageSpeedCard locale={locale} pagespeed={pagespeed} />
-              <CrawlCard locale={locale} crawl={crawl} actionData={actionData} />
-            </BlockStack>
-          </div>
-        </details>
+        {actionData?.error ? <Banner tone="critical" title={actionData.error} /> : null}
+        <Banner tone="info" title={t(locale, "onboardingJourneyIntroTitle")}><Text as="p">{t(locale, "onboardingJourneyIntroBody")}</Text></Banner>
+        <StepCard index={1} title={t(locale, "onboardingConnectGoogleTitle")} body={t(locale, "onboardingConnectGoogleBody")} done={googleReady} active={activeStep === 1}>
+          <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+            <Card><BlockStack gap="200"><Text as="h3" variant="headingSm">Google Search Console</Text><Badge tone={gsc?.connected ? "success" : "attention"}>{gsc?.connected ? t(locale, "connected") : t(locale, "missing")}</Badge><Form method="post"><input type="hidden" name="intent" value="gsc_connect" /><Button submit loading={submittingAction === "gsc_connect"}>{t(locale, "onboardingConnect")}</Button></Form><Form method="post"><input type="hidden" name="intent" value="gsc_import" /><Button submit variant="plain" loading={submittingAction === "gsc_import"}>{t(locale, "onboardingImportGsc")}</Button></Form></BlockStack></Card>
+            <Card><BlockStack gap="200"><Text as="h3" variant="headingSm">Google Analytics 4</Text><Badge tone={ga4?.connected ? "success" : "attention"}>{ga4?.connected ? t(locale, "connected") : t(locale, "missing")}</Badge><Form method="post"><input type="hidden" name="intent" value="ga4_connect" /><Button submit loading={submittingAction === "ga4_connect"}>{t(locale, "onboardingConnect")}</Button></Form></BlockStack></Card>
+          </InlineGrid>
+          {(actionData?.authorizationUrl || actionData?.ga4AuthorizationUrl) ? <Text as="p" tone="subdued"><Link url={actionData.authorizationUrl ?? actionData.ga4AuthorizationUrl ?? "#"} target="_blank">{t(locale, "onboardingPopupFallback")}</Link></Text> : null}
+        </StepCard>
+        <StepCard index={2} title={t(locale, "onboardingFirstAnalysisTitle")} body={t(locale, "onboardingFirstAnalysisBody")} done={profileValidated} active={activeStep === 2}>
+          <Form method="post"><input type="hidden" name="intent" value="business_profile_analyze" /><Button submit variant="primary" loading={submittingAction === "business_profile_analyze"}>{t(locale, "onboardingRunFirstAnalysis")}</Button></Form>
+          {startedJob?.status || businessJob?.status ? <ProgressBar progress={(businessJob?.status ?? startedJob?.status) === "completed" ? 100 : 45} /> : null}
+          {displayedProfile ? <Form method="post"><input type="hidden" name="intent" value="business_profile_save" /><BusinessProfilePanel profile={displayedProfile} locale={locale} /><Button submit variant="primary" loading={submittingAction === "business_profile_save"}>{t(locale, "onboardingValidateProfile")}</Button></Form> : null}
+        </StepCard>
+        <StepCard index={3} title={t(locale, "onboardingAdjustProductsTitle")} body={t(locale, "onboardingAdjustProductsBody")} done={labelsReady} active={activeStep === 3}>
+          <Form method="post"><input type="hidden" name="intent" value="identify_start" /><Button submit variant="primary" loading={submittingAction === "identify_start"}>{t(locale, "onboardingIdentifyProducts")}</Button></Form>
+          {identifyJob?.status ? <ProgressBar progress={identifyJob.status === "completed" ? 100 : 50} /> : null}
+          {displayedIdentification ? <Form method="post"><input type="hidden" name="intent" value="save_identifications" /><ProductIdentificationPanel identification={displayedIdentification} locale={locale} /><Button submit variant="primary" loading={submittingAction === "save_identifications"}>{t(locale, "onboardingSaveLabels")}</Button></Form> : null}
+        </StepCard>
+        <StepCard index={4} title={t(locale, "onboardingDeepAnalysisTitle")} body={t(locale, "onboardingDeepAnalysisBody")} done={marketReady} active={activeStep === 4}>
+          <Form method="post"><input type="hidden" name="intent" value="deep_start" /><Button submit variant="primary" loading={submittingAction === "deep_start"}>{t(locale, "onboardingRunDeepAnalysis")}</Button></Form>
+          {deepJob?.status || (startedJob?.status && submittingAction === "deep_start") ? <ProgressBar progress={(deepJob?.status ?? startedJob?.status) === "completed" ? 100 : Number(deepJob?.progress ?? 55)} /> : null}
+          {(deepJob?.status === "completed" || marketReady) ? <Button url={localizedPath("/app", locale)} variant="primary">{fr ? "Aller au Dashboard" : "Go to Dashboard"}</Button> : null}
+        </StepCard>
       </BlockStack>
     </Page>
   );

@@ -20,6 +20,7 @@ from app.business_profile.context import (
     resolve_business_profile_context_status,
 )
 from app.business_profile.jobs import load_business_profile
+from app.geo.apply_tracking import record_live_apply_impact
 from app.geo.continuous_improvement import (
     enrich_market_analysis_result,
     get_product_locked_tags,
@@ -878,6 +879,16 @@ async def sync_market_analysis_schema_facts(
     if not sync_result.get("applied"):
         return {"saved": False, "schema_facts_sync": sync_result}
     patch_product_proposals(ctx.shop, product_id, {"schema_facts_sync": sync_result})
+    record_live_apply_impact(
+        shop=ctx.shop,
+        resource_type="product",
+        resource_id=product_id,
+        resource_title=str(product.get("product_title") or product.get("title") or ""),
+        field="faq_metafield",
+        old_value=None,
+        new_value=confirmed_facts,
+        source="schema_facts_sync",
+    )
     return {"saved": True, "schema_facts_sync": sync_result}
 
 
@@ -916,9 +927,13 @@ async def apply_market_analysis_proposals_to_shopify(
     if seo_fields:
         title = str(pack.get("proposed_meta_title") or "") if "meta_title" in seo_fields else None
         desc = str(pack.get("proposed_meta_description") or "") if "meta_description" in seo_fields else None
-        r = await asyncio.to_thread(writer.apply_product_seo, product_id, title or None, desc or None)
+        seo_result = await asyncio.to_thread(writer.apply_product_seo, product_id, title or None, desc or None)
         for f in seo_fields:
-            results[f] = {"applied": r.applied, "error": r.error}
+            results[f] = {
+                "applied": seo_result.applied,
+                "error": seo_result.error,
+                "old_value": seo_result.old_title if f == "meta_title" else seo_result.old_description,
+            }
 
     if "description" in body.fields:
         r = await asyncio.to_thread(
@@ -944,6 +959,32 @@ async def apply_market_analysis_proposals_to_shopify(
             "applied_count": applied_count,
             "error": "; ".join(alt_errors) if alt_errors else None,
         }
+
+    for field, outcome in results.items():
+        if not outcome.get("applied"):
+            continue
+        old_value = None
+        new_value = None
+        if field == "meta_title":
+            old_value = outcome.get("old_value")
+            new_value = pack.get("proposed_meta_title")
+        elif field == "meta_description":
+            old_value = outcome.get("old_value")
+            new_value = pack.get("proposed_meta_description")
+        elif field == "description":
+            new_value = pack.get("proposed_product_description")
+        elif field == "image_alts":
+            new_value = pack.get("proposed_image_alts")
+        record_live_apply_impact(
+            shop=ctx.shop,
+            resource_type="product",
+            resource_id=product_id,
+            resource_title=str(product.get("product_title") or product.get("title") or ""),
+            field=field,
+            old_value=old_value,
+            new_value=new_value,
+            source="market_analysis_apply",
+        )
 
     return {"shop": ctx.shop, "product_id": product_id, "results": results}
 

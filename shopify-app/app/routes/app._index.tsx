@@ -305,6 +305,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const dashboard = (await dashResp.value.json()) as DashboardData;
 
+    if (!businessProfile || businessProfile.status !== "validated") {
+      return redirect(localizedPath("/app/onboarding", locale));
+    }
+
     if (!dashboard.zone1.niche_available) {
       return redirect(localizedPath("/app/onboarding", locale));
     }
@@ -681,7 +685,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  // ── Single-product market analysis (mirror of app.market-analysis) ────────
+  // ── Single-product market analysis (mirror of app.products) ────────
   if (intent === "startSingle" || intent === "saveFactsAndStartSingle") {
     const productId = formData.get("productId") as string;
     try {
@@ -937,7 +941,7 @@ function Zone1({
               <Text as="p" tone="subdued">{t(locale, "dashboardZone1NicheUnvalidated")}</Text>
             )}
             <Button
-              url={localizedPath("/app/niche-understanding", locale)}
+              url={localizedPath("/app/onboarding", locale)}
               variant={data.niche_validated ? "plain" : "primary"}
               size="slim"
             >
@@ -979,7 +983,7 @@ function ActionCard({
           )}
         </InlineStack>
         <Button
-          url={`${localizedPath("/app/safe-apply", locale)}&highlight=${action.action_id}`}
+          url={`${localizedPath("/app/products", locale)}&highlight=${action.action_id}`}
           variant="primary"
           size="slim"
         >
@@ -1112,7 +1116,7 @@ function ActiveProductsCard({
               );
             })}
             <InlineStack align="center">
-              <Button url={localizedPath("/app/market-analysis", locale)} variant="plain">
+              <Button url={localizedPath("/app/products", locale)} variant="plain">
                 {t(locale, "dashboardShowMore")}
               </Button>
             </InlineStack>
@@ -1214,7 +1218,7 @@ function Zone3({
                 </Text>
               </InlineStack>
             )}
-            <Button url={localizedPath("/app/impact", locale)} variant="secondary" size="slim">
+            <Button url={localizedPath("/app/measure", locale)} variant="secondary" size="slim">
               {t(locale, "dashboardZone3Cta")}
             </Button>
           </>
@@ -1238,7 +1242,7 @@ function Zone4({
   const stepHref: Record<string, string> = {
     gsc: "/app/onboarding",
     ga4: "/app/onboarding",
-    niche: "/app/niche-understanding",
+    niche: "/app/onboarding",
     plan: "/app/billing",
   };
 
