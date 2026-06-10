@@ -10,6 +10,20 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-10
+- **Agent:** Claude (Sonnet 4.6)
+- **Goal:** Adapter le prompt d'implémentation `docs/codex-prompt-merchant-journey.md` (9 tâches d'alignement sur le parcours marchand cible) au workflow Claude Code (Sonnet 4.6), à la demande de l'utilisateur.
+- **Summary:** Création de `docs/claude-code-prompt-merchant-journey.md` — même périmètre fonctionnel que la version Codex (mêmes 9 tâches, mêmes endpoints/fichiers, mêmes critères d'acceptation et hors-scope), mais avec un workflow Claude Code explicite : (1) usage d'une session par tâche avec `/clear` + prompt de lancement fourni en en-tête ; (2) plan mode obligatoire pour les Tasks 1 (refonte onboarding), 3 (restructuration nav), 7 (scheduler/automation) et 9 (schéma DB), conformément à `CLAUDE.md` ; (3) usage des subagents du repo (`code-reviewer` après chaque tâche, `test-triage` sur échec de tests, `shopify-architecture-reviewer` avant commit des Tasks 5 et 7 qui touchent les chemins d'écriture Shopify et l'automation) ; (4) suivi par todo-list, exploration read-only avant édition, re-grep des numéros de ligne (drift possible) ; (5) validations obligatoires avant chaque commit et résumé final AGENTS.md §7. Ajouts spécifiques par rapport à la version Codex : note de dépendance Task 3↔Task 4 (l'entrée nav `/app/measure` ne doit être ajoutée que quand la route existe), consigne de localiser chirurgicalement les fonctions d'assemblage de prompt dans `engine.py` (~5 900 lignes) via Grep pour la Task 6, et interdiction explicite des hooks projet / agents parallèles sur les mêmes fichiers (§5).
+- **Files created:** `docs/claude-code-prompt-merchant-journey.md`.
+- **Files modified:** `docs/AI_HANDOFF.md` (cette entrée).
+- **Decisions made:** Les deux prompts (Codex et Claude Code) coexistent dans `docs/` — contenu fonctionnel identique pour éviter toute divergence de périmètre ; seule la couche workflow diffère. Aucun code applicatif modifié.
+- **Validations run:** Aucune nécessaire (diff documentation uniquement).
+- **Validations skipped:** `pytest`/`ruff`/`typecheck`/`build` — aucun code touché.
+- **Open issues:** Identiques à l'entrée précédente : liens morts en prod, pas de page Mesure, pas de re-analyse automatique 14/28 j tant que les 9 tâches ne sont pas exécutées. Si les deux prompts évoluent, les maintenir synchronisés (ou supprimer celui qui n'est pas utilisé).
+- **Next recommended action:** Exécuter `docs/claude-code-prompt-merchant-journey.md` Task 1 dans une session Claude Code dédiée, en plan mode.
+
+## Previous completed task
+
 - **Date:** 2026-06-09
 - **Agent:** Claude (Fable)
 - **Goal:** Analyse read-only de l'écart entre l'app réellement en prod (routes Remix montées, routers FastAPI montés dans `app/main.py`, scheduler) et le parcours marchand cible (Google → analyse 1 « ce qu'on a compris » → ajustement → grosse analyse → Dashboard/Produits/Blog/Mesure/Réglages → re-analyse auto 14/28 j informée des mesures), puis production d'un prompt d'implémentation détaillé pour Codex.
