@@ -27,6 +27,7 @@ from app.blog.schema import build_article_jsonld, build_faqpage_jsonld, render_j
 from app.blog.section_generator import generate_all_sections, generate_section
 from app.blog.shopify_articles import BlogPublisher
 from app.blog.store import delete_draft, get_draft, list_drafts, save_draft
+from app.geo.auto_tracking import record_applied_change
 from app.market_analysis.jobs import load_latest_result
 
 router = APIRouter(prefix="/api", tags=["blog"])
@@ -583,6 +584,17 @@ def publish_blog_draft(
     draft["shopify_article_handle"] = created.get("handle")
     draft["shopify_blog_id"] = blog_id
     saved = save_draft(ctx.shop, draft)
+    record_applied_change(
+        shop=ctx.shop,
+        resource_type="blog_post",
+        resource_id=str(created.get("id") or draft_id),
+        resource_title=str(draft.get("blog_title") or ""),
+        resource_handle=str(created.get("handle") or ""),
+        action_type="blog_publish",
+        field="blog_post",
+        old_value=None,
+        new_value=draft.get("blog_title"),
+    )
     return {"draft": saved, "article": created}
 
 

@@ -20,6 +20,7 @@ from app.business_profile.context import (
     resolve_business_profile_context_status,
 )
 from app.business_profile.jobs import load_business_profile
+from app.geo.auto_tracking import record_applied_change
 from app.geo.continuous_improvement import (
     enrich_market_analysis_result,
     get_product_locked_tags,
@@ -878,6 +879,17 @@ async def sync_market_analysis_schema_facts(
     if not sync_result.get("applied"):
         return {"saved": False, "schema_facts_sync": sync_result}
     patch_product_proposals(ctx.shop, product_id, {"schema_facts_sync": sync_result})
+    record_applied_change(
+        shop=ctx.shop,
+        resource_type="product",
+        resource_id=product_id,
+        resource_title=str(product.get("product_title") or product_id),
+        resource_handle=str(product.get("product_handle") or ""),
+        action_type="faq_metafield_sync",
+        field="schema_facts",
+        old_value=None,
+        new_value=confirmed_facts if isinstance(confirmed_facts, list) else [],
+    )
     return {"saved": True, "schema_facts_sync": sync_result}
 
 
@@ -911,6 +923,8 @@ async def apply_market_analysis_proposals_to_shopify(
 
     writer = ShopifyWriter(ctx.shop, ctx.access_token)
     results: dict[str, Any] = {}
+    resource_title = str(product.get("product_title") or product_id)
+    resource_handle = str(product.get("product_handle") or "")
 
     seo_fields = [f for f in body.fields if f in {"meta_title", "meta_description"}]
     if seo_fields:
@@ -919,31 +933,77 @@ async def apply_market_analysis_proposals_to_shopify(
         r = await asyncio.to_thread(writer.apply_product_seo, product_id, title or None, desc or None)
         for f in seo_fields:
             results[f] = {"applied": r.applied, "error": r.error}
+            if r.applied:
+                record_applied_change(
+                    shop=ctx.shop,
+                    resource_type="product",
+                    resource_id=product_id,
+                    resource_title=resource_title,
+                    resource_handle=resource_handle,
+                    action_type=f,
+                    field=f,
+                    old_value=pack.get(f"current_{f}"),
+                    new_value=title if f == "meta_title" else desc,
+                )
 
     if "description" in body.fields:
-        r = await asyncio.to_thread(
-            writer.apply_product_description, product_id, str(pack.get("proposed_product_description") or "")
-        )
+        proposed_description = str(pack.get("proposed_product_description") or "")
+        r = await asyncio.to_thread(writer.apply_product_description, product_id, proposed_description)
         results["description"] = {"applied": r.applied, "error": r.error}
+        if r.applied:
+            record_applied_change(
+                shop=ctx.shop,
+                resource_type="product",
+                resource_id=product_id,
+                resource_title=resource_title,
+                resource_handle=resource_handle,
+                action_type="product_description",
+                field="product_description",
+                old_value=pack.get("current_product_description_summary"),
+                new_value=proposed_description,
+            )
 
     if "image_alts" in body.fields:
         image_alts = pack.get("proposed_image_alts") or []
+        current_images = {
+            str(img.get("id") or ""): img.get("current_alt")
+            for img in (pack.get("current_product_images") or [])
+            if isinstance(img, dict)
+        }
         alt_errors: list[str] = []
-        applied_count = 0
+        applied_alts: list[dict[str, Any]] = []
         for alt_item in (image_alts if isinstance(image_alts, list) else []):
             image_id = str(alt_item.get("image_id") or "")
             proposed_alt = str(alt_item.get("proposed_alt") or "")
             if image_id and proposed_alt:
                 r = await asyncio.to_thread(writer.apply_image_alt, product_id, image_id, proposed_alt)
                 if r.applied:
-                    applied_count += 1
+                    applied_alts.append(
+                        {
+                            "image_id": image_id,
+                            "old_alt": current_images.get(image_id),
+                            "new_alt": proposed_alt,
+                        }
+                    )
                 elif r.error:
                     alt_errors.append(r.error)
         results["image_alts"] = {
-            "applied": applied_count > 0,
-            "applied_count": applied_count,
+            "applied": bool(applied_alts),
+            "applied_count": len(applied_alts),
             "error": "; ".join(alt_errors) if alt_errors else None,
         }
+        if applied_alts:
+            record_applied_change(
+                shop=ctx.shop,
+                resource_type="product",
+                resource_id=product_id,
+                resource_title=resource_title,
+                resource_handle=resource_handle,
+                action_type="alt_text",
+                field="alt_text",
+                old_value=[item["old_alt"] for item in applied_alts],
+                new_value=[item["new_alt"] for item in applied_alts],
+            )
 
     return {"shop": ctx.shop, "product_id": product_id, "results": results}
 

@@ -194,6 +194,7 @@ def test_schema_facts_sync_is_explicit_shopify_write() -> None:
             },
         ) as sync,
         patch("app.api.market_analysis.patch_product_proposals", return_value=True) as patch_pack,
+        patch("app.api.market_analysis.record_applied_change"),
     ):
         result = asyncio.run(
             sync_market_analysis_schema_facts(

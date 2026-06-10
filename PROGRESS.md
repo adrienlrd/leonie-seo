@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Session 2026-06-10 : **Phase 11.11 (Merchant Journey Alignment, tâches 1-9) en cours** — Tâches 1, 2, 4, 3/9 livrées : assistant onboarding 4 étapes, liens morts corrigés + dashboard allégé, nouvelle page `app.measure.tsx` (backend `/geo/*`), renommage "Analyse marché" → "Produits" (`app.products.tsx`) + nav Dashboard/Produits/Blog/Mesure/Réglages. `npm run typecheck` ✅, `npm run build` ✅.
+- Session 2026-06-10 : **Phase 11.11 (Merchant Journey Alignment, tâches 1-9) en cours** — Tâches 1, 2, 4, 3, 5/9 livrées : assistant onboarding 4 étapes, liens morts corrigés + dashboard allégé, nouvelle page `app.measure.tsx` (backend `/geo/*`), renommage "Analyse marché" → "Produits" (`app.products.tsx`) + nav Dashboard/Produits/Blog/Mesure/Réglages, tracking automatique des `geo_impact_events`/`geo_optimization_snapshots` à chaque application live. `npm run typecheck` ✅, `npm run build` ✅, `ruff check .` ✅, `pytest -q` 1764 passed (72 échecs préexistants sans rapport).
 - Session 2026-05-31 : **Blog SEO+GEO Sprint 2 livré** — les brouillons blog réutilisent le maillage interne d'Analyse marché (`internal_links` éditables + bloc « À lire aussi » publié dans Shopify) et la page Crawlabilité IA fournit un template `robots.txt.liquid` manuel avec bouton copier. Validations : `ruff check` ciblé ✅, `pytest tests/test_blog tests/test_geo/test_crawlability.py tests/test_api/test_geo.py` **51 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅, `git diff --check` ✅.
 - Dernière session : **2026-05-29** (Fiabilisation algo Analyse produit : pipeline « données réelles d'abord », pool de mots-clés GSC/DataForSEO/Suggest/Trends avant l'IA, mode JSON déterministe, transparence des sources en UI ; `pytest` 1583 ✅, typecheck/build ✅)
 - Session 2026-05-25 (DataForSEO 5 APIs actives + migration infra prod planifiée Phase 12)
@@ -22,7 +22,7 @@
 - Phase 11.8 : **11/11** ✅ (implémentation GEO Autopilot Simplification, tâches 139-149, terminée 2026-05-21)
 - Phase 11.9 : **12/12** ✅ (Merchant Journey Unification & Friction Reduction, tâches 152-163 terminées le 2026-05-21)
 - Phase 11.10 : **0/5** ⏳ (Market Analysis Improvements, tâches 164-168, parallèle aux tests marchands pilotes)
-- Phase 11.11 : **4/9** ⏳ (Merchant Journey Alignment — onboarding/dashboard/nav/mesure/tracking/historique/réanalyse/réglages/persistance, en cours le 2026-06-10)
+- Phase 11.11 : **5/9** ⏳ (Merchant Journey Alignment — onboarding/dashboard/nav/mesure/tracking/historique/réanalyse/réglages/persistance, en cours le 2026-06-10)
 - Phase 12 : **0/5** ⏳ (go/no-go + soumission publique Shopify App Store + migration infra prod, tâches 150-151 + 169-171, démarre après test 3 marchands pilotes)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
 - Tests : dernière validation complète tâches 155-163 — `npm run typecheck` ✅, `npm run build` ✅, `git diff --check` ✅.
@@ -62,10 +62,10 @@ Aligner Giulio Geo sur le parcours marchand cible : onboarding 4 étapes fonctio
 - **2 — Liens morts corrigés + dashboard allégé** : remplacement de `/app/niche-understanding`, `/app/safe-apply`, `/app/impact`, `/app/priorities`, `/app/ga4` par des cibles valides (`/app/onboarding&step=2`, `/app/market-analysis?product=...` puis `/app/products?product=...` après la tâche 3, `/app/measure`). `app.onboarding.tsx` accepte un paramètre `?step=` pour revenir manuellement à une étape sans boucle de redirection. Détails : `docs/AI_HANDOFF.md`.
 - **4 — Page Mesure** : nouvelle route `app.measure.tsx` (lecture seule) consommant `GET /geo/progress-curve`, `/geo/ledger`, `/geo/retention-milestones`, `/geo/impact-report`, `/geo/confidence-scores`, `/geo/control-groups`, `/geo/next-best-actions` via `callBackendForShop`. Réutilise le composant `Sparkline` existant (pas de nouvelle dépendance graphique). ~65 nouvelles clés i18n FR+EN (`measure*`). Détails : `docs/AI_HANDOFF.md`.
 - **3 — Renommage "Analyse marché" → "Produits"** : `git mv app.market-analysis.tsx app.products.tsx` (composant renommé `ProductsPage`, titre `navProducts`) ; nouvelle `app.market-analysis.tsx` = redirect-only vers `/app/products` (préserve query params + locale). Nav `app.tsx` restructurée en Dashboard/Produits/Blog/Mesure/Réglages — `geo-llms-txt`/`continuous-improvement` retirés du `NavMenu` (routes conservées, atteignables par URL directe, référencées plus tard depuis Réglages/Mesure à la tâche 8). Toutes les références `/app/market-analysis` (`app._index.tsx`, `app.competitor-crawl.tsx`, `app.blog.tsx`) et libellés "Analyse marché"/"Market analysis" pointant vers cette page mis à jour vers "Produits"/"Products". Clé i18n `marketAnalysis` (titre de page) supprimée ; les clés `marketAnalysis*` de fonctionnalité (ex. `marketAnalysisCompetitorsTitle`) conservées. Détails : `docs/AI_HANDOFF.md`.
+- **5 — Tracking automatique des changements appliqués** : nouveau `app/geo/auto_tracking.py` (`record_applied_change()`) crée un `geo_optimization_snapshots` minimal + un `geo_impact_events` (`status="applied"`, `event_type="applied_optimization"`) à chaque écriture Shopify live réussie, en réutilisant `create_optimization_snapshot()`/`create_geo_event()`. Idempotent par jour calendaire (UTC) sur `(shop, resource_type, resource_id, action_type, field)`. Câblé dans `apply-to-shopify` (meta_title/meta_description/product_description/alt_text), `schema-facts/sync`, `publish_blog_draft` et `apply_approval` (learning). Toute exception est loguée et avalée (`record_applied_change` retourne `None`) pour ne jamais transformer un apply Shopify réussi en 500. Détails : `docs/AI_HANDOFF.md`.
 
 ### Tâches restantes
 
-- **5** — Créer automatiquement des `geo_impact_events`/`geo_optimization_snapshots` à chaque application live (apply-to-shopify, blog publish, schema-facts sync, approbations learning).
 - **6** — Injecter l'historique d'optimisation dans les prompts du moteur d'analyse (`_build_pass1_prompt`/`_build_pass2_prompt`).
 - **7** — Cycle de réanalyse automatique 14/28 jours dans le scheduler.
 - **8** — Page Réglages consolidée (automatisation, connexions Google, visibilité IA, existant).
@@ -77,6 +77,12 @@ Aligner Giulio Geo sur le parcours marchand cible : onboarding 4 étapes fonctio
 - `code-reviewer` exécuté sur chaque diff.
 - `ruff check .`/`pytest` non requis (aucun changement Python sur ces 4 tâches, hors `app/api/ga4.py` à la tâche 1).
 - `ruff check .`/`pytest` non requis (seul `app/api/ga4.py` modifié côté Python, HTML statique sans logique testable).
+
+### Validations (tâche 5)
+
+- `ruff check .` ✅ ; `pytest -q` complet → **1764 passed, 185 skipped, 72 failed** (échecs préexistants confirmés via `git stash`, tous des 401 sur des routes sans rapport — `test_geo`/`test_billing`/`test_privacy`/`test_shops`/`test_pagespeed_configure`/`test_llm`).
+- Ciblé : `pytest tests/test_geo tests/test_api/test_market_analysis.py tests/test_blog tests/test_learning` → **275 passed**.
+- `shopify-architecture-reviewer` exécuté : OK après correctif (try/except dans `record_applied_change`). `code-reviewer` exécuté : OK après correctif (`field` dans `apply_approval`).
 
 ## Phase 11.9 — Merchant Journey Unification & Friction Reduction le 2026-05-21
 

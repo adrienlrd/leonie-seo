@@ -9,6 +9,7 @@ from typing import Any
 from app.apply.shopify_writer import ShopifyWriter
 from app.content_actions.schema import ContentType
 from app.db_adapter import DB_PATH, get_conn
+from app.geo.auto_tracking import record_applied_change
 from app.geo.ledger import update_geo_event_status
 from app.learning.models import ApprovalStatus
 from app.learning.risk import is_auto_apply_field_allowed
@@ -93,6 +94,7 @@ def apply_approval(
             record_content_decision(shop, str(action_id), "accept", db_path=db_path)
         except ValueError:
             pass
+    field_name = FIELD_FOR_CONTENT_TYPE.get(content_type, str(row["field"]))
     ledger_event_id = (row.get("explanation") or {}).get("ledger_event_id")
     if ledger_event_id:
         try:
@@ -104,7 +106,7 @@ def apply_approval(
                 after_snapshot={
                     "approval_id": approval_id,
                     "content_action_id": action_id,
-                    "field": FIELD_FOR_CONTENT_TYPE.get(content_type, str(row["field"])),
+                    "field": field_name,
                     "optimization_attribution": (row.get("explanation") or {}).get(
                         "optimization_attribution", {}
                     ),
@@ -114,6 +116,18 @@ def apply_approval(
             )
         except (TypeError, ValueError):
             pass
+    else:
+        record_applied_change(
+            shop=shop,
+            resource_type=str(row.get("resource_type") or "product"),
+            resource_id=str(row["resource_id"]),
+            resource_title=str(row.get("resource_title") or row["resource_id"]),
+            action_type=content_type.value,
+            field=content_type.value,
+            old_value=result.get("old_value"),
+            new_value=str(row["proposed_value"] or ""),
+            db_path=db_path,
+        )
     path = db_path if db_path is not None else DB_PATH
     with get_conn(path) as conn:
         conn.execute(
