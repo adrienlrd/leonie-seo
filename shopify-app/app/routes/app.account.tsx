@@ -124,7 +124,7 @@ export default function AccountHub() {
                 {gscConnected ? (
                   <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
                 ) : (
-                  <Button variant="plain" size="slim" url="/app/onboarding">
+                  <Button variant="plain" size="slim" url={localizedPath("/app/onboarding", locale)}>
                     {fr ? "Se connecter" : "Connect"}
                   </Button>
                 )}
@@ -134,7 +134,7 @@ export default function AccountHub() {
                 {ga4Connected ? (
                   <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
                 ) : (
-                  <Button variant="plain" size="slim" url="/app/ga4">
+                  <Button variant="plain" size="slim" url={localizedPath("/app/onboarding", locale)}>
                     {fr ? "Se connecter" : "Connect"}
                   </Button>
                 )}

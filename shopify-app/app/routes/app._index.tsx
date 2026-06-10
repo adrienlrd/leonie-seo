@@ -9,11 +9,9 @@ import {
   Box,
   Button,
   Card,
-  FormLayout,
   Icon,
   InlineGrid,
   InlineStack,
-  Modal,
   Page,
   ProgressBar,
   Spinner,
@@ -56,25 +54,11 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
-import {
-  startBusinessAnalysis as startBusinessAnalysisAction,
-  pollBusinessAnalysis as pollBusinessAnalysisAction,
-  saveBusinessProfile as saveBusinessProfileAction,
-  saveBusinessProfileAndStartIdentification as saveBusinessProfileAndStartIdentificationAction,
-} from "../lib/businessProfileActions.server";
-import {
-  startProductAnalysis as startProductAnalysisAction,
-  pollProductIdentification as pollProductIdentificationAction,
-  saveProductIdentificationAndStartAnalysis as saveProductIdentificationAndStartAnalysisAction,
-  pollProductAnalysis as pollProductAnalysisAction,
-} from "../lib/productIdentificationActions.server";
 import { LlmsTxtPanel } from "../components/LlmsTxtPanel";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
 import {
   qualityWarningText,
-  linesFromText,
-  textFromLines,
   SectionTitle,
   type ProductResult,
   type MarketJobState,
@@ -292,7 +276,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ── Action (refresh + audit job polling) ──────────────────────────────────────
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session, admin } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent") as string | null;
 
@@ -332,94 +316,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  if (intent === "startBusinessAnalysis" || intent === "startFullAnalysis") {
-    let shopName = "";
-    try {
-      const shopResp = await admin.graphql(`#graphql
-        query { shop { name } }
-      `);
-      const shopData = (await shopResp.json()) as { data?: { shop?: { name?: string } } };
-      shopName = shopData.data?.shop?.name ?? "";
-    } catch { /* non-fatal */ }
-
-    const rawKeywords = formData.get("focusKeywords");
-    const focusKeywords: string[] = rawKeywords ? (JSON.parse(rawKeywords as string) as string[]) : [];
-
-    const result = await startBusinessAnalysisAction(session.shop, session.accessToken, {
-      shopName,
-      focusKeywords,
-    });
-    return json({ type: intent, ...result });
-  }
-
-  if (intent === "pollBusinessAnalysis") {
-    const bizJobId = formData.get("bizJobId") as string;
-    const result = await pollBusinessAnalysisAction(session.shop, session.accessToken, bizJobId);
-    return json({ type: "pollBusinessAnalysis", ...result });
-  }
-
-  if (intent === "pollFullBusinessAnalysis") {
-    const bizJobId = formData.get("bizJobId") as string;
-    const result = await pollBusinessAnalysisAction(session.shop, session.accessToken, bizJobId);
-    return json({ type: "pollFullBusinessAnalysis", ...result });
-  }
-
-  if (intent === "saveBusinessProfileAndStartIdentification") {
-    const profileJson = formData.get("profileJson") as string;
-    try {
-      const profileData = JSON.parse(profileJson) as BusinessProfile;
-      const result = await saveBusinessProfileAndStartIdentificationAction(
-        session.shop,
-        session.accessToken,
-        profileData,
-      );
-      return json({ type: "saveBusinessProfileAndStartIdentification", ...result });
-    } catch (err) {
-      return json({
-        type: "saveBusinessProfileAndStartIdentification",
-        profile: null,
-        identifyJobId: null,
-        error: String(err),
-      });
-    }
-  }
-
-  if (intent === "startProductAnalysis") {
-    const result = await startProductAnalysisAction(session.shop, session.accessToken);
-    return json({ type: "startProductAnalysis", ...result });
-  }
-
-  if (intent === "pollProductIdentification") {
-    const identifyJobId = formData.get("identifyJobId") as string;
-    const result = await pollProductIdentificationAction(session.shop, session.accessToken, identifyJobId);
-    return json({ type: "pollProductIdentification", ...result });
-  }
-
-  if (intent === "saveProductIdentificationAndStartAnalysis") {
-    const identificationsRaw = formData.get("identifications") as string;
-    try {
-      const identifications = JSON.parse(identificationsRaw) as Record<string, string>;
-      const result = await saveProductIdentificationAndStartAnalysisAction(
-        session.shop,
-        session.accessToken,
-        identifications,
-      );
-      return json({ type: "saveProductIdentificationAndStartAnalysis", ...result });
-    } catch (err) {
-      return json({
-        type: "saveProductIdentificationAndStartAnalysis",
-        productJobId: null,
-        error: String(err),
-      });
-    }
-  }
-
-  if (intent === "pollProductAnalysis") {
-    const productJobId = formData.get("productJobId") as string;
-    const result = await pollProductAnalysisAction(session.shop, session.accessToken, productJobId);
-    return json({ type: "pollProductAnalysis", ...result });
-  }
-
   if (intent === "saveCompetitors") {
     const payload = formData.get("competitorsJson") as string;
     try {
@@ -439,17 +335,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ type: "saveCompetitors", ok: true, error: null });
     } catch (err) {
       return json({ type: "saveCompetitors", ok: false, error: String(err) });
-    }
-  }
-
-  if (intent === "saveBusinessProfile") {
-    const profileJson = formData.get("profileJson") as string;
-    try {
-      const profileData = JSON.parse(profileJson) as BusinessProfile;
-      const result = await saveBusinessProfileAction(session.shop, session.accessToken, profileData);
-      return json({ type: "saveBusinessProfile", ...result });
-    } catch (err) {
-      return json({ type: "saveBusinessProfile", profile: null, error: String(err) });
     }
   }
 
@@ -554,19 +439,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (formData?.get("jobId")) return false;
-  if (formData?.get("bizJobId")) return false;
   const intent = formData?.get("intent");
   if (intent === "refresh") return false;
-  if (intent === "startBusinessAnalysis") return false;
-  if (intent === "startFullAnalysis") return false;
-  if (intent === "pollBusinessAnalysis") return false;
-  if (intent === "pollFullBusinessAnalysis") return false;
-  if (intent === "saveBusinessProfileAndStartIdentification") return false;
-  if (intent === "startProductAnalysis") return false;
-  if (intent === "pollProductIdentification") return false;
-  if (intent === "saveProductIdentificationAndStartAnalysis") return false;
-  if (intent === "pollProductAnalysis") return false;
-  if (intent === "saveBusinessProfile") return false;
   if (intent === "startSingle") return false;
   if (intent === "saveFactsAndStartSingle") return false;
   if (intent === "pollSingle") return false;
@@ -709,7 +583,7 @@ function Zone1({
               <Text as="p" tone="subdued">{t(locale, "dashboardZone1NicheUnvalidated")}</Text>
             )}
             <Button
-              url={localizedPath("/app/niche-understanding", locale)}
+              url={`${localizedPath("/app/onboarding", locale)}&step=2`}
               variant={data.niche_validated ? "plain" : "primary"}
               size="slim"
             >
@@ -751,7 +625,7 @@ function ActionCard({
           )}
         </InlineStack>
         <Button
-          url={`${localizedPath("/app/safe-apply", locale)}&highlight=${action.action_id}`}
+          url={`${localizedPath("/app/market-analysis", locale)}&product=${encodeURIComponent(action.action_id)}`}
           variant="primary"
           size="slim"
         >
@@ -986,7 +860,7 @@ function Zone3({
                 </Text>
               </InlineStack>
             )}
-            <Button url={localizedPath("/app/impact", locale)} variant="secondary" size="slim">
+            <Button url={localizedPath("/app/measure", locale)} variant="secondary" size="slim">
               {t(locale, "dashboardZone3Cta")}
             </Button>
           </>
@@ -1010,7 +884,7 @@ function Zone4({
   const stepHref: Record<string, string> = {
     gsc: "/app/onboarding",
     ga4: "/app/onboarding",
-    niche: "/app/niche-understanding",
+    niche: "/app/onboarding",
     plan: "/app/billing",
   };
 
@@ -1072,332 +946,7 @@ function Zone6({ locale }: { locale: Locale }) {
   );
 }
 
-// ── Analysis Controls ────────────────────────────────────────────────────────
-
-type AnalysisMode = "full" | "profile" | "products";
-type AnalysisResult = "full" | "profile" | "products";
-
-type AnalysisControlData =
-  | { type: "startFullAnalysis"; jobId: string | null; error: string | null }
-  | { type: "startBusinessAnalysis"; jobId: string | null; error: string | null }
-  | { type: "pollBusinessAnalysis"; status: string; profile: BusinessProfile | null; error: string | null }
-  | {
-      type: "pollFullBusinessAnalysis";
-      status: string;
-      profile: BusinessProfile | null;
-      error: string | null;
-    }
-  | { type: "saveBusinessProfile"; profile: BusinessProfile | null; error: string | null }
-  | {
-      type: "saveBusinessProfileAndStartIdentification";
-      profile: BusinessProfile | null;
-      identifyJobId: string | null;
-      error: string | null;
-    }
-  | { type: "startProductAnalysis"; jobId: string | null; error: string | null }
-  | {
-      type: "pollProductIdentification";
-      job: MarketJobState | null;
-      error: string | null;
-    }
-  | { type: "saveProductIdentificationAndStartAnalysis"; productJobId: string | null; error: string | null }
-  | { type: "pollProductAnalysis"; job: MarketJobState | null; error: string | null };
-
-function BusinessProfileReviewForm({
-  locale,
-  profile,
-  loading,
-  confirmLabel,
-  onChange,
-  onConfirm,
-}: {
-  locale: Locale;
-  profile: BusinessProfile;
-  loading: boolean;
-  confirmLabel: string;
-  onChange: (profile: BusinessProfile) => void;
-  onConfirm: () => void;
-}) {
-  const updateProfile = (patch: Partial<BusinessProfile>) => {
-    onChange({ ...profile, ...patch });
-  };
-
-  return (
-    <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-      <BlockStack gap="300">
-        <SectionTitle source={CompassIcon}>{t(locale, "dashboardReviewProfileTitle")}</SectionTitle>
-        <Text as="p" tone="subdued">
-          {t(locale, "dashboardReviewProfileBody")}
-        </Text>
-        <FormLayout>
-          <TextField
-            label={t(locale, "dashboardProfileBrandName")}
-            value={profile.brand_name ?? ""}
-            onChange={(value) => updateProfile({ brand_name: value })}
-            autoComplete="off"
-          />
-          <TextField
-            label={t(locale, "dashboardProfileNiche")}
-            value={profile.niche_summary ?? ""}
-            onChange={(value) => updateProfile({ niche_summary: value })}
-            multiline={3}
-            autoComplete="off"
-          />
-          <TextField
-            label={t(locale, "dashboardProfileVoice")}
-            value={profile.brand_voice ?? ""}
-            onChange={(value) => updateProfile({ brand_voice: value })}
-            multiline={3}
-            autoComplete="off"
-          />
-          <TextField
-            label={t(locale, "dashboardProfileCompetitors")}
-            value={textFromLines(profile.competitor_domains)}
-            onChange={(value) => updateProfile({ competitor_domains: linesFromText(value) })}
-            multiline={3}
-            autoComplete="off"
-          />
-          <TextField
-            label={t(locale, "dashboardProfileThemes")}
-            value={textFromLines(profile.key_themes)}
-            onChange={(value) => updateProfile({ key_themes: linesFromText(value) })}
-            multiline={3}
-            autoComplete="off"
-          />
-          <TextField
-            label={t(locale, "dashboardProfileCompetitorInsights")}
-            value={textFromLines(profile.competitor_insights)}
-            onChange={(value) => updateProfile({ competitor_insights: linesFromText(value) })}
-            multiline={3}
-            autoComplete="off"
-          />
-          <TextField
-            label={t(locale, "dashboardProfileContentGaps")}
-            value={textFromLines(profile.content_gaps)}
-            onChange={(value) => updateProfile({ content_gaps: linesFromText(value) })}
-            multiline={3}
-            autoComplete="off"
-          />
-        </FormLayout>
-        <InlineStack align="end">
-          <Button variant="primary" onClick={onConfirm} loading={loading} disabled={loading}>
-            {confirmLabel}
-          </Button>
-        </InlineStack>
-      </BlockStack>
-    </Box>
-  );
-}
-
-function ProductIdentificationReviewForm({
-  locale,
-  labels,
-  productTitles,
-  loading,
-  onLabelChange,
-  onConfirm,
-}: {
-  locale: Locale;
-  labels: Record<string, string>;
-  productTitles: Record<string, string>;
-  loading: boolean;
-  onLabelChange: (productId: string, label: string) => void;
-  onConfirm: () => void;
-}) {
-  const entries = Object.entries(labels);
-
-  return (
-    <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
-      <BlockStack gap="300">
-        <SectionTitle source={ProductIcon}>{t(locale, "dashboardReviewProductsTitle")}</SectionTitle>
-        <Text as="p" tone="subdued">
-          {t(locale, "dashboardReviewProductsBody")}
-        </Text>
-        {entries.length > 0 ? (
-          <BlockStack gap="200">
-            {entries.map(([productId, label]) => (
-              <TextField
-                key={productId}
-                label={productTitles[productId] || productId.slice(-8)}
-                helpText={t(locale, "dashboardProductConcreteLabel")}
-                value={label}
-                onChange={(value) => onLabelChange(productId, value)}
-                placeholder={t(locale, "marketAnalysisLabelPlaceholder")}
-                autoComplete="off"
-              />
-            ))}
-          </BlockStack>
-        ) : (
-          <Banner tone="warning">
-            <Text as="p">{t(locale, "dashboardNoProductLabels")}</Text>
-          </Banner>
-        )}
-        <InlineStack align="end">
-          <Button
-            variant="primary"
-            onClick={onConfirm}
-            loading={loading}
-            disabled={loading || entries.length === 0}
-          >
-            {t(locale, "dashboardConfirmProductsAndAnalyze")}
-          </Button>
-        </InlineStack>
-      </BlockStack>
-    </Box>
-  );
-}
-
-function AnalysisControlPanel({
-  locale,
-  mode,
-  lastResult,
-  error,
-  profileDraft,
-  profileStepActive,
-  identificationStepActive,
-  productLabels,
-  productTitles,
-  productJob,
-  disabled,
-  actionPending,
-  onFullAnalysis,
-  onProfileAnalysis,
-  onProductAnalysis,
-  onProfileDraftChange,
-  onProductLabelChange,
-  onConfirmProfileReview,
-  onConfirmProductReview,
-}: {
-  locale: Locale;
-  mode: AnalysisMode | null;
-  lastResult: AnalysisResult | null;
-  error: string | null;
-  profileDraft: BusinessProfile | null;
-  profileStepActive: boolean;
-  identificationStepActive: boolean;
-  productLabels: Record<string, string> | null;
-  productTitles: Record<string, string>;
-  productJob: MarketJobState | null;
-  disabled: boolean;
-  actionPending: boolean;
-  onFullAnalysis: () => void;
-  onProfileAnalysis: () => void;
-  onProductAnalysis: () => void;
-  onProfileDraftChange: (profile: BusinessProfile) => void;
-  onProductLabelChange: (productId: string, label: string) => void;
-  onConfirmProfileReview: () => void;
-  onConfirmProductReview: () => void;
-}) {
-  const productTotal = productJob?.total ?? productJob?.analyzed_product_count ?? 0;
-  const productProgress = productJob?.progress ?? productJob?.analyzed_product_count ?? 0;
-  const productProgressPct = productTotal > 0 ? Math.round((productProgress / productTotal) * 100) : 15;
-  const isProfileReview = profileDraft !== null && (mode === "full" || mode === "profile");
-  const isProductReview = productLabels !== null && (mode === "full" || mode === "products") && !productJob;
-  const statusText = (() => {
-    if (isProfileReview && mode === "full") return t(locale, "dashboardFullAnalysisProfileReview");
-    if (isProfileReview && mode === "profile") return t(locale, "dashboardProfileAnalysisReview");
-    if (isProductReview) return t(locale, "dashboardProductIdentificationReview");
-    if (mode === "full" && profileStepActive) {
-      return t(locale, "dashboardFullAnalysisProfileRunning");
-    }
-    if (mode === "full" && identificationStepActive) {
-      return t(locale, "dashboardFullAnalysisIdentificationRunning");
-    }
-    if (mode === "full" && productJob) return t(locale, "dashboardFullAnalysisProductsRunning");
-    if (mode === "profile") return t(locale, "dashboardProfileAnalysisRunning");
-    if (mode === "products" && identificationStepActive) {
-      return t(locale, "dashboardProductIdentificationRunning");
-    }
-    if (mode === "products") return t(locale, "dashboardProductAnalysisRunning");
-    if (lastResult === "full") return t(locale, "dashboardFullAnalysisComplete");
-    if (lastResult === "profile") return t(locale, "dashboardProfileAnalysisReady");
-    if (lastResult === "products") return t(locale, "dashboardProductAnalysisComplete");
-    return null;
-  })();
-
-  return (
-    <Card>
-      <BlockStack gap="300">
-        <InlineStack align="space-between" blockAlign="center" wrap>
-          <SectionTitle source={RefreshIcon}>{t(locale, "dashboardAnalysisControlsTitle")}</SectionTitle>
-          <InlineStack gap="200" wrap>
-            <Button
-              icon={RefreshIcon}
-              variant="primary"
-              onClick={onFullAnalysis}
-              loading={mode === "full" && !isProfileReview && !isProductReview}
-              disabled={disabled}
-            >
-              {t(locale, "dashboardRunFullAnalysis")}
-            </Button>
-            <Button
-              icon={CompassIcon}
-              onClick={onProfileAnalysis}
-              loading={mode === "profile" && !isProfileReview}
-              disabled={disabled}
-            >
-              {t(locale, "dashboardRunProfileAnalysis")}
-            </Button>
-            <Button
-              icon={ProductIcon}
-              onClick={onProductAnalysis}
-              loading={mode === "products" && !isProductReview}
-              disabled={disabled}
-            >
-              {t(locale, "dashboardRunProductAnalysis")}
-            </Button>
-          </InlineStack>
-        </InlineStack>
-        {error && (
-          <Banner tone="critical">
-            <Text as="p">{error.split("\n")[0]}</Text>
-          </Banner>
-        )}
-        {!error && statusText && (
-          <Banner tone={mode ? "info" : "success"}>
-            <BlockStack gap="150">
-              <Text as="p">{statusText}</Text>
-              {productJob && productJob.status !== "completed" && (
-                <ProgressBar progress={Math.min(productProgressPct, 95)} size="small" />
-              )}
-            </BlockStack>
-          </Banner>
-        )}
-        {isProfileReview && profileDraft && (
-          <BusinessProfileReviewForm
-            locale={locale}
-            profile={profileDraft}
-            loading={actionPending}
-            confirmLabel={
-              mode === "full"
-                ? t(locale, "dashboardConfirmProfileAndContinue")
-                : t(locale, "dashboardConfirmProfileOnly")
-            }
-            onChange={onProfileDraftChange}
-            onConfirm={onConfirmProfileReview}
-          />
-        )}
-        {isProductReview && productLabels && (
-          <ProductIdentificationReviewForm
-            locale={locale}
-            labels={productLabels}
-            productTitles={productTitles}
-            loading={actionPending}
-            onLabelChange={onProductLabelChange}
-            onConfirm={onConfirmProductReview}
-          />
-        )}
-      </BlockStack>
-    </Card>
-  );
-}
-
 // ── Business Profile Section ──────────────────────────────────────────────────
-
-type BizActionData =
-  | { type: "startBusinessAnalysis"; jobId: string | null; error: string | null }
-  | { type: "pollBusinessAnalysis"; status: string; profile: BusinessProfile | null; error: string | null }
-  | { type: "saveBusinessProfile"; profile: BusinessProfile | null; error: string | null };
 
 function getNicheIcon(profile: BusinessProfile): IconSource {
   const text = [profile.niche_summary, ...(profile.key_themes ?? [])].join(" ").toLowerCase();
@@ -1694,370 +1243,44 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
   );
 }
 
-function BusinessProfileSection({
-  initialProfile,
+function BusinessProfileSummary({
+  profile,
   competitorSignals,
   manualCompetitors,
   excludedDomains,
   locale,
-  onProfileDraftChange,
 }: {
-  initialProfile: BusinessProfile | null;
+  profile: BusinessProfile | null;
   competitorSignals: string[];
   manualCompetitors: string[];
   excludedDomains: string[];
   locale: Locale;
-  onProfileDraftChange?: (profile: BusinessProfile) => void;
 }) {
-  const bizFetcher = useFetcher<BizActionData>();
-  const [bizJobId, setBizJobId] = useState<string | null>(null);
-  const [bizJobStatus, setBizJobStatus] = useState<string | null>(null);
-  const [bizProfile, setBizProfile] = useState<BusinessProfile | null>(
-    initialProfile?.status === "validated" ? initialProfile : null,
-  );
-  const [bizDraft, setBizDraft] = useState<BusinessProfile | null>(
-    initialProfile && initialProfile.status !== "validated" ? initialProfile : null,
-  );
-  const [bizError, setBizError] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editBuffer, setEditBuffer] = useState<BusinessProfile | null>(null);
-  const [isKeywordsOpen, setIsKeywordsOpen] = useState(false);
-  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
-  const bizStatusRef = useRef<string | null>(null);
-  bizStatusRef.current = bizJobStatus;
-
-  useEffect(() => {
-    if (!initialProfile) {
-      setBizProfile(null);
-      setBizDraft(null);
-      return;
-    }
-    if (initialProfile.status === "validated") {
-      setBizProfile(initialProfile);
-      setBizDraft(null);
-      return;
-    }
-    setBizProfile(null);
-    setBizDraft(initialProfile);
-  }, [initialProfile]);
-
-  useEffect(() => {
-    if (!bizFetcher.data) return;
-    const data = bizFetcher.data;
-    if (data.type === "startBusinessAnalysis" && data.jobId) {
-      setBizJobId(data.jobId);
-      setBizJobStatus(null);
-      setBizError(null);
-    }
-    if (data.type === "startBusinessAnalysis" && data.error) {
-      setBizError(data.error);
-    }
-    if (data.type === "pollBusinessAnalysis") {
-      setBizJobStatus(data.status);
-      if (data.status === "completed") {
-        setBizJobId(null);
-        if (data.profile && data.profile.status !== "error") {
-          setBizDraft(data.profile);
-        } else if (data.profile?.status === "error") {
-          setBizError((data.profile as { error?: string }).error ?? "L'analyse IA a échoué");
-        }
-      }
-      if (data.status === "failed" || data.status === "unknown") {
-        setBizJobId(null);
-        if (data.error) setBizError(data.error);
-      }
-    }
-    if (data.type === "saveBusinessProfile" && data.profile) {
-      setBizProfile(data.profile);
-      setBizDraft(null);
-    }
-  }, [bizFetcher.data]);
-
-  useEffect(() => {
-    if (!bizJobId) return;
-    const poll = () => {
-      const s = bizStatusRef.current;
-      if (s === "completed" || s === "failed") return;
-      const fd = new FormData();
-      fd.set("intent", "pollBusinessAnalysis");
-      fd.set("bizJobId", bizJobId);
-      bizFetcher.submit(fd, { method: "post" });
-    };
-    poll();
-    const id = setInterval(poll, 5_000);
-    return () => clearInterval(id);
-  }, [bizJobId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleAnalyze = (keywords: string[] = []) => {
-    setBizError(null);
-    setIsKeywordsOpen(false);
-    const fd = new FormData();
-    fd.set("intent", "startBusinessAnalysis");
-    if (keywords.length > 0) fd.set("focusKeywords", JSON.stringify(keywords));
-    bizFetcher.submit(fd, { method: "post" });
-  };
-
-  const handleValidate = () => {
-    if (!bizDraft) return;
-    const fd = new FormData();
-    fd.set("intent", "saveBusinessProfile");
-    fd.set("profileJson", JSON.stringify(bizDraft));
-    bizFetcher.submit(fd, { method: "post" });
-  };
-
-  const handleRegenerate = () => {
-    const profile = bizDraft ?? bizProfile;
-    if (profile) {
-      setSelectedKeywords([]);
-      setIsKeywordsOpen(true);
-    } else {
-      handleAnalyze();
-    }
-  };
-
-  const handleConfirmKeywords = () => {
-    setBizProfile(null);
-    setBizDraft(null);
-    handleAnalyze(selectedKeywords);
-  };
-
-  const toggleKeyword = (kw: string) => {
-    setSelectedKeywords((prev) =>
-      prev.includes(kw) ? prev.filter((k) => k !== kw) : [...prev, kw],
-    );
-  };
-
-  const handleOpenEdit = () => {
-    const source = bizDraft ?? bizProfile;
-    if (!source) return;
-    setEditBuffer({ ...source });
-    setIsEditing(true);
-  };
-
-  const handleSaveEdit = () => {
-    if (!editBuffer) return;
-    setBizDraft(editBuffer);
-    onProfileDraftChange?.(editBuffer);
-    setIsEditing(false);
-  };
-
-  const isAnalyzing =
-    bizFetcher.state !== "idle" ||
-    (bizJobId !== null && bizJobStatus !== "completed" && bizJobStatus !== "failed");
-
-  const isSaving = bizFetcher.state !== "idle" && !isAnalyzing;
-
-  const displayProfile = bizDraft ?? bizProfile;
-
-  const keywordsModal = (() => {
-    const profile = bizDraft ?? bizProfile;
-    if (!profile) return null;
-    const suggestions = [
-      ...(profile.key_themes ?? []),
-      ...(profile.competitor_domains ?? []).slice(0, 5),
-    ].filter(Boolean);
-    return (
-      <Modal
-        open={isKeywordsOpen}
-        onClose={() => setIsKeywordsOpen(false)}
-        title={locale === "fr" ? "Orienter la régénération" : "Guide regeneration"}
-        primaryAction={{
-          content: locale === "fr" ? "Régénérer" : "Regenerate",
-          onAction: handleConfirmKeywords,
-        }}
-        secondaryActions={[{
-          content: locale === "fr" ? "Sans filtre" : "No filter",
-          onAction: () => { setBizProfile(null); setBizDraft(null); handleAnalyze([]); },
-        }]}
-      >
-        <Modal.Section>
-          <BlockStack gap="300">
-            <Text as="p" tone="subdued">
-              {locale === "fr"
-                ? "Sélectionnez les thèmes sur lesquels concentrer l'analyse."
-                : "Select themes to focus the analysis on."}
-            </Text>
-            <InlineStack gap="200" wrap>
-              {suggestions.map((kw) => (
-                <Button
-                  key={kw}
-                  size="slim"
-                  variant={selectedKeywords.includes(kw) ? "primary" : "secondary"}
-                  onClick={() => toggleKeyword(kw)}
-                >
-                  {kw}
-                </Button>
-              ))}
-            </InlineStack>
-          </BlockStack>
-        </Modal.Section>
-      </Modal>
-    );
-  })();
-
-  // ── Header card (always visible once we have any state) ──
-  const headerCard = (
-    <Card>
-      <InlineStack align="space-between" blockAlign="center">
-        <InlineStack gap="200" blockAlign="center" align="start">
-          <SectionTitle source={CompassIcon}>{t(locale, "businessProfileTitle")}</SectionTitle>
-          {displayProfile?.status === "validated" && (
-            <Badge tone="success">{t(locale, "businessProfileValidated")}</Badge>
-          )}
-          {bizDraft && bizDraft.status !== "validated" && (
-            <Badge tone="info">{locale === "fr" ? "Brouillon" : "Draft"}</Badge>
-          )}
-          {displayProfile?.sources_used?.includes("market_analysis_product_signals") && (
-            <Badge tone="info">{t(locale, "businessProfileProductSignals")}</Badge>
-          )}
-        </InlineStack>
-        <InlineStack gap="200">
-          {displayProfile && (
-            <Button onClick={handleOpenEdit} size="slim" variant="plain">
-              {locale === "fr" ? "Modifier" : "Edit"}
-            </Button>
-          )}
-          {bizDraft && (
-            <Button onClick={handleValidate} variant="primary" size="slim" loading={isSaving}>
-              {t(locale, "businessProfileValidate")}
-            </Button>
-          )}
-          <Button
-            onClick={displayProfile ? handleRegenerate : handleAnalyze}
-            size="slim"
-            variant={displayProfile ? "plain" : "primary"}
-            loading={isAnalyzing}
-          >
-            {displayProfile ? t(locale, "businessProfileRegenerate") : t(locale, "businessProfileAnalyze")}
-          </Button>
-        </InlineStack>
-      </InlineStack>
-    </Card>
-  );
-
-  // Empty / error state
-  if (!displayProfile && !isAnalyzing) {
-    return (
-      <BlockStack gap="300">
-        {keywordsModal}
-        {headerCard}
-        {bizError && (
-          <Banner tone="critical"><p>{bizError.split("\n")[0]}</p></Banner>
-        )}
-        {!bizError && (
-          <Banner tone="info"><p>{t(locale, "businessProfileSubtitle")}</p></Banner>
-        )}
-      </BlockStack>
-    );
-  }
-
-  // Analyzing spinner
-  if (isAnalyzing && !displayProfile) {
-    return (
-      <BlockStack gap="300">
-        {keywordsModal}
-        {headerCard}
-        <Card>
-          <InlineStack gap="200" blockAlign="center" align="start">
-            <Spinner size="small" />
-            <Text as="p" tone="subdued">{t(locale, "businessProfileAnalyzing")}</Text>
-          </InlineStack>
-        </Card>
-      </BlockStack>
-    );
-  }
-
-  if (!displayProfile) return headerCard;
-
-  const editModal = editBuffer && (
-    <Modal
-      open={isEditing}
-      onClose={() => setIsEditing(false)}
-      title={locale === "fr" ? "Modifier le profil entreprise" : "Edit business profile"}
-      primaryAction={{ content: locale === "fr" ? "Enregistrer" : "Save", onAction: handleSaveEdit }}
-      secondaryActions={[{ content: locale === "fr" ? "Annuler" : "Cancel", onAction: () => setIsEditing(false) }]}
-    >
-      <Modal.Section>
-        <FormLayout>
-          <TextField
-            label={locale === "fr" ? "Nom de marque" : "Brand name"}
-            value={editBuffer.brand_name ?? ""}
-            onChange={(v) => setEditBuffer({ ...editBuffer, brand_name: v })}
-            autoComplete="off"
-          />
-          <TextField
-            label={locale === "fr" ? "Résumé de niche" : "Niche summary"}
-            value={editBuffer.niche_summary ?? ""}
-            onChange={(v) => setEditBuffer({ ...editBuffer, niche_summary: v })}
-            multiline={3}
-            autoComplete="off"
-          />
-          <TextField
-            label={locale === "fr" ? "Voix de marque" : "Brand voice"}
-            value={editBuffer.brand_voice ?? ""}
-            onChange={(v) => setEditBuffer({ ...editBuffer, brand_voice: v })}
-            multiline={3}
-            autoComplete="off"
-          />
-          <TextField
-            label={locale === "fr" ? "Ton éditorial" : "Editorial tone"}
-            value={editBuffer.content_style?.tone ?? ""}
-            onChange={(v) => setEditBuffer({ ...editBuffer, content_style: { ...editBuffer.content_style, tone: v } })}
-            autoComplete="off"
-          />
-          <TextField
-            label={locale === "fr" ? "Thèmes clés (un par ligne)" : "Key themes (one per line)"}
-            value={textFromLines(editBuffer.key_themes)}
-            onChange={(v) => setEditBuffer({ ...editBuffer, key_themes: linesFromText(v) })}
-            multiline={4}
-            autoComplete="off"
-          />
-          <TextField
-            label={locale === "fr" ? "Concurrents (un domaine par ligne)" : "Competitors (one domain per line)"}
-            value={textFromLines(editBuffer.competitor_domains)}
-            onChange={(v) => setEditBuffer({ ...editBuffer, competitor_domains: linesFromText(v) })}
-            multiline={3}
-            autoComplete="off"
-          />
-          <TextField
-            label={locale === "fr" ? "Insights concurrents (un par ligne)" : "Competitor insights (one per line)"}
-            value={textFromLines(editBuffer.competitor_insights)}
-            onChange={(v) => setEditBuffer({ ...editBuffer, competitor_insights: linesFromText(v) })}
-            multiline={4}
-            autoComplete="off"
-          />
-          <TextField
-            label={locale === "fr" ? "Lacunes de contenu (une par ligne)" : "Content gaps (one per line)"}
-            value={textFromLines(editBuffer.content_gaps)}
-            onChange={(v) => setEditBuffer({ ...editBuffer, content_gaps: linesFromText(v) })}
-            multiline={3}
-            autoComplete="off"
-          />
-        </FormLayout>
-      </Modal.Section>
-    </Modal>
-  );
+  if (!profile || profile.status !== "validated") return null;
 
   return (
     <BlockStack gap="400">
-      {keywordsModal}
-      {editModal}
-      {headerCard}
-      <Banner tone="info">
-        <Text as="p">{t(locale, "businessProfileLoopHint")}</Text>
-      </Banner>
-      {isAnalyzing && (
-        <Banner tone="info">
+      <Card>
+        <InlineStack align="space-between" blockAlign="center">
           <InlineStack gap="200" blockAlign="center" align="start">
-            <Spinner size="small" />
-            <Text as="p">{t(locale, "businessProfileAnalyzing")}</Text>
+            <SectionTitle source={CompassIcon}>{t(locale, "businessProfileTitle")}</SectionTitle>
+            <Badge tone="success">{t(locale, "businessProfileValidated")}</Badge>
+            {profile.sources_used?.includes("market_analysis_product_signals") && (
+              <Badge tone="info">{t(locale, "businessProfileProductSignals")}</Badge>
+            )}
           </InlineStack>
-        </Banner>
-      )}
-      {bizError && (
-        <Banner tone="critical"><p>{bizError.split("\n")[0]}</p></Banner>
-      )}
-      <BizProfileCards profile={displayProfile} competitorSignals={competitorSignals} manualCompetitors={manualCompetitors} excludedDomains={excludedDomains} locale={locale} />
+          <Button url={`${localizedPath("/app/onboarding", locale)}&step=2`} size="slim" variant="plain">
+            {t(locale, "businessProfileRegenerate")}
+          </Button>
+        </InlineStack>
+      </Card>
+      <BizProfileCards
+        profile={profile}
+        competitorSignals={competitorSignals}
+        manualCompetitors={manualCompetitors}
+        excludedDomains={excludedDomains}
+        locale={locale}
+      />
     </BlockStack>
   );
 }
@@ -2067,11 +1290,6 @@ function BusinessProfileSection({
 export default function IndexPage() {
   const { locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
   const gscConnected = activeProducts.some((p) => p.gsc_connected);
-  const [profileForDashboard, setProfileForDashboard] = useState<BusinessProfile | null>(businessProfile);
-
-  useEffect(() => {
-    setProfileForDashboard(businessProfile);
-  }, [businessProfile]);
 
   // ── Audit job polling ─────────────────────────────────────────────────────
   type PollData = { type?: string; status?: string; resultStatus?: string | null; error?: string | null };
@@ -2172,324 +1390,6 @@ export default function IndexPage() {
   useEffect(() => {
     setProductPacks(productResults);
   }, [productResults]);
-
-  // ── Global analysis controls ─────────────────────────────────────────────
-  const analysisFetcher = useFetcher<AnalysisControlData>();
-  const analysisProfilePollFetcher = useFetcher<AnalysisControlData>();
-  const analysisIdentifyPollFetcher = useFetcher<AnalysisControlData>();
-  const analysisProductPollFetcher = useFetcher<AnalysisControlData>();
-  const [analysisMode, setAnalysisMode] = useState<AnalysisMode | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-  const [analysisProfileJobId, setAnalysisProfileJobId] = useState<string | null>(null);
-  const [analysisProfileStatus, setAnalysisProfileStatus] = useState<string | null>(null);
-  const [analysisProfileDraft, setAnalysisProfileDraft] = useState<BusinessProfile | null>(null);
-  const [analysisIdentifyJobId, setAnalysisIdentifyJobId] = useState<string | null>(null);
-  const [analysisIdentifyJob, setAnalysisIdentifyJob] = useState<MarketJobState | null>(null);
-  const [analysisProductLabels, setAnalysisProductLabels] = useState<Record<string, string> | null>(null);
-  const [analysisProductTitles, setAnalysisProductTitles] = useState<Record<string, string>>({});
-  const [analysisProductJobId, setAnalysisProductJobId] = useState<string | null>(null);
-  const [analysisProductJob, setAnalysisProductJob] = useState<MarketJobState | null>(null);
-
-  const analysisModeRef = useRef<AnalysisMode | null>(null);
-  const analysisProfileStatusRef = useRef<string | null>(null);
-  const analysisIdentifyJobStatusRef = useRef<string | undefined>(undefined);
-  const analysisProductJobStatusRef = useRef<string | undefined>(undefined);
-  const analysisProfilePollRef = useRef(analysisProfilePollFetcher);
-  const analysisIdentifyPollRef = useRef(analysisIdentifyPollFetcher);
-  const analysisProductPollRef = useRef(analysisProductPollFetcher);
-  analysisModeRef.current = analysisMode;
-  analysisProfileStatusRef.current = analysisProfileStatus;
-  analysisIdentifyJobStatusRef.current = analysisIdentifyJob?.status;
-  analysisProductJobStatusRef.current = analysisProductJob?.status;
-  analysisProfilePollRef.current = analysisProfilePollFetcher;
-  analysisIdentifyPollRef.current = analysisIdentifyPollFetcher;
-  analysisProductPollRef.current = analysisProductPollFetcher;
-
-  const resetAnalysisState = (mode: AnalysisMode) => {
-    setAnalysisMode(mode);
-    setAnalysisResult(null);
-    setAnalysisError(null);
-    setAnalysisProfileStatus(null);
-    setAnalysisProfileDraft(null);
-    setAnalysisIdentifyJob(null);
-    setAnalysisProductLabels(null);
-    setAnalysisProductTitles({});
-    setAnalysisProductJob(null);
-  };
-
-  const updateProductPacksFromJob = (job: MarketJobState) => {
-    setProductPacks((prev) => {
-      const next = { ...prev };
-      for (const result of job.products ?? []) {
-        if (result.product_id) next[result.product_id] = result;
-        if (result.product_handle) next[result.product_handle] = result;
-      }
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    const data = analysisFetcher.data;
-    if (!data) return;
-    if (data.type === "startFullAnalysis") {
-      if (data.jobId) {
-        setAnalysisProfileJobId(data.jobId);
-        setAnalysisProfileStatus(null);
-      } else if (data.error) {
-        setAnalysisMode(null);
-        setAnalysisError(data.error);
-      }
-    }
-    if (data.type === "startBusinessAnalysis") {
-      if (data.jobId) {
-        setAnalysisProfileJobId(data.jobId);
-        setAnalysisProfileStatus(null);
-      } else if (data.error) {
-        setAnalysisMode(null);
-        setAnalysisError(data.error);
-      }
-    }
-    if (data.type === "startProductAnalysis") {
-      if (data.jobId) {
-        setAnalysisIdentifyJobId(data.jobId);
-        setAnalysisIdentifyJob(null);
-      } else if (data.error) {
-        setAnalysisMode(null);
-        setAnalysisError(data.error);
-      }
-    }
-    if (data.type === "saveBusinessProfile") {
-      if (data.profile) {
-        setProfileForDashboard(data.profile);
-        setAnalysisProfileDraft(null);
-        setAnalysisMode(null);
-        setAnalysisResult("profile");
-      } else if (data.error) {
-        setAnalysisError(data.error);
-      }
-    }
-    if (data.type === "saveBusinessProfileAndStartIdentification") {
-      if (data.profile) {
-        setProfileForDashboard(data.profile);
-      }
-      if (data.identifyJobId) {
-        setAnalysisProfileDraft(null);
-        setAnalysisProfileJobId(null);
-        setAnalysisIdentifyJobId(data.identifyJobId);
-        setAnalysisIdentifyJob(null);
-      } else if (data.error) {
-        setAnalysisError(data.error);
-      }
-    }
-    if (data.type === "saveProductIdentificationAndStartAnalysis") {
-      if (data.productJobId) {
-        setAnalysisProductLabels(null);
-        setAnalysisProductTitles({});
-        setAnalysisProductJobId(data.productJobId);
-        setAnalysisProductJob(null);
-      } else if (data.error) {
-        setAnalysisError(data.error);
-      }
-    }
-  }, [analysisFetcher.data]);
-
-  useEffect(() => {
-    const data = analysisProfilePollFetcher.data;
-    if (!data) return;
-    if (data.type === "pollBusinessAnalysis") {
-      setAnalysisProfileStatus(data.status);
-      if (data.status === "completed") {
-        setAnalysisProfileJobId(null);
-        if (data.profile && data.profile.status !== "error") {
-          setAnalysisProfileDraft(data.profile);
-          setProfileForDashboard(data.profile);
-        } else if (data.error) {
-          setAnalysisError(data.error);
-        }
-      }
-      if (data.status === "failed" || data.status === "unknown") {
-        setAnalysisProfileJobId(null);
-        setAnalysisMode(null);
-        if (data.error) setAnalysisError(data.error);
-      }
-    }
-    if (data.type === "pollFullBusinessAnalysis") {
-      setAnalysisProfileStatus(data.status);
-      if (data.status === "completed" && data.profile && data.profile.status !== "error") {
-        setAnalysisProfileJobId(null);
-        setAnalysisProfileDraft(data.profile);
-        setProfileForDashboard(data.profile);
-      }
-      if (data.status === "failed" || data.status === "unknown") {
-        setAnalysisProfileJobId(null);
-        setAnalysisMode(null);
-        if (data.error) setAnalysisError(data.error);
-      }
-    }
-  }, [analysisProfilePollFetcher.data]);
-
-  useEffect(() => {
-    const data = analysisIdentifyPollFetcher.data;
-    if (data?.type !== "pollProductIdentification") return;
-    if (data.error) {
-      setAnalysisIdentifyJobId(null);
-      setAnalysisMode(null);
-      setAnalysisError(data.error);
-      return;
-    }
-    if (data.job) setAnalysisIdentifyJob(data.job);
-    if (data.job?.status === "failed") {
-      setAnalysisIdentifyJobId(null);
-      setAnalysisMode(null);
-      setAnalysisError(data.job.error ?? "Identification produits échouée");
-    }
-    if (data.job?.status === "completed") {
-      setAnalysisIdentifyJobId(null);
-      setAnalysisProductLabels(data.job.labels ?? {});
-      setAnalysisProductTitles(data.job.product_titles ?? {});
-    }
-  }, [analysisIdentifyPollFetcher.data]);
-
-  useEffect(() => {
-    const data = analysisProductPollFetcher.data;
-    if (data?.type !== "pollProductAnalysis") return;
-    if (data.error) {
-      setAnalysisProductJobId(null);
-      setAnalysisMode(null);
-      setAnalysisError(data.error);
-      return;
-    }
-    if (!data.job) return;
-    setAnalysisProductJob(data.job);
-    if (data.job.status === "completed") {
-      updateProductPacksFromJob(data.job);
-      setAnalysisProductJobId(null);
-      setAnalysisResult(analysisModeRef.current === "full" ? "full" : "products");
-      setAnalysisMode(null);
-    }
-    if (data.job.status === "failed") {
-      setAnalysisProductJobId(null);
-      setAnalysisMode(null);
-      setAnalysisError(data.job.error ?? "Analyse produits échouée");
-    }
-  }, [analysisProductPollFetcher.data]);
-
-  useEffect(() => {
-    if (!analysisProfileJobId) return;
-    const poll = () => {
-      const s = analysisProfileStatusRef.current;
-      if (s === "completed" || s === "failed") return;
-      const fd = new FormData();
-      fd.set(
-        "intent",
-        analysisModeRef.current === "full" ? "pollFullBusinessAnalysis" : "pollBusinessAnalysis",
-      );
-      fd.set("bizJobId", analysisProfileJobId);
-      analysisProfilePollRef.current.submit(fd, { method: "post" });
-    };
-    poll();
-    const id = setInterval(poll, 5_000);
-    return () => clearInterval(id);
-  }, [analysisProfileJobId]);
-
-  useEffect(() => {
-    if (!analysisProductJobId) return;
-    const poll = () => {
-      const s = analysisProductJobStatusRef.current;
-      if (s === "completed" || s === "failed") return;
-      const fd = new FormData();
-      fd.set("intent", "pollProductAnalysis");
-      fd.set("productJobId", analysisProductJobId);
-      analysisProductPollRef.current.submit(fd, { method: "post" });
-    };
-    poll();
-    const id = setInterval(poll, 5_000);
-    return () => clearInterval(id);
-  }, [analysisProductJobId]);
-
-  useEffect(() => {
-    if (!analysisIdentifyJobId) return;
-    const poll = () => {
-      const s = analysisIdentifyJobStatusRef.current;
-      if (s === "completed" || s === "failed") return;
-      const fd = new FormData();
-      fd.set("intent", "pollProductIdentification");
-      fd.set("identifyJobId", analysisIdentifyJobId);
-      analysisIdentifyPollRef.current.submit(fd, { method: "post" });
-    };
-    poll();
-    const id = setInterval(poll, 5_000);
-    return () => clearInterval(id);
-  }, [analysisIdentifyJobId]);
-
-  const isGlobalAnalysisRunning =
-    analysisMode !== null ||
-    analysisFetcher.state !== "idle" ||
-    analysisProfilePollFetcher.state !== "idle" ||
-    analysisIdentifyPollFetcher.state !== "idle" ||
-    analysisProductPollFetcher.state !== "idle";
-  const isAnalysisActionPending = analysisFetcher.state !== "idle";
-
-  const handleProfileDraftChange = (profile: BusinessProfile) => {
-    setAnalysisProfileDraft(profile);
-    setProfileForDashboard(profile);
-  };
-
-  const handleProductLabelChange = (productId: string, label: string) => {
-    setAnalysisProductLabels((prev) => ({ ...(prev ?? {}), [productId]: label }));
-  };
-
-  const handleConfirmProfileReview = () => {
-    if (!analysisProfileDraft) return;
-    setAnalysisError(null);
-    const fd = new FormData();
-    fd.set(
-      "intent",
-      analysisMode === "full" ? "saveBusinessProfileAndStartIdentification" : "saveBusinessProfile",
-    );
-    fd.set("profileJson", JSON.stringify(analysisProfileDraft));
-    analysisFetcher.submit(fd, { method: "post" });
-  };
-
-  const handleConfirmProductReview = () => {
-    if (!analysisProductLabels) return;
-    setAnalysisError(null);
-    const fd = new FormData();
-    fd.set("intent", "saveProductIdentificationAndStartAnalysis");
-    fd.set("identifications", JSON.stringify(analysisProductLabels));
-    analysisFetcher.submit(fd, { method: "post" });
-  };
-
-  const handleFullAnalysis = () => {
-    resetAnalysisState("full");
-    setAnalysisProfileJobId(null);
-    setAnalysisIdentifyJobId(null);
-    setAnalysisProductJobId(null);
-    const fd = new FormData();
-    fd.set("intent", "startFullAnalysis");
-    analysisFetcher.submit(fd, { method: "post" });
-  };
-
-  const handleProfileAnalysis = () => {
-    resetAnalysisState("profile");
-    setAnalysisProfileJobId(null);
-    setAnalysisIdentifyJobId(null);
-    setAnalysisProductJobId(null);
-    const fd = new FormData();
-    fd.set("intent", "startBusinessAnalysis");
-    analysisFetcher.submit(fd, { method: "post" });
-  };
-
-  const handleProductAnalysis = () => {
-    resetAnalysisState("products");
-    setAnalysisProfileJobId(null);
-    setAnalysisIdentifyJobId(null);
-    setAnalysisProductJobId(null);
-    const fd = new FormData();
-    fd.set("intent", "startProductAnalysis");
-    analysisFetcher.submit(fd, { method: "post" });
-  };
 
   // ── Single-product market analysis (per active product) ───────────────────
   type SingleData =
@@ -2673,36 +1573,13 @@ export default function IndexPage() {
           </Banner>
         )}
 
-        <AnalysisControlPanel
-          locale={locale}
-          mode={analysisMode}
-          lastResult={analysisResult}
-          error={analysisError}
-          profileDraft={analysisProfileDraft}
-          profileStepActive={analysisProfileJobId !== null}
-          identificationStepActive={analysisIdentifyJobId !== null}
-          productLabels={analysisProductLabels}
-          productTitles={analysisProductTitles}
-          productJob={analysisProductJob}
-          disabled={isGlobalAnalysisRunning}
-          actionPending={isAnalysisActionPending}
-          onFullAnalysis={handleFullAnalysis}
-          onProfileAnalysis={handleProfileAnalysis}
-          onProductAnalysis={handleProductAnalysis}
-          onProfileDraftChange={handleProfileDraftChange}
-          onProductLabelChange={handleProductLabelChange}
-          onConfirmProfileReview={handleConfirmProfileReview}
-          onConfirmProductReview={handleConfirmProductReview}
-        />
-
         {/* Business profile — niche, brand, personas, content style */}
-        <BusinessProfileSection
-          initialProfile={profileForDashboard}
+        <BusinessProfileSummary
+          profile={businessProfile}
           competitorSignals={competitorSignals}
           manualCompetitors={manualCompetitors}
           excludedDomains={excludedDomains}
           locale={locale}
-          onProfileDraftChange={handleProfileDraftChange}
         />
 
         {/* Zone 2 — Active products */}

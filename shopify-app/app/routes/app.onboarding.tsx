@@ -108,13 +108,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const gscConnected = Boolean(gsc?.connected);
   const profileValidated = businessProfile?.status === "validated";
 
-  if (gscConnected && profileValidated && latestAnalysis) {
+  const url = new URL(request.url);
+  const forcedStepParam = Number(url.searchParams.get("step"));
+  const forcedStep = forcedStepParam >= 1 && forcedStepParam <= 4 ? (forcedStepParam as 1 | 2 | 3 | 4) : null;
+
+  if (gscConnected && profileValidated && latestAnalysis && !forcedStep) {
     return redirect(localizedPath("/app", locale));
   }
 
   let startStep: 1 | 2 | 3 | 4 = 1;
   if (gscConnected) startStep = 2;
   if (gscConnected && profileValidated) startStep = 3;
+  if (forcedStep) startStep = forcedStep;
 
   return json<LoaderData>({
     locale,

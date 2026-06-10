@@ -940,7 +940,7 @@ function DataSourcesCard({
             {gscConnected ? (
               <Badge tone="success">{t(locale, "marketAnalysisBadgeReal")}</Badge>
             ) : (
-              <Button variant="plain" size="slim" url="/app/onboarding">
+              <Button variant="plain" size="slim" url={localizedPath("/app/onboarding", locale)}>
                 {locale === "fr" ? "Se connecter" : "Connect"}
               </Button>
             )}
@@ -950,7 +950,7 @@ function DataSourcesCard({
             {ga4Connected ? (
               <Badge tone="success">{t(locale, "marketAnalysisBadgeReal")}</Badge>
             ) : (
-              <Button variant="plain" size="slim" url="/app/ga4">
+              <Button variant="plain" size="slim" url={localizedPath("/app/onboarding", locale)}>
                 {locale === "fr" ? "Se connecter" : "Connect"}
               </Button>
             )}
