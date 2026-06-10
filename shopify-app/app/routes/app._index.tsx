@@ -338,7 +338,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  // ── Single-product market analysis (mirror of app.market-analysis) ────────
+  // ── Single-product market analysis (mirror of app.products) ────────
   if (intent === "startSingle" || intent === "saveFactsAndStartSingle") {
     const productId = formData.get("productId") as string;
     try {
@@ -625,7 +625,7 @@ function ActionCard({
           )}
         </InlineStack>
         <Button
-          url={`${localizedPath("/app/market-analysis", locale)}&product=${encodeURIComponent(action.action_id)}`}
+          url={`${localizedPath("/app/products", locale)}&product=${encodeURIComponent(action.action_id)}`}
           variant="primary"
           size="slim"
         >
@@ -758,7 +758,7 @@ function ActiveProductsCard({
               );
             })}
             <InlineStack align="center">
-              <Button url={localizedPath("/app/market-analysis", locale)} variant="plain">
+              <Button url={localizedPath("/app/products", locale)} variant="plain">
                 {t(locale, "dashboardShowMore")}
               </Button>
             </InlineStack>

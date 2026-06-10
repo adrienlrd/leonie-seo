@@ -680,7 +680,7 @@ export default function BlogIndexPage() {
         {prefillTitle && (
           <Banner
             tone="info"
-            title={fr ? "Sujet détecté depuis Analyse marché" : "Topic detected from Market analysis"}
+            title={fr ? "Sujet détecté depuis Produits" : "Topic detected from Products"}
           >
             <BlockStack gap="200">
               <Text as="p" variant="bodySm">
@@ -820,8 +820,8 @@ export default function BlogIndexPage() {
                 </>
               )}
 
-              <Button url="/app/market-analysis" variant="plain">
-                {fr ? "Aller à Analyse marché →" : "Go to Market analysis →"}
+              <Button url="/app/products" variant="plain">
+                {fr ? "Aller à Produits →" : "Go to Products →"}
               </Button>
             </BlockStack>
           </Card>
@@ -1224,13 +1224,13 @@ export default function BlogIndexPage() {
             <Card>
               <EmptyState
                 heading={fr ? "Aucun brouillon sélectionné" : "No draft selected"}
-                action={{ content: fr ? "Aller à Analyse marché" : "Go to Market analysis", url: "/app/market-analysis" }}
+                action={{ content: fr ? "Aller à Produits" : "Go to Products", url: "/app/products" }}
                 image=""
               >
                 <p>
                   {fr
-                    ? "Génère un brouillon depuis Analyse marché pour le retrouver ici."
-                    : "Generate a draft from Market analysis to see it here."}
+                    ? "Génère un brouillon depuis Produits pour le retrouver ici."
+                    : "Generate a draft from Products to see it here."}
                 </p>
               </EmptyState>
             </Card>

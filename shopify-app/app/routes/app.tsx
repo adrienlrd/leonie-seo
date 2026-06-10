@@ -27,11 +27,10 @@ export default function App() {
         <a href={localizedPath("/app", locale)} rel="home">
           {t(locale, "dashboard")}
         </a>
-        <a href={localizedPath("/app/market-analysis", locale)}>{t(locale, "marketAnalysis")}</a>
+        <a href={localizedPath("/app/products", locale)}>{t(locale, "navProducts")}</a>
         <a href={localizedPath("/app/blog", locale)}>Blog</a>
-        <a href={localizedPath("/app/geo-llms-txt", locale)}>{t(locale, "llmsTxtNavLabel")}</a>
-        <a href={localizedPath("/app/continuous-improvement", locale)}>{t(locale, "continuousImprovementNav")}</a>
-        <a href={localizedPath("/app/account", locale)}>{t(locale, "hubSettings")}</a>
+        <a href={localizedPath("/app/measure", locale)}>{t(locale, "measureNav")}</a>
+        <a href={localizedPath("/app/account", locale)}>{t(locale, "settings")}</a>
       </NavMenu>
       <Outlet />
     </AppProvider>
