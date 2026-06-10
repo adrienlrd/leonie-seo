@@ -8,6 +8,7 @@ import os
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -25,6 +26,10 @@ from app.market_analysis.competitor_crawl.url_selection import select_competitor
 from app.market_analysis.competitors import (
     build_competitor_signals,
     load_excluded_competitors,
+)
+from app.market_analysis.history_context import (
+    build_optimization_history,
+    format_optimization_history,
 )
 from app.market_analysis.providers.dataforseo_provider import DataForSEOProvider
 from app.market_analysis.providers.free_provider import (
@@ -598,6 +603,7 @@ def _build_pass1_prompt(
     merchant_label: str = "",
     business_context: str = "",
     candidate_pool: list[dict[str, Any]] | None = None,
+    optimization_history_block: str = "",
 ) -> str:
     queries_text = ", ".join(matched_queries[:5]) if matched_queries else "aucune donnée GSC"
     collections_text = ", ".join(collections) if collections else "aucune"
@@ -691,8 +697,9 @@ def _build_pass1_prompt(
         f"{question_block}\n"
         f"IMPORTANT: nous sommes en {current_year}. "
         "N'utilise jamais d'années passées dans les titres, exemples ou références. "
-        "Toutes les propositions doivent être actuelles et pertinentes pour l'année en cours.\n\n"
-        f"{keyword_instructions}"
+        "Toutes les propositions doivent être actuelles et pertinentes pour l'année en cours.\n"
+        + (f"{optimization_history_block}\n" if optimization_history_block else "")
+        + f"\n{keyword_instructions}"
     )
 
 
@@ -843,6 +850,7 @@ def _build_pass2_prompt(
     eeat_signals: list[dict[str, Any]] | None = None,
     product_images: list[dict[str, Any]] | None = None,
     competitor_crawl_summary: str | None = None,
+    optimization_history_block: str = "",
 ) -> str:
     """Build the pass-2 (content) prompt with strict per-field rules.
 
@@ -1023,6 +1031,9 @@ def _build_pass2_prompt(
     if forbidden_phrases:
         parts.append("\n=== FORMULATIONS INTERDITES ===")
         parts.extend(f"  - {phrase}" for phrase in forbidden_phrases)
+
+    if optimization_history_block:
+        parts.append(optimization_history_block)
 
     if eeat_signals:
         from app.market_analysis import eeat as _eeat  # noqa: PLC0415
@@ -5298,6 +5309,7 @@ def run_market_analysis(
     collections: list[dict[str, Any]] | None = None,
     articles: list[dict[str, Any]] | None = None,
     reflection_test: bool = False,
+    db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Run a two-pass SEO/GEO market analysis for active products.
 
@@ -5320,6 +5332,8 @@ def run_market_analysis(
             phase is "targeting" (pass 1) or "content" (pass 2).
         reflection_test: When true, run a post-generation guardrail reflection and
             at most one targeted retry per product. Intended for experimental analysis.
+        db_path: Optional override for the GEO ledger / learning store database path,
+            used to surface past applied optimizations in the prompts (Task 6).
     """
     active_products = filter_products_by_scope(products, "active")
     opportunities = _score_active_products(active_products, gsc_query_rows, ga4_page_rows)
@@ -5415,6 +5429,13 @@ def run_market_analysis(
             if "keyword_candidate_pool" not in sources_used:
                 sources_used.append("keyword_candidate_pool")
 
+        optimization_history = build_optimization_history(
+            shop, str(product.get("id", "")), db_path=db_path
+        )
+        optimization_history_block = format_optimization_history(optimization_history)
+        if optimization_history_block and "optimization_history" not in sources_used:
+            sources_used.append("optimization_history")
+
         prompt = _build_pass1_prompt(
             product_title=fields["product_title"],
             handle=fields["handle"],
@@ -5436,6 +5457,7 @@ def run_market_analysis(
             merchant_label=fields["merchant_label"],
             business_context=business_context,
             candidate_pool=candidate_pool,
+            optimization_history_block=optimization_history_block,
         )
         fallback = _fallback_pack(
             fields["product_title"],
@@ -5482,6 +5504,7 @@ def run_market_analysis(
                 "fields": fields,
                 "pack": pack,
                 "candidate_pool": candidate_pool,
+                "optimization_history_block": optimization_history_block,
             }
         )
 
@@ -5715,6 +5738,7 @@ def run_market_analysis(
                 eeat_signals=product_eeat_signals,
                 product_images=fields.get("product_images", []),
                 competitor_crawl_summary=pack.get("competitor_crawl_summary"),
+                optimization_history_block=state.get("optimization_history_block", ""),
             )
             pack = _complete_json(
                 llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192
