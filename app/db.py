@@ -447,6 +447,16 @@ _SQLITE_DDL = [
         last_reanalysis_at  TEXT,
         updated_at          TEXT NOT NULL
     )""",
+    # Secondary, best-effort copy of file-based analysis JSON artifacts
+    # (market analysis results, identifications, merchant facts, business
+    # profile), so they survive an ephemeral disk wipe (Render Free).
+    """CREATE TABLE IF NOT EXISTS analysis_artifacts (
+        shop          TEXT NOT NULL,
+        artifact_type TEXT NOT NULL,
+        data_json     TEXT NOT NULL,
+        updated_at    TEXT NOT NULL,
+        PRIMARY KEY (shop, artifact_type)
+    )""",
 ]
 
 # ── Postgres DDL ───────────────────────────────────────────────────────────────
@@ -846,6 +856,16 @@ _PG_DDL = [
         test_run_at         TEXT,
         last_reanalysis_at  TEXT,
         updated_at          TEXT NOT NULL
+    )""",
+    # Secondary, best-effort copy of file-based analysis JSON artifacts
+    # (market analysis results, identifications, merchant facts, business
+    # profile), so they survive an ephemeral disk wipe (Render Free).
+    """CREATE TABLE IF NOT EXISTS analysis_artifacts (
+        shop          TEXT NOT NULL,
+        artifact_type TEXT NOT NULL,
+        data_json     TEXT NOT NULL,
+        updated_at    TEXT NOT NULL,
+        PRIMARY KEY (shop, artifact_type)
     )""",
 ]
 

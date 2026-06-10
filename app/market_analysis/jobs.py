@@ -6,8 +6,10 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
+from app.analysis_artifacts import load_artifact, save_artifact
 from app.paths import data_dir
 
 logger = logging.getLogger(__name__)
@@ -47,7 +49,7 @@ def update_job(job_id: str, **kwargs: Any) -> None:
         _jobs[job_id].update(kwargs)
 
 
-def save_latest_result(shop: str, data: dict[str, Any]) -> None:
+def save_latest_result(shop: str, data: dict[str, Any], *, db_path: Path | None = None) -> None:
     """Persist the latest completed analysis to disk so it survives page navigation."""
     try:
         shop_dir = _DATA_DIR / shop
@@ -57,9 +59,12 @@ def save_latest_result(shop: str, data: dict[str, Any]) -> None:
         logger.info("Analysis saved to %s (%d bytes)", dest, dest.stat().st_size)
     except OSError as exc:
         logger.error("Failed to save analysis for %s: %s", shop, exc)
+    # Always attempt the DB mirror, even if the file write above failed — a
+    # disk issue is exactly the case this secondary copy exists to cover.
+    save_artifact(shop, "market_analysis_latest", data, db_path=db_path)
 
 
-def load_latest_result(shop: str) -> dict[str, Any] | None:
+def load_latest_result(shop: str, *, db_path: Path | None = None) -> dict[str, Any] | None:
     """Load the last persisted analysis result for a shop, or None if unavailable."""
     path = _DATA_DIR / shop / "market_analysis_latest.json"
     try:
@@ -68,10 +73,10 @@ def load_latest_result(shop: str) -> dict[str, Any] | None:
         return data
     except (OSError, json.JSONDecodeError) as exc:
         logger.info("No saved analysis for %s: %s", shop, exc)
-        return None
+        return load_artifact(shop, "market_analysis_latest", db_path=db_path)
 
 
-def save_identifications(shop: str, data: dict[str, str]) -> None:
+def save_identifications(shop: str, data: dict[str, str], *, db_path: Path | None = None) -> None:
     """Persist merchant-validated product labels {product_id: label} to disk."""
     try:
         shop_dir = _DATA_DIR / shop
@@ -81,20 +86,24 @@ def save_identifications(shop: str, data: dict[str, str]) -> None:
         )
     except OSError:
         pass
+    save_artifact(shop, "market_analysis_identifications", data, db_path=db_path)
 
 
-def load_identifications(shop: str) -> dict[str, str]:
+def load_identifications(shop: str, *, db_path: Path | None = None) -> dict[str, str]:
     """Load persisted product labels, or {} if none exist."""
     path = _DATA_DIR / shop / "market_analysis_identifications.json"
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {}
+        fallback = load_artifact(shop, "market_analysis_identifications", db_path=db_path)
+        return fallback if isinstance(fallback, dict) else {}
 
 
-def save_merchant_facts(shop: str, product_id: str, facts: dict[str, str]) -> dict[str, str]:
+def save_merchant_facts(
+    shop: str, product_id: str, facts: dict[str, str], *, db_path: Path | None = None
+) -> dict[str, str]:
     """Persist merchant-confirmed product facts used for grounded content generation."""
-    stored = load_merchant_facts(shop)
+    stored = load_merchant_facts(shop, db_path=db_path)
     cleaned = {
         str(key): str(value).strip()[:500] for key, value in facts.items() if str(value).strip()
     }
@@ -108,16 +117,19 @@ def save_merchant_facts(shop: str, product_id: str, facts: dict[str, str]) -> di
         )
     except OSError as exc:
         logger.error("Failed to save merchant facts for %s: %s", shop, exc)
+    save_artifact(shop, "market_analysis_merchant_facts", stored, db_path=db_path)
     return merged
 
 
-def load_merchant_facts(shop: str) -> dict[str, dict[str, str]]:
+def load_merchant_facts(
+    shop: str, *, db_path: Path | None = None
+) -> dict[str, dict[str, str]]:
     """Load merchant-confirmed facts, excluding malformed persisted entries."""
     path = _DATA_DIR / shop / "market_analysis_merchant_facts.json"
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {}
+        raw = load_artifact(shop, "market_analysis_merchant_facts", db_path=db_path)
     if not isinstance(raw, dict):
         return {}
     stored: dict[str, dict[str, str]] = {}

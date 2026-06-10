@@ -1,7 +1,7 @@
 # PROGRESS — SEO Leoniedelacroix.com
 
 ## État global
-- Session 2026-06-10 : **Phase 11.11 (Merchant Journey Alignment, tâches 1-9) en cours** — Tâches 1, 2, 4, 3, 5, 6/9 livrées : assistant onboarding 4 étapes, liens morts corrigés + dashboard allégé, nouvelle page `app.measure.tsx` (backend `/geo/*`), renommage "Analyse marché" → "Produits" (`app.products.tsx`) + nav Dashboard/Produits/Blog/Mesure/Réglages, tracking automatique des `geo_impact_events`/`geo_optimization_snapshots` à chaque application live, historique d'optimisation injecté dans les prompts du moteur d'analyse (`build_optimization_history`). `npm run typecheck` ✅, `npm run build` ✅, `ruff check .` ✅, `pytest -q` 1768 passed (72 échecs préexistants sans rapport).
+- Session 2026-06-10 : **Phase 11.11 (Merchant Journey Alignment, tâches 1-9) terminée (9/9)** — assistant onboarding 4 étapes, liens morts corrigés + dashboard allégé, nouvelle page `app.measure.tsx` (backend `/geo/*`), renommage "Analyse marché" → "Produits" (`app.products.tsx`) + nav Dashboard/Produits/Blog/Mesure/Réglages, tracking automatique des `geo_impact_events`/`geo_optimization_snapshots` à chaque application live, historique d'optimisation injecté dans les prompts du moteur d'analyse (`build_optimization_history`), cycle de réanalyse automatique 14/28 jours, page Réglages consolidée (automatisation, connexions Google, visibilité IA), persistance DB best-effort des artefacts d'analyse (`analysis_artifacts`). `npm run typecheck` ✅, `npm run build` ✅, `ruff check .` ✅, `pytest -q` 1795 passed (72 échecs préexistants sans rapport).
 - Session 2026-05-31 : **Blog SEO+GEO Sprint 2 livré** — les brouillons blog réutilisent le maillage interne d'Analyse marché (`internal_links` éditables + bloc « À lire aussi » publié dans Shopify) et la page Crawlabilité IA fournit un template `robots.txt.liquid` manuel avec bouton copier. Validations : `ruff check` ciblé ✅, `pytest tests/test_blog tests/test_geo/test_crawlability.py tests/test_api/test_geo.py` **51 passed** ✅, `npm run typecheck` ✅, `npm run build` ✅, `git diff --check` ✅.
 - Dernière session : **2026-05-29** (Fiabilisation algo Analyse produit : pipeline « données réelles d'abord », pool de mots-clés GSC/DataForSEO/Suggest/Trends avant l'IA, mode JSON déterministe, transparence des sources en UI ; `pytest` 1583 ✅, typecheck/build ✅)
 - Session 2026-05-25 (DataForSEO 5 APIs actives + migration infra prod planifiée Phase 12)
@@ -22,7 +22,7 @@
 - Phase 11.8 : **11/11** ✅ (implémentation GEO Autopilot Simplification, tâches 139-149, terminée 2026-05-21)
 - Phase 11.9 : **12/12** ✅ (Merchant Journey Unification & Friction Reduction, tâches 152-163 terminées le 2026-05-21)
 - Phase 11.10 : **0/5** ⏳ (Market Analysis Improvements, tâches 164-168, parallèle aux tests marchands pilotes)
-- Phase 11.11 : **8/9** ⏳ (Merchant Journey Alignment — onboarding/dashboard/nav/mesure/tracking/historique/réanalyse/réglages/persistance, en cours le 2026-06-10)
+- Phase 11.11 : **9/9** ✅ (Merchant Journey Alignment — onboarding/dashboard/nav/mesure/tracking/historique/réanalyse/réglages/persistance, terminée le 2026-06-10)
 - Phase 12 : **0/5** ⏳ (go/no-go + soumission publique Shopify App Store + migration infra prod, tâches 150-151 + 169-171, démarre après test 3 marchands pilotes)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
 - Tests : dernière validation complète tâches 155-163 — `npm run typecheck` ✅, `npm run build` ✅, `git diff --check` ✅.
@@ -50,7 +50,7 @@
 
 ---
 
-## Phase 11.11 — Merchant Journey Alignment (en cours, 2026-06-10)
+## Phase 11.11 — Merchant Journey Alignment (terminée, 2026-06-10)
 
 ### Objectif
 
@@ -66,10 +66,7 @@ Aligner Giulio Geo sur le parcours marchand cible : onboarding 4 étapes fonctio
 - **6 — Historique d'optimisation injecté dans le moteur d'analyse** : nouveau `app/market_analysis/history_context.py` (`build_optimization_history()`/`format_optimization_history()`) lit `geo_impact_events` (statut `applied`) + `learning_weights` (`feature_key="action_type"`) pour produire un bloc de prompt `=== HISTORIQUE D'OPTIMISATION ===` (changements passés par champ avec verdict/confiance + résumé "ce qui a marché/régressé" boutique). Câblé dans `run_market_analysis()` (nouveau paramètre `db_path`) et injecté dans `_build_pass1_prompt`/`_build_pass2_prompt` (nouveau paramètre `optimization_history_block`), une fois par produit, calculé en pass-1 et réutilisé en pass-2. Section omise du prompt si aucun historique. Détails : `docs/AI_HANDOFF.md`.
 - **7 — Cycle de réanalyse automatique 14/28 jours** : nouveau `app/agent_schedule/reanalysis.py` (`is_reanalysis_due()`, `run_market_reanalysis()`, `run_scheduled_reanalysis()`) — exécute le pipeline complet (refresh jobs `seo_audit`/`gsc_import` via `enqueue_unique`, `run_market_analysis`, enrichissement, persistance, sync schema facts, drafts orphelins) hors contexte FastAPI, gardé par `check_budget()` (skip `budget_exceeded`) et par l'absence de snapshot (skip `no_snapshot`). Câblé dans `run_due_agent_schedules()` via `_maybe_run_reanalysis()`, à l'intérieur du verrou `_RUNNING`/cooldown existant ; `agent_schedule_settings.last_reanalysis_at` n'avance que sur succès. Nouveaux champs `merchant_learning_settings.reanalysis_frequency_days` (14|28, défaut 28) et `auto_publish_scopes` (défaut meta_title/meta_description/alt_text), validés en couche store. `run_continuous_improvement_agent()` n'auto-applique un `content_type` que s'il est dans `auto_publish_scopes` (restriction additive, ne contourne jamais `confirm_live_write`). Détails : `docs/AI_HANDOFF.md`.
 - **8 — Page Réglages consolidée** : `app.account.tsx` réécrite avec 4 sections — "Automatisation" (Select mode manuel/semi-auto/auto mappé sur `enabled`+`mode`, Select fréquence de réanalyse 14/28j, ChoiceList `auto_publish_scopes` avec garde anti-liste-vide, lien vers `/app/continuous-improvement`), "Connexions" (nouveau composant partagé `GoogleConnectionsCard.tsx`, extrait de l'onboarding, soumis en cross-route vers `/app/onboarding`), "Visibilité auprès des crawlers IA" (badge llms.txt + lien `/app/geo-llms-txt`), et l'existant (hub + zone de danger). `PUT /learning/settings` expose désormais `reanalysis_frequency_days`/`auto_publish_scopes` (`app/api/learning.py`). `app.onboarding.tsx` gagne l'intent `ga4_disconnect`. ~20 nouvelles clés i18n FR+EN. Détails : `docs/AI_HANDOFF.md`.
-
-### Tâches restantes
-
-- **9** — Persistance DB des artefacts d'analyse (dual-write/read-through JSON↔DB).
+- **9 — Persistance DB des artefacts d'analyse** : nouvelle table générique `analysis_artifacts(shop, artifact_type, data_json, updated_at)` (DDL SQLite + Postgres dans `app/db.py`, `CREATE TABLE IF NOT EXISTS`, pas de migration nécessaire). Nouveau module `app/analysis_artifacts.py` (`save_artifact`/`load_artifact`, upsert `INSERT...ON CONFLICT...DO UPDATE`, best-effort — toute exception est loguée et avalée pour ne jamais casser le flux fichier). Câblé dans `app/market_analysis/jobs.py` (`market_analysis_latest`, `market_analysis_identifications`, `market_analysis_merchant_facts`) et `app/business_profile/jobs.py` (`business_profile`), via un nouveau paramètre `db_path` optionnel sur les `save_*`/`load_*` existants. Design : fichier-d'abord/DB-en-secours (et non DB-d'abord comme suggéré initialement par le plan) car 3 fonctions (`remove_products_from_analysis`, `patch_product_proposals`, `replace_product_analysis`) modifient `market_analysis_latest.json` directement sans passer par `save_artifact` — un lookup DB-d'abord aurait pu renvoyer une copie périmée. La copie DB ne sert qu'en recours après perte de disque (Render Free). 11 nouveaux tests de persistance (`tests/market_analysis/test_persistence.py`, `tests/business_profile/test_persistence.py`). Détails : `docs/AI_HANDOFF.md`.
 
 ### Validations (tâches 1, 2, 4, 3)
 
@@ -104,6 +101,14 @@ Aligner Giulio Geo sur le parcours marchand cible : onboarding 4 étapes fonctio
 - `ruff check app/api/learning.py app/learning/ tests/test_api/test_learning.py` ✅ ; `python3 -m pytest tests/test_api/test_learning.py -q` → **8 passed**.
 - `code-reviewer` exécuté : 2 points corrigés avant commit (bouton "Enregistrer" désactivé + avertissement quand `auto_publish_scopes` est vide ; commentaire sur la perte d'état `mode` en bascule "manuel"). 1 point non bloquant noté pour smoke test manuel ultérieur (`?locale=` préservé par `fetcher.submit` cross-route).
 - Suite Python complète différée à la fin de la tâche 9 (dernière tâche du plan) avant le push final.
+
+### Validations (tâche 9)
+
+- `ruff check .` ✅.
+- `python3 -m pytest tests/market_analysis/test_persistence.py tests/business_profile/test_persistence.py -q` → **11 passed**.
+- `pytest -q` complet → **1795 passed, 185 skipped, 72 failed** (mêmes 72 échecs préexistants, sans rapport avec ce diff — confirmés via `git stash`).
+- `cd shopify-app && npm run typecheck` ✅, `npm run build` ✅ (aucun changement frontend pour cette tâche, validation finale du plan).
+- `code-reviewer` exécuté : aucun point bloquant. 5 points non bloquants corrigés avant commit (niveau de log DEBUG→WARNING, commentaire expliquant le placement de `save_artifact` après l'écriture fichier potentiellement échouée, caveat dans le docstring du module sur les 3 mutateurs directs de `market_analysis_latest.json`, garde `isinstance(dict)` dans `load_identifications`, 2 nouveaux tests de cas limites).
 
 ## Phase 11.9 — Merchant Journey Unification & Friction Reduction le 2026-05-21
 
