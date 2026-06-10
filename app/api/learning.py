@@ -38,6 +38,8 @@ class LearningSettingsRequest(BaseModel):
     min_confidence_to_auto_apply: int | None = Field(default=None, ge=0, le=100)
     min_confidence_to_suggest: int | None = Field(default=None, ge=0, le=100)
     require_approval_for_medium_risk: bool | None = None
+    reanalysis_frequency_days: int | None = None
+    auto_publish_scopes: list[str] | None = None
 
 
 class LearningRunRequest(BaseModel):

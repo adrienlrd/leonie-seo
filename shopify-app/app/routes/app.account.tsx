@@ -1,27 +1,69 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useFetcher, useLoaderData } from "@remix-run/react";
-import { Badge, Banner, BlockStack, Box, Button, Card, Divider, InlineStack, Page, Text } from "@shopify/polaris";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useFetcher, useLoaderData, useRevalidator } from "@remix-run/react";
+import {
+  Badge,
+  Banner,
+  BlockStack,
+  Box,
+  Button,
+  Card,
+  ChoiceList,
+  Divider,
+  InlineStack,
+  Page,
+  Select,
+  Text,
+} from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
 import { HubGrid, type HubItem } from "../components/HubGrid";
+import { GoogleConnectionsCard } from "../components/GoogleConnectionsCard";
+import type { GA4Status, GSCStatus, OnboardingActionData } from "../components/onboarding/types";
+
+interface LearningSettings {
+  enabled: boolean;
+  mode: "semi_auto" | "auto_apply";
+  reanalysis_frequency_days: number;
+  auto_publish_scopes: string[];
+}
+
+interface LlmsTxtStatus {
+  is_published: boolean;
+  divergent: boolean;
+}
+
+const AUTO_PUBLISH_SCOPE_OPTIONS = [
+  "meta_title",
+  "meta_description",
+  "alt_text",
+  "product_description",
+] as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const locale = getLocale(request);
-  const [gscResp, ga4Resp] = await Promise.allSettled([
+  const [gscResp, ga4Resp, learningResp, llmsResp] = await Promise.allSettled([
     callBackendForShop(session.shop, `/api/shops/${session.shop}/gsc/status`, { accessToken: session.accessToken }),
     callBackendForShop(session.shop, `/api/shops/${session.shop}/ga4/status`, { accessToken: session.accessToken }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/learning/settings`, { accessToken: session.accessToken }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/llms-txt/status`, { accessToken: session.accessToken }),
   ]);
-  const gscConnected = gscResp.status === "fulfilled" && gscResp.value.ok
-    ? ((await gscResp.value.json().catch(() => ({}))) as { connected?: boolean }).connected === true
-    : false;
-  const ga4Connected = ga4Resp.status === "fulfilled" && ga4Resp.value.ok
-    ? ((await ga4Resp.value.json().catch(() => ({}))) as { ready?: boolean }).ready === true
-    : false;
-  return json({ locale, gscConnected, ga4Connected });
+  const gsc = gscResp.status === "fulfilled" && gscResp.value.ok
+    ? ((await gscResp.value.json().catch(() => null)) as GSCStatus | null)
+    : null;
+  const ga4 = ga4Resp.status === "fulfilled" && ga4Resp.value.ok
+    ? ((await ga4Resp.value.json().catch(() => null)) as GA4Status | null)
+    : null;
+  const learningSettings = learningResp.status === "fulfilled" && learningResp.value.ok
+    ? (((await learningResp.value.json().catch(() => null)) as { settings?: LearningSettings } | null)?.settings ?? null)
+    : null;
+  const llmsTxt = llmsResp.status === "fulfilled" && llmsResp.value.ok
+    ? ((await llmsResp.value.json().catch(() => null)) as LlmsTxtStatus | null)
+    : null;
+  return json({ locale, gsc, ga4, learningSettings, llmsTxt });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -39,14 +81,118 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ type: "resetTags", ok: resp.ok, reset: data?.reset ?? 0 });
   }
 
+  if (intent === "saveAutomation") {
+    const automationMode = String(form.get("automation_mode") ?? "semi_auto");
+    // "manual" maps to enabled=false; the persisted `mode` then defaults back to
+    // semi_auto, so a merchant who switches manual -> auto_apply lands on semi_auto
+    // rather than their previous auto_apply choice. Acceptable simplification for
+    // a 3-way UI control over a 2-field backend model.
+    const resp = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/learning/settings`,
+      {
+        method: "PUT",
+        accessToken: session.accessToken,
+        body: JSON.stringify({
+          enabled: automationMode !== "manual",
+          mode: automationMode === "auto_apply" ? "auto_apply" : "semi_auto",
+          reanalysis_frequency_days: Number(form.get("reanalysis_frequency_days") ?? 28),
+          auto_publish_scopes: form.getAll("auto_publish_scopes").map(String),
+        }),
+      },
+    );
+    const data = await resp.json().catch(() => ({}));
+    return json({
+      type: "saveAutomation",
+      ok: resp.ok,
+      error: resp.ok ? null : ((data as { detail?: string }).detail ?? `Backend ${resp.status}`),
+    });
+  }
+
   return json({ type: "unknown", ok: false, reset: 0 });
 };
 
 export default function AccountHub() {
-  const { locale, gscConnected, ga4Connected } = useLoaderData<typeof loader>() as { locale: Locale; gscConnected: boolean; ga4Connected: boolean };
+  const { locale, gsc, ga4, learningSettings, llmsTxt } = useLoaderData<typeof loader>() as {
+    locale: Locale;
+    gsc: GSCStatus | null;
+    ga4: GA4Status | null;
+    learningSettings: LearningSettings | null;
+    llmsTxt: LlmsTxtStatus | null;
+  };
   const fr = locale === "fr";
+  const gscConnected = Boolean(gsc?.connected);
+  const ga4Connected = Boolean(ga4?.ready);
   const resetFetcher = useFetcher<{ type: string; ok: boolean; reset: number }>();
+  const automationFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
+  const onboardingFetcher = useFetcher<OnboardingActionData>();
   const [confirmReset, setConfirmReset] = useState(false);
+
+  const initialMode: "manual" | "semi_auto" | "auto_apply" = !learningSettings?.enabled
+    ? "manual"
+    : learningSettings.mode === "auto_apply"
+      ? "auto_apply"
+      : "semi_auto";
+  const [automationMode, setAutomationMode] = useState<"manual" | "semi_auto" | "auto_apply">(initialMode);
+  const [reanalysisFrequency, setReanalysisFrequency] = useState(
+    String(learningSettings?.reanalysis_frequency_days ?? 28),
+  );
+  const [autoPublishScopes, setAutoPublishScopes] = useState<string[]>(
+    learningSettings?.auto_publish_scopes ?? [],
+  );
+
+  useEffect(() => {
+    setAutomationMode(initialMode);
+    setReanalysisFrequency(String(learningSettings?.reanalysis_frequency_days ?? 28));
+    setAutoPublishScopes(learningSettings?.auto_publish_scopes ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learningSettings]);
+
+  const saveAutomation = () => {
+    const fd = new FormData();
+    fd.set("intent", "saveAutomation");
+    fd.set("automation_mode", automationMode);
+    fd.set("reanalysis_frequency_days", reanalysisFrequency);
+    for (const scope of autoPublishScopes) fd.append("auto_publish_scopes", scope);
+    automationFetcher.submit(fd, { method: "post" });
+  };
+
+  // Open Google's consent screen in a popup when the onboarding action returns an
+  // authorization URL, mirroring the onboarding wizard's connect flow.
+  const revalidator = useRevalidator();
+  const openedUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    const url = onboardingFetcher.data?.authorizationUrl;
+    if (!url || openedUrlRef.current === url) return;
+    if (typeof window === "undefined") return;
+    openedUrlRef.current = url;
+    const w = 520;
+    const h = 720;
+    const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+    const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+    window.open(
+      url,
+      "leonie-google-oauth",
+      `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no`,
+    );
+  }, [onboardingFetcher.data?.authorizationUrl]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { source?: string; ok?: boolean } | null;
+      if ((data?.source === "leonie-google-oauth" || data?.source === "leonie-google-oauth-ga4") && data.ok) {
+        revalidator.revalidate();
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [revalidator]);
+
+  useEffect(() => {
+    if (onboardingFetcher.data?.disconnected) revalidator.revalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onboardingFetcher.data?.disconnected]);
 
   const items: HubItem[] = [
     {
@@ -106,6 +252,119 @@ export default function AccountHub() {
           <BlockStack gap="300">
             <BlockStack gap="100">
               <Text as="h2" variant="headingMd">
+                {t(locale, "automationTitle")}
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                {t(locale, "automationBody")}
+              </Text>
+            </BlockStack>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+              <Select
+                label={t(locale, "automationModeLabel")}
+                options={[
+                  { label: t(locale, "automationModeManual"), value: "manual" },
+                  { label: t(locale, "automationModeSemiAuto"), value: "semi_auto" },
+                  { label: t(locale, "automationModeAutoApply"), value: "auto_apply" },
+                ]}
+                value={automationMode}
+                onChange={(value) => setAutomationMode(value as "manual" | "semi_auto" | "auto_apply")}
+              />
+              <Select
+                label={t(locale, "automationFrequencyLabel")}
+                options={[
+                  { label: t(locale, "automationFrequency14"), value: "14" },
+                  { label: t(locale, "automationFrequency28"), value: "28" },
+                ]}
+                value={reanalysisFrequency}
+                onChange={setReanalysisFrequency}
+              />
+            </div>
+
+            <ChoiceList
+              title={t(locale, "automationScopesLabel")}
+              allowMultiple
+              choices={AUTO_PUBLISH_SCOPE_OPTIONS.map((scope) => ({
+                label: t(locale, `automationScope${scopeKey(scope)}`),
+                value: scope,
+              }))}
+              selected={autoPublishScopes}
+              onChange={setAutoPublishScopes}
+            />
+            {autoPublishScopes.length === 0 && (
+              <Text as="p" variant="bodySm" tone="critical">
+                {t(locale, "automationScopesEmptyWarning")}
+              </Text>
+            )}
+
+            <InlineStack align="space-between" blockAlign="center" wrap>
+              <Button
+                url={localizedPath("/app/continuous-improvement", locale)}
+                variant="plain"
+              >
+                {t(locale, "automationScheduleLink")}
+              </Button>
+              <Button
+                variant="primary"
+                loading={automationFetcher.state !== "idle"}
+                disabled={autoPublishScopes.length === 0}
+                onClick={saveAutomation}
+              >
+                {t(locale, "automationSave")}
+              </Button>
+            </InlineStack>
+
+            {automationFetcher.data?.ok && (
+              <Banner tone="success">
+                <Text as="p">{t(locale, "automationSaved")}</Text>
+              </Banner>
+            )}
+            {automationFetcher.data && !automationFetcher.data.ok && (
+              <Banner tone="warning">
+                <Text as="p">{automationFetcher.data.error}</Text>
+              </Banner>
+            )}
+          </BlockStack>
+        </Card>
+
+        <GoogleConnectionsCardWrapper
+          locale={locale}
+          gsc={gsc}
+          ga4={ga4}
+          fetcher={onboardingFetcher}
+        />
+
+        <Card>
+          <BlockStack gap="300">
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingMd">
+                {t(locale, "aiCrawlerVisibilityTitle")}
+              </Text>
+              <Text as="p" variant="bodySm" tone="subdued">
+                {t(locale, "aiCrawlerVisibilityBody")}
+              </Text>
+            </BlockStack>
+            <InlineStack align="space-between" blockAlign="center" wrap>
+              <InlineStack gap="200" blockAlign="center">
+                {llmsTxt?.divergent ? (
+                  <Badge tone="attention">{t(locale, "llmsTxtStatusDivergent")}</Badge>
+                ) : llmsTxt?.is_published ? (
+                  <Badge tone="success">{t(locale, "llmsTxtStatusPublished")}</Badge>
+                ) : (
+                  <Badge>{t(locale, "llmsTxtStatusNotPublished")}</Badge>
+                )}
+              </InlineStack>
+              <Button url={localizedPath("/app/geo-llms-txt", locale)} variant="plain">
+                {t(locale, "aiCrawlerVisibilityManage")}
+              </Button>
+            </InlineStack>
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="300">
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingMd">
                 {fr ? "Analyse SEO — sources de données" : "SEO Analysis — data sources"}
               </Text>
               <Text as="p" variant="bodySm" tone="subdued">
@@ -121,23 +380,15 @@ export default function AccountHub() {
               </InlineStack>
               <InlineStack gap="200" blockAlign="center">
                 <Text as="span" variant="bodySm">Google Search Console</Text>
-                {gscConnected ? (
-                  <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
-                ) : (
-                  <Button variant="plain" size="slim" url={localizedPath("/app/onboarding", locale)}>
-                    {fr ? "Se connecter" : "Connect"}
-                  </Button>
-                )}
+                <Badge tone={gscConnected ? "success" : "attention"}>
+                  {gscConnected ? (fr ? "Réel" : "Live") : (fr ? "À connecter" : "Not connected")}
+                </Badge>
               </InlineStack>
               <InlineStack gap="200" blockAlign="center">
                 <Text as="span" variant="bodySm">Google Analytics 4</Text>
-                {ga4Connected ? (
-                  <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
-                ) : (
-                  <Button variant="plain" size="slim" url={localizedPath("/app/onboarding", locale)}>
-                    {fr ? "Se connecter" : "Connect"}
-                  </Button>
-                )}
+                <Badge tone={ga4Connected ? "success" : "attention"}>
+                  {ga4Connected ? (fr ? "Réel" : "Live") : (fr ? "À connecter" : "Not connected")}
+                </Badge>
               </InlineStack>
             </InlineStack>
           </BlockStack>
@@ -210,5 +461,40 @@ export default function AccountHub() {
         </Card>
       </BlockStack>
     </Page>
+  );
+}
+
+function scopeKey(scope: (typeof AUTO_PUBLISH_SCOPE_OPTIONS)[number]): string {
+  return scope
+    .split("_")
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join("");
+}
+
+/**
+ * Wraps GoogleConnectionsCard with a fetcher targeting /app/onboarding's action,
+ * since GSC/GA4 connect/disconnect intents live there.
+ */
+function GoogleConnectionsCardWrapper({
+  locale,
+  gsc,
+  ga4,
+  fetcher,
+}: {
+  locale: Locale;
+  gsc: GSCStatus | null;
+  ga4: GA4Status | null;
+  fetcher: ReturnType<typeof useFetcher<OnboardingActionData>>;
+}) {
+  return (
+    <GoogleConnectionsCard
+      locale={locale}
+      gsc={gsc}
+      ga4={ga4}
+      title={t(locale, "connectionsTitle")}
+      description={t(locale, "connectionsBody")}
+      actionPath={localizedPath("/app/onboarding", locale)}
+      fetcher={fetcher}
+    />
   );
 }

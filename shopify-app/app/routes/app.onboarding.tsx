@@ -5,12 +5,9 @@ import {
   useLoaderData,
   useNavigate,
   useRevalidator,
-  useSubmit,
-  useNavigation,
 } from "@remix-run/react";
 import { useEffect, useRef, useState } from "react";
 import {
-  Badge,
   Banner,
   BlockStack,
   Button,
@@ -36,7 +33,8 @@ import { PageSpeedCard } from "../components/onboarding/PageSpeedCard";
 import { BusinessProfilePanel } from "../components/BusinessProfilePanel";
 import { ProductIdentificationPanel } from "../components/ProductIdentificationPanel";
 import { MarketAnalysisProgressPanel } from "../components/MarketAnalysisProgressPanel";
-import { SectionTitle, type BusinessProfile, type MarketJobState } from "../lib/marketAnalysisShared";
+import { GoogleConnectionsCard } from "../components/GoogleConnectionsCard";
+import type { BusinessProfile, MarketJobState } from "../lib/marketAnalysisShared";
 import {
   startBusinessAnalysis as startBusinessAnalysisAction,
   pollBusinessAnalysis as pollBusinessAnalysisAction,
@@ -49,7 +47,6 @@ import {
   saveProductIdentificationAndStartAnalysis as saveProductIdentificationAndStartAnalysisAction,
   pollProductAnalysis as pollProductAnalysisAction,
 } from "../lib/productIdentificationActions.server";
-import { GlobeIcon } from "@shopify/polaris-icons";
 import type {
   CrawlStatus,
   GA4Status,
@@ -175,6 +172,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
       const data = (await resp.json()) as { authorization_url: string };
       return json<OnboardingActionData>({ authorizationUrl: data.authorization_url });
+    }
+
+    if (intent === "ga4_disconnect") {
+      const resp = await be(`/api/shops/${shop}/ga4/disconnect`, { method: "DELETE" });
+      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
+      return json<OnboardingActionData>({ disconnected: true });
     }
 
     if (intent === "pagespeed_import") {
@@ -321,80 +324,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 // Page
 // ---------------------------------------------------------------------------
 
-function ConnectGoogleStep({
-  locale,
-  gsc,
-  ga4,
-  legacyActionData,
-  onContinue,
-}: {
-  locale: Locale;
-  gsc: GSCStatus | null;
-  ga4: GA4Status | null;
-  legacyActionData: OnboardingActionData | undefined;
-  onContinue: () => void;
-}) {
-  const submit = useSubmit();
-  const navigation = useNavigation();
-  const submittingAction = String(navigation.formData?.get("intent") || "");
-  const gscConnected = Boolean(gsc?.connected);
-  const ga4Ready = Boolean(ga4?.ready);
-  const ga4OauthPending = Boolean(ga4?.oauth_connected) && !ga4Ready;
-
-  return (
-    <Card>
-      <BlockStack gap="300">
-        <SectionTitle source={GlobeIcon}>{t(locale, "onboardingStepGoogleTitle")}</SectionTitle>
-        <Text as="p" tone="subdued">
-          {t(locale, "onboardingStepGoogleBody")}
-        </Text>
-
-        <InlineStack gap="300" wrap blockAlign="center">
-          {gscConnected ? (
-            <Badge tone="success">{t(locale, "onboardingGSCConnected")}</Badge>
-          ) : (
-            <Button
-              variant="primary"
-              disabled={!gsc?.configured}
-              loading={navigation.state !== "idle" && submittingAction === "gsc_connect"}
-              onClick={() => submit({ intent: "gsc_connect" }, { method: "post" })}
-            >
-              {t(locale, "onboardingConnectGSC")}
-            </Button>
-          )}
-
-          {ga4Ready ? (
-            <Badge tone="success">{t(locale, "onboardingGA4Connected")}</Badge>
-          ) : ga4OauthPending ? (
-            <Badge tone="info">{t(locale, "onboardingGA4PropertyPending")}</Badge>
-          ) : (
-            <Button
-              loading={navigation.state !== "idle" && submittingAction === "ga4_connect"}
-              onClick={() => submit({ intent: "ga4_connect" }, { method: "post" })}
-            >
-              {t(locale, "onboardingConnectGA4")}
-            </Button>
-          )}
-        </InlineStack>
-
-        {legacyActionData?.error && (
-          <Banner tone="critical">
-            <Text as="p">{legacyActionData.error}</Text>
-          </Banner>
-        )}
-
-        {gscConnected && (
-          <InlineStack align="end">
-            <Button variant="primary" onClick={onContinue}>
-              {t(locale, "onboardingGoogleContinue")}
-            </Button>
-          </InlineStack>
-        )}
-      </BlockStack>
-    </Card>
-  );
-}
-
 export default function Onboarding() {
   const { locale, shop, health, status, gsc, ga4, pagespeed, crawl, recentJobs, businessProfile, startStep } =
     useLoaderData<typeof loader>();
@@ -507,11 +436,13 @@ export default function Onboarding() {
         )}
 
         {step === 1 && (
-          <ConnectGoogleStep
+          <GoogleConnectionsCard
             locale={locale}
             gsc={gsc}
             ga4={ga4}
             legacyActionData={legacyActionData}
+            title={t(locale, "onboardingStepGoogleTitle")}
+            description={t(locale, "onboardingStepGoogleBody")}
             onContinue={() => setStep(2)}
           />
         )}

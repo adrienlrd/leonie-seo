@@ -146,6 +146,18 @@ def test_update_learning_settings_accepts_only_two_modes(client: TestClient) -> 
     assert rejected.status_code == 422
 
 
+def test_update_learning_settings_accepts_reanalysis_and_publish_scopes(client: TestClient) -> None:
+    resp = client.put(
+        f"/api/shops/{SHOP}/learning/settings",
+        json={"reanalysis_frequency_days": 14, "auto_publish_scopes": ["meta_title", "alt_text"]},
+    )
+
+    assert resp.status_code == 200
+    settings = resp.json()["settings"]
+    assert settings["reanalysis_frequency_days"] == 14
+    assert settings["auto_publish_scopes"] == ["meta_title", "alt_text"]
+
+
 def test_learning_run_endpoint_delegates_to_scheduler(client: TestClient) -> None:
     with patch(
         "app.api.learning.run_learning_cycle",

@@ -22,7 +22,7 @@
 - Phase 11.8 : **11/11** ✅ (implémentation GEO Autopilot Simplification, tâches 139-149, terminée 2026-05-21)
 - Phase 11.9 : **12/12** ✅ (Merchant Journey Unification & Friction Reduction, tâches 152-163 terminées le 2026-05-21)
 - Phase 11.10 : **0/5** ⏳ (Market Analysis Improvements, tâches 164-168, parallèle aux tests marchands pilotes)
-- Phase 11.11 : **7/9** ⏳ (Merchant Journey Alignment — onboarding/dashboard/nav/mesure/tracking/historique/réanalyse/réglages/persistance, en cours le 2026-06-10)
+- Phase 11.11 : **8/9** ⏳ (Merchant Journey Alignment — onboarding/dashboard/nav/mesure/tracking/historique/réanalyse/réglages/persistance, en cours le 2026-06-10)
 - Phase 12 : **0/5** ⏳ (go/no-go + soumission publique Shopify App Store + migration infra prod, tâches 150-151 + 169-171, démarre après test 3 marchands pilotes)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
 - Tests : dernière validation complète tâches 155-163 — `npm run typecheck` ✅, `npm run build` ✅, `git diff --check` ✅.
@@ -65,10 +65,10 @@ Aligner Giulio Geo sur le parcours marchand cible : onboarding 4 étapes fonctio
 - **5 — Tracking automatique des changements appliqués** : nouveau `app/geo/auto_tracking.py` (`record_applied_change()`) crée un `geo_optimization_snapshots` minimal + un `geo_impact_events` (`status="applied"`, `event_type="applied_optimization"`) à chaque écriture Shopify live réussie, en réutilisant `create_optimization_snapshot()`/`create_geo_event()`. Idempotent par jour calendaire (UTC) sur `(shop, resource_type, resource_id, action_type, field)`. Câblé dans `apply-to-shopify` (meta_title/meta_description/product_description/alt_text), `schema-facts/sync`, `publish_blog_draft` et `apply_approval` (learning). Toute exception est loguée et avalée (`record_applied_change` retourne `None`) pour ne jamais transformer un apply Shopify réussi en 500. Détails : `docs/AI_HANDOFF.md`.
 - **6 — Historique d'optimisation injecté dans le moteur d'analyse** : nouveau `app/market_analysis/history_context.py` (`build_optimization_history()`/`format_optimization_history()`) lit `geo_impact_events` (statut `applied`) + `learning_weights` (`feature_key="action_type"`) pour produire un bloc de prompt `=== HISTORIQUE D'OPTIMISATION ===` (changements passés par champ avec verdict/confiance + résumé "ce qui a marché/régressé" boutique). Câblé dans `run_market_analysis()` (nouveau paramètre `db_path`) et injecté dans `_build_pass1_prompt`/`_build_pass2_prompt` (nouveau paramètre `optimization_history_block`), une fois par produit, calculé en pass-1 et réutilisé en pass-2. Section omise du prompt si aucun historique. Détails : `docs/AI_HANDOFF.md`.
 - **7 — Cycle de réanalyse automatique 14/28 jours** : nouveau `app/agent_schedule/reanalysis.py` (`is_reanalysis_due()`, `run_market_reanalysis()`, `run_scheduled_reanalysis()`) — exécute le pipeline complet (refresh jobs `seo_audit`/`gsc_import` via `enqueue_unique`, `run_market_analysis`, enrichissement, persistance, sync schema facts, drafts orphelins) hors contexte FastAPI, gardé par `check_budget()` (skip `budget_exceeded`) et par l'absence de snapshot (skip `no_snapshot`). Câblé dans `run_due_agent_schedules()` via `_maybe_run_reanalysis()`, à l'intérieur du verrou `_RUNNING`/cooldown existant ; `agent_schedule_settings.last_reanalysis_at` n'avance que sur succès. Nouveaux champs `merchant_learning_settings.reanalysis_frequency_days` (14|28, défaut 28) et `auto_publish_scopes` (défaut meta_title/meta_description/alt_text), validés en couche store. `run_continuous_improvement_agent()` n'auto-applique un `content_type` que s'il est dans `auto_publish_scopes` (restriction additive, ne contourne jamais `confirm_live_write`). Détails : `docs/AI_HANDOFF.md`.
+- **8 — Page Réglages consolidée** : `app.account.tsx` réécrite avec 4 sections — "Automatisation" (Select mode manuel/semi-auto/auto mappé sur `enabled`+`mode`, Select fréquence de réanalyse 14/28j, ChoiceList `auto_publish_scopes` avec garde anti-liste-vide, lien vers `/app/continuous-improvement`), "Connexions" (nouveau composant partagé `GoogleConnectionsCard.tsx`, extrait de l'onboarding, soumis en cross-route vers `/app/onboarding`), "Visibilité auprès des crawlers IA" (badge llms.txt + lien `/app/geo-llms-txt`), et l'existant (hub + zone de danger). `PUT /learning/settings` expose désormais `reanalysis_frequency_days`/`auto_publish_scopes` (`app/api/learning.py`). `app.onboarding.tsx` gagne l'intent `ga4_disconnect`. ~20 nouvelles clés i18n FR+EN. Détails : `docs/AI_HANDOFF.md`.
 
 ### Tâches restantes
 
-- **8** — Page Réglages consolidée (automatisation, connexions Google, visibilité IA, existant).
 - **9** — Persistance DB des artefacts d'analyse (dual-write/read-through JSON↔DB).
 
 ### Validations (tâches 1, 2, 4, 3)
@@ -97,6 +97,13 @@ Aligner Giulio Geo sur le parcours marchand cible : onboarding 4 étapes fonctio
 - Ciblé : `pytest tests/test_agent_schedule tests/test_learning tests/test_geo` → **261 passed**.
 - `pytest -q` complet → **1782 passed, 185 skipped, 72 failed** (mêmes 72 échecs préexistants, confirmés via `git stash`, sans rapport avec ce diff).
 - `shopify-architecture-reviewer` exécuté : 4/4 "pass" — 1 correctif appliqué avant commit (`enqueue` → `enqueue_unique` pour `seo_audit`/`gsc_import`). `code-reviewer` exécuté : 2 points corrigés avant commit (`plan or ""` → `plan` ; ajout du fallback `{"status": "skipped", "reason": "no_snapshot"}` sur `HTTPException(404)` + test dédié).
+
+### Validations (tâche 8)
+
+- `cd shopify-app && npm run typecheck` ✅, `npm run build` ✅ (client + SSR).
+- `ruff check app/api/learning.py app/learning/ tests/test_api/test_learning.py` ✅ ; `python3 -m pytest tests/test_api/test_learning.py -q` → **8 passed**.
+- `code-reviewer` exécuté : 2 points corrigés avant commit (bouton "Enregistrer" désactivé + avertissement quand `auto_publish_scopes` est vide ; commentaire sur la perte d'état `mode` en bascule "manuel"). 1 point non bloquant noté pour smoke test manuel ultérieur (`?locale=` préservé par `fetcher.submit` cross-route).
+- Suite Python complète différée à la fin de la tâche 9 (dernière tâche du plan) avant le push final.
 
 ## Phase 11.9 — Merchant Journey Unification & Friction Reduction le 2026-05-21
 
