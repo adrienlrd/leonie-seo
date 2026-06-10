@@ -137,6 +137,16 @@ async def ga4_callback(
         <p>Vos credentials Google Analytics ont été enregistrés.</p>
         <p>Retournez dans Giulio Geo, sélectionnez votre propriété GA4 et enregistrez.</p>
         <p><small>Vous pouvez fermer cet onglet.</small></p>
+        <script>
+          (function () {
+            try {
+              if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({ source: "leonie-google-oauth-ga4", ok: true }, "*");
+              }
+            } catch (_) { /* cross-origin: ignore */ }
+            setTimeout(function () { window.close(); }, 800);
+          })();
+        </script>
       </body>
     </html>
     """

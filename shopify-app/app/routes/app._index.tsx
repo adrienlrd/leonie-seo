@@ -56,21 +56,30 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import {
+  startBusinessAnalysis as startBusinessAnalysisAction,
+  pollBusinessAnalysis as pollBusinessAnalysisAction,
+  saveBusinessProfile as saveBusinessProfileAction,
+  saveBusinessProfileAndStartIdentification as saveBusinessProfileAndStartIdentificationAction,
+} from "../lib/businessProfileActions.server";
+import {
+  startProductAnalysis as startProductAnalysisAction,
+  pollProductIdentification as pollProductIdentificationAction,
+  saveProductIdentificationAndStartAnalysis as saveProductIdentificationAndStartAnalysisAction,
+  pollProductAnalysis as pollProductAnalysisAction,
+} from "../lib/productIdentificationActions.server";
 import { LlmsTxtPanel } from "../components/LlmsTxtPanel";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
-import { qualityWarningText, type ProductResult } from "../lib/marketAnalysisShared";
-
-interface MarketJobState {
-  status: "pending" | "running" | "completed" | "failed";
-  products: ProductResult[];
-  labels?: Record<string, string>;
-  product_titles?: Record<string, string>;
-  progress?: number;
-  total?: number;
-  analyzed_product_count?: number;
-  error?: string | null;
-}
+import {
+  qualityWarningText,
+  linesFromText,
+  textFromLines,
+  SectionTitle,
+  type ProductResult,
+  type MarketJobState,
+  type BusinessProfile,
+} from "../lib/marketAnalysisShared";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -143,52 +152,6 @@ interface DashboardData {
     bulk_apply_in_progress: { running: boolean; current: number; total: number };
   };
   generated_at: string;
-}
-
-// ── Business profile types ────────────────────────────────────────────────────
-
-interface BusinessPersona {
-  name: string;
-  description: string;
-  main_need: string;
-  buying_trigger: string;
-}
-
-interface ContentStyle {
-  tone: string;
-  typical_article_length: string;
-  h2_structure: string[];
-  vocabulary_to_use: string[];
-  vocabulary_to_avoid: string[];
-  hook_patterns: string[];
-}
-
-interface BusinessProfile {
-  niche_summary: string;
-  brand_name: string;
-  brand_voice: string;
-  target_personas: BusinessPersona[];
-  content_style: ContentStyle;
-  key_themes: string[];
-  seasonal_patterns: Array<{ period: string; theme: string; intensity: string }>;
-  competitor_domains: string[];
-  competitor_insights: string[];
-  content_gaps: string[];
-  internal_link_priorities: string[];
-  generated_at: string;
-  status: "draft" | "validated" | "error";
-  sources_used?: string[];
-}
-
-function linesFromText(value: string): string[] {
-  return value
-    .split("\n")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function textFromLines(value: string[] | undefined): string {
-  return (value ?? []).join("\n");
 }
 
 interface LoaderData {
@@ -305,7 +268,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const dashboard = (await dashResp.value.json()) as DashboardData;
 
-    if (!dashboard.zone1.niche_available) {
+    if (!businessProfile || businessProfile.status !== "validated") {
       return redirect(localizedPath("/app/onboarding", locale));
     }
 
@@ -370,151 +333,47 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "startBusinessAnalysis" || intent === "startFullAnalysis") {
+    let shopName = "";
     try {
-      let shopName = "";
-      try {
-        const shopResp = await admin.graphql(`#graphql
-          query { shop { name } }
-        `);
-        const shopData = (await shopResp.json()) as { data?: { shop?: { name?: string } } };
-        shopName = shopData.data?.shop?.name ?? "";
-      } catch { /* non-fatal */ }
+      const shopResp = await admin.graphql(`#graphql
+        query { shop { name } }
+      `);
+      const shopData = (await shopResp.json()) as { data?: { shop?: { name?: string } } };
+      shopName = shopData.data?.shop?.name ?? "";
+    } catch { /* non-fatal */ }
 
-      const rawKeywords = formData.get("focusKeywords");
-      const focusKeywords: string[] = rawKeywords ? (JSON.parse(rawKeywords as string) as string[]) : [];
+    const rawKeywords = formData.get("focusKeywords");
+    const focusKeywords: string[] = rawKeywords ? (JSON.parse(rawKeywords as string) as string[]) : [];
 
-      const resp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/business-profile/analyze`,
-        {
-          accessToken: session.accessToken,
-          method: "POST",
-          body: JSON.stringify({ shop_name: shopName, focus_keywords: focusKeywords }),
-        },
-      );
-      if (!resp.ok) {
-        const txt = await resp.text();
-        return json({ type: intent, jobId: null, error: `HTTP ${resp.status}: ${txt}` });
-      }
-      const data = (await resp.json()) as { job_id: string };
-      return json({ type: intent, jobId: data.job_id, error: null });
-    } catch (err) {
-      return json({ type: intent, jobId: null, error: String(err) });
-    }
+    const result = await startBusinessAnalysisAction(session.shop, session.accessToken, {
+      shopName,
+      focusKeywords,
+    });
+    return json({ type: intent, ...result });
   }
 
   if (intent === "pollBusinessAnalysis") {
     const bizJobId = formData.get("bizJobId") as string;
-    try {
-      const resp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/business-profile/job/${bizJobId}`,
-        { accessToken: session.accessToken },
-      );
-      if (!resp.ok) return json({ type: "pollBusinessAnalysis", status: "unknown", profile: null, error: `HTTP ${resp.status}` });
-      const job = (await resp.json()) as { status: string; profile?: BusinessProfile | null; error?: string | null };
-      const jobError = (job.status === "failed" || job.status === "unknown") ? (job.error ?? "Analyse échouée") : null;
-      return json({ type: "pollBusinessAnalysis", status: job.status, profile: job.profile ?? null, error: jobError });
-    } catch (err) {
-      return json({ type: "pollBusinessAnalysis", status: "unknown", profile: null, error: String(err) });
-    }
+    const result = await pollBusinessAnalysisAction(session.shop, session.accessToken, bizJobId);
+    return json({ type: "pollBusinessAnalysis", ...result });
   }
 
   if (intent === "pollFullBusinessAnalysis") {
     const bizJobId = formData.get("bizJobId") as string;
-    try {
-      const resp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/business-profile/job/${bizJobId}`,
-        { accessToken: session.accessToken },
-      );
-      if (!resp.ok) {
-        return json({
-          type: "pollFullBusinessAnalysis",
-          status: "unknown",
-          profile: null,
-          error: `HTTP ${resp.status}`,
-        });
-      }
-      const job = (await resp.json()) as {
-        status: string;
-        profile?: BusinessProfile | null;
-        error?: string | null;
-      };
-      const jobError =
-        job.status === "failed" || job.status === "unknown"
-          ? (job.error ?? "Analyse échouée")
-          : null;
-      if (job.status !== "completed" || !job.profile || job.profile.status === "error") {
-        return json({
-          type: "pollFullBusinessAnalysis",
-          status: job.status,
-          profile: job.profile ?? null,
-          error: jobError,
-        });
-      }
-
-      return json({
-        type: "pollFullBusinessAnalysis",
-        status: "completed",
-        profile: job.profile,
-        error: null,
-      });
-    } catch (err) {
-      return json({
-        type: "pollFullBusinessAnalysis",
-        status: "unknown",
-        profile: null,
-        error: String(err),
-      });
-    }
+    const result = await pollBusinessAnalysisAction(session.shop, session.accessToken, bizJobId);
+    return json({ type: "pollFullBusinessAnalysis", ...result });
   }
 
   if (intent === "saveBusinessProfileAndStartIdentification") {
     const profileJson = formData.get("profileJson") as string;
     try {
       const profileData = JSON.parse(profileJson) as BusinessProfile;
-      const saveResp = await callBackendForShop(
+      const result = await saveBusinessProfileAndStartIdentificationAction(
         session.shop,
-        `/api/shops/${session.shop}/business-profile`,
-        {
-          accessToken: session.accessToken,
-          method: "POST",
-          body: JSON.stringify(profileData),
-        },
+        session.accessToken,
+        profileData,
       );
-      if (!saveResp.ok) {
-        const txt = await saveResp.text();
-        return json({
-          type: "saveBusinessProfileAndStartIdentification",
-          profile: null,
-          identifyJobId: null,
-          error: `HTTP ${saveResp.status}: ${txt}`,
-        });
-      }
-      const savedProfile = (await saveResp.json()) as BusinessProfile;
-
-      const identifyResp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/market-analysis/identify`,
-        { accessToken: session.accessToken, method: "POST" },
-      );
-      if (!identifyResp.ok) {
-        const txt = await identifyResp.text();
-        return json({
-          type: "saveBusinessProfileAndStartIdentification",
-          profile: savedProfile,
-          identifyJobId: null,
-          error: `HTTP ${identifyResp.status}: ${txt}`,
-        });
-      }
-      const identifyData = (await identifyResp.json()) as { job_id: string };
-      return json({
-        type: "saveBusinessProfileAndStartIdentification",
-        profile: savedProfile,
-        identifyJobId: identifyData.job_id,
-        error: null,
-      });
+      return json({ type: "saveBusinessProfileAndStartIdentification", ...result });
     } catch (err) {
       return json({
         type: "saveBusinessProfileAndStartIdentification",
@@ -526,90 +385,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "startProductAnalysis") {
-    try {
-      const resp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/market-analysis/identify`,
-        { accessToken: session.accessToken, method: "POST" },
-      );
-      if (!resp.ok) {
-        const txt = await resp.text();
-        return json({ type: "startProductAnalysis", jobId: null, error: `HTTP ${resp.status}: ${txt}` });
-      }
-      const data = (await resp.json()) as { job_id: string };
-      return json({ type: "startProductAnalysis", jobId: data.job_id, error: null });
-    } catch (err) {
-      return json({ type: "startProductAnalysis", jobId: null, error: String(err) });
-    }
+    const result = await startProductAnalysisAction(session.shop, session.accessToken);
+    return json({ type: "startProductAnalysis", ...result });
   }
 
   if (intent === "pollProductIdentification") {
     const identifyJobId = formData.get("identifyJobId") as string;
-    try {
-      const resp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/market-analysis/jobs/${identifyJobId}`,
-        { accessToken: session.accessToken },
-      );
-      if (!resp.ok) {
-        return json({
-          type: "pollProductIdentification",
-          job: null,
-          error: `HTTP ${resp.status}`,
-        });
-      }
-      const job = (await resp.json()) as MarketJobState;
-      return json({ type: "pollProductIdentification", job, error: null });
-    } catch (err) {
-      return json({
-        type: "pollProductIdentification",
-        job: null,
-        error: String(err),
-      });
-    }
+    const result = await pollProductIdentificationAction(session.shop, session.accessToken, identifyJobId);
+    return json({ type: "pollProductIdentification", ...result });
   }
 
   if (intent === "saveProductIdentificationAndStartAnalysis") {
     const identificationsRaw = formData.get("identifications") as string;
     try {
       const identifications = JSON.parse(identificationsRaw) as Record<string, string>;
-      const saveResp = await callBackendForShop(
+      const result = await saveProductIdentificationAndStartAnalysisAction(
         session.shop,
-        `/api/shops/${session.shop}/market-analysis/identifications`,
-        {
-          accessToken: session.accessToken,
-          method: "POST",
-          body: JSON.stringify({ identifications }),
-        },
+        session.accessToken,
+        identifications,
       );
-      if (!saveResp.ok) {
-        const txt = await saveResp.text();
-        return json({
-          type: "saveProductIdentificationAndStartAnalysis",
-          productJobId: null,
-          error: `HTTP ${saveResp.status}: ${txt}`,
-        });
-      }
-
-      const productResp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/market-analysis/jobs`,
-        { accessToken: session.accessToken, method: "POST" },
-      );
-      if (!productResp.ok) {
-        const txt = await productResp.text();
-        return json({
-          type: "saveProductIdentificationAndStartAnalysis",
-          productJobId: null,
-          error: `HTTP ${productResp.status}: ${txt}`,
-        });
-      }
-      const productData = (await productResp.json()) as { job_id: string };
-      return json({
-        type: "saveProductIdentificationAndStartAnalysis",
-        productJobId: productData.job_id,
-        error: null,
-      });
+      return json({ type: "saveProductIdentificationAndStartAnalysis", ...result });
     } catch (err) {
       return json({
         type: "saveProductIdentificationAndStartAnalysis",
@@ -621,18 +416,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "pollProductAnalysis") {
     const productJobId = formData.get("productJobId") as string;
-    try {
-      const resp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/market-analysis/jobs/${productJobId}`,
-        { accessToken: session.accessToken },
-      );
-      if (!resp.ok) return json({ type: "pollProductAnalysis", job: null, error: `HTTP ${resp.status}` });
-      const job = (await resp.json()) as MarketJobState;
-      return json({ type: "pollProductAnalysis", job, error: null });
-    } catch (err) {
-      return json({ type: "pollProductAnalysis", job: null, error: String(err) });
-    }
+    const result = await pollProductAnalysisAction(session.shop, session.accessToken, productJobId);
+    return json({ type: "pollProductAnalysis", ...result });
   }
 
   if (intent === "saveCompetitors") {
@@ -661,21 +446,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const profileJson = formData.get("profileJson") as string;
     try {
       const profileData = JSON.parse(profileJson) as BusinessProfile;
-      const resp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/business-profile`,
-        {
-          accessToken: session.accessToken,
-          method: "POST",
-          body: JSON.stringify(profileData),
-        },
-      );
-      if (!resp.ok) {
-        const txt = await resp.text();
-        return json({ type: "saveBusinessProfile", profile: null, error: `HTTP ${resp.status}: ${txt}` });
-      }
-      const saved = (await resp.json()) as BusinessProfile;
-      return json({ type: "saveBusinessProfile", profile: saved, error: null });
+      const result = await saveBusinessProfileAction(session.shop, session.accessToken, profileData);
+      return json({ type: "saveBusinessProfile", ...result });
     } catch (err) {
       return json({ type: "saveBusinessProfile", profile: null, error: String(err) });
     }
@@ -1626,21 +1398,6 @@ type BizActionData =
   | { type: "startBusinessAnalysis"; jobId: string | null; error: string | null }
   | { type: "pollBusinessAnalysis"; status: string; profile: BusinessProfile | null; error: string | null }
   | { type: "saveBusinessProfile"; profile: BusinessProfile | null; error: string | null };
-
-function SectionTitle({ source, children }: { source: IconSource; children: React.ReactNode }) {
-  // The icon is wrapped in a fixed-size box because Polaris .Polaris-Icon has margin:auto,
-  // which would otherwise absorb the free space in a full-width flex row and push the title right.
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "var(--p-space-200)" }}>
-      <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
-        <Icon source={source} tone="base" />
-      </span>
-      <Text as="span" variant="headingMd">
-        {children}
-      </Text>
-    </div>
-  );
-}
 
 function getNicheIcon(profile: BusinessProfile): IconSource {
   const text = [profile.niche_summary, ...(profile.key_themes ?? [])].join(" ").toLowerCase();

@@ -66,6 +66,18 @@ export interface CrawlStatus {
   imported_at: string | null;
 }
 
+export interface GA4Status {
+  shop: string;
+  oauth_connected: boolean;
+  oauth_configured: boolean;
+  email: string | null;
+  property_id: string | null;
+  property_name: string | null;
+  ready: boolean;
+  ga4_property_id_set: boolean;
+  credentials_file_set: boolean;
+}
+
 export interface OnboardingActionData {
   jobId?: string;
   authorizationUrl?: string;

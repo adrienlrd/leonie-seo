@@ -1,13 +1,14 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import {
-  Form,
   useActionData,
   useLoaderData,
-  useNavigation,
+  useNavigate,
   useRevalidator,
+  useSubmit,
+  useNavigation,
 } from "@remix-run/react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Badge,
   Banner,
@@ -32,8 +33,26 @@ import { CrawlCard } from "../components/onboarding/CrawlCard";
 import { GoogleSearchConsoleCard } from "../components/onboarding/GoogleSearchConsoleCard";
 import { InstallationChecklistCard } from "../components/onboarding/InstallationChecklistCard";
 import { PageSpeedCard } from "../components/onboarding/PageSpeedCard";
+import { BusinessProfilePanel } from "../components/BusinessProfilePanel";
+import { ProductIdentificationPanel } from "../components/ProductIdentificationPanel";
+import { MarketAnalysisProgressPanel } from "../components/MarketAnalysisProgressPanel";
+import { SectionTitle, type BusinessProfile, type MarketJobState } from "../lib/marketAnalysisShared";
+import {
+  startBusinessAnalysis as startBusinessAnalysisAction,
+  pollBusinessAnalysis as pollBusinessAnalysisAction,
+  saveBusinessProfileAndStartIdentification as saveBusinessProfileAndStartIdentificationAction,
+  fetchLatestBusinessProfile,
+} from "../lib/businessProfileActions.server";
+import {
+  startProductAnalysis as startProductAnalysisAction,
+  pollProductIdentification as pollProductIdentificationAction,
+  saveProductIdentificationAndStartAnalysis as saveProductIdentificationAndStartAnalysisAction,
+  pollProductAnalysis as pollProductAnalysisAction,
+} from "../lib/productIdentificationActions.server";
+import { GlobeIcon } from "@shopify/polaris-icons";
 import type {
   CrawlStatus,
+  GA4Status,
   GSCStatus,
   Health,
   OnboardingActionData,
@@ -47,10 +66,12 @@ interface LoaderData {
   health: Health | null;
   status: ShopStatus | null;
   gsc: GSCStatus | null;
+  ga4: GA4Status | null;
   pagespeed: PageSpeedStatus | null;
   crawl: CrawlStatus | null;
-  niche: { available: boolean; status: string | null };
   recentJobs: number;
+  businessProfile: BusinessProfile | null;
+  startStep: 1 | 2 | 3 | 4;
 }
 
 async function fetchOk<T>(promise: Promise<Response>): Promise<T | null> {
@@ -71,15 +92,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const be = (path: string) =>
     callBackendForShop(shop, path, { accessToken: session.accessToken });
 
-  const [health, status, jobs, gsc, pagespeed, crawl, niche] = await Promise.all([
-    fetchOk<Health>(callBackend("/health")),
-    fetchOk<ShopStatus>(be(`/api/shops/${shop}/status`)),
-    fetchOk<{ count: number }>(be(`/api/shops/${shop}/jobs?limit=10`)),
-    fetchOk<GSCStatus>(be(`/api/shops/${shop}/gsc/status`)),
-    fetchOk<PageSpeedStatus>(be(`/api/shops/${shop}/pagespeed/status`)),
-    fetchOk<CrawlStatus>(be(`/api/shops/${shop}/crawl/status`)),
-    fetchOk<{ hypothesis?: { status?: string } | null }>(be(`/api/shops/${shop}/niche/hypothesis`)),
-  ]);
+  const [health, status, jobs, gsc, ga4, pagespeed, crawl, businessProfile, latestAnalysis] =
+    await Promise.all([
+      fetchOk<Health>(callBackend("/health")),
+      fetchOk<ShopStatus>(be(`/api/shops/${shop}/status`)),
+      fetchOk<{ count: number }>(be(`/api/shops/${shop}/jobs?limit=10`)),
+      fetchOk<GSCStatus>(be(`/api/shops/${shop}/gsc/status`)),
+      fetchOk<GA4Status>(be(`/api/shops/${shop}/ga4/status`)),
+      fetchOk<PageSpeedStatus>(be(`/api/shops/${shop}/pagespeed/status`)),
+      fetchOk<CrawlStatus>(be(`/api/shops/${shop}/crawl/status`)),
+      fetchLatestBusinessProfile(shop, session.accessToken),
+      fetchOk<unknown>(be(`/api/shops/${shop}/market-analysis/latest`)),
+    ]);
+
+  const gscConnected = Boolean(gsc?.connected);
+  const profileValidated = businessProfile?.status === "validated";
+
+  if (gscConnected && profileValidated && latestAnalysis) {
+    return redirect(localizedPath("/app", locale));
+  }
+
+  let startStep: 1 | 2 | 3 | 4 = 1;
+  if (gscConnected) startStep = 2;
+  if (gscConnected && profileValidated) startStep = 3;
 
   return json<LoaderData>({
     locale,
@@ -87,18 +122,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     health,
     status,
     gsc,
+    ga4,
     pagespeed,
     crawl,
-    niche: {
-      available: Boolean(niche?.hypothesis),
-      status: niche?.hypothesis?.status ?? null,
-    },
     recentJobs: jobs?.count ?? 0,
+    businessProfile,
+    startStep,
   });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
   const locale = getLocale(request);
   const form = await request.formData();
@@ -129,6 +163,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
       const data = (await resp.json()) as { job_id: string };
       return json<OnboardingActionData>({ jobId: data.job_id });
+    }
+
+    if (intent === "ga4_connect") {
+      const resp = await be(`/api/shops/${shop}/ga4/authorize`, { method: "POST" });
+      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
+      const data = (await resp.json()) as { authorization_url: string };
+      return json<OnboardingActionData>({ authorizationUrl: data.authorization_url });
     }
 
     if (intent === "pagespeed_import") {
@@ -176,16 +217,86 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
     }
 
-    if (intent === "niche_understand") {
-      const resp = await be(`/api/shops/${shop}/niche/understand`, {
-        method: "POST",
-        body: JSON.stringify({ force_refresh: true, use_llm: true }),
-        headers: { "Content-Type": "application/json" },
+    if (intent === "startBusinessAnalysis") {
+      let shopName = "";
+      try {
+        const shopResp = await admin.graphql(`#graphql
+          query { shop { name } }
+        `);
+        const shopData = (await shopResp.json()) as { data?: { shop?: { name?: string } } };
+        shopName = shopData.data?.shop?.name ?? "";
+      } catch { /* non-fatal */ }
+
+      const rawKeywords = form.get("focusKeywords");
+      const focusKeywords: string[] = rawKeywords ? (JSON.parse(rawKeywords as string) as string[]) : [];
+
+      const result = await startBusinessAnalysisAction(session.shop, session.accessToken, {
+        shopName,
+        focusKeywords,
       });
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
-      return json<OnboardingActionData>({
-        jobId: locale === "fr" ? "Analyse IA terminée." : "AI analysis completed.",
-      });
+      return json({ type: "startBusinessAnalysis", ...result });
+    }
+
+    if (intent === "pollBusinessAnalysis") {
+      const bizJobId = form.get("bizJobId") as string;
+      const result = await pollBusinessAnalysisAction(session.shop, session.accessToken, bizJobId);
+      return json({ type: "pollBusinessAnalysis", ...result });
+    }
+
+    if (intent === "saveBusinessProfileAndStartIdentification") {
+      const profileJson = form.get("profileJson") as string;
+      try {
+        const profileData = JSON.parse(profileJson) as BusinessProfile;
+        const result = await saveBusinessProfileAndStartIdentificationAction(
+          session.shop,
+          session.accessToken,
+          profileData,
+        );
+        return json({ type: "saveBusinessProfileAndStartIdentification", ...result });
+      } catch (err) {
+        return json({
+          type: "saveBusinessProfileAndStartIdentification",
+          profile: null,
+          identifyJobId: null,
+          error: String(err),
+        });
+      }
+    }
+
+    if (intent === "startProductAnalysis") {
+      const result = await startProductAnalysisAction(session.shop, session.accessToken);
+      return json({ type: "startProductAnalysis", ...result });
+    }
+
+    if (intent === "pollProductIdentification") {
+      const identifyJobId = form.get("identifyJobId") as string;
+      const result = await pollProductIdentificationAction(session.shop, session.accessToken, identifyJobId);
+      return json({ type: "pollProductIdentification", ...result });
+    }
+
+    if (intent === "saveProductIdentificationAndStartAnalysis") {
+      const identificationsRaw = form.get("identifications") as string;
+      try {
+        const identifications = JSON.parse(identificationsRaw) as Record<string, string>;
+        const result = await saveProductIdentificationAndStartAnalysisAction(
+          session.shop,
+          session.accessToken,
+          identifications,
+        );
+        return json({ type: "saveProductIdentificationAndStartAnalysis", ...result });
+      } catch (err) {
+        return json({
+          type: "saveProductIdentificationAndStartAnalysis",
+          productJobId: null,
+          error: String(err),
+        });
+      }
+    }
+
+    if (intent === "pollProductAnalysis") {
+      const productJobId = form.get("productJobId") as string;
+      const result = await pollProductAnalysisAction(session.shop, session.accessToken, productJobId);
+      return json({ type: "pollProductAnalysis", ...result });
     }
 
     // Default intent: launch a full audit.
@@ -205,238 +316,100 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 // Page
 // ---------------------------------------------------------------------------
 
-function computeNextAction(
-  locale: Locale,
-  status: ShopStatus | null,
-  health: Health | null,
-  gsc: GSCStatus | null,
-  niche: { available: boolean; status: string | null },
-): { label: string } | null {
-  const fr = locale === "fr";
-  if (!status?.installed) return { label: fr ? "Réinstaller la boutique" : "Reinstall store" };
-  if (health?.status !== "ok") {
-    return { label: fr ? "Vérifier la configuration serveur" : "Check server configuration" };
-  }
-  if (!status.snapshot_available) {
-    return { label: fr ? "Lancer le premier audit" : "Run first audit" };
-  }
-  if (!gsc?.connected) {
-    return {
-      label: fr ? "Connecter Google" : "Connect Google",
-    };
-  }
-  if (!niche.available) {
-    return {
-      label: fr ? "Analyser ma boutique avec l'IA" : "Analyze my store with AI",
-    };
-  }
-  if (niche.status !== "validated_by_merchant") {
-    return { label: fr ? "Valider ce que l'IA a compris" : "Validate what the AI understood" };
-  }
-  return { label: fr ? "Voir les 3 actions prioritaires" : "See the 3 priority actions" };
-}
-
-function GuidedStep({
-  index,
-  title,
-  body,
-  done,
-  active,
-  children,
-  locale,
-  keepChildrenWhenDone = false,
-}: {
-  index: number;
-  title: string;
-  body: string;
-  done: boolean;
-  active: boolean;
-  children?: ReactNode;
-  locale: Locale;
-  keepChildrenWhenDone?: boolean;
-}) {
-  const statusLabel = done
-    ? locale === "fr" ? "Terminé" : "Done"
-    : active
-      ? locale === "fr" ? "À faire maintenant" : "Do now"
-      : locale === "fr" ? "Ensuite" : "Next";
-
-  return (
-    <Card>
-      <BlockStack gap="200">
-        <InlineStack align="space-between" blockAlign="center" gap="200">
-          <InlineStack gap="200" blockAlign="center">
-            <Badge tone={done ? "success" : active ? "info" : undefined}>{String(index)}</Badge>
-            <Text as="h3" variant="headingSm">{title}</Text>
-          </InlineStack>
-          <Badge tone={done ? "success" : active ? "info" : undefined}>{statusLabel}</Badge>
-        </InlineStack>
-        <Text as="p" tone="subdued">{body}</Text>
-        {(active || (done && keepChildrenWhenDone)) && children}
-      </BlockStack>
-    </Card>
-  );
-}
-
-function GuidedOnboardingFlow({
+function ConnectGoogleStep({
   locale,
   gsc,
-  niche,
+  ga4,
+  legacyActionData,
+  onContinue,
 }: {
   locale: Locale;
   gsc: GSCStatus | null;
-  niche: { available: boolean; status: string | null };
+  ga4: GA4Status | null;
+  legacyActionData: OnboardingActionData | undefined;
+  onContinue: () => void;
 }) {
+  const submit = useSubmit();
   const navigation = useNavigation();
   const submittingAction = String(navigation.formData?.get("intent") || "");
-  const fr = locale === "fr";
-  const googleReady = Boolean(gsc?.connected);
-  const nicheReady = Boolean(niche.available);
-  const nicheValidated = niche.status === "validated_by_merchant";
-  const activeStep = !googleReady ? 1 : !nicheReady ? 2 : !nicheValidated ? 3 : 4;
+  const gscConnected = Boolean(gsc?.connected);
+  const ga4Ready = Boolean(ga4?.ready);
+  const ga4OauthPending = Boolean(ga4?.oauth_connected) && !ga4Ready;
 
   return (
     <Card>
-      <BlockStack gap="400">
-        <BlockStack gap="100">
-          <Text as="h2" variant="headingMd">
-            {fr ? "Démarrer en 4 étapes" : "Start in 4 steps"}
-          </Text>
-          <Text as="p" tone="subdued">
-            {fr
-              ? "Suivez ce chemin une seule fois, puis Giulio Geo pourra vous proposer les actions prioritaires."
-              : "Follow this path once, then Giulio Geo can suggest your priority actions."}
-          </Text>
-        </BlockStack>
+      <BlockStack gap="300">
+        <SectionTitle source={GlobeIcon}>{t(locale, "onboardingStepGoogleTitle")}</SectionTitle>
+        <Text as="p" tone="subdued">
+          {t(locale, "onboardingStepGoogleBody")}
+        </Text>
 
-        <GuidedStep
-          index={1}
-          title={fr ? "Connecter Google" : "Connect Google"}
-          body={
-            fr
-              ? "Giulio Geo lit vos requêtes Google pour comprendre où votre boutique est déjà visible."
-              : "Giulio Geo reads your Google queries to understand where your store is already visible."
-          }
-          done={googleReady}
-          active={activeStep === 1}
-          locale={locale}
-          keepChildrenWhenDone
-        >
-          {gsc?.connected ? (
-            <BlockStack gap="200">
-              <Text as="p" tone="subdued">
-                {fr ? "Connecté" : "Connected"}
-                {gsc.email ? ` : ${gsc.email}` : ""}
-              </Text>
-              <Form method="post">
-                <input type="hidden" name="intent" value="gsc_disconnect" />
-                <InlineStack gap="200">
-                  <Button
-                    submit
-                    tone="critical"
-                    loading={
-                      navigation.state !== "idle" && submittingAction === "gsc_disconnect"
-                    }
-                  >
-                    {fr ? "Déconnecter Google" : "Disconnect Google"}
-                  </Button>
-                  <Text as="span" tone="subdued" variant="bodySm">
-                    {fr
-                      ? "(libère le token — un nouveau consentement couvrira GSC + Analytics)"
-                      : "(clears the token — a new consent will cover GSC + Analytics)"}
-                  </Text>
-                </InlineStack>
-              </Form>
-            </BlockStack>
+        <InlineStack gap="300" wrap blockAlign="center">
+          {gscConnected ? (
+            <Badge tone="success">{t(locale, "onboardingGSCConnected")}</Badge>
           ) : (
-            <Form method="post">
-              <input type="hidden" name="intent" value="gsc_connect" />
-              <Button
-                submit
-                variant="primary"
-                disabled={!gsc?.configured}
-                loading={navigation.state !== "idle" && submittingAction === "gsc_connect"}
-              >
-                {fr ? "Connecter Google" : "Connect Google"}
-              </Button>
-            </Form>
-          )}
-        </GuidedStep>
-
-        <GuidedStep
-          index={2}
-          title={fr ? "Analyser ma boutique avec l'IA" : "Analyze my store with AI"}
-          body={
-            fr
-              ? "L'IA lit vos produits, collections et signaux Google pour formuler une première compréhension."
-              : "The AI reads your products, collections, and Google signals to form its first understanding."
-          }
-          done={nicheReady}
-          active={activeStep === 2}
-          locale={locale}
-        >
-          <Form method="post">
-            <input type="hidden" name="intent" value="niche_understand" />
             <Button
-              submit
               variant="primary"
-              loading={navigation.state !== "idle" && submittingAction === "niche_understand"}
+              disabled={!gsc?.configured}
+              loading={navigation.state !== "idle" && submittingAction === "gsc_connect"}
+              onClick={() => submit({ intent: "gsc_connect" }, { method: "post" })}
             >
-              {fr ? "Analyser ma boutique avec l'IA" : "Analyze my store with AI"}
+              {t(locale, "onboardingConnectGSC")}
             </Button>
-          </Form>
-        </GuidedStep>
+          )}
 
-        <GuidedStep
-          index={3}
-          title={fr ? "Valider ce que l'IA a compris" : "Validate what the AI understood"}
-          body={
-            fr
-              ? "Corrigez les clients, intentions et promesses à éviter avant toute recommandation."
-              : "Correct customers, intents, and promises to avoid before any recommendation."
-          }
-          done={nicheValidated}
-          active={activeStep === 3}
-          locale={locale}
-        >
-          <Button url={localizedPath("/app/niche-understanding", locale)} variant="primary">
-            {fr ? "Valider la compréhension IA" : "Validate store understanding"}
-          </Button>
-        </GuidedStep>
+          {ga4Ready ? (
+            <Badge tone="success">{t(locale, "onboardingGA4Connected")}</Badge>
+          ) : ga4OauthPending ? (
+            <Badge tone="info">{t(locale, "onboardingGA4PropertyPending")}</Badge>
+          ) : (
+            <Button
+              loading={navigation.state !== "idle" && submittingAction === "ga4_connect"}
+              onClick={() => submit({ intent: "ga4_connect" }, { method: "post" })}
+            >
+              {t(locale, "onboardingConnectGA4")}
+            </Button>
+          )}
+        </InlineStack>
 
-        <GuidedStep
-          index={4}
-          title={fr ? "Voir les 3 actions prioritaires" : "See the 3 priority actions"}
-          body={
-            fr
-              ? "Une fois la compréhension validée, Giulio Geo limite le choix aux actions les plus utiles maintenant."
-              : "Once the understanding is validated, Giulio Geo limits the choice to the most useful actions now."
-          }
-          done={false}
-          active={activeStep === 4}
-          locale={locale}
-        >
-          <Button url={localizedPath("/app/priorities", locale)} variant="primary">
-            {fr ? "Voir mes actions" : "See my actions"}
-          </Button>
-        </GuidedStep>
+        {legacyActionData?.error && (
+          <Banner tone="critical">
+            <Text as="p">{legacyActionData.error}</Text>
+          </Banner>
+        )}
+
+        {gscConnected && (
+          <InlineStack align="end">
+            <Button variant="primary" onClick={onContinue}>
+              {t(locale, "onboardingGoogleContinue")}
+            </Button>
+          </InlineStack>
+        )}
       </BlockStack>
     </Card>
   );
 }
 
 export default function Onboarding() {
-  const { locale, shop, health, status, gsc, pagespeed, crawl, niche, recentJobs } =
+  const { locale, shop, health, status, gsc, ga4, pagespeed, crawl, recentJobs, businessProfile, startStep } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const revalidator = useRevalidator();
+  const navigate = useNavigate();
   const openedUrlRef = useRef<string | null>(null);
+
+  const legacyActionData: OnboardingActionData | undefined =
+    actionData && !("type" in actionData) ? actionData : undefined;
+
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(startStep);
+  const [identifyJobId, setIdentifyJobId] = useState<string | null>(null);
+  const [productJobId, setProductJobId] = useState<string | null>(null);
 
   // Auto-open Google's consent screen in a centered popup when the action returns
   // an authorization URL. The OAuth callback posts a "leonie-google-oauth" message
   // back to this window, so we revalidate status as soon as it succeeds.
   useEffect(() => {
-    const url = actionData?.authorizationUrl;
+    const url = legacyActionData?.authorizationUrl;
     if (!url || openedUrlRef.current === url) return;
     if (typeof window === "undefined") return;
     openedUrlRef.current = url;
@@ -449,13 +422,13 @@ export default function Onboarding() {
       "leonie-google-oauth",
       `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no`,
     );
-  }, [actionData?.authorizationUrl]);
+  }, [legacyActionData?.authorizationUrl]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { source?: string; ok?: boolean } | null;
-      if (data?.source === "leonie-google-oauth" && data.ok) {
+      if ((data?.source === "leonie-google-oauth" || data?.source === "leonie-google-oauth-ga4") && data.ok) {
         revalidator.revalidate();
       }
     };
@@ -465,11 +438,28 @@ export default function Onboarding() {
 
   // Refresh status after a disconnect so the UI flips back to "Connect".
   useEffect(() => {
-    if (actionData?.disconnected) revalidator.revalidate();
+    if (legacyActionData?.disconnected) revalidator.revalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actionData?.disconnected]);
+  }, [legacyActionData?.disconnected]);
 
-  const nextAction = computeNextAction(locale, status, health, gsc, niche);
+  // Auto-advance from step 1 to step 2 once Google Search Console connects.
+  useEffect(() => {
+    if (step === 1 && gsc?.connected) setStep(2);
+  }, [step, gsc?.connected]);
+
+  const handleProfileValidated = (_profile: BusinessProfile, identifyJobId: string | null) => {
+    setIdentifyJobId(identifyJobId);
+    setStep(3);
+  };
+
+  const handleProductsSaved = (jobId: string) => {
+    setProductJobId(jobId);
+    setStep(4);
+  };
+
+  const handleAnalysisComplete = (_job: MarketJobState) => {
+    navigate(localizedPath("/app", locale));
+  };
 
   return (
     <Page
@@ -480,16 +470,7 @@ export default function Onboarding() {
       }}
     >
       <BlockStack gap="400">
-        {nextAction && (
-          <Banner
-            tone="info"
-            title={locale === "fr" ? "Prochaine étape recommandée" : "Recommended next step"}
-          >
-            <Text as="p">{nextAction.label}</Text>
-          </Banner>
-        )}
-
-        {actionData?.authorizationUrl && (
+        {legacyActionData?.authorizationUrl && (
           <Banner
             tone="info"
             title={
@@ -506,7 +487,7 @@ export default function Onboarding() {
             <Text as="p" variant="bodySm" tone="subdued">
               {locale === "fr" ? "Si la fenêtre est bloquée :" : "If the popup is blocked:"}{" "}
               <Link
-                url={actionData.authorizationUrl}
+                url={legacyActionData.authorizationUrl}
                 target="_blank"
                 accessibilityLabel={
                   locale === "fr"
@@ -520,7 +501,39 @@ export default function Onboarding() {
           </Banner>
         )}
 
-        <GuidedOnboardingFlow locale={locale} gsc={gsc} niche={niche} />
+        {step === 1 && (
+          <ConnectGoogleStep
+            locale={locale}
+            gsc={gsc}
+            ga4={ga4}
+            legacyActionData={legacyActionData}
+            onContinue={() => setStep(2)}
+          />
+        )}
+
+        {step === 2 && (
+          <BusinessProfilePanel
+            locale={locale}
+            initialProfile={businessProfile}
+            onValidated={handleProfileValidated}
+          />
+        )}
+
+        {step === 3 && (
+          <ProductIdentificationPanel
+            locale={locale}
+            initialJobId={identifyJobId}
+            onSaved={handleProductsSaved}
+          />
+        )}
+
+        {step === 4 && productJobId && (
+          <MarketAnalysisProgressPanel
+            locale={locale}
+            jobId={productJobId}
+            onComplete={handleAnalysisComplete}
+          />
+        )}
 
         <details>
           <summary>{locale === "fr" ? "Outils avancés" : "Advanced tools"}</summary>
@@ -536,12 +549,12 @@ export default function Onboarding() {
                   pagespeed={pagespeed}
                   crawl={crawl}
                 />
-                <AuditLauncherCard locale={locale} recentJobs={recentJobs} actionData={actionData} />
+                <AuditLauncherCard locale={locale} recentJobs={recentJobs} actionData={legacyActionData} />
               </InlineGrid>
 
-              <GoogleSearchConsoleCard locale={locale} gsc={gsc} actionData={actionData} />
+              <GoogleSearchConsoleCard locale={locale} gsc={gsc} actionData={legacyActionData} />
               <PageSpeedCard locale={locale} pagespeed={pagespeed} />
-              <CrawlCard locale={locale} crawl={crawl} actionData={actionData} />
+              <CrawlCard locale={locale} crawl={crawl} actionData={legacyActionData} />
             </BlockStack>
           </div>
         </details>

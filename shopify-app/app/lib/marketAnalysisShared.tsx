@@ -5,9 +5,27 @@
  * panel so the per-product content proposals render identically in both places.
  */
 
-import { Badge } from "@shopify/polaris";
+import { Badge, Icon, Text } from "@shopify/polaris";
+import type { IconSource } from "@shopify/polaris";
 import type { ReactNode } from "react";
 import { t, type Locale } from "./i18n";
+
+// ── Shared presentational components ──────────────────────────────────────
+
+export function SectionTitle({ source, children }: { source: IconSource; children: ReactNode }) {
+  // The icon is wrapped in a fixed-size box because Polaris .Polaris-Icon has margin:auto,
+  // which would otherwise absorb the free space in a full-width flex row and push the title right.
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "var(--p-space-200)" }}>
+      <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
+        <Icon source={source} tone="base" />
+      </span>
+      <Text as="span" variant="headingMd">
+        {children}
+      </Text>
+    </div>
+  );
+}
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -607,4 +625,63 @@ export function merchantAnswersFromPack(pack: ContentTestPack): Record<string, s
     }
   }
   return answers;
+}
+
+// ── Market analysis job state ──────────────────────────────────────────────
+
+export interface MarketJobState {
+  status: "pending" | "running" | "completed" | "failed";
+  products: ProductResult[];
+  labels?: Record<string, string>;
+  product_titles?: Record<string, string>;
+  progress?: number;
+  total?: number;
+  analyzed_product_count?: number;
+  error?: string | null;
+}
+
+// ── Business profile types ────────────────────────────────────────────────
+
+export interface BusinessPersona {
+  name: string;
+  description: string;
+  main_need: string;
+  buying_trigger: string;
+}
+
+export interface ContentStyle {
+  tone: string;
+  typical_article_length: string;
+  h2_structure: string[];
+  vocabulary_to_use: string[];
+  vocabulary_to_avoid: string[];
+  hook_patterns: string[];
+}
+
+export interface BusinessProfile {
+  niche_summary: string;
+  brand_name: string;
+  brand_voice: string;
+  target_personas: BusinessPersona[];
+  content_style: ContentStyle;
+  key_themes: string[];
+  seasonal_patterns: Array<{ period: string; theme: string; intensity: string }>;
+  competitor_domains: string[];
+  competitor_insights: string[];
+  content_gaps: string[];
+  internal_link_priorities: string[];
+  generated_at: string;
+  status: "draft" | "validated" | "error";
+  sources_used?: string[];
+}
+
+export function linesFromText(value: string): string[] {
+  return value
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+export function textFromLines(value: string[] | undefined): string {
+  return (value ?? []).join("\n");
 }
