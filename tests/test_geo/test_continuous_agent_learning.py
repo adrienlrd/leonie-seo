@@ -208,6 +208,44 @@ def test_agent_auto_apply_only_low_risk_high_confidence_when_confirmed(
     assert result["proposals"][0]["applied"] is True
 
 
+def test_agent_does_not_auto_apply_outside_auto_publish_scopes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    db = _prepare(tmp_path, monkeypatch, auto_apply=True)
+    monkeypatch.setattr(
+        "app.geo.continuous_agent.run_content_action",
+        lambda request, *args, **kwargs: _content_result(request, score=93),
+    )
+    monkeypatch.setattr("app.geo.continuous_agent.is_live_supported", lambda content_type: True)
+    monkeypatch.setattr(
+        "app.geo.continuous_agent._mark_action_approved",
+        lambda *args, **kwargs: {"ok": True},
+    )
+    applied_calls: list[dict[str, Any]] = []
+
+    def fake_apply(**kwargs: Any) -> dict[str, Any]:
+        applied_calls.append(kwargs)
+        return {"applied": True, "field": "seo.title", "applied_at": "now"}
+
+    monkeypatch.setattr("app.geo.continuous_agent._apply_safe_action", fake_apply)
+
+    result = run_continuous_improvement_agent(
+        SHOP,
+        access_token="shpat_test",
+        plan="pro",
+        auto_apply=True,
+        confirm_live_write=True,
+        max_actions=1,
+        db_path=db,
+        auto_publish_scopes=["blog_publish"],
+    )
+
+    assert result["summary"]["applied"] == 0
+    assert not applied_calls
+    assert result["proposals"][0]["auto_apply_attempted"] is False
+
+
 def test_agent_keeps_medium_risk_actions_in_approval_queue(
     tmp_path: Path,
     monkeypatch,

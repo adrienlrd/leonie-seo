@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from app.agent_schedule.reanalysis import is_reanalysis_due, run_scheduled_reanalysis
 from app.agent_schedule.store import (
     AgentScheduleSettings,
     get_schedule,
@@ -31,6 +32,7 @@ from app.agent_schedule.store import (
 from app.learning.scheduler import run_learning_cycle
 from app.learning.store import get_settings, list_runs, update_settings
 from app.market_analysis.jobs import load_latest_result
+from app.oauth.token_store import get_token
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +109,40 @@ def _due(value: str | None, now: datetime) -> bool:
     return parsed is not None and parsed <= now
 
 
+def _maybe_run_reanalysis(
+    shop: str,
+    schedule: AgentScheduleSettings,
+    now: datetime,
+    *,
+    db_path: Path | None,
+) -> dict[str, Any] | None:
+    """Run the heavy 14/28-day re-analysis pipeline for `shop` if it is due.
+
+    Returns None when not due, a status dict otherwise. Errors are reported but
+    never raised — a failed re-analysis must not block the daily learning cycle.
+    """
+    settings = get_settings(shop, db_path=db_path)
+    if not is_reanalysis_due(
+        schedule.last_reanalysis_at, settings.reanalysis_frequency_days, now=now
+    ):
+        return None
+
+    record = get_token(shop, db_path=db_path)
+    access_token = str(record.get("access_token") or "") if record else ""
+    if not access_token:
+        return {"status": "skipped", "reason": "no_access_token"}
+
+    try:
+        outcome = run_scheduled_reanalysis(shop, access_token=access_token, db_path=db_path)
+    except Exception as exc:  # noqa: BLE001 — never block the daily learning cycle
+        logger.exception("Scheduled re-analysis failed for %s", shop)
+        return {"status": "error", "error": str(exc)}
+
+    if outcome.get("status") == "completed":
+        upsert_schedule(shop, {"last_reanalysis_at": now.isoformat()}, db_path=db_path)
+    return outcome
+
+
 def run_due_agent_schedules(
     *,
     now: datetime | None = None,
@@ -150,6 +186,7 @@ def run_due_agent_schedules(
 
         _RUNNING.add(shop)
         try:
+            reanalysis_outcome = _maybe_run_reanalysis(shop, schedule, current, db_path=db_path)
             result = run_learning_cycle(shop, db_path=db_path)
             run_id = result.get("run_id")
             ran_at = datetime.now(UTC).isoformat()
@@ -172,6 +209,7 @@ def run_due_agent_schedules(
                     "run_id": run_id,
                     "kind": "test" if is_test_due else "daily",
                     "status": result.get("status"),
+                    "reanalysis": reanalysis_outcome,
                 }
             )
         except Exception as exc:  # noqa: BLE001 — report per-shop, never abort the sweep

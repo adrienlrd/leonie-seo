@@ -427,22 +427,25 @@ _SQLITE_DDL = [
         min_confidence_to_auto_apply      INTEGER NOT NULL DEFAULT 80,
         min_confidence_to_suggest         INTEGER NOT NULL DEFAULT 45,
         require_approval_for_medium_risk  INTEGER NOT NULL DEFAULT 1,
+        reanalysis_frequency_days         INTEGER NOT NULL DEFAULT 28,
+        auto_publish_scopes               TEXT NOT NULL DEFAULT '["meta_title","meta_description","alt_text"]',
         updated_at                        TEXT NOT NULL
     )""",
     # Daily GEO agent automation schedule, one row per shop. Orchestrates
     # run_learning_cycle(); the mode lives in merchant_learning_settings.
     """CREATE TABLE IF NOT EXISTS agent_schedule_settings (
-        shop         TEXT PRIMARY KEY,
-        enabled      INTEGER NOT NULL DEFAULT 0,
-        mode         TEXT NOT NULL DEFAULT 'semi_auto',
-        frequency    TEXT NOT NULL DEFAULT 'daily',
-        local_time   TEXT NOT NULL DEFAULT '08:00',
-        timezone     TEXT NOT NULL DEFAULT 'Europe/Paris',
-        next_run_at  TEXT,
-        last_run_at  TEXT,
-        last_run_id  INTEGER,
-        test_run_at  TEXT,
-        updated_at   TEXT NOT NULL
+        shop                TEXT PRIMARY KEY,
+        enabled             INTEGER NOT NULL DEFAULT 0,
+        mode                TEXT NOT NULL DEFAULT 'semi_auto',
+        frequency           TEXT NOT NULL DEFAULT 'daily',
+        local_time          TEXT NOT NULL DEFAULT '08:00',
+        timezone            TEXT NOT NULL DEFAULT 'Europe/Paris',
+        next_run_at         TEXT,
+        last_run_at         TEXT,
+        last_run_id         INTEGER,
+        test_run_at         TEXT,
+        last_reanalysis_at  TEXT,
+        updated_at          TEXT NOT NULL
     )""",
 ]
 
@@ -826,20 +829,23 @@ _PG_DDL = [
         min_confidence_to_auto_apply      INTEGER NOT NULL DEFAULT 80,
         min_confidence_to_suggest         INTEGER NOT NULL DEFAULT 45,
         require_approval_for_medium_risk  BOOLEAN NOT NULL DEFAULT TRUE,
+        reanalysis_frequency_days         INTEGER NOT NULL DEFAULT 28,
+        auto_publish_scopes               TEXT NOT NULL DEFAULT '["meta_title","meta_description","alt_text"]',
         updated_at                        TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS agent_schedule_settings (
-        shop         TEXT PRIMARY KEY,
-        enabled      BOOLEAN NOT NULL DEFAULT FALSE,
-        mode         TEXT NOT NULL DEFAULT 'semi_auto',
-        frequency    TEXT NOT NULL DEFAULT 'daily',
-        local_time   TEXT NOT NULL DEFAULT '08:00',
-        timezone     TEXT NOT NULL DEFAULT 'Europe/Paris',
-        next_run_at  TEXT,
-        last_run_at  TEXT,
-        last_run_id  INTEGER,
-        test_run_at  TEXT,
-        updated_at   TEXT NOT NULL
+        shop                TEXT PRIMARY KEY,
+        enabled             BOOLEAN NOT NULL DEFAULT FALSE,
+        mode                TEXT NOT NULL DEFAULT 'semi_auto',
+        frequency           TEXT NOT NULL DEFAULT 'daily',
+        local_time          TEXT NOT NULL DEFAULT '08:00',
+        timezone            TEXT NOT NULL DEFAULT 'Europe/Paris',
+        next_run_at         TEXT,
+        last_run_at         TEXT,
+        last_run_id         INTEGER,
+        test_run_at         TEXT,
+        last_reanalysis_at  TEXT,
+        updated_at          TEXT NOT NULL
     )""",
 ]
 
@@ -859,6 +865,13 @@ _GEO_IMPACT_EVENT_COLUMNS = {
 _LEARNING_OBSERVATION_COLUMNS = {
     "ledger_event_id": "INTEGER",
     "metadata_json": "TEXT NOT NULL DEFAULT '{}'",
+}
+_MERCHANT_LEARNING_SETTINGS_COLUMNS = {
+    "reanalysis_frequency_days": "INTEGER NOT NULL DEFAULT 28",
+    "auto_publish_scopes": "TEXT NOT NULL DEFAULT '[\"meta_title\",\"meta_description\",\"alt_text\"]'",
+}
+_AGENT_SCHEDULE_SETTINGS_COLUMNS = {
+    "last_reanalysis_at": "TEXT",
 }
 
 
@@ -887,6 +900,24 @@ def _migrate_sqlite_learning_observations(conn: sqlite3.Connection) -> None:
     for column, definition in _LEARNING_OBSERVATION_COLUMNS.items():
         if not _sqlite_has_column(conn, "learning_observations", column):
             conn.execute(f"ALTER TABLE learning_observations ADD COLUMN {column} {definition}")
+
+
+def _migrate_sqlite_merchant_learning_settings(conn: sqlite3.Connection) -> None:
+    """Add re-analysis cadence and auto-publish scope columns to legacy rows."""
+    for column, definition in _MERCHANT_LEARNING_SETTINGS_COLUMNS.items():
+        if not _sqlite_has_column(conn, "merchant_learning_settings", column):
+            conn.execute(
+                f"ALTER TABLE merchant_learning_settings ADD COLUMN {column} {definition}"
+            )
+
+
+def _migrate_sqlite_agent_schedule_settings(conn: sqlite3.Connection) -> None:
+    """Add the re-analysis cadence tracking column to legacy schedule rows."""
+    for column, definition in _AGENT_SCHEDULE_SETTINGS_COLUMNS.items():
+        if not _sqlite_has_column(conn, "agent_schedule_settings", column):
+            conn.execute(
+                f"ALTER TABLE agent_schedule_settings ADD COLUMN {column} {definition}"
+            )
 
 
 def _pg_has_column(cur, table: str, column: str) -> bool:
@@ -919,6 +950,24 @@ def _migrate_postgres_learning_observations(cur) -> None:
             cur.execute(f"ALTER TABLE learning_observations ADD COLUMN {column} {definition}")
 
 
+def _migrate_postgres_merchant_learning_settings(cur) -> None:
+    """Add re-analysis cadence and auto-publish scope columns to legacy rows."""
+    for column, definition in _MERCHANT_LEARNING_SETTINGS_COLUMNS.items():
+        if not _pg_has_column(cur, "merchant_learning_settings", column):
+            cur.execute(
+                f"ALTER TABLE merchant_learning_settings ADD COLUMN {column} {definition}"
+            )
+
+
+def _migrate_postgres_agent_schedule_settings(cur) -> None:
+    """Add the re-analysis cadence tracking column to legacy schedule rows."""
+    for column, definition in _AGENT_SCHEDULE_SETTINGS_COLUMNS.items():
+        if not _pg_has_column(cur, "agent_schedule_settings", column):
+            cur.execute(
+                f"ALTER TABLE agent_schedule_settings ADD COLUMN {column} {definition}"
+            )
+
+
 def _init_postgres(database_url: str) -> None:
     import psycopg2  # noqa: PLC0415
 
@@ -935,6 +984,8 @@ def _init_postgres(database_url: str) -> None:
             _migrate_postgres_add_shop_columns(cur)
             _migrate_postgres_geo_impact_events(cur)
             _migrate_postgres_learning_observations(cur)
+            _migrate_postgres_merchant_learning_settings(cur)
+            _migrate_postgres_agent_schedule_settings(cur)
         conn.commit()
 
 
@@ -959,3 +1010,5 @@ def init_db(db_path: Path | None = None) -> None:
         _migrate_sqlite_add_shop_columns(conn)
         _migrate_sqlite_geo_impact_events(conn)
         _migrate_sqlite_learning_observations(conn)
+        _migrate_sqlite_merchant_learning_settings(conn)
+        _migrate_sqlite_agent_schedule_settings(conn)

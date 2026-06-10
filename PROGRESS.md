@@ -22,7 +22,7 @@
 - Phase 11.8 : **11/11** ✅ (implémentation GEO Autopilot Simplification, tâches 139-149, terminée 2026-05-21)
 - Phase 11.9 : **12/12** ✅ (Merchant Journey Unification & Friction Reduction, tâches 152-163 terminées le 2026-05-21)
 - Phase 11.10 : **0/5** ⏳ (Market Analysis Improvements, tâches 164-168, parallèle aux tests marchands pilotes)
-- Phase 11.11 : **6/9** ⏳ (Merchant Journey Alignment — onboarding/dashboard/nav/mesure/tracking/historique/réanalyse/réglages/persistance, en cours le 2026-06-10)
+- Phase 11.11 : **7/9** ⏳ (Merchant Journey Alignment — onboarding/dashboard/nav/mesure/tracking/historique/réanalyse/réglages/persistance, en cours le 2026-06-10)
 - Phase 12 : **0/5** ⏳ (go/no-go + soumission publique Shopify App Store + migration infra prod, tâches 150-151 + 169-171, démarre après test 3 marchands pilotes)
 - **Audit post-Phase 8** : 4 livrables + corrections TDD le 2026-05-12 (Vagues 1 à 5)
 - Tests : dernière validation complète tâches 155-163 — `npm run typecheck` ✅, `npm run build` ✅, `git diff --check` ✅.
@@ -64,10 +64,10 @@ Aligner Giulio Geo sur le parcours marchand cible : onboarding 4 étapes fonctio
 - **3 — Renommage "Analyse marché" → "Produits"** : `git mv app.market-analysis.tsx app.products.tsx` (composant renommé `ProductsPage`, titre `navProducts`) ; nouvelle `app.market-analysis.tsx` = redirect-only vers `/app/products` (préserve query params + locale). Nav `app.tsx` restructurée en Dashboard/Produits/Blog/Mesure/Réglages — `geo-llms-txt`/`continuous-improvement` retirés du `NavMenu` (routes conservées, atteignables par URL directe, référencées plus tard depuis Réglages/Mesure à la tâche 8). Toutes les références `/app/market-analysis` (`app._index.tsx`, `app.competitor-crawl.tsx`, `app.blog.tsx`) et libellés "Analyse marché"/"Market analysis" pointant vers cette page mis à jour vers "Produits"/"Products". Clé i18n `marketAnalysis` (titre de page) supprimée ; les clés `marketAnalysis*` de fonctionnalité (ex. `marketAnalysisCompetitorsTitle`) conservées. Détails : `docs/AI_HANDOFF.md`.
 - **5 — Tracking automatique des changements appliqués** : nouveau `app/geo/auto_tracking.py` (`record_applied_change()`) crée un `geo_optimization_snapshots` minimal + un `geo_impact_events` (`status="applied"`, `event_type="applied_optimization"`) à chaque écriture Shopify live réussie, en réutilisant `create_optimization_snapshot()`/`create_geo_event()`. Idempotent par jour calendaire (UTC) sur `(shop, resource_type, resource_id, action_type, field)`. Câblé dans `apply-to-shopify` (meta_title/meta_description/product_description/alt_text), `schema-facts/sync`, `publish_blog_draft` et `apply_approval` (learning). Toute exception est loguée et avalée (`record_applied_change` retourne `None`) pour ne jamais transformer un apply Shopify réussi en 500. Détails : `docs/AI_HANDOFF.md`.
 - **6 — Historique d'optimisation injecté dans le moteur d'analyse** : nouveau `app/market_analysis/history_context.py` (`build_optimization_history()`/`format_optimization_history()`) lit `geo_impact_events` (statut `applied`) + `learning_weights` (`feature_key="action_type"`) pour produire un bloc de prompt `=== HISTORIQUE D'OPTIMISATION ===` (changements passés par champ avec verdict/confiance + résumé "ce qui a marché/régressé" boutique). Câblé dans `run_market_analysis()` (nouveau paramètre `db_path`) et injecté dans `_build_pass1_prompt`/`_build_pass2_prompt` (nouveau paramètre `optimization_history_block`), une fois par produit, calculé en pass-1 et réutilisé en pass-2. Section omise du prompt si aucun historique. Détails : `docs/AI_HANDOFF.md`.
+- **7 — Cycle de réanalyse automatique 14/28 jours** : nouveau `app/agent_schedule/reanalysis.py` (`is_reanalysis_due()`, `run_market_reanalysis()`, `run_scheduled_reanalysis()`) — exécute le pipeline complet (refresh jobs `seo_audit`/`gsc_import` via `enqueue_unique`, `run_market_analysis`, enrichissement, persistance, sync schema facts, drafts orphelins) hors contexte FastAPI, gardé par `check_budget()` (skip `budget_exceeded`) et par l'absence de snapshot (skip `no_snapshot`). Câblé dans `run_due_agent_schedules()` via `_maybe_run_reanalysis()`, à l'intérieur du verrou `_RUNNING`/cooldown existant ; `agent_schedule_settings.last_reanalysis_at` n'avance que sur succès. Nouveaux champs `merchant_learning_settings.reanalysis_frequency_days` (14|28, défaut 28) et `auto_publish_scopes` (défaut meta_title/meta_description/alt_text), validés en couche store. `run_continuous_improvement_agent()` n'auto-applique un `content_type` que s'il est dans `auto_publish_scopes` (restriction additive, ne contourne jamais `confirm_live_write`). Détails : `docs/AI_HANDOFF.md`.
 
 ### Tâches restantes
 
-- **7** — Cycle de réanalyse automatique 14/28 jours dans le scheduler.
 - **8** — Page Réglages consolidée (automatisation, connexions Google, visibilité IA, existant).
 - **9** — Persistance DB des artefacts d'analyse (dual-write/read-through JSON↔DB).
 
@@ -90,6 +90,13 @@ Aligner Giulio Geo sur le parcours marchand cible : onboarding 4 étapes fonctio
 - Ciblé : `pytest tests/market_analysis tests/test_geo tests/test_learning` → **448 passed**.
 - `pytest -q` complet → **1768 passed, 185 skipped, 72 failed** (mêmes 72 échecs préexistants, sans rapport avec ce diff).
 - `code-reviewer` exécuté : 1 point bloquant corrigé (rendu dégradé pour les événements "applied" sans `old_value`/`new_value`, issus du flux agent continu/approbations) + 1 point cosmétique corrigé (double saut de ligne quand le bloc historique est vide). N+1 `list_geo_events` par produit documenté comme acceptable au volume actuel.
+
+### Validations (tâche 7)
+
+- `ruff check .` ✅ ; nouveau `tests/test_agent_schedule/test_reanalysis.py` → **12 passed**.
+- Ciblé : `pytest tests/test_agent_schedule tests/test_learning tests/test_geo` → **261 passed**.
+- `pytest -q` complet → **1782 passed, 185 skipped, 72 failed** (mêmes 72 échecs préexistants, confirmés via `git stash`, sans rapport avec ce diff).
+- `shopify-architecture-reviewer` exécuté : 4/4 "pass" — 1 correctif appliqué avant commit (`enqueue` → `enqueue_unique` pour `seo_audit`/`gsc_import`). `code-reviewer` exécuté : 2 points corrigés avant commit (`plan or ""` → `plan` ; ajout du fallback `{"status": "skipped", "reason": "no_snapshot"}` sur `HTTPException(404)` + test dédié).
 
 ## Phase 11.9 — Merchant Journey Unification & Friction Reduction le 2026-05-21
 

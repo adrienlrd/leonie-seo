@@ -543,6 +543,7 @@ def run_continuous_improvement_agent(
     max_actions: int = 5,
     llm_router: Any | None = None,
     db_path: Path | None = None,
+    auto_publish_scopes: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run the continuous improvement agent.
 
@@ -696,7 +697,10 @@ def run_continuous_improvement_agent(
                 if decision.approval_required:
                     learning_approvals_created += 1
 
-            if decision and decision.auto_apply_eligible:
+            scope_allows_auto_publish = (
+                auto_publish_scopes is None or content_type.value in auto_publish_scopes
+            )
+            if decision and decision.auto_apply_eligible and scope_allows_auto_publish:
                 proposal["auto_apply_attempted"] = True
                 if not access_token:
                     proposal["auto_apply_reason"] = "missing_access_token"

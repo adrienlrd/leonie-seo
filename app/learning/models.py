@@ -49,6 +49,11 @@ LEARNING_WINDOWS_DAYS = (14, 28, 60)
 PRIMARY_WINDOW_LABEL = "J+28"
 
 
+DEFAULT_AUTO_PUBLISH_SCOPES = ("meta_title", "meta_description", "alt_text")
+DEFAULT_REANALYSIS_FREQUENCY_DAYS = 28
+ALLOWED_REANALYSIS_FREQUENCY_DAYS = (14, 28)
+
+
 @dataclass(frozen=True)
 class MerchantLearningSettings:
     shop: str
@@ -59,6 +64,10 @@ class MerchantLearningSettings:
     min_confidence_to_auto_apply: int = 80
     min_confidence_to_suggest: int = 45
     require_approval_for_medium_risk: bool = True
+    reanalysis_frequency_days: int = DEFAULT_REANALYSIS_FREQUENCY_DAYS
+    auto_publish_scopes: list[str] = field(
+        default_factory=lambda: list(DEFAULT_AUTO_PUBLISH_SCOPES)
+    )
 
 
 @dataclass(frozen=True)

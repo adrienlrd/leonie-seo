@@ -30,6 +30,7 @@ class AgentScheduleSettings:
     last_run_at: str | None = None
     last_run_id: int | None = None
     test_run_at: str | None = None
+    last_reanalysis_at: str | None = None
     updated_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -44,6 +45,7 @@ class AgentScheduleSettings:
             "last_run_at": self.last_run_at,
             "last_run_id": self.last_run_id,
             "test_run_at": self.test_run_at,
+            "last_reanalysis_at": self.last_reanalysis_at,
             "updated_at": self.updated_at,
         }
 
@@ -66,6 +68,7 @@ def _from_row(shop: str, row: dict[str, Any]) -> AgentScheduleSettings:
         last_run_at=row.get("last_run_at"),
         last_run_id=(int(row["last_run_id"]) if row.get("last_run_id") is not None else None),
         test_run_at=row.get("test_run_at"),
+        last_reanalysis_at=row.get("last_reanalysis_at"),
         updated_at=row.get("updated_at"),
     )
 
@@ -105,6 +108,7 @@ def upsert_schedule(
         last_run_at=patch.get("last_run_at", current.last_run_at),
         last_run_id=patch.get("last_run_id", current.last_run_id),
         test_run_at=patch.get("test_run_at", current.test_run_at),
+        last_reanalysis_at=patch.get("last_reanalysis_at", current.last_reanalysis_at),
     )
     now = datetime.now(UTC).isoformat()
     path = db_path if db_path is not None else DB_PATH
@@ -118,6 +122,7 @@ def upsert_schedule(
         settings.last_run_at,
         settings.last_run_id,
         settings.test_run_at,
+        settings.last_reanalysis_at,
         now,
         shop,
     )
@@ -132,7 +137,7 @@ def upsert_schedule(
                 UPDATE agent_schedule_settings
                 SET enabled = ?, mode = ?, frequency = ?, local_time = ?, timezone = ?,
                     next_run_at = ?, last_run_at = ?, last_run_id = ?, test_run_at = ?,
-                    updated_at = ?
+                    last_reanalysis_at = ?, updated_at = ?
                 WHERE shop = ?
                 """,
                 values,
@@ -142,9 +147,9 @@ def upsert_schedule(
                 """
                 INSERT INTO agent_schedule_settings (
                     enabled, mode, frequency, local_time, timezone, next_run_at,
-                    last_run_at, last_run_id, test_run_at, updated_at, shop
+                    last_run_at, last_run_id, test_run_at, last_reanalysis_at, updated_at, shop
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 values,
             )

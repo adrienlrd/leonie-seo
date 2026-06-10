@@ -240,6 +240,27 @@ def test_run_learning_cycle_launches_continuous_agent_when_enabled(tmp_path: Pat
     assert result["approvals_created"] == 2
 
 
+def test_run_learning_cycle_passes_auto_publish_scopes_to_continuous_agent(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "history.db"
+    init_db(db)
+    update_settings(
+        SHOP,
+        {"enabled": True, "mode": "auto_apply", "auto_publish_scopes": ["meta_title"]},
+        db_path=db,
+    )
+
+    with patch(
+        "app.geo.continuous_agent.run_continuous_improvement_agent",
+        return_value={"summary": {"candidate_actions": 0, "applied": 0}},
+    ) as run_agent:
+        run_learning_cycle(SHOP, access_token="token", plan="pro", db_path=db)
+
+    run_agent.assert_called_once()
+    assert run_agent.call_args.kwargs["auto_publish_scopes"] == ["meta_title"]
+
+
 def test_run_learning_cycle_fail_open_when_observation_stage_fails(tmp_path: Path) -> None:
     db = tmp_path / "history.db"
     init_db(db)

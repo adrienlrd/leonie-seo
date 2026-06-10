@@ -343,6 +343,7 @@ def run_learning_cycle(
                 confirm_live_write=confirm_live_write,
                 max_actions=max_actions,
                 db_path=db_path,
+                auto_publish_scopes=settings.auto_publish_scopes,
             )
             summary = continuous_result.get("summary") or {}
             actions_reprioritized = int(summary.get("candidate_actions") or 0)

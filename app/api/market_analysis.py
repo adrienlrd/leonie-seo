@@ -1061,14 +1061,12 @@ async def replace_competitors(
     }
 
 
-# Legacy synchronous endpoint kept for backward compatibility
-@router.post("/shops/{shop}/market-analysis/run")
-async def run_market_analysis_endpoint(
-    ctx: Annotated[ShopContext, Depends(get_shop_context)],
-    max_products: int = Query(default=10, ge=1, le=20),
-    plan: str | None = Query(default=None),
-) -> dict[str, Any]:
-    """Synchronous analysis (legacy). Prefer the async /jobs endpoint for all products."""
+def _gather_analysis_inputs(ctx: ShopContext) -> dict[str, Any]:
+    """Gather snapshot, GSC, and merchant-context data needed by `run_market_analysis`.
+
+    Shared by the legacy synchronous endpoint and the scheduled re-analysis
+    pipeline (Task 7), which has no FastAPI request to read this from.
+    """
     snapshot = _load_snapshot(ctx)
     products = snapshot.get("products", [])
     shop_info = snapshot.get("shop")
@@ -1093,18 +1091,44 @@ async def run_market_analysis_endpoint(
     retired_questions = load_retired_questions(ctx.shop)
     business_profile = load_business_profile(ctx.shop)
 
+    return {
+        "snapshot": snapshot,
+        "products": products,
+        "shop_domain": shop_domain,
+        "niche_hypothesis": niche_hypothesis,
+        "crawl_findings": crawl_findings,
+        "gsc_page_rows": gsc_page_rows,
+        "gsc_query_rows": gsc_query_rows,
+        "merchant_facts": merchant_facts,
+        "retired_questions": retired_questions,
+        "business_profile": business_profile,
+    }
+
+
+# Legacy synchronous endpoint kept for backward compatibility
+@router.post("/shops/{shop}/market-analysis/run")
+async def run_market_analysis_endpoint(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    max_products: int = Query(default=10, ge=1, le=20),
+    plan: str | None = Query(default=None),
+) -> dict[str, Any]:
+    """Synchronous analysis (legacy). Prefer the async /jobs endpoint for all products."""
+    inputs = _gather_analysis_inputs(ctx)
+    snapshot = inputs["snapshot"]
+    business_profile = inputs["business_profile"]
+
     try:
         result = run_market_analysis(
-            products,
-            shop_domain,
-            gsc_page_rows,
-            gsc_query_rows,
-            niche_hypothesis=niche_hypothesis,
-            crawl_findings=crawl_findings or None,
+            inputs["products"],
+            inputs["shop_domain"],
+            inputs["gsc_page_rows"],
+            inputs["gsc_query_rows"],
+            niche_hypothesis=inputs["niche_hypothesis"],
+            crawl_findings=inputs["crawl_findings"] or None,
             max_products=max_products,
             plan=plan,
-            merchant_facts_by_product=merchant_facts or None,
-            retired_questions_by_product=retired_questions or None,
+            merchant_facts_by_product=inputs["merchant_facts"] or None,
+            retired_questions_by_product=inputs["retired_questions"] or None,
             business_profile=business_profile,
             collections=snapshot.get("collections") or [],
             articles=snapshot.get("articles") or [],

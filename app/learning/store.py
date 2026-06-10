@@ -9,6 +9,9 @@ from typing import Any
 
 from app.db_adapter import DB_PATH, get_conn
 from app.learning.models import (
+    ALLOWED_REANALYSIS_FREQUENCY_DAYS,
+    DEFAULT_AUTO_PUBLISH_SCOPES,
+    DEFAULT_REANALYSIS_FREQUENCY_DAYS,
     ApprovalStatus,
     LearningMode,
     LearningWeight,
@@ -67,6 +70,12 @@ def get_settings(shop: str, *, db_path: Path | None = None) -> MerchantLearningS
         min_confidence_to_auto_apply=int(row["min_confidence_to_auto_apply"] or 80),
         min_confidence_to_suggest=int(row["min_confidence_to_suggest"] or 45),
         require_approval_for_medium_risk=_bool(row["require_approval_for_medium_risk"]),
+        reanalysis_frequency_days=int(
+            row["reanalysis_frequency_days"] or DEFAULT_REANALYSIS_FREQUENCY_DAYS
+        ),
+        auto_publish_scopes=_json_loads(
+            row["auto_publish_scopes"], list(DEFAULT_AUTO_PUBLISH_SCOPES)
+        ),
     )
 
 
@@ -108,6 +117,12 @@ def update_settings(
                 current.require_approval_for_medium_risk,
             )
         ),
+        reanalysis_frequency_days=_validated_reanalysis_frequency(
+            patch.get("reanalysis_frequency_days", current.reanalysis_frequency_days)
+        ),
+        auto_publish_scopes=_validated_auto_publish_scopes(
+            patch.get("auto_publish_scopes", current.auto_publish_scopes)
+        ),
     )
     now = datetime.now(UTC).isoformat()
     path = db_path if db_path is not None else DB_PATH
@@ -124,6 +139,8 @@ def update_settings(
             settings.min_confidence_to_auto_apply,
             settings.min_confidence_to_suggest,
             settings.require_approval_for_medium_risk,
+            settings.reanalysis_frequency_days,
+            _json_dumps(settings.auto_publish_scopes),
             now,
             shop,
         )
@@ -136,6 +153,8 @@ def update_settings(
                     min_confidence_to_auto_apply = ?,
                     min_confidence_to_suggest = ?,
                     require_approval_for_medium_risk = ?,
+                    reanalysis_frequency_days = ?,
+                    auto_publish_scopes = ?,
                     updated_at = ?
                 WHERE shop = ?
                 """,
@@ -147,13 +166,31 @@ def update_settings(
                 INSERT INTO merchant_learning_settings (
                     enabled, mode, allow_bulk_approval, max_auto_actions_per_cycle,
                     min_confidence_to_auto_apply, min_confidence_to_suggest,
-                    require_approval_for_medium_risk, updated_at, shop
+                    require_approval_for_medium_risk, reanalysis_frequency_days,
+                    auto_publish_scopes, updated_at, shop
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 values,
             )
     return settings
+
+
+def _validated_reanalysis_frequency(value: Any) -> int:
+    """Coerce to one of the supported re-analysis cadences (14 or 28 days)."""
+    try:
+        days = int(value)
+    except (TypeError, ValueError):
+        return DEFAULT_REANALYSIS_FREQUENCY_DAYS
+    return days if days in ALLOWED_REANALYSIS_FREQUENCY_DAYS else DEFAULT_REANALYSIS_FREQUENCY_DAYS
+
+
+def _validated_auto_publish_scopes(value: Any) -> list[str]:
+    """Coerce to a list of non-empty scope strings, falling back to the defaults."""
+    if not isinstance(value, list):
+        return list(DEFAULT_AUTO_PUBLISH_SCOPES)
+    scopes = [str(item).strip() for item in value if str(item).strip()]
+    return scopes or list(DEFAULT_AUTO_PUBLISH_SCOPES)
 
 
 def observation_exists(
