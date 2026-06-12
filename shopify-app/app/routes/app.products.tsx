@@ -2918,6 +2918,7 @@ export default function ProductsPage() {
 
           </>
         )}
+        <Box paddingBlockEnd="800" />
       </BlockStack>
     </Page>
   );
