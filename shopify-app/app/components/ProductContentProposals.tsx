@@ -748,6 +748,17 @@ export function ProductContentProposals({
                 </Collapsible>
               </>
             )}
+
+            <InlineStack>
+              <Button
+                variant="primary"
+                loading={isAnalyzing}
+                disabled={analyzeDisabled}
+                onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
+              >
+                {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
+              </Button>
+            </InlineStack>
           </BlockStack>
         </Collapsible>
       </BlockStack>

@@ -20,7 +20,7 @@ import {
   TextField,
   Tooltip,
 } from "@shopify/polaris";
-import { AlertTriangleIcon, RefreshIcon } from "@shopify/polaris-icons";
+import { AlertTriangleIcon } from "@shopify/polaris-icons";
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
@@ -1516,16 +1516,7 @@ function ProductCard({
                 {fr ? "Valider les propositions" : "Apply proposals"}
               </Button>
             )}
-            <Tooltip content={fr ? "Régénérer avec mes réponses" : "Regenerate with my answers"}>
-              <Button
-                size="slim"
-                icon={RefreshIcon}
-                loading={isAnalyzing}
-                disabled={analyzeDisabled}
-                onClick={() => onEnrichAndAnalyze({})}
-                accessibilityLabel={fr ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
-              />
-            </Tooltip>
+            {isAnalyzing && <Spinner size="small" />}
           </InlineStack>
         </InlineStack>
 
