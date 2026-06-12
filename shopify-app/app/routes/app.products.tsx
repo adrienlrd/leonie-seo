@@ -20,7 +20,7 @@ import {
   TextField,
   Tooltip,
 } from "@shopify/polaris";
-import { AlertTriangleIcon } from "@shopify/polaris-icons";
+import { AlertTriangleIcon, CheckIcon } from "@shopify/polaris-icons";
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
@@ -1164,7 +1164,19 @@ function SummaryCard({
     <Card>
       <BlockStack gap="300">
         <InlineStack align="space-between" blockAlign="center" wrap>
-          <div />
+          {job.status === "completed" ? (
+            <InlineStack gap="100" blockAlign="center">
+              <span style={{ display: "inline-flex" }}>
+                <Icon source={CheckIcon} tone="success" />
+              </span>
+              <Text as="span" variant="bodySm" tone="subdued">
+                {t(locale, "marketAnalysisCompleted")} —{" "}
+                {job.analyzed_product_count} {t(locale, "marketAnalysisProductCount")}
+              </Text>
+            </InlineStack>
+          ) : (
+            <div />
+          )}
           {(onAnalyzeAll || onEditIdentification) && (
             <InlineStack gap="200">
               {onAnalyzeAll && (
@@ -2847,15 +2859,6 @@ export default function ProductsPage() {
               );
             })()}
 
-            {/* Completion banner */}
-            {job?.status === "completed" && (
-              <Banner tone="success">
-                <Text as="p">
-                  {t(locale, "marketAnalysisCompleted")} —{" "}
-                  {job.analyzed_product_count} {t(locale, "marketAnalysisProductCount")}
-                </Text>
-              </Banner>
-            )}
           </>
         )}
       </BlockStack>
