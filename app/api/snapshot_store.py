@@ -21,11 +21,28 @@ _SNAPSHOT_CACHE_TTL_S = 60.0
 _snapshot_cache: dict[str, tuple[float, float, dict[str, Any]]] = {}
 _snapshot_cache_lock = threading.Lock()
 
+# Per-path load locks: when several requests miss the cache for the same
+# snapshot at once (e.g. the Measure page firing parallel /geo/* calls right
+# after an instance restart), only the first reads+parses the file. The rest
+# block on this lock and then get a cache hit instead of each re-reading a
+# 10-100MB file.
+_snapshot_load_locks: dict[str, threading.Lock] = {}
+_snapshot_load_locks_guard = threading.Lock()
+
 
 def clear_snapshot_cache() -> None:
     """Drop all cached snapshots (used by tests and after forced re-crawls)."""
     with _snapshot_cache_lock:
         _snapshot_cache.clear()
+
+
+def _get_load_lock(cache_key: str) -> threading.Lock:
+    with _snapshot_load_locks_guard:
+        lock = _snapshot_load_locks.get(cache_key)
+        if lock is None:
+            lock = threading.Lock()
+            _snapshot_load_locks[cache_key] = lock
+        return lock
 
 
 def load_latest_snapshot_from_db(shop: str, db_path: Path | None = None) -> dict[str, Any] | None:
@@ -116,14 +133,24 @@ def load_snapshot_from_file_or_db(
             if cached_mtime == mtime and now < expires_at:
                 return dict(payload)
 
-    try:
-        payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
-        raise RuntimeError("Snapshot file is corrupted") from exc
-
-    if isinstance(payload, dict):
+    with _get_load_lock(cache_key):
+        # Re-check: a concurrent caller may have populated the cache while we
+        # were waiting for the lock — avoids a second full read+parse.
         with _snapshot_cache_lock:
-            _snapshot_cache[cache_key] = (mtime, now + _SNAPSHOT_CACHE_TTL_S, payload)
-        return dict(payload)
+            cached = _snapshot_cache.get(cache_key)
+            if cached is not None:
+                cached_mtime, expires_at, payload = cached
+                if cached_mtime == mtime and now < expires_at:
+                    return dict(payload)
 
-    return payload
+        try:
+            payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            raise RuntimeError("Snapshot file is corrupted") from exc
+
+        if isinstance(payload, dict):
+            with _snapshot_cache_lock:
+                _snapshot_cache[cache_key] = (mtime, now + _SNAPSHOT_CACHE_TTL_S, payload)
+            return dict(payload)
+
+        return payload
