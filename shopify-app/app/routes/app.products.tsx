@@ -1755,46 +1755,9 @@ function ProductCard({
                             )}
                           </InlineStack>
                         </InlineStack>
-                        <InlineStack gap="300" wrap>
-                          {k.search_volume != null ? (
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              {t(locale, "marketAnalysisVolume")}: <strong>{k.search_volume.toLocaleString()}</strong>
-                            </Text>
-                          ) : k.search_volume_estimated_ceiling != null && k.estimated_from_parent ? (
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              {t(locale, "marketAnalysisVolume")}:{" "}
-                              <strong>≤ {k.search_volume_estimated_ceiling.toLocaleString()}</strong>
-                              <em>
-                                {" "}
-                                ({fr ? "estimé via" : "estimated via"} « {k.estimated_from_parent} »)
-                              </em>
-                            </Text>
-                          ) : null}
-                          {k.cpc != null && (
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              {t(locale, "marketAnalysisCpc")}: <strong>{k.cpc}€</strong>
-                            </Text>
-                          )}
-                          {k.ads_competition != null && (
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              {t(locale, "marketAnalysisAdsCompetition")}: <strong>{k.ads_competition}</strong>
-                            </Text>
-                          )}
-                          {k.gsc_impressions != null && (
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              GSC: <strong>{k.gsc_impressions}</strong> impr., pos {k.gsc_position}
-                            </Text>
-                          )}
-                          {k.serp_evidence && (
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              {fr ? "SERP/PAA vérifié" : "SERP/PAA checked"}
-                            </Text>
-                          )}
-                        </InlineStack>
-                        {(coverageByKeyword.get(k.query.toLowerCase())?.length ?? 0) > 0 && (
+                        {k.gsc_impressions != null && (
                           <Text as="p" variant="bodySm" tone="subdued">
-                            {locale === "fr" ? "Présent dans : " : "Present in: "}
-                            {coverageByKeyword.get(k.query.toLowerCase())!.join(", ")}
+                            GSC: <strong>{k.gsc_impressions}</strong> impr., pos {k.gsc_position}
                           </Text>
                         )}
                         {(() => {
