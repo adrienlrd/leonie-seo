@@ -1135,19 +1135,6 @@ function ImprovementTags({
   );
 }
 
-function NotImprovedIcon({ elements, locale }: { elements?: ImprovementElement[]; locale: Locale }) {
-  const notImproved = (elements ?? []).filter((e) => !e.improved);
-  if (notImproved.length === 0) return null;
-  const tip = notImproved.map((e) => e.label).join(", ");
-  return (
-    <Tooltip content={`${locale === "fr" ? "Non amélioré" : "Not improved"} : ${tip}`}>
-      <span style={{ display: "inline-flex", cursor: "help" }}>
-        <Icon source={AlertTriangleIcon} tone="warning" />
-      </span>
-    </Tooltip>
-  );
-}
-
 function SummaryCard({
   job,
   locale,
@@ -1540,14 +1527,23 @@ function ProductCard({
           <BlockStack gap="100">
             <InlineStack gap="150" blockAlign="center">
               <Text as="p" variant="bodyMd" fontWeight="semibold">{product.product_title}</Text>
-              {(pack.facts_missing?.length ?? 0) > 0 && (
-                <Tooltip content={`${t(locale, "marketAnalysisFactsMissing")} : ${(pack.facts_missing ?? []).join(" · ")}`}>
-                  <span style={{ display: "inline-flex", cursor: "help" }}>
-                    <Icon source={AlertTriangleIcon} tone="warning" />
-                  </span>
-                </Tooltip>
-              )}
-              <NotImprovedIcon elements={product.improvement_elements} locale={locale} />
+              {(() => {
+                const parts: string[] = [];
+                if ((pack.facts_missing?.length ?? 0) > 0) {
+                  parts.push(`${t(locale, "marketAnalysisFactsMissing")} : ${(pack.facts_missing ?? []).join(" · ")}`);
+                }
+                const notImproved = (product.improvement_elements ?? []).filter((e) => !e.improved);
+                if (notImproved.length > 0) {
+                  parts.push(`${fr ? "Non amélioré" : "Not improved"} : ${notImproved.map((e) => e.label).join(", ")}`);
+                }
+                return parts.length > 0 ? (
+                  <Tooltip content={parts.join(" — ")}>
+                    <span style={{ display: "inline-flex", cursor: "help" }}>
+                      <Icon source={AlertTriangleIcon} tone="warning" />
+                    </span>
+                  </Tooltip>
+                ) : null;
+              })()}
             </InlineStack>
           </BlockStack>
           <InlineStack gap="200">
