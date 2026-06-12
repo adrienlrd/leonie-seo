@@ -1421,7 +1421,15 @@ function ProductCard({
       source: "merchant",
       locked_by_merchant: true,
     };
-    setLocalTags((prev) => [...prev, tempTag]);
+    // Replace any existing keyword tag with the same label (e.g. a retired
+    // one being re-added) — otherwise the label sits in both the added and
+    // retired sets and both buttons disappear.
+    setLocalTags((prev) => [
+      ...prev.filter(
+        (t) => !(t.tag_type === "keyword" && t.label.toLowerCase() === query.toLowerCase()),
+      ),
+      tempTag,
+    ]);
     tagFetcher.submit(
       { intent: "addTag", productId: product.product_id, label: query, tagType: "keyword" },
       { method: "post" },
@@ -1664,7 +1672,17 @@ function ProductCard({
           <Collapsible id={`kw-${product.product_id}`} open={openSection === "keywords"}>
               <Box paddingBlockStart="200">
                 <BlockStack gap="200">
-                  {displayedKeywords.map((k, idx) => (
+                  {[...displayedKeywords]
+                    .sort((a, b) => {
+                      const rank = (q: string) =>
+                        retiredKeywordLabels.has(q.toLowerCase())
+                          ? 2
+                          : addedKeywordLabels.has(q.toLowerCase()) || usedKeywords.has(q.toLowerCase())
+                          ? 0
+                          : 1;
+                      return rank(a.query) - rank(b.query);
+                    })
+                    .map((k, idx) => (
                     <Box
                       key={`${k.query}-${idx}`}
                       padding="200"
@@ -1724,7 +1742,8 @@ function ProductCard({
                               {`Fit ${k.product_fit_score}`}
                             </Badge>
                             {!addedKeywordLabels.has(k.query.toLowerCase()) &&
-                              !usedKeywords.has(k.query.toLowerCase()) && (
+                              (retiredKeywordLabels.has(k.query.toLowerCase()) ||
+                                !usedKeywords.has(k.query.toLowerCase())) && (
                               <Button size="slim" onClick={() => addKeywordTag(k.query)}>
                                 {fr ? "Ajouter" : "Add"}
                               </Button>
