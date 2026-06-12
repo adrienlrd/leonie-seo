@@ -1560,11 +1560,6 @@ function ProductCard({
             {product.business_profile_context_status === "unknown" && (
               <Badge tone="attention">{t(locale, "marketAnalysisProfileContextUnknownBadge")}</Badge>
             )}
-            {checkedApplyFields.size > 0 && (
-              <Button size="slim" variant="primary" loading={applyLoading} onClick={handleApplyProposals}>
-                {fr ? "Valider les propositions" : "Apply proposals"}
-              </Button>
-            )}
             {isAnalyzing && <Spinner size="small" />}
           </InlineStack>
         </InlineStack>
@@ -1608,11 +1603,20 @@ function ProductCard({
               (q) => !completedKeys.has(q.key) && !retiredKeys.has(q.key),
             ).length;
             const hasQuestions = activeCount > 0 || completedKeys.size > 0 || retiredKeys.size > 0;
-            return hasQuestions ? (
-              <Button size="slim" pressed={enrichmentOpen} onClick={() => setEnrichmentOpen((v) => !v)}>
-                {(fr ? "Améliorer le contenu" : "Improve content") + (activeCount > 0 ? ` (${activeCount})` : "")}
-              </Button>
-            ) : null;
+            return (
+              <>
+                {hasQuestions && (
+                  <Button size="slim" pressed={enrichmentOpen} onClick={() => setEnrichmentOpen((v) => !v)}>
+                    {(fr ? "Améliorer" : "Improve") + (activeCount > 0 ? ` (${activeCount})` : "")}
+                  </Button>
+                )}
+                {checkedApplyFields.size > 0 && (
+                  <Button size="slim" variant="primary" loading={applyLoading} onClick={handleApplyProposals}>
+                    {fr ? "Valider" : "Apply"}
+                  </Button>
+                )}
+              </>
+            );
           })()}
         />
 

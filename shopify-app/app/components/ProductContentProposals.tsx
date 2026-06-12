@@ -233,8 +233,7 @@ export function ProductContentProposals({
             {locale === "fr" ? "Actuel" : "Current"} : {pack.current_meta_title || "—"}
           </Text>
           <TextField
-            label=""
-            labelHidden
+            label={locale === "fr" ? "Proposé (c'est ce texte qui sera appliqué)" : "Proposed (this text will be applied)"}
             value={editedPack.proposed_meta_title}
             onChange={(v) => updateProp("proposed_meta_title", v)}
             autoComplete="off"
@@ -275,8 +274,7 @@ export function ProductContentProposals({
             {pack.current_meta_description || (locale === "fr" ? "absente" : "missing")}
           </Text>
           <TextField
-            label=""
-            labelHidden
+            label={locale === "fr" ? "Proposée (c'est ce texte qui sera appliqué)" : "Proposed (this text will be applied)"}
             value={editedPack.proposed_meta_description}
             onChange={(v) => updateProp("proposed_meta_description", v)}
             multiline={3}
@@ -323,8 +321,7 @@ export function ProductContentProposals({
             </Text>
           )}
           <TextField
-            label=""
-            labelHidden
+            label={locale === "fr" ? "Proposée (c'est ce texte qui sera appliqué)" : "Proposed (this text will be applied)"}
             value={editedPack.proposed_product_description}
             onChange={(v) => updateProp("proposed_product_description", v)}
             multiline={5}
