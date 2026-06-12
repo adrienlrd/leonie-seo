@@ -20,7 +20,7 @@ import {
   TextField,
   Tooltip,
 } from "@shopify/polaris";
-import { AlertTriangleIcon } from "@shopify/polaris-icons";
+import { AlertTriangleIcon, RefreshIcon } from "@shopify/polaris-icons";
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
@@ -1508,12 +1508,21 @@ function ProductCard({
             {product.business_profile_context_status === "unknown" && (
               <Badge tone="attention">{t(locale, "marketAnalysisProfileContextUnknownBadge")}</Badge>
             )}
-            {isAnalyzing && <Spinner size="small" />}
             {checkedApplyFields.size > 0 && (
               <Button size="slim" variant="primary" loading={applyLoading} onClick={handleApplyProposals}>
                 {fr ? "Valider les propositions" : "Apply proposals"}
               </Button>
             )}
+            <Tooltip content={fr ? "Régénérer avec mes réponses" : "Regenerate with my answers"}>
+              <Button
+                size="slim"
+                icon={RefreshIcon}
+                loading={isAnalyzing}
+                disabled={analyzeDisabled}
+                onClick={() => onEnrichAndAnalyze({})}
+                accessibilityLabel={fr ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
+              />
+            </Tooltip>
           </InlineStack>
         </InlineStack>
 
@@ -1580,6 +1589,7 @@ function ProductCard({
           onRetireQuestion={onRetireQuestion}
           onRestoreQuestion={onRestoreQuestion}
           onValidateQuestion={onValidateQuestion}
+          hideRegenerateButton
         />
 
         {/* Uncommitted keywords = those not yet in localTags as keyword type */}

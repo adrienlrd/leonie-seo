@@ -65,6 +65,7 @@ export function ProductContentProposals({
   onRetireQuestion,
   onRestoreQuestion,
   onValidateQuestion,
+  hideRegenerateButton = false,
 }: {
   product: ProductResult;
   locale: Locale;
@@ -78,6 +79,8 @@ export function ProductContentProposals({
   onRetireQuestion?: (key: string) => void;
   onRestoreQuestion?: (key: string) => void;
   onValidateQuestion?: (key: string, answer: string) => void;
+  /** Hide the inline regenerate button (the parent renders its own, e.g. a header icon). */
+  hideRegenerateButton?: boolean;
 }) {
   const pack = product.content_test_pack;
   // Optimistic local state — updates immediately on retire/restore without waiting for server
@@ -756,16 +759,18 @@ export function ProductContentProposals({
   // whatever draft answers exist, then relaunches and persists the analysis.
   const regenerateAction = !editMode ? (
     <BlockStack gap="200">
-      <InlineStack>
-        <Button
-          variant="primary"
-          loading={isAnalyzing}
-          disabled={analyzeDisabled}
-          onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
-        >
-          {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
-        </Button>
-      </InlineStack>
+      {!hideRegenerateButton && (
+        <InlineStack>
+          <Button
+            variant="primary"
+            loading={isAnalyzing}
+            disabled={analyzeDisabled}
+            onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
+          >
+            {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
+          </Button>
+        </InlineStack>
+      )}
       {isAnalyzing && (
         <AnalysisLoader
           phrases={loaderPhrases(locale, "analysis")}
