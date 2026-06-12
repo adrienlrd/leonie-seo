@@ -1551,6 +1551,11 @@ function ProductCard({
                     {field} : {res.applied ? (fr ? "✓ appliqué" : "✓ applied") : `✗ ${res.error ?? (fr ? "échec" : "failed")}`}
                   </Text>
                 ))}
+                {Object.values(applyResult.results ?? {}).some((r) => r.applied) && (
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {fr ? "Résultats dans 28 j" : "Results in 28d"}
+                  </Text>
+                )}
               </BlockStack>
             ) : (
               <Text as="p" variant="bodySm">{applyResult.error}</Text>

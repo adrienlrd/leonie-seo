@@ -29,7 +29,7 @@ import {
   Thumbnail,
   Tooltip,
 } from "@shopify/polaris";
-import { AlertTriangleIcon } from "@shopify/polaris-icons";
+import { AlertTriangleIcon, CheckIcon } from "@shopify/polaris-icons";
 import { useEffect, useState } from "react";
 import { loaderPhrases, t, type Locale } from "../lib/i18n";
 import { AnalysisLoader } from "./AnalysisLoader";
@@ -846,25 +846,28 @@ export function ProductContentProposals({
           </Button>
         </div>
         {appliedAt && (
-          <InlineStack gap="100" blockAlign="center">
-            <Badge tone="success">{locale === "fr" ? "Validé" : "Applied"}</Badge>
-            {(() => {
-              const ts = new Date(appliedAt).getTime();
-              if (Number.isNaN(ts)) return null;
-              const daysLeft = MEASURE_CYCLE_DAYS - Math.floor((Date.now() - ts) / 86_400_000);
-              return (
-                <Text as="span" variant="bodySm" tone="subdued">
-                  {daysLeft > 0
-                    ? locale === "fr" ? `Résultats dans ${daysLeft} j` : `Results in ${daysLeft}d`
-                    : locale === "fr" ? "Résultats disponibles dans Mesure" : "Results available in Measure"}
-                </Text>
-              );
-            })()}
-          </InlineStack>
+          <span style={{ display: "inline-flex" }} title={locale === "fr" ? "Validé" : "Applied"}>
+            <Icon source={CheckIcon} tone="success" />
+          </span>
         )}
       </InlineStack>
     );
   });
+
+  const appliedCountdown = (key: FieldKey) => {
+    const appliedAt = editedPack.applied_fields?.[key === "alt_text" ? "image_alts" : key];
+    if (!appliedAt) return null;
+    const ts = new Date(appliedAt).getTime();
+    if (Number.isNaN(ts)) return null;
+    const daysLeft = MEASURE_CYCLE_DAYS - Math.floor((Date.now() - ts) / 86_400_000);
+    return (
+      <Text as="p" variant="bodySm" tone="subdued">
+        {daysLeft > 0
+          ? locale === "fr" ? `Résultats dans ${daysLeft} j` : `Results in ${daysLeft}d`
+          : locale === "fr" ? "Résultats disponibles dans Mesure" : "Results available in Measure"}
+      </Text>
+    );
+  };
 
   if (layout === "buttons") {
     const available = fields.filter((f) => f.has);
@@ -893,6 +896,7 @@ export function ProductContentProposals({
           <Collapsible key={f.key} id={`field-${f.key}-${product.product_id}`} open={openField === f.key}>
             <Box paddingBlockStart="100">
               <BlockStack gap="200">
+                {appliedCountdown(f.key)}
                 {f.render(editingField === f.key)}
                 {editingField === f.key ? (
                   <InlineStack gap="150">
