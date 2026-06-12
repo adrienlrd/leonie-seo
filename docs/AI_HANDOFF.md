@@ -12,6 +12,20 @@
 
 - **Date:** 2026-06-12
 - **Agent:** Claude (Fable 5)
+- **Goal:** UX — toutes les attentes longues (générations, analyses) doivent afficher une barre de chargement élégante + une phrase vague rotative en dessous (style « Claude réfléchit »).
+- **Summary:** Nouveau composant partagé `shopify-app/app/components/AnalysisLoader.tsx` : Polaris `ProgressBar` (progress réel plafonné à 97 si le job fournit `progress/total`, sinon rampe temporelle asymptotique `1-exp(-t/τ)` calée sur `estimateMs`, plafond 92) + phrase `subdued` qui tourne toutes les 4 s avec fondu CSS. Banques de phrases FR/EN dans `i18n.ts` (`loaderPhrases(locale, kind)`, 4 jeux : `analysis`, `writing`, `profile`, `crawl`, 6 phrases chacun). Branché sur 8 endroits : analyse marché (`app.products.tsx`, progress réel), génération blog (`app.blog.tsx`, rampe 90 s), profil business + identification produits (panneaux onboarding, remplace les ProgressBar figées à 50 %), analyse approfondie (`MarketAnalysisProgressPanel.tsx`, supprime le cap 95 local), audit dashboard (`app._index.tsx`, remplace l'animation locale supprimée), analyse mono-produit (`app._index.tsx`, remplace le Spinner seul), crawl concurrents (`app.competitor-crawl.tsx`, 2 spots Spinner).
+- **Files created:** `shopify-app/app/components/AnalysisLoader.tsx`.
+- **Files modified:** `shopify-app/app/lib/i18n.ts`, `app.products.tsx`, `app.blog.tsx`, `app._index.tsx`, `app.competitor-crawl.tsx`, `components/MarketAnalysisProgressPanel.tsx`, `components/ProductIdentificationPanel.tsx`, `components/BusinessProfilePanel.tsx`.
+- **Decisions made:** Boutons `loading` rapides (régénération de section, publications) laissés tels quels — hors scope. Le composant ne porte pas de Banner : chaque page garde son habillage existant.
+- **Validations run:** `npm run typecheck` ✅, `npm run build` ✅.
+- **Validations skipped:** `pytest`/`ruff` — aucun changement Python. Test visuel manuel à faire en prod (rotation des phrases, complétion, FR/EN).
+- **Open issues:** néant.
+- **Next recommended action:** Déployer et vérifier visuellement une génération blog + une analyse produit.
+
+## Previous completed task
+
+- **Date:** 2026-06-12
+- **Agent:** Claude (Fable 5)
 - **Goal:** Objectif produit « le marchand n'a rien à faire sauf (re)connecter Google » : détecter la révocation du token Google (invalid_grant, vu en prod) et afficher une bannière « Reconnexion requise » au lieu d'échouer en silence.
 - **Summary:** **Backend** : nouveau flag `google_reauth_required` dans `shop_config` (clé exportée `GOOGLE_REAUTH_REQUIRED_KEY` dans `app/gsc/token_store.py`). Posé dans les deux chemins de refresh : `app/gsc/client.py` `_credentials_for_shop` (le `except RefreshError` existant qui supprimait déjà le token) et `app/ga4/oauth.py` `get_credentials` (qui ne gérait **pas** `RefreshError` — c'était la source du 500 `invalid_grant` en prod ; il pose maintenant le flag, supprime le token et retourne `None`). Effacé dans `save_google_token` (couvre reconnexion GSC et GA4). `gsc_status` (`app/api/gsc.py`) expose `reauth_required` (flag posé **et** token absent) + message `action_required` distinct. **Frontend** : bannière 3 états sur `app._index.tsx` et `app.products.tsx` — `reauth_required` → bannière critical « Reconnexion à Google requise » avec bouton ; non connecté → bannière warning existante ; connecté → rien. Le loader de l'index appelle désormais `/gsc/status` (6e appel du `Promise.allSettled`) ; la bannière se base sur le statut OAuth réel et non plus sur la présence du fichier `gsc_performance.csv` (fallback sur l'ancien heuristique si l'appel statut échoue).
 - **Files created:** `tests/test_ga4/test_oauth_refresh.py`.

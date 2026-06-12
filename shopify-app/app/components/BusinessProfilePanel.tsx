@@ -17,12 +17,12 @@ import {
   Card,
   FormLayout,
   InlineStack,
-  ProgressBar,
   Text,
   TextField,
 } from "@shopify/polaris";
 import { CompassIcon, RefreshIcon } from "@shopify/polaris-icons";
-import { t, type Locale } from "../lib/i18n";
+import { loaderPhrases, t, type Locale } from "../lib/i18n";
+import { AnalysisLoader } from "./AnalysisLoader";
 import { SectionTitle, linesFromText, textFromLines, type BusinessProfile } from "../lib/marketAnalysisShared";
 
 type StartResponse = { type: "startBusinessAnalysis"; jobId: string | null; error: string | null };
@@ -164,10 +164,11 @@ export function BusinessProfilePanel({ locale, initialProfile, onValidated }: Bu
 
         {analyzing && !draft && (
           <Banner tone="info">
-            <BlockStack gap="150">
-              <Text as="p">{t(locale, "dashboardProfileAnalysisRunning")}</Text>
-              <ProgressBar progress={50} size="small" />
-            </BlockStack>
+            <AnalysisLoader
+              phrases={loaderPhrases(locale, "profile")}
+              estimateMs={120_000}
+              title={t(locale, "dashboardProfileAnalysisRunning")}
+            />
           </Banner>
         )}
 

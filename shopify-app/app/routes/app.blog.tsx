@@ -40,7 +40,8 @@ import { SaveBar } from "@shopify/app-bridge-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, type Locale } from "../lib/i18n";
+import { getLocale, loaderPhrases, type Locale } from "../lib/i18n";
+import { AnalysisLoader } from "../components/AnalysisLoader";
 import { scoreTone } from "../lib/marketAnalysisShared";
 import { authenticate } from "../shopify.server";
 
@@ -884,11 +885,13 @@ export default function BlogIndexPage() {
                       </Button>
                     </Form>
                     {isGeneratingArticle && (
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {fr
-                          ? "Génération en cours… cela peut prendre 1 à 2 minutes (plusieurs appels IA, un par section). Inutile de cliquer à nouveau."
-                          : "Generating… this can take 1-2 minutes (several AI calls, one per section). No need to click again."}
-                      </Text>
+                      <AnalysisLoader
+                        phrases={loaderPhrases(locale, "writing")}
+                        estimateMs={90_000}
+                        title={fr
+                          ? "Génération en cours… cela peut prendre 1 à 2 minutes. Inutile de cliquer à nouveau."
+                          : "Generating… this can take 1-2 minutes. No need to click again."}
+                      />
                     )}
                   </BlockStack>
                 </Box>

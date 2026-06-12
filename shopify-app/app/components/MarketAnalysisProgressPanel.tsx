@@ -8,10 +8,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "@remix-run/react";
-import { Banner, BlockStack, Card, ProgressBar, Text } from "@shopify/polaris";
+import { Banner, BlockStack, Card, Text } from "@shopify/polaris";
 import { ChartHistogramGrowthIcon } from "@shopify/polaris-icons";
-import { t, type Locale } from "../lib/i18n";
+import { loaderPhrases, t, type Locale } from "../lib/i18n";
 import { SectionTitle, type MarketJobState } from "../lib/marketAnalysisShared";
+import { AnalysisLoader } from "./AnalysisLoader";
 
 type PollResponse = { type: "pollProductAnalysis"; job: MarketJobState | null; error: string | null };
 
@@ -79,12 +80,12 @@ export function MarketAnalysisProgressPanel({ locale, jobId, onComplete }: Marke
         )}
         {!error && (
           <Banner tone="info">
-            <BlockStack gap="150">
-              <Text as="p">{t(locale, "dashboardProductAnalysisRunning")}</Text>
-              {job && job.status !== "completed" && (
-                <ProgressBar progress={Math.min(progressPct, 95)} size="small" />
-              )}
-            </BlockStack>
+            <AnalysisLoader
+              phrases={loaderPhrases(locale, "analysis")}
+              progress={total > 0 ? progressPct : undefined}
+              estimateMs={420_000}
+              title={t(locale, "dashboardProductAnalysisRunning")}
+            />
           </Banner>
         )}
       </BlockStack>

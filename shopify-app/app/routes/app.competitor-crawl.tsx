@@ -16,12 +16,12 @@ import {
   List,
   Page,
   Select,
-  Spinner,
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, localizedPath, type Locale } from "../lib/i18n";
+import { getLocale, loaderPhrases, localizedPath, type Locale } from "../lib/i18n";
+import { AnalysisLoader } from "../components/AnalysisLoader";
 import type {
   CompetitorCrawlTopUrl,
   CompetitorProfile,
@@ -187,12 +187,11 @@ function SynthesisBlock({
     if (running) {
       return (
         <Box padding="300" background="bg-surface-secondary" borderRadius="200">
-          <InlineStack gap="200" blockAlign="center">
-            <Spinner size="small" />
-            <Text as="p" tone="subdued">
-              {locale === "fr" ? "Analyse détaillée en cours…" : "Detailed analysis in progress…"}
-            </Text>
-          </InlineStack>
+          <AnalysisLoader
+            phrases={loaderPhrases(locale, "crawl")}
+            estimateMs={120_000}
+            title={locale === "fr" ? "Analyse détaillée en cours…" : "Detailed analysis in progress…"}
+          />
         </Box>
       );
     }
@@ -631,14 +630,13 @@ export default function CompetitorCrawlPage() {
 
         {isRunning && (
           <Banner tone="info">
-            <InlineStack gap="200" blockAlign="center">
-              <Spinner size="small" />
-              <Text as="p">
-                {locale === "fr"
-                  ? "Génération de l'analyse détaillée — ~30 s. Les recommandations apparaîtront ci-dessous."
-                  : "Generating detailed analysis — ~30s. Recommendations will appear below."}
-              </Text>
-            </InlineStack>
+            <AnalysisLoader
+              phrases={loaderPhrases(locale, "crawl")}
+              estimateMs={30_000}
+              title={locale === "fr"
+                ? "Génération de l'analyse détaillée — ~30 s. Les recommandations apparaîtront ci-dessous."
+                : "Generating detailed analysis — ~30s. Recommendations will appear below."}
+            />
           </Banner>
         )}
 

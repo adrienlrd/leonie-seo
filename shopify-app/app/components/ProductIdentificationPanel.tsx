@@ -9,9 +9,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "@remix-run/react";
-import { Banner, BlockStack, Box, Button, Card, InlineStack, ProgressBar, Text, TextField } from "@shopify/polaris";
+import { Banner, BlockStack, Box, Button, Card, InlineStack, Text, TextField } from "@shopify/polaris";
 import { ProductIcon, RefreshIcon } from "@shopify/polaris-icons";
-import { t, type Locale } from "../lib/i18n";
+import { loaderPhrases, t, type Locale } from "../lib/i18n";
+import { AnalysisLoader } from "./AnalysisLoader";
 import { SectionTitle, type MarketJobState } from "../lib/marketAnalysisShared";
 
 type StartResponse = { type: "startProductAnalysis"; jobId: string | null; error: string | null };
@@ -145,10 +146,11 @@ export function ProductIdentificationPanel({ locale, initialJobId, onSaved }: Pr
 
         {identifying && !labels && (
           <Banner tone="info">
-            <BlockStack gap="150">
-              <Text as="p">{t(locale, "dashboardProductIdentificationRunning")}</Text>
-              <ProgressBar progress={50} size="small" />
-            </BlockStack>
+            <AnalysisLoader
+              phrases={loaderPhrases(locale, "profile")}
+              estimateMs={120_000}
+              title={t(locale, "dashboardProductIdentificationRunning")}
+            />
           </Banner>
         )}
 

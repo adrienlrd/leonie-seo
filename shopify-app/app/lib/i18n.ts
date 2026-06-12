@@ -1465,3 +1465,88 @@ export function t(locale: Locale, key: string): string {
 export function localizedPath(path: string, locale: Locale): string {
   return `${path}?locale=${locale}`;
 }
+
+// ── Loader phrases ─────────────────────────────────────────────────────────────
+// Vague rotating status phrases shown under progress bars during long
+// generations/analyses (Claude-thinking / deep-research style).
+
+export type LoaderPhraseKind = "analysis" | "writing" | "profile" | "crawl";
+
+const LOADER_PHRASES: Record<LoaderPhraseKind, Record<Locale, string[]>> = {
+  analysis: {
+    fr: [
+      "Lecture de votre catalogue…",
+      "Étude des requêtes de vos clients…",
+      "Comparaison avec votre marché…",
+      "Réflexion sur les meilleures opportunités…",
+      "Affinage des recommandations…",
+      "Encore quelques instants…",
+    ],
+    en: [
+      "Reading your catalog…",
+      "Studying your customers' queries…",
+      "Comparing with your market…",
+      "Thinking about the best opportunities…",
+      "Refining recommendations…",
+      "Just a few more moments…",
+    ],
+  },
+  writing: {
+    fr: [
+      "Recherche du bon angle…",
+      "Organisation des idées…",
+      "Rédaction de l'article…",
+      "Travail du maillage interne…",
+      "Relecture et ajustements…",
+      "Dernières retouches…",
+    ],
+    en: [
+      "Finding the right angle…",
+      "Organizing ideas…",
+      "Writing the article…",
+      "Working on internal links…",
+      "Proofreading and adjusting…",
+      "Final touches…",
+    ],
+  },
+  profile: {
+    fr: [
+      "Découverte de votre boutique…",
+      "Identification de votre niche…",
+      "Classement de vos produits…",
+      "Compréhension de vos clients…",
+      "Mise en forme du profil…",
+      "Presque terminé…",
+    ],
+    en: [
+      "Discovering your store…",
+      "Identifying your niche…",
+      "Classifying your products…",
+      "Understanding your customers…",
+      "Shaping the profile…",
+      "Almost done…",
+    ],
+  },
+  crawl: {
+    fr: [
+      "Parcours de vos pages…",
+      "Inspection des balises…",
+      "Vérification des contenus…",
+      "Analyse de la concurrence…",
+      "Compilation des résultats…",
+      "Encore un instant…",
+    ],
+    en: [
+      "Walking through your pages…",
+      "Inspecting tags…",
+      "Checking content…",
+      "Analyzing competitors…",
+      "Compiling results…",
+      "One more moment…",
+    ],
+  },
+};
+
+export function loaderPhrases(locale: Locale, kind: LoaderPhraseKind): string[] {
+  return LOADER_PHRASES[kind][locale];
+}

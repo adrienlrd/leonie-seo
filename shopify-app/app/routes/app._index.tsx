@@ -53,7 +53,8 @@ import type { IconSource } from "@shopify/polaris";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import { getLocale, loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
+import { AnalysisLoader } from "../components/AnalysisLoader";
 import { LlmsTxtPanel } from "../components/LlmsTxtPanel";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
@@ -746,20 +747,22 @@ function ActiveProductsCard({
                           </Tooltip>
                         )}
                       </InlineStack>
-                      {!pack && (
-                        analyzingThis ? (
-                          <Spinner size="small" />
-                        ) : (
-                          <Button
-                            size="slim"
-                            onClick={() => onAnalyzeProduct(product.id)}
-                            disabled={isAnalyzingSingle}
-                          >
-                            {t(locale, "dashboardAnalyseProduct")}
-                          </Button>
-                        )
+                      {!pack && !analyzingThis && (
+                        <Button
+                          size="slim"
+                          onClick={() => onAnalyzeProduct(product.id)}
+                          disabled={isAnalyzingSingle}
+                        >
+                          {t(locale, "dashboardAnalyseProduct")}
+                        </Button>
                       )}
                     </InlineStack>
+                    {!pack && analyzingThis && (
+                      <AnalysisLoader
+                        phrases={loaderPhrases(locale, "analysis")}
+                        estimateMs={150_000}
+                      />
+                    )}
                     {pack && (
                       <ProductContentProposals
                         product={pack}
@@ -1329,13 +1332,6 @@ export default function IndexPage() {
   const auditStatusRef = useRef<string | null>(null);
   auditStatusRef.current = auditStatus;
 
-  // Progress bar — linear ramp up to 90% over the expected crawl window,
-  // then snaps to 100% when the job actually completes.
-  // Window calibrated for the optimized job (pagination 250 + parallel fetch).
-  const PROGRESS_WINDOW_MS = 15_000;
-  const [auditProgress, setAuditProgress] = useState(5);
-  const auditStartRef = useRef<number>(0);
-
   // Capture the jobId returned by the manual refresh action.
   useEffect(() => {
     if (refreshFetcher.data?.type === "refresh" && refreshFetcher.data.jobId) {
@@ -1371,7 +1367,6 @@ export default function IndexPage() {
 
   useEffect(() => {
     if (auditStatus !== "completed") return;
-    setAuditProgress(100);
     // Only reload when the audit was triggered by the merchant's Refresh
     // click. Background audits launched by the loader must not trigger a
     // reload — that would re-fire the loader and create an audit/reload loop.
@@ -1383,20 +1378,6 @@ export default function IndexPage() {
   const auditRunning =
     activeJobId !== null && auditStatus !== "completed" && auditStatus !== "failed";
   const isRefreshing = refreshFetcher.state !== "idle" || auditRunning;
-
-  // Animate progress while the audit runs.
-  useEffect(() => {
-    if (!auditRunning) return;
-    auditStartRef.current = Date.now();
-    setAuditProgress(5);
-    const tick = setInterval(() => {
-      const elapsed = Date.now() - auditStartRef.current;
-      setAuditProgress(
-        Math.min(Math.round(5 + (elapsed / PROGRESS_WINDOW_MS) * 85), 90),
-      );
-    }, 400);
-    return () => clearInterval(tick);
-  }, [auditRunning]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = () => {
     const fd = new FormData();
@@ -1521,13 +1502,11 @@ export default function IndexPage() {
         )}
         {auditRunning && (
           <Banner tone="info">
-            <BlockStack gap="150">
-              <InlineStack gap="200" blockAlign="center" align="space-between">
-                <Text as="p">{t(locale, "dashboardRefreshing")}</Text>
-                <Text as="p" variant="bodySm" tone="subdued">{auditProgress}%</Text>
-              </InlineStack>
-              <ProgressBar progress={auditProgress} size="small" tone="highlight" />
-            </BlockStack>
+            <AnalysisLoader
+              phrases={loaderPhrases(locale, "crawl")}
+              estimateMs={25_000}
+              title={t(locale, "dashboardRefreshing")}
+            />
           </Banner>
         )}
         {auditStatus === "completed" && manualRefresh && (

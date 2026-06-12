@@ -25,7 +25,8 @@ import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import { getLocale, loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
+import { AnalysisLoader } from "../components/AnalysisLoader";
 import { ProductContentProposals, type FieldKey } from "../components/ProductContentProposals";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -2721,12 +2722,16 @@ export default function ProductsPage() {
                             : t(locale, "marketAnalysisPhaseContent")}
                         </Text>
                       )}
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {job && job.total > 0
-                          ? progressLabel(locale, job.progress, job.total)
-                          : t(locale, "marketAnalysisRunning")}
-                      </Text>
-                      <ProgressBar progress={progressPct} size="small" />
+                      <AnalysisLoader
+                        phrases={loaderPhrases(locale, "analysis")}
+                        progress={job && job.total > 0 ? progressPct : undefined}
+                        estimateMs={300_000}
+                        title={
+                          job && job.total > 0
+                            ? progressLabel(locale, job.progress, job.total)
+                            : t(locale, "marketAnalysisRunning")
+                        }
+                      />
                     </BlockStack>
                   )}
                 </BlockStack>
