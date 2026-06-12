@@ -413,6 +413,17 @@ async def get_geo_retention_milestones(
     }
 
 
+def _load_next_best_actions(
+    shop: str,
+    snapshot_path: Path,
+    reports: list[dict],
+    scope: str,
+) -> dict:
+    """Blocking: snapshot read/parse can be a 10-100MB file, must not run on the event loop."""
+    snapshot = load_snapshot_from_file_or_db(shop, snapshot_path)
+    return build_next_best_actions(reports, snapshot=snapshot, scope=scope, shop=shop)
+
+
 @router.get("/shops/{shop}/geo/next-best-actions")
 async def get_geo_next_best_actions(
     shop: str,
@@ -424,9 +435,8 @@ async def get_geo_next_best_actions(
     events = list_geo_events(ctx.shop, limit=limit, db_path=DB_PATH)["events"]
     confidence_data = compute_catalog_confidence(events)
     catalog = build_catalog_report(events, confidence_data["scores"])
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
-    result = build_next_best_actions(
-        catalog["reports"], snapshot=snapshot, scope=_validated_scope(scope), shop=ctx.shop
+    result = await asyncio.to_thread(
+        _load_next_best_actions, ctx.shop, ctx.snapshot_path, catalog["reports"], _validated_scope(scope)
     )
     return {
         "shop": ctx.shop,
@@ -471,6 +481,30 @@ async def get_geo_faq_content(
     }
 
 
+def _load_control_groups(
+    shop: str,
+    snapshot_path: Path,
+    events: list[dict],
+    event_id: int | None,
+    top_events: int,
+    controls_per_event: int,
+) -> dict | None:
+    """Blocking: snapshot read/parse can be a 10-100MB file, must not run on the event loop."""
+    snapshot = load_snapshot_from_file_or_db(shop, snapshot_path)
+    if snapshot is None:
+        return None
+    gsc_file = _find_gsc_file(shop)
+    gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+    return build_control_groups(
+        snapshot=snapshot,
+        events=events,
+        gsc_rows=gsc_rows,
+        event_id=event_id,
+        top_events=top_events,
+        controls_per_event=controls_per_event,
+    )
+
+
 @router.get("/shops/{shop}/geo/control-groups")
 async def get_geo_control_groups(
     shop: str,
@@ -480,24 +514,21 @@ async def get_geo_control_groups(
     controls_per_event: int = Query(default=3, ge=1, le=10),
 ) -> dict:
     """Return comparable unmodified control pages for GEO optimization events."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
-    if snapshot is None:
+    events = list_geo_events(ctx.shop, limit=200, db_path=DB_PATH)["events"]
+    analysis = await asyncio.to_thread(
+        _load_control_groups,
+        ctx.shop,
+        ctx.snapshot_path,
+        events,
+        event_id,
+        top_events,
+        controls_per_event,
+    )
+    if analysis is None:
         raise HTTPException(
             status_code=404,
             detail="Snapshot introuvable. Lancez un audit SEO d'abord.",
         )
-
-    gsc_file = _find_gsc_file(ctx.shop)
-    gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
-    events = list_geo_events(ctx.shop, limit=200, db_path=DB_PATH)["events"]
-    analysis = build_control_groups(
-        snapshot=snapshot,
-        events=events,
-        gsc_rows=gsc_rows,
-        event_id=event_id,
-        top_events=top_events,
-        controls_per_event=controls_per_event,
-    )
     return {
         "shop": ctx.shop,
         "available": True,
