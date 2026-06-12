@@ -1527,7 +1527,15 @@ function ProductCard({
           </div>
         )}
         <div style={{ flex: 1, minWidth: 0, padding: productImageUrl ? "var(--p-space-300)" : 0 }}>
-      <BlockStack gap="200">
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "var(--p-space-300)",
+          justifyContent: "space-between",
+          height: "100%",
+        }}
+      >
         <InlineStack gap="200" align="space-between" wrap>
           <BlockStack gap="100">
             <InlineStack gap="150" blockAlign="center">
@@ -1787,7 +1795,7 @@ function ProductCard({
             </Box>
           </Collapsible>
         )}
-      </BlockStack>
+      </div>
         </div>
       </div>
     </Box>
