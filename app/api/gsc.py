@@ -21,7 +21,7 @@ from app.gsc.client import (
     save_credentials,
 )
 from app.gsc.oauth_state import GoogleOAuthStateError, create_state, verify_state
-from app.gsc.token_store import delete_google_token, get_google_token
+from app.gsc.token_store import GOOGLE_REAUTH_REQUIRED_KEY, delete_google_token, get_google_token
 from app.jobs.store import enqueue
 from app.shop_config_store import delete_shop_config, get_shop_config, set_shop_config
 
@@ -38,16 +38,24 @@ async def gsc_status(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> 
     """Return Google Search Console connection and data freshness status."""
     token = get_google_token(ctx.shop)
     import_status = latest_import_status(ctx.shop)
+    reauth_required = (
+        token is None and get_shop_config(ctx.shop, GOOGLE_REAUTH_REQUIRED_KEY) == "1"
+    )
+    if token:
+        action_required = None
+    elif reauth_required:
+        action_required = "Google revoked this connection. Reconnect Google to keep using real query data."
+    else:
+        action_required = "Connect Google Search Console to import real query and page data."
     return {
         "shop": ctx.shop,
         "configured": google_oauth_configured(),
         "connected": token is not None,
+        "reauth_required": reauth_required,
         "email": token.get("email") if token else None,
         "site_url": default_site_url(ctx.shop),
         "latest_import": import_status,
-        "action_required": None
-        if token
-        else "Connect Google Search Console to import real query and page data.",
+        "action_required": action_required,
     }
 
 

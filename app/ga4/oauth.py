@@ -12,13 +12,20 @@ import json
 import os
 from pathlib import Path
 
+import google.auth.exceptions
 import httpx
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 
 from app.google_scopes import GOOGLE_OAUTH_SCOPES
-from app.gsc.token_store import delete_google_token, get_google_token, save_google_token
+from app.gsc.token_store import (
+    GOOGLE_REAUTH_REQUIRED_KEY,
+    delete_google_token,
+    get_google_token,
+    save_google_token,
+)
+from app.shop_config_store import set_shop_config
 
 # requests-oauthlib raises when the token's returned scopes differ from the
 # requested ones (Google may add/merge scopes) — relax that to a no-op.
@@ -110,8 +117,16 @@ def get_credentials(shop: str) -> Credentials | None:
         return None
     creds = Credentials.from_authorized_user_info(json.loads(record["token_json"]), GA4_SCOPES)
     if creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        save_credentials(shop, creds, email=record.get("email"))
+        try:
+            creds.refresh(Request())
+            save_credentials(shop, creds, email=record.get("email"))
+        except google.auth.exceptions.RefreshError:
+            # Token revoked or permanently expired — same handling as GSC
+            # (_credentials_for_shop): flag the shop for reconnection and drop
+            # the dead token so callers see "not connected" instead of a 500.
+            set_shop_config(shop, GOOGLE_REAUTH_REQUIRED_KEY, "1")
+            delete_google_token(shop)
+            return None
     return creds if creds.valid else None
 
 

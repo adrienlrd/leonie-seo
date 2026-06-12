@@ -150,7 +150,13 @@ interface LoaderData {
   excludedDomains: string[];
   auditJobId: string | null;
   businessProfile: BusinessProfile | null;
+  gscStatus: GscStatus | null;
   error: string | null;
+}
+
+interface GscStatus {
+  connected: boolean;
+  reauth_required: boolean;
 }
 
 // ── Loader ────────────────────────────────────────────────────────────────────
@@ -170,6 +176,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let excludedDomains: string[] = [];
   let auditJobId: string | null = null;
   let businessProfile: BusinessProfile | null = null;
+  let gscStatus: GscStatus | null = null;
 
   try {
     // Bound every backend call so a cold/slow backend cannot hang the page
@@ -178,13 +185,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // degrade to their default empty values on timeout via Promise.allSettled.
     const DASHBOARD_TIMEOUT_MS = 12_000;
     const SECONDARY_TIMEOUT_MS = 8_000;
-    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken, signal: AbortSignal.timeout(DASHBOARD_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/market-analysis/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/market-analysis/competitors`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/gsc/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
     ]);
+
+    if (gscStatusResp.status === "fulfilled" && gscStatusResp.value.ok) {
+      try {
+        const data = (await gscStatusResp.value.json()) as { connected?: boolean; reauth_required?: boolean };
+        gscStatus = { connected: data.connected === true, reauth_required: data.reauth_required === true };
+      } catch (_parseErr) { /* ignore */ }
+    }
 
     if (competitorsResp.status === "fulfilled" && competitorsResp.value.ok) {
       try {
@@ -246,6 +261,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         excludedDomains,
         auditJobId: null,
         businessProfile,
+        gscStatus,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
       });
     }
@@ -256,7 +272,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirect(localizedPath("/app/onboarding", locale));
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -268,6 +284,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       excludedDomains,
       auditJobId,
       businessProfile,
+      gscStatus,
       error: err instanceof Error ? err.message : "Network error",
     });
   }
@@ -1288,8 +1305,11 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, error } = useLoaderData<typeof loader>() as LoaderData;
-  const gscConnected = activeProducts.some((p) => p.gsc_connected);
+  const { locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, error } = useLoaderData<typeof loader>() as LoaderData;
+  // OAuth status is authoritative; fall back to the per-product flag (GSC data
+  // file present) only when the status call itself failed.
+  const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
+  const gscReauthRequired = gscStatus?.reauth_required === true;
 
   // ── Audit job polling ─────────────────────────────────────────────────────
   type PollData = { type?: string; status?: string; resultStatus?: string | null; error?: string | null };
@@ -1549,7 +1569,29 @@ export default function IndexPage() {
         {/* Zone 1 — Store health */}
         <Zone1 data={zone1} locale={locale} />
 
-        {!gscConnected && (
+        {gscReauthRequired ? (
+          <Banner
+            tone="critical"
+            title={
+              locale === "fr"
+                ? "Reconnexion à Google requise"
+                : "Google reconnection required"
+            }
+          >
+            <BlockStack gap="200">
+              <Text as="p">
+                {locale === "fr"
+                  ? "Google a déconnecté votre compte. Reconnectez-le pour que les analyses continuent d'utiliser vos vraies données de recherche."
+                  : "Google disconnected your account. Reconnect it so analyses keep using your real search data."}
+              </Text>
+              <InlineStack>
+                <Button url="/app/onboarding" variant="primary">
+                  {locale === "fr" ? "Reconnecter Google" : "Reconnect Google"}
+                </Button>
+              </InlineStack>
+            </BlockStack>
+          </Banner>
+        ) : !gscConnected ? (
           <Banner
             tone="warning"
             title={
@@ -1571,7 +1613,7 @@ export default function IndexPage() {
               </InlineStack>
             </BlockStack>
           </Banner>
-        )}
+        ) : null}
 
         {/* Business profile — niche, brand, personas, content style */}
         <BusinessProfileSummary

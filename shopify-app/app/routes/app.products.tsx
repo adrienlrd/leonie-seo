@@ -349,6 +349,7 @@ interface LoaderData {
     product_titles: Record<string, string>;
   } | null;
   gscConnected: boolean;
+  gscReauthRequired: boolean;
   ga4Connected: boolean;
   activeHandles: string[];
   /** Products currently active in the snapshot but absent from the latest analysis. */
@@ -409,9 +410,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   let gscConnected = false;
+  let gscReauthRequired = false;
   if (gscResp.status === "fulfilled" && gscResp.value.ok) {
-    const data = await gscResp.value.json() as { connected?: boolean };
+    const data = await gscResp.value.json() as { connected?: boolean; reauth_required?: boolean };
     gscConnected = data.connected === true;
+    gscReauthRequired = data.reauth_required === true;
   }
 
   let ga4Connected = false;
@@ -443,7 +446,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .map((p) => p.product_id);
   }
 
-  return json({ locale, shop: session.shop, latestJob, latestIdentification, gscConnected, ga4Connected, activeHandles, newProducts, removedProductIds });
+  return json({ locale, shop: session.shop, latestJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -2015,7 +2018,7 @@ function CannibalizationBanner({
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
-  const { locale, shop, latestJob, latestIdentification, gscConnected, ga4Connected, activeHandles, newProducts, removedProductIds } =
+  const { locale, shop, latestJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds } =
     useLoaderData<LoaderData>();
 
   // ── UI step: "identification" (step 1) or "analysis" (step 2) ────────────
@@ -2464,7 +2467,29 @@ export default function ProductsPage() {
       }}
     >
       <BlockStack gap="400">
-        {!gscConnected && (
+        {gscReauthRequired ? (
+          <Banner
+            tone="critical"
+            title={
+              locale === "fr"
+                ? "Reconnexion à Google requise"
+                : "Google reconnection required"
+            }
+          >
+            <BlockStack gap="200">
+              <Text as="p">
+                {locale === "fr"
+                  ? "Google a déconnecté votre compte. Reconnectez-le pour que les analyses continuent d'utiliser vos vraies données de recherche."
+                  : "Google disconnected your account. Reconnect it so analyses keep using your real search data."}
+              </Text>
+              <InlineStack>
+                <Button url="/app/onboarding" variant="primary">
+                  {locale === "fr" ? "Reconnecter Google" : "Reconnect Google"}
+                </Button>
+              </InlineStack>
+            </BlockStack>
+          </Banner>
+        ) : !gscConnected ? (
           <Banner
             tone="warning"
             title={
@@ -2486,7 +2511,7 @@ export default function ProductsPage() {
               </InlineStack>
             </BlockStack>
           </Banner>
-        )}
+        ) : null}
 
         {/* Free-mode limits + paid recommendations — only when provider status is known */}
         {(() => {

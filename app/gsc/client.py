@@ -18,8 +18,14 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
 from app.google_scopes import GOOGLE_OAUTH_SCOPES
-from app.gsc.token_store import delete_google_token, get_google_token, save_google_token
+from app.gsc.token_store import (
+    GOOGLE_REAUTH_REQUIRED_KEY,
+    delete_google_token,
+    get_google_token,
+    save_google_token,
+)
 from app.paths import data_dir
+from app.shop_config_store import set_shop_config
 from app.tenant_config import find_tenant_by_shop_domain
 
 logger = logging.getLogger(__name__)
@@ -119,6 +125,8 @@ def _credentials_for_shop(shop: str) -> Credentials:
         except google.auth.exceptions.RefreshError as exc:
             # Token revoked or permanently expired — clear it so the next call fails
             # immediately (not-connected) instead of looping through a doomed refresh.
+            # The flag lets the UI show "reconnect" instead of "never connected".
+            set_shop_config(shop, GOOGLE_REAUTH_REQUIRED_KEY, "1")
             delete_google_token(shop)
             raise GSCConnectionError(
                 "Google Search Console authorization has been revoked. "

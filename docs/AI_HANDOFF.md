@@ -12,6 +12,19 @@
 
 - **Date:** 2026-06-12
 - **Agent:** Claude (Fable 5)
+- **Goal:** Objectif produit « le marchand n'a rien à faire sauf (re)connecter Google » : détecter la révocation du token Google (invalid_grant, vu en prod) et afficher une bannière « Reconnexion requise » au lieu d'échouer en silence.
+- **Summary:** **Backend** : nouveau flag `google_reauth_required` dans `shop_config` (clé exportée `GOOGLE_REAUTH_REQUIRED_KEY` dans `app/gsc/token_store.py`). Posé dans les deux chemins de refresh : `app/gsc/client.py` `_credentials_for_shop` (le `except RefreshError` existant qui supprimait déjà le token) et `app/ga4/oauth.py` `get_credentials` (qui ne gérait **pas** `RefreshError` — c'était la source du 500 `invalid_grant` en prod ; il pose maintenant le flag, supprime le token et retourne `None`). Effacé dans `save_google_token` (couvre reconnexion GSC et GA4). `gsc_status` (`app/api/gsc.py`) expose `reauth_required` (flag posé **et** token absent) + message `action_required` distinct. **Frontend** : bannière 3 états sur `app._index.tsx` et `app.products.tsx` — `reauth_required` → bannière critical « Reconnexion à Google requise » avec bouton ; non connecté → bannière warning existante ; connecté → rien. Le loader de l'index appelle désormais `/gsc/status` (6e appel du `Promise.allSettled`) ; la bannière se base sur le statut OAuth réel et non plus sur la présence du fichier `gsc_performance.csv` (fallback sur l'ancien heuristique si l'appel statut échoue).
+- **Files created:** `tests/test_ga4/test_oauth_refresh.py`.
+- **Files modified:** `app/gsc/token_store.py`, `app/gsc/client.py`, `app/ga4/oauth.py`, `app/api/gsc.py`, `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.products.tsx`, `tests/test_gsc/test_client.py`, `tests/test_gsc/test_token_store.py`, `tests/test_api/test_gsc.py`.
+- **Decisions made:** Flag dans `shop_config` (clé/valeur existante, pas de migration) plutôt qu'une colonne dans `google_tokens` ; le pattern existant « token supprimé à la révocation » est conservé, le flag ne sert qu'à distinguer « jamais connecté » de « reconnexion requise ». Si un token valide existe, un flag résiduel est ignoré par `gsc_status`.
+- **Validations run:** `ruff check .` ✅ ; `pytest tests/test_gsc tests/test_api/test_gsc.py tests/test_ga4 tests/test_api/test_ga4_oauth.py -q` → 57 passed ; `pytest -q` complet (voir ci-dessous) ; `npm run typecheck` ✅ ; `npm run build` ✅.
+- **Open issues:** Cause racine des révocations = app OAuth Google en mode « Testing » (tokens révoqués après 7 jours) — action manuelle utilisateur : passer en « In production » dans Google Cloud Console.
+- **Next recommended action:** Déployer, vérifier que le shop pilote (token GA4 mort) voit la bannière « Reconnexion à Google requise », reconnecter, confirmer que la bannière disparaît et que l'import GSC repart au prochain cycle.
+
+## Previous completed task
+
+- **Date:** 2026-06-12
+- **Agent:** Claude (Fable 5)
 - **Goal:** Lenteur ressentie en naviguant entre les pages Produits et Blog.
 - **Summary:** Deux causes corrigées. (1) **`GET /products/active`** (`app/api/shops.py`, appelé à chaque ouverture de la page Produits) lisait le snapshot 10-100 Mo **synchrone dans un handler `async def`** — même anti-pattern que le fix 502 de la page Mesure. Extraction de `_build_active_products()` (sync) appelée via `asyncio.to_thread`, comportement identique. (2) **Loader Blog** (`shopify-app/app/routes/app.blog.tsx`) : 4 appels backend en série → la liste des brouillons et `market-analysis/latest` passent en `Promise.all` (indépendants) ; le brouillon sélectionné et les clusters restent séquentiels (dépendances réelles). ~4 allers-retours → ~3 dont 2 parallèles.
 - **Files modified:** `app/api/shops.py`, `shopify-app/app/routes/app.blog.tsx`.

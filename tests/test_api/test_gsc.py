@@ -57,7 +57,42 @@ def test_gsc_status_reports_disconnected_when_no_google_token_exists(monkeypatch
     body = resp.json()
     assert body["configured"] is True
     assert body["connected"] is False
+    assert body["reauth_required"] is False
     assert body["action_required"]
+
+
+def test_gsc_status_reports_reauth_required_when_google_revoked_the_token(monkeypatch) -> None:
+    monkeypatch.setenv("INTERNAL_API_SECRET", "internal")
+    with (
+        patch.dict("os.environ", ENV),
+        patch("app.api.gsc.get_google_token", return_value=None),
+        patch("app.api.gsc.get_shop_config", return_value="1"),
+        patch("app.api.gsc.latest_import_status", return_value={"available": False, "row_count": 0}),
+    ):
+        resp = TestClient(app).get("/api/shops/store.myshopify.com/gsc/status", headers=HEADERS)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["connected"] is False
+    assert body["reauth_required"] is True
+    assert "Reconnect" in body["action_required"]
+
+
+def test_gsc_status_ignores_stale_reauth_flag_when_token_exists(monkeypatch) -> None:
+    monkeypatch.setenv("INTERNAL_API_SECRET", "internal")
+    with (
+        patch.dict("os.environ", ENV),
+        patch("app.api.gsc.get_google_token", return_value={"email": "a@example.com"}),
+        patch("app.api.gsc.get_shop_config", return_value="1"),
+        patch("app.api.gsc.latest_import_status", return_value={"available": True, "row_count": 10}),
+    ):
+        resp = TestClient(app).get("/api/shops/store.myshopify.com/gsc/status", headers=HEADERS)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["connected"] is True
+    assert body["reauth_required"] is False
+    assert body["action_required"] is None
 
 
 def test_gsc_authorize_returns_authorization_url(monkeypatch) -> None:

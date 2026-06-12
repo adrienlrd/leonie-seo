@@ -7,6 +7,11 @@ from pathlib import Path
 
 from app.db_adapter import get_conn
 from app.oauth.crypto import decrypt, encrypt
+from app.shop_config_store import delete_shop_config
+
+# Set when Google revokes a refresh token (invalid_grant); cleared on reconnect.
+# Lets the UI distinguish "reconnect required" from "never connected".
+GOOGLE_REAUTH_REQUIRED_KEY = "google_reauth_required"
 
 
 def save_google_token(
@@ -20,6 +25,7 @@ def save_google_token(
     """Insert or update encrypted Google OAuth credentials for a shop."""
     now = datetime.now(UTC).isoformat()
     encrypted = encrypt(token_json)
+    delete_shop_config(shop, GOOGLE_REAUTH_REQUIRED_KEY)
     with get_conn(db_path) as conn:
         conn.execute(
             """

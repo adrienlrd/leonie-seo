@@ -103,6 +103,10 @@ def test_credentials_for_shop_clears_token_and_raises_on_invalid_grant(monkeypat
     monkeypatch.setattr(
         "app.gsc.client.delete_google_token", lambda shop, **kw: deleted.append(shop)
     )
+    flags: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(
+        "app.gsc.client.set_shop_config", lambda shop, key, value: flags.append((shop, key, value))
+    )
 
     mock_creds = MagicMock()
     mock_creds.expired = True
@@ -114,3 +118,4 @@ def test_credentials_for_shop_clears_token_and_raises_on_invalid_grant(monkeypat
             _credentials_for_shop("store.myshopify.com")
 
     assert deleted == ["store.myshopify.com"]
+    assert flags == [("store.myshopify.com", "google_reauth_required", "1")]
