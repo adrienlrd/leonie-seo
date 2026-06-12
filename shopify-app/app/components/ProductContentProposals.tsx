@@ -850,16 +850,24 @@ export function ProductContentProposals({
             onChange={() => onToggleApplyField(f.key)}
           />
         )}
-        <div style={showYellow ? { outline: "2px solid #F4C430", borderRadius: 6 } : {}}>
-          <Button size="slim" pressed={openField === f.key} onClick={() => toggleField(f.key)}>
-            {t(locale, f.labelKey)}
-          </Button>
-        </div>
         {appliedAt && (
           <span style={{ display: "inline-flex" }} title={locale === "fr" ? "Validé" : "Applied"}>
             <Icon source={CheckIcon} tone="success" />
           </span>
         )}
+        <div
+          style={
+            appliedAt
+              ? { outline: "2px solid #29845E", borderRadius: 6 }
+              : showYellow
+              ? { outline: "2px solid #F4C430", borderRadius: 6 }
+              : {}
+          }
+        >
+          <Button size="slim" pressed={openField === f.key} onClick={() => toggleField(f.key)}>
+            {t(locale, f.labelKey)}
+          </Button>
+        </div>
       </InlineStack>
     );
   });

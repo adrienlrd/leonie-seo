@@ -1500,8 +1500,29 @@ function ProductCard({
   }, [product.seo_keywords, pack]);
 
 
+  const productImageUrl = pack.current_product_images?.[0]?.url ?? null;
+
   return (
     <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface">
+      <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
+        {productImageUrl && (
+          <div style={{ flex: "0 0 30%", maxWidth: 320, minWidth: 180 }}>
+            <img
+              src={productImageUrl}
+              alt={pack.current_product_images?.[0]?.current_alt ?? product.product_title}
+              style={{
+                width: "100%",
+                height: "100%",
+                minHeight: 0,
+                aspectRatio: "4 / 3",
+                objectFit: "cover",
+                borderRadius: 12,
+                display: "block",
+              }}
+            />
+          </div>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
       <BlockStack gap="200">
         <InlineStack gap="200" align="space-between" wrap>
           <BlockStack gap="100">
@@ -1763,6 +1784,8 @@ function ProductCard({
           </Collapsible>
         )}
       </BlockStack>
+        </div>
+      </div>
     </Box>
   );
 }
