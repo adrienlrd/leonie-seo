@@ -194,6 +194,8 @@ export interface ContentTestPack {
     entry_count: number;
     applied_at: string | null;
   } | null;
+  /** Field key → ISO timestamp of the live Shopify apply ("Valider les propositions"). */
+  applied_fields?: Record<string, string>;
 }
 
 export interface BlogIdea {

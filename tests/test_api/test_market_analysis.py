@@ -333,3 +333,41 @@ def test_proposed_image_alts_accepted_in_patch_proposals() -> None:
     saved_proposals = patch_proposals.call_args.args[2]
     assert saved_proposals["proposed_image_alts"] == image_alts
     assert saved_proposals["content_quality"]["publish_ready"] is False
+
+
+def test_apply_to_shopify_persists_applied_fields_with_timestamp() -> None:
+    """A successful apply records applied_fields in the pack so the UI can show
+    a "Validé" badge and the 28-day results countdown after a reload."""
+    from app.api.market_analysis import (
+        ApplyProposalsRequest,
+        apply_market_analysis_proposals_to_shopify,
+    )
+
+    ctx = SimpleNamespace(shop="shop.myshopify.com", access_token="shpat_test")
+    analysis = _analysis_result()
+    analysis["products"][0]["content_test_pack"]["proposed_meta_title"] = "Nouveau titre"
+
+    writer = SimpleNamespace(
+        apply_product_seo=lambda *a, **kw: SimpleNamespace(applied=True, error=None)
+    )
+    with (
+        patch("app.api.market_analysis.load_latest_result", return_value=analysis),
+        patch("app.api.market_analysis.ShopifyWriter", return_value=writer),
+        patch("app.api.market_analysis.record_applied_change"),
+        patch("app.api.market_analysis.patch_product_proposals", return_value=True) as patch_pack,
+    ):
+        result = asyncio.run(
+            apply_market_analysis_proposals_to_shopify(
+                shop="shop.myshopify.com",
+                product_id="gid://shopify/Product/1",
+                ctx=ctx,
+                body=ApplyProposalsRequest(fields=["meta_title"], confirm_live_write=True),
+            )
+        )
+
+    assert result["results"]["meta_title"]["applied"] is True
+    assert "meta_title" in result["applied_fields"]
+    patch_pack.assert_called_once()
+    saved = patch_pack.call_args.args[2]
+    assert set(saved["applied_fields"].keys()) == {"meta_title"}
+    assert saved["applied_fields"]["meta_title"]  # ISO timestamp

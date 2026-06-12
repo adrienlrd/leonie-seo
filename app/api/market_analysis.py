@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -1005,7 +1006,19 @@ async def apply_market_analysis_proposals_to_shopify(
                 new_value=[item["new_alt"] for item in applied_alts],
             )
 
-    return {"shop": ctx.shop, "product_id": product_id, "results": results}
+    applied_ok = [f for f, r in results.items() if r.get("applied")]
+    applied_fields = dict(pack.get("applied_fields") or {})
+    if applied_ok:
+        now_iso = datetime.now(UTC).isoformat()
+        applied_fields.update({f: now_iso for f in applied_ok})
+        patch_product_proposals(ctx.shop, product_id, {"applied_fields": applied_fields})
+
+    return {
+        "shop": ctx.shop,
+        "product_id": product_id,
+        "results": results,
+        "applied_fields": applied_fields,
+    }
 
 
 @router.post("/shops/{shop}/market-analysis/products/remove")

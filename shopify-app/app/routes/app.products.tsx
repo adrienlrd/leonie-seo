@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { Link, useLoaderData, useFetcher } from "@remix-run/react";
 import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
   Badge,
@@ -263,6 +263,8 @@ interface ContentTestPack {
   retired_questions?: EnrichmentQuestion[];
   completed_questions?: Array<{ key: string; question: string; why_it_matters: string; placeholder: string; is_retired: boolean; answer: string }>;
   content_guardrail_reflection?: ContentGuardrailReflection;
+  /** Field key → ISO timestamp of the live Shopify apply ("Valider les propositions"). */
+  applied_fields?: Record<string, string>;
   faq_sync?: {
     applied: boolean;
     error: string | null;
@@ -358,6 +360,10 @@ interface LoaderData {
   /** Product IDs present in the latest analysis but no longer active. */
   removedProductIds: string[];
 }
+
+// Days before SEO results are measurable after applying proposals — matches the
+// J+28 milestone on the Measure page and the default reanalysis frequency.
+const MEASURE_CYCLE_DAYS = 28;
 
 // ── Revalidation guard — polling actions must not re-run the loader ───────────
 
@@ -805,10 +811,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           signal: AbortSignal.timeout(30_000),
         },
       );
-      const data = await resp.json().catch(() => ({})) as { results?: Record<string, { applied: boolean; error: string | null }>; detail?: string };
-      return json({ type: "applyToShopify", ok: resp.ok, results: data.results ?? {}, error: resp.ok ? null : (data.detail ?? `Backend ${resp.status}`) });
+      const data = await resp.json().catch(() => ({})) as { results?: Record<string, { applied: boolean; error: string | null }>; applied_fields?: Record<string, string>; detail?: string };
+      return json({ type: "applyToShopify", ok: resp.ok, results: data.results ?? {}, applied_fields: data.applied_fields ?? {}, error: resp.ok ? null : (data.detail ?? `Backend ${resp.status}`) });
     } catch (err) {
-      return json({ type: "applyToShopify", ok: false, results: {}, error: String(err) });
+      return json({ type: "applyToShopify", ok: false, results: {}, applied_fields: {}, error: String(err) });
     }
   }
 
@@ -1261,10 +1267,25 @@ function ProductCard({
     );
 
   // ── Apply-to-Shopify state ─────────────────────────────────────────────────
-  const applyFetcher = useFetcher<{ type: string; ok: boolean; results?: Record<string, { applied: boolean; error: string | null }>; error?: string | null }>();
+  const applyFetcher = useFetcher<{ type: string; ok: boolean; results?: Record<string, { applied: boolean; error: string | null }>; applied_fields?: Record<string, string>; error?: string | null }>();
   const applyLoading = applyFetcher.state !== "idle";
 
   const pack = product.content_test_pack;
+
+  // Applied fields (field → ISO date): seeded from the persisted pack, updated
+  // immediately after a successful apply so badge + countdown show without reload.
+  const [appliedFields, setAppliedFields] = useState<Record<string, string>>(
+    () => pack?.applied_fields ?? {},
+  );
+  useEffect(() => {
+    setAppliedFields(pack?.applied_fields ?? {});
+  }, [product.product_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const d = applyFetcher.data;
+    if (d?.type === "applyToShopify" && d.applied_fields && Object.keys(d.applied_fields).length > 0) {
+      setAppliedFields((prev) => ({ ...prev, ...d.applied_fields }));
+    }
+  }, [applyFetcher.data]);
   const APPLY_FIELDS: FieldKey[] = ["meta_title", "meta_description", "alt_text", "description"];
 
   const fieldHasProposal = (key: FieldKey): boolean => {
@@ -1483,6 +1504,24 @@ function ProductCard({
                 {fr ? "Valider les propositions" : "Apply proposals"}
               </Button>
             )}
+            {(() => {
+              const dates = Object.values(appliedFields);
+              if (dates.length === 0) return null;
+              const last = Math.max(...dates.map((d) => new Date(d).getTime()).filter((n) => !Number.isNaN(n)));
+              if (!Number.isFinite(last)) return null;
+              const daysLeft = MEASURE_CYCLE_DAYS - Math.floor((Date.now() - last) / 86_400_000);
+              return daysLeft > 0 ? (
+                <Text as="span" variant="bodySm" tone="subdued">
+                  {fr ? `Résultats dans ${daysLeft} j` : `Results in ${daysLeft}d`}
+                </Text>
+              ) : (
+                <Link to={localizedPath("/app/measure", locale)}>
+                  <Text as="span" variant="bodySm">
+                    {fr ? "Résultats disponibles dans Mesure" : "Results available in Measure"}
+                  </Text>
+                </Link>
+              );
+            })()}
           </InlineStack>
         </InlineStack>
 
@@ -1528,7 +1567,11 @@ function ProductCard({
         )}
 
         <ProductContentProposals
-          product={product}
+          product={
+            pack
+              ? { ...product, content_test_pack: { ...pack, applied_fields: appliedFields } }
+              : product
+          }
           locale={locale}
           isAnalyzing={isAnalyzing}
           onEnrichAndAnalyze={onEnrichAndAnalyze}

@@ -12,6 +12,19 @@
 
 - **Date:** 2026-06-12
 - **Agent:** Claude (Fable 5)
+- **Goal:** Page Produits : loader élégant sur « Régénérer avec mes réponses », badge « Validé » (et fin de l'encadré jaune) après « Valider les propositions », décompte de 28 jours avant les résultats.
+- **Summary:** **Backend** (`app/api/market_analysis.py`) : l'endpoint apply-to-shopify persiste désormais `applied_fields` (champ → ISO date) dans le `content_test_pack` via `patch_product_proposals` après chaque apply réussi, et l'expose dans sa réponse — sans ça, badge et décompte disparaissaient au rechargement. Une nouvelle analyse régénère le pack, donc l'état « validé » repart à zéro naturellement. **Frontend** : type `applied_fields` ajouté à `ContentTestPack` (shared + local app.products) ; dans `ProductContentProposals.tsx`, l'encadré jaune `#F4C430` est supprimé pour les champs appliqués (`showYellow && !appliedAt`), la checkbox est masquée et un `Badge tone="success"` « Validé »/« Applied » s'affiche (mapping `alt_text`→`image_alts`) ; `AnalysisLoader` (phrases `analysis`) sous le bouton Régénérer pendant l'analyse. Dans `app.products.tsx` : état local `appliedFields` (seedé du pack, mis à jour à la réponse du fetcher pour un retour visuel immédiat), pack fusionné passé au composant enfant, et à côté du bouton « Valider les propositions » : « Résultats dans {n} j » (`MEASURE_CYCLE_DAYS = 28`, aligné jalon J+28 de Mesure) puis lien « Résultats disponibles dans Mesure » quand le délai est écoulé.
+- **Files modified:** `app/api/market_analysis.py`, `tests/test_api/test_market_analysis.py` (nouveau test apply→applied_fields), `shopify-app/app/lib/marketAnalysisShared.tsx`, `shopify-app/app/components/ProductContentProposals.tsx`, `shopify-app/app/routes/app.products.tsx`.
+- **Decisions made:** Persistance dans le pack (même mécanisme que `faq_sync`/`schema_facts_sync`) plutôt qu'une table dédiée — le cycle de vie « reset à chaque réanalyse » est exactement le comportement voulu. 28 jours = constante frontend locale, pas la fréquence configurable du shop (le décompte parle du jalon de mesure J+28, pas du cycle de réanalyse).
+- **Validations run:** `ruff check .` ✅ ; `pytest tests/test_api/test_market_analysis.py -q` → 12 passed ; `npm run typecheck` ✅ ; `npm run build` ✅.
+- **Validations skipped:** suite pytest complète (changement Python limité à 1 endpoint, fichier de test correspondant vert).
+- **Open issues:** néant.
+- **Next recommended action:** Déployer, valider une proposition en prod : encadré jaune disparaît + badge Validé + « Résultats dans 28 j », persistant au rechargement.
+
+## Previous completed task
+
+- **Date:** 2026-06-12
+- **Agent:** Claude (Fable 5)
 - **Goal:** UX — toutes les attentes longues (générations, analyses) doivent afficher une barre de chargement élégante + une phrase vague rotative en dessous (style « Claude réfléchit »).
 - **Summary:** Nouveau composant partagé `shopify-app/app/components/AnalysisLoader.tsx` : Polaris `ProgressBar` (progress réel plafonné à 97 si le job fournit `progress/total`, sinon rampe temporelle asymptotique `1-exp(-t/τ)` calée sur `estimateMs`, plafond 92) + phrase `subdued` qui tourne toutes les 4 s avec fondu CSS. Banques de phrases FR/EN dans `i18n.ts` (`loaderPhrases(locale, kind)`, 4 jeux : `analysis`, `writing`, `profile`, `crawl`, 6 phrases chacun). Branché sur 8 endroits : analyse marché (`app.products.tsx`, progress réel), génération blog (`app.blog.tsx`, rampe 90 s), profil business + identification produits (panneaux onboarding, remplace les ProgressBar figées à 50 %), analyse approfondie (`MarketAnalysisProgressPanel.tsx`, supprime le cap 95 local), audit dashboard (`app._index.tsx`, remplace l'animation locale supprimée), analyse mono-produit (`app._index.tsx`, remplace le Spinner seul), crawl concurrents (`app.competitor-crawl.tsx`, 2 spots Spinner).
 - **Files created:** `shopify-app/app/components/AnalysisLoader.tsx`.

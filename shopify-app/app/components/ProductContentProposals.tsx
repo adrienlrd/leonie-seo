@@ -31,7 +31,8 @@ import {
 } from "@shopify/polaris";
 import { AlertTriangleIcon } from "@shopify/polaris-icons";
 import { useEffect, useState } from "react";
-import { t, type Locale } from "../lib/i18n";
+import { loaderPhrases, t, type Locale } from "../lib/i18n";
+import { AnalysisLoader } from "./AnalysisLoader";
 import {
   type ContentTestPack,
   type ProductResult,
@@ -749,16 +750,24 @@ export function ProductContentProposals({
   // button. Always available (not gated on having enrichment questions): it saves
   // whatever draft answers exist, then relaunches and persists the analysis.
   const regenerateAction = !editMode ? (
-    <InlineStack>
-      <Button
-        variant="primary"
-        loading={isAnalyzing}
-        disabled={analyzeDisabled}
-        onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
-      >
-        {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
-      </Button>
-    </InlineStack>
+    <BlockStack gap="200">
+      <InlineStack>
+        <Button
+          variant="primary"
+          loading={isAnalyzing}
+          disabled={analyzeDisabled}
+          onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
+        >
+          {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
+        </Button>
+      </InlineStack>
+      {isAnalyzing && (
+        <AnalysisLoader
+          phrases={loaderPhrases(locale, "analysis")}
+          estimateMs={150_000}
+        />
+      )}
+    </BlockStack>
   ) : null;
 
   // Transparency: where each targeted keyword comes from and where it is used.
@@ -812,10 +821,11 @@ export function ProductContentProposals({
   const fieldButtons = fields.filter((f) => f.has).map((f) => {
     const isApplyable = APPLY_FIELD_KEYS.includes(f.key);
     const isChecked = isApplyable && (checkedApplyFields?.has(f.key) ?? false);
-    const showYellow = isApplyable && fieldHasNewProposal(f.key) && isChecked;
+    const appliedAt = editedPack.applied_fields?.[f.key === "alt_text" ? "image_alts" : f.key];
+    const showYellow = isApplyable && fieldHasNewProposal(f.key) && isChecked && !appliedAt;
     return (
       <InlineStack key={f.key} gap="050" blockAlign="center">
-        {isApplyable && onToggleApplyField && (
+        {isApplyable && onToggleApplyField && !appliedAt && (
           <Checkbox
             label=""
             labelHidden
@@ -828,6 +838,9 @@ export function ProductContentProposals({
             {t(locale, f.labelKey)}
           </Button>
         </div>
+        {appliedAt && (
+          <Badge tone="success">{locale === "fr" ? "Validé" : "Applied"}</Badge>
+        )}
       </InlineStack>
     );
   });
