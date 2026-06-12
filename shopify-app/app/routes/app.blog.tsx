@@ -114,11 +114,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const prefillTitle = url.searchParams.get("title");
   const prefillCluster = url.searchParams.get("cluster");
 
-  const listRes = await callBackendForShop(
-    session.shop,
-    `/api/shops/${session.shop}/blog/drafts`,
-    { accessToken: session.accessToken },
-  );
+  // Drafts list and market analysis are independent — fetch them in parallel.
+  const [listRes, analysisRes] = await Promise.all([
+    callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/blog/drafts`,
+      { accessToken: session.accessToken },
+    ),
+    callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/market-analysis/latest`,
+      { accessToken: session.accessToken },
+    ).catch(() => null),
+  ]);
   const listData = listRes.ok ? ((await listRes.json()) as { drafts: Draft[] }) : { drafts: [] };
   const drafts = listData.drafts ?? [];
 
@@ -136,12 +144,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Load blog ideas from the latest market analysis
   let blogIdeas: BlogIdeaFlat[] = [];
   try {
-    const analysisRes = await callBackendForShop(
-      session.shop,
-      `/api/shops/${session.shop}/market-analysis/latest`,
-      { accessToken: session.accessToken },
-    );
-    if (analysisRes.ok) {
+    if (analysisRes && analysisRes.ok) {
       const analysis = (await analysisRes.json()) as { products?: Array<{
         product_id: string; product_title: string;
         content_test_pack?: { proposed_blog_ideas?: Array<{ title?: string; target_keyword?: string; intro?: string; outline?: string[] }> };

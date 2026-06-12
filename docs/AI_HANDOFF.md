@@ -11,6 +11,18 @@
 ## Last completed task
 
 - **Date:** 2026-06-12
+- **Agent:** Claude (Fable 5)
+- **Goal:** Lenteur ressentie en naviguant entre les pages Produits et Blog.
+- **Summary:** Deux causes corrigées. (1) **`GET /products/active`** (`app/api/shops.py`, appelé à chaque ouverture de la page Produits) lisait le snapshot 10-100 Mo **synchrone dans un handler `async def`** — même anti-pattern que le fix 502 de la page Mesure. Extraction de `_build_active_products()` (sync) appelée via `asyncio.to_thread`, comportement identique. (2) **Loader Blog** (`shopify-app/app/routes/app.blog.tsx`) : 4 appels backend en série → la liste des brouillons et `market-analysis/latest` passent en `Promise.all` (indépendants) ; le brouillon sélectionné et les clusters restent séquentiels (dépendances réelles). ~4 allers-retours → ~3 dont 2 parallèles.
+- **Files modified:** `app/api/shops.py`, `shopify-app/app/routes/app.blog.tsx`.
+- **Validations run:** `ruff check app/api/shops.py` ✅ ; `pytest tests/test_api/test_shops.py -q` → 13 passed ; `npm run typecheck` ✅ ; `npm run build` ✅.
+- **Validations skipped:** `pytest -q` complet (changement Python ciblé sur 1 endpoint, fichier de test correspondant vert).
+- **Open issues:** L'audit des ~10 autres endpoints `geo.py` (et désormais d'autres routers) avec lecture snapshot synchrone reste recommandé.
+- **Next recommended action:** Déployer, puis faire re-tester la navigation Produits ↔ Blog au marchand.
+
+## Previous completed task
+
+- **Date:** 2026-06-12
 - **Agent:** Claude (Sonnet 4.6)
 - **Goal:** Suite directe du fix 502 précédent — la page Mesure fonctionne mais reste lente à l'ouverture ; réduire le coût d'un cache froid en évitant la double lecture du snapshot.
 - **Summary:** Sur cache froid (juste après un redémarrage), `/geo/next-best-actions` et `/geo/control-groups` sont appelés en parallèle par le loader Mesure et **manquent tous les deux le cache au même instant** : chacun relit et re-parse le fichier snapshot (10-100 Mo) indépendamment, doublant le coût CPU/I/O même après le fix `asyncio.to_thread` de la tâche précédente (qui évite seulement de bloquer la boucle, pas le travail redondant). **Fix** (`app/api/snapshot_store.py`) : ajout d'un verrou **single-flight par chemin de fichier** (`_snapshot_load_locks`, dict de `threading.Lock` gardé par `_snapshot_load_locks_guard`). Dans `load_snapshot_from_file_or_db`, si le cache est manqué, l'appelant acquiert le verrou du chemin avant de lire+parser ; un second appelant concurrent pour le même chemin attend ce verrou puis trouve le cache déjà rempli (re-check sous `_snapshot_cache_lock` après acquisition) au lieu de relire le fichier. Le comportement observable (valeur retournée, TTL 60s, invalidation par mtime, fallback DB) est inchangé — seul le nombre de lectures disque en cas de cache-miss concurrent passe de N à 1. Ajout d'une fonction `clear_snapshot_cache()` exportée (existait déjà en interne, maintenant publique pour les tests).

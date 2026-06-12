@@ -1,5 +1,6 @@
 """Shop management endpoints."""
 
+import asyncio
 import re
 from datetime import UTC, datetime
 from typing import Annotated
@@ -137,9 +138,15 @@ async def list_active_products(ctx: Annotated[ShopContext, Depends(get_shop_cont
     product. Used by the dashboard to display the active catalog at a glance.
     """
     try:
-        data = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+        result = await asyncio.to_thread(_build_active_products, ctx)
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return result
+
+
+def _build_active_products(ctx: ShopContext) -> list[dict]:
+    """Blocking: snapshot read/parse can be a 10-100MB file, must not run on the event loop."""
+    data = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
 
     if data is None:
         return []
