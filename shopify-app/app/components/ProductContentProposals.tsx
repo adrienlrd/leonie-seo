@@ -33,6 +33,11 @@ import { AlertTriangleIcon } from "@shopify/polaris-icons";
 import { useEffect, useState } from "react";
 import { loaderPhrases, t, type Locale } from "../lib/i18n";
 import { AnalysisLoader } from "./AnalysisLoader";
+
+// Days before SEO results are measurable after applying a field — matches the
+// J+28 milestone on the Measure page. Each applied field counts down from its
+// own applied_at, and re-applying a field restarts its countdown.
+const MEASURE_CYCLE_DAYS = 28;
 import {
   type ContentTestPack,
   type ProductResult,
@@ -822,10 +827,12 @@ export function ProductContentProposals({
     const isApplyable = APPLY_FIELD_KEYS.includes(f.key);
     const isChecked = isApplyable && (checkedApplyFields?.has(f.key) ?? false);
     const appliedAt = editedPack.applied_fields?.[f.key === "alt_text" ? "image_alts" : f.key];
-    const showYellow = isApplyable && fieldHasNewProposal(f.key) && isChecked && !appliedAt;
+    // Re-checking an applied field deliberately re-arms the apply (and will
+    // restart its countdown), so the outline comes back as feedback.
+    const showYellow = isApplyable && fieldHasNewProposal(f.key) && isChecked;
     return (
       <InlineStack key={f.key} gap="050" blockAlign="center">
-        {isApplyable && onToggleApplyField && !appliedAt && (
+        {isApplyable && onToggleApplyField && (
           <Checkbox
             label=""
             labelHidden
@@ -839,7 +846,21 @@ export function ProductContentProposals({
           </Button>
         </div>
         {appliedAt && (
-          <Badge tone="success">{locale === "fr" ? "Validé" : "Applied"}</Badge>
+          <InlineStack gap="100" blockAlign="center">
+            <Badge tone="success">{locale === "fr" ? "Validé" : "Applied"}</Badge>
+            {(() => {
+              const ts = new Date(appliedAt).getTime();
+              if (Number.isNaN(ts)) return null;
+              const daysLeft = MEASURE_CYCLE_DAYS - Math.floor((Date.now() - ts) / 86_400_000);
+              return (
+                <Text as="span" variant="bodySm" tone="subdued">
+                  {daysLeft > 0
+                    ? locale === "fr" ? `Résultats dans ${daysLeft} j` : `Results in ${daysLeft}d`
+                    : locale === "fr" ? "Résultats disponibles dans Mesure" : "Results available in Measure"}
+                </Text>
+              );
+            })()}
+          </InlineStack>
         )}
       </InlineStack>
     );

@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Link, useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher } from "@remix-run/react";
 import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
   Badge,
@@ -360,10 +360,6 @@ interface LoaderData {
   /** Product IDs present in the latest analysis but no longer active. */
   removedProductIds: string[];
 }
-
-// Days before SEO results are measurable after applying proposals — matches the
-// J+28 milestone on the Measure page and the default reanalysis frequency.
-const MEASURE_CYCLE_DAYS = 28;
 
 // ── Revalidation guard — polling actions must not re-run the loader ───────────
 
@@ -1284,6 +1280,14 @@ function ProductCard({
     const d = applyFetcher.data;
     if (d?.type === "applyToShopify" && d.applied_fields && Object.keys(d.applied_fields).length > 0) {
       setAppliedFields((prev) => ({ ...prev, ...d.applied_fields }));
+      // Uncheck just-applied fields: re-applying must be a deliberate re-check.
+      setCheckedApplyFields((prev) => {
+        const next = new Set(prev);
+        for (const key of Object.keys(d.applied_fields ?? {})) {
+          next.delete((key === "image_alts" ? "alt_text" : key) as FieldKey);
+        }
+        return next;
+      });
     }
   }, [applyFetcher.data]);
   const APPLY_FIELDS: FieldKey[] = ["meta_title", "meta_description", "alt_text", "description"];
@@ -1298,13 +1302,19 @@ function ProductCard({
     }
   };
 
-  const [checkedApplyFields, setCheckedApplyFields] = useState<Set<FieldKey>>(
-    () => new Set(APPLY_FIELDS.filter(fieldHasProposal)),
-  );
+  // Default-checked: fields with a proposal that were NOT already applied —
+  // applied fields must be re-checked deliberately to re-apply (and restart
+  // their countdown).
+  const isFieldApplied = (key: FieldKey): boolean =>
+    Boolean((pack?.applied_fields ?? {})[key === "alt_text" ? "image_alts" : key]);
+  const defaultChecked = () =>
+    new Set(APPLY_FIELDS.filter((f) => fieldHasProposal(f) && !isFieldApplied(f)));
+
+  const [checkedApplyFields, setCheckedApplyFields] = useState<Set<FieldKey>>(defaultChecked);
 
   const packSig = JSON.stringify(pack);
   useEffect(() => {
-    setCheckedApplyFields(new Set(APPLY_FIELDS.filter(fieldHasProposal)));
+    setCheckedApplyFields(defaultChecked());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.product_id, packSig]);
 
@@ -1504,24 +1514,6 @@ function ProductCard({
                 {fr ? "Valider les propositions" : "Apply proposals"}
               </Button>
             )}
-            {(() => {
-              const dates = Object.values(appliedFields);
-              if (dates.length === 0) return null;
-              const last = Math.max(...dates.map((d) => new Date(d).getTime()).filter((n) => !Number.isNaN(n)));
-              if (!Number.isFinite(last)) return null;
-              const daysLeft = MEASURE_CYCLE_DAYS - Math.floor((Date.now() - last) / 86_400_000);
-              return daysLeft > 0 ? (
-                <Text as="span" variant="bodySm" tone="subdued">
-                  {fr ? `Résultats dans ${daysLeft} j` : `Results in ${daysLeft}d`}
-                </Text>
-              ) : (
-                <Link to={localizedPath("/app/measure", locale)}>
-                  <Text as="span" variant="bodySm">
-                    {fr ? "Résultats disponibles dans Mesure" : "Results available in Measure"}
-                  </Text>
-                </Link>
-              );
-            })()}
           </InlineStack>
         </InlineStack>
 
