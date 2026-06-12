@@ -1000,21 +1000,6 @@ function PaidRecommendedCard({
   );
 }
 
-function KeywordSourceBadge({ source, locale }: { source: KeywordSource | undefined; locale: Locale }) {
-  if (!source) return null;
-  if (source === "gsc") return <Badge tone="success">{t(locale, "marketAnalysisSourceGsc")}</Badge>;
-  if (source === "dataforseo") return <Badge tone="success">{t(locale, "marketAnalysisSourceDataforseo")}</Badge>;
-  if (source === "ga4") return <Badge tone="success">{t(locale, "marketAnalysisSourceGa4")}</Badge>;
-  if (source === "google_suggest") return <Badge tone="info">{t(locale, "marketAnalysisSourceSuggest")}</Badge>;
-  if (source === "trends") return <Badge tone="info">{t(locale, "marketAnalysisSourceTrends")}</Badge>;
-  if (source === "shopify") return <Badge tone="info">{t(locale, "marketAnalysisSourceShopify")}</Badge>;
-  if (source === "parent_estimated") {
-    return <Badge tone="info">{locale === "fr" ? "Estimé via parent" : "Parent-estimated"}</Badge>;
-  }
-  if (source === "llm_proposed") return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlmProposed")}</Badge>;
-  return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlm")}</Badge>;
-}
-
 function tagToneInAdded(tag: ImprovementTag): "success" | "critical" | "attention" | "warning" | "info" {
   if (tag.tag_type === "keyword") return "attention";
   if (tag.tag_type === "risk") return "critical";
@@ -1366,6 +1351,16 @@ function ProductCard({
   const keywordTagLabels = new Set(
     localTags.filter((t) => t.tag_type === "keyword").map((t) => t.label.toLowerCase()),
   );
+  const addedKeywordLabels = new Set(
+    localTags
+      .filter((t) => t.tag_type === "keyword" && t.status !== "negative")
+      .map((t) => t.label.toLowerCase()),
+  );
+  const retiredKeywordLabels = new Set(
+    localTags
+      .filter((t) => t.tag_type === "keyword" && t.status === "negative")
+      .map((t) => t.label.toLowerCase()),
+  );
 
   const onToggleBucket = (b: "added" | "retired") =>
     setOpenBucket((p) => (p === b ? null : b));
@@ -1669,7 +1664,7 @@ function ProductCard({
           <Collapsible id={`kw-${product.product_id}`} open={openSection === "keywords"}>
               <Box paddingBlockStart="200">
                 <BlockStack gap="200">
-                  {displayedKeywords.filter((k) => !keywordTagLabels.has(k.query.toLowerCase())).map((k, idx) => (
+                  {displayedKeywords.map((k, idx) => (
                     <Box
                       key={`${k.query}-${idx}`}
                       padding="200"
@@ -1681,7 +1676,13 @@ function ProductCard({
                       <BlockStack gap="100">
                         <InlineStack gap="200" align="space-between" wrap blockAlign="center">
                           <InlineStack gap="200" blockAlign="center" wrap>
-                            <Badge tone="attention">{k.query}</Badge>
+                            {addedKeywordLabels.has(k.query.toLowerCase()) ? (
+                              <Badge tone="attention">{k.query}</Badge>
+                            ) : retiredKeywordLabels.has(k.query.toLowerCase()) ? (
+                              <Badge tone="critical">{k.query}</Badge>
+                            ) : (
+                              <Text as="span" variant="bodySm" fontWeight="semibold">{k.query}</Text>
+                            )}
                             <Badge>{k.intent_type || "—"}</Badge>
                             {(k.target_role === "primary" || k.target_role === "secondary") && (
                               <Badge tone={k.target_role === "primary" ? "success" : "info"}>
@@ -1690,7 +1691,6 @@ function ProductCard({
                                   : (fr ? "Cible secondaire" : "Secondary target")}
                               </Badge>
                             )}
-                            <KeywordSourceBadge source={k.data_source} locale={locale} />
                             {usedKeywords.has(k.query.toLowerCase()) && (
                               <Badge tone="success">
                                 {fr ? "Couvert" : "Covered"}
@@ -1722,39 +1722,43 @@ function ProductCard({
                             <Badge tone={scoreTone(k.product_fit_score)}>
                               {`Fit ${k.product_fit_score}`}
                             </Badge>
-                            <Button size="slim" onClick={() => addKeywordTag(k.query)}>
-                              {fr ? "Ajouter" : "Add"}
-                            </Button>
-                            <Button size="slim" variant="plain" tone="critical" onClick={() => retireKeywordTag(k.query)}>
-                              {fr ? "Retirer" : "Retire"}
-                            </Button>
+                            {!addedKeywordLabels.has(k.query.toLowerCase()) && (
+                              <Button size="slim" onClick={() => addKeywordTag(k.query)}>
+                                {fr ? "Ajouter" : "Add"}
+                              </Button>
+                            )}
+                            {!retiredKeywordLabels.has(k.query.toLowerCase()) && (
+                              <Button size="slim" variant="plain" tone="critical" onClick={() => retireKeywordTag(k.query)}>
+                                {fr ? "Retirer" : "Retire"}
+                              </Button>
+                            )}
                           </InlineStack>
                         </InlineStack>
                         <InlineStack gap="300" wrap>
-                          <Text as="span" variant="bodySm" tone="subdued">
-                            {t(locale, "marketAnalysisVolume")}:{" "}
-                            {k.search_volume != null ? (
-                              <strong>{k.search_volume.toLocaleString()}</strong>
-                            ) : k.search_volume_estimated_ceiling != null && k.estimated_from_parent ? (
-                              <>
-                                <strong>≤ {k.search_volume_estimated_ceiling.toLocaleString()}</strong>
-                                <em>
-                                  {" "}
-                                  ({fr ? "estimé via" : "estimated via"} « {k.estimated_from_parent} »)
-                                </em>
-                              </>
-                            ) : (
-                              <em>{t(locale, "marketAnalysisPaidUnavailable")}</em>
-                            )}
-                          </Text>
-                          <Text as="span" variant="bodySm" tone="subdued">
-                            {t(locale, "marketAnalysisCpc")}:{" "}
-                            {k.cpc != null ? <strong>{k.cpc}€</strong> : <em>—</em>}
-                          </Text>
-                          <Text as="span" variant="bodySm" tone="subdued">
-                            {t(locale, "marketAnalysisAdsCompetition")}:{" "}
-                            {k.ads_competition != null ? <strong>{k.ads_competition}</strong> : <em>—</em>}
-                          </Text>
+                          {k.search_volume != null ? (
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {t(locale, "marketAnalysisVolume")}: <strong>{k.search_volume.toLocaleString()}</strong>
+                            </Text>
+                          ) : k.search_volume_estimated_ceiling != null && k.estimated_from_parent ? (
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {t(locale, "marketAnalysisVolume")}:{" "}
+                              <strong>≤ {k.search_volume_estimated_ceiling.toLocaleString()}</strong>
+                              <em>
+                                {" "}
+                                ({fr ? "estimé via" : "estimated via"} « {k.estimated_from_parent} »)
+                              </em>
+                            </Text>
+                          ) : null}
+                          {k.cpc != null && (
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {t(locale, "marketAnalysisCpc")}: <strong>{k.cpc}€</strong>
+                            </Text>
+                          )}
+                          {k.ads_competition != null && (
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {t(locale, "marketAnalysisAdsCompetition")}: <strong>{k.ads_competition}</strong>
+                            </Text>
+                          )}
                           {k.gsc_impressions != null && (
                             <Text as="span" variant="bodySm" tone="subdued">
                               GSC: <strong>{k.gsc_impressions}</strong> impr., pos {k.gsc_position}
@@ -1772,11 +1776,14 @@ function ProductCard({
                             {coverageByKeyword.get(k.query.toLowerCase())!.join(", ")}
                           </Text>
                         )}
-                        {k.notes && k.notes.length > 0 && (
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            {k.notes.join(" · ")}
-                          </Text>
-                        )}
+                        {(() => {
+                          const notes = (k.notes ?? []).filter((n) => !/^seed (ajouté|added)/i.test(n));
+                          return notes.length > 0 ? (
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {notes.join(" · ")}
+                            </Text>
+                          ) : null;
+                        })()}
                       </BlockStack>
                     </Box>
                   ))}
