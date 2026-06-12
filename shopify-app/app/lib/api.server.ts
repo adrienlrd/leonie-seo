@@ -8,8 +8,15 @@
  *                          session access token so Python can resolve context)
  */
 
-const PYTHON_BACKEND_URL =
-  process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
+// Render's private-network `fromService` (property: hostport) returns "host:port"
+// without a scheme — the internal network is plain HTTP, so default to that.
+function normalizeBackendUrl(value: string): string {
+  return /^https?:\/\//.test(value) ? value : `http://${value}`;
+}
+
+const PYTHON_BACKEND_URL = normalizeBackendUrl(
+  process.env.PYTHON_BACKEND_URL || "http://localhost:8000"
+);
 
 const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET || "";
 

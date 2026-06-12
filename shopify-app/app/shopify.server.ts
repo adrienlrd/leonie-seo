@@ -8,10 +8,12 @@ import {
 } from "@shopify/shopify-app-remix/server";
 import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
 import { PostgreSQLSessionStorage } from "@shopify/shopify-app-session-storage-postgresql";
+import { RedisSessionStorage } from "@shopify/shopify-app-session-storage-redis";
 import { callBackendForShop } from "./lib/api.server";
 
-// Use Postgres session storage when DATABASE_URL is configured (production + staging).
-// The same Neon database provisioned in task 54 stores both app data and OAuth sessions.
+// Session storage priority: Redis > Postgres > SQLite.
+// Redis avoids a Postgres round-trip on every authenticate.admin() call (every
+// embedded app navigation), which matters once many merchants are active.
 // Cast silences a TypeScript peer-dep skew (shopify-api v11 vs v12); runtime-compatible.
 function requireSslMode(databaseUrl: string): string {
   const url = new URL(databaseUrl);
@@ -25,11 +27,13 @@ const databaseUrl = process.env.DATABASE_URL
   ? requireSslMode(process.env.DATABASE_URL)
   : undefined;
 
-const sessionStorage = databaseUrl
-  ? (new PostgreSQLSessionStorage(databaseUrl) as unknown)
-  : (new SQLiteSessionStorage(
-      path.resolve(process.cwd(), "../data/shopify-sessions.db")
-    ) as unknown);
+const sessionStorage = process.env.REDIS_URL
+  ? (new RedisSessionStorage(new URL(process.env.REDIS_URL)) as unknown)
+  : databaseUrl
+    ? (new PostgreSQLSessionStorage(databaseUrl) as unknown)
+    : (new SQLiteSessionStorage(
+        path.resolve(process.cwd(), "../data/shopify-sessions.db")
+      ) as unknown);
 const appUrl = process.env.SHOPIFY_APP_URL || "";
 const skipWebhookRegistration = (() => {
   try {
@@ -40,7 +44,9 @@ const skipWebhookRegistration = (() => {
   }
 })();
 
-if (!process.env.DATABASE_URL) {
+if (process.env.REDIS_URL) {
+  console.info("[shopify.server] REDIS_URL set — using Redis session storage");
+} else if (!process.env.DATABASE_URL) {
   console.info(
     "[shopify.server] DATABASE_URL not set — using SQLite session storage at data/shopify-sessions.db"
   );

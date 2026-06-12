@@ -27,7 +27,15 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: PYTHON_BACKEND_URL
-        sync: false
+        fromService:
+          type: web
+          name: leonie-seo-pilot-api
+          property: hostport
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: leonie-seo-pilot-sessions
+          property: connectionString
       - key: INTERNAL_API_SECRET
         sync: false
 
@@ -83,3 +91,12 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+
+  # Shopify session storage for leonie-seo-pilot-web. Sub-millisecond reads vs a
+  # Postgres round-trip on every authenticate.admin() call (every embedded app
+  # navigation, for every merchant).
+  - type: keyvalue
+    name: leonie-seo-pilot-sessions
+    region: frankfurt
+    plan: starter
+    ipAllowList: []
