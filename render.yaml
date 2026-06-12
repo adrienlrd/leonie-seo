@@ -27,10 +27,7 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: PYTHON_BACKEND_URL
-        fromService:
-          type: web
-          name: leonie-seo-pilot-api
-          property: hostport
+        sync: false
       - key: REDIS_URL
         fromService:
           type: keyvalue
