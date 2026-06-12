@@ -1711,18 +1711,6 @@ function ProductCard({
                           <InlineStack gap="200" blockAlign="center" wrap>
                             <Text as="span" variant="bodySm" fontWeight="semibold">{k.query}</Text>
                             <Badge>{k.intent_type || "—"}</Badge>
-                            {(k.target_role === "primary" || k.target_role === "secondary") && (
-                              <Badge tone={k.target_role === "primary" ? "success" : "info"}>
-                                {k.target_role === "primary"
-                                  ? (fr ? "Cible principale" : "Primary target")
-                                  : (fr ? "Cible secondaire" : "Secondary target")}
-                              </Badge>
-                            )}
-                            {usedKeywords.has(k.query.toLowerCase()) && (
-                              <Badge tone="success">
-                                {fr ? "Couvert" : "Covered"}
-                              </Badge>
-                            )}
                           </InlineStack>
                           <InlineStack gap="100" blockAlign="center">
                             {k.priority_score != null && (
