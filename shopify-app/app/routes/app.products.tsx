@@ -1676,10 +1676,11 @@ function ProductCard({
                       <BlockStack gap="100">
                         <InlineStack gap="200" align="space-between" wrap blockAlign="center">
                           <InlineStack gap="200" blockAlign="center" wrap>
-                            {addedKeywordLabels.has(k.query.toLowerCase()) ? (
-                              <Badge tone="attention">{k.query}</Badge>
-                            ) : retiredKeywordLabels.has(k.query.toLowerCase()) ? (
+                            {retiredKeywordLabels.has(k.query.toLowerCase()) ? (
                               <Badge tone="critical">{k.query}</Badge>
+                            ) : addedKeywordLabels.has(k.query.toLowerCase()) ||
+                              usedKeywords.has(k.query.toLowerCase()) ? (
+                              <Badge tone="attention">{k.query}</Badge>
                             ) : (
                               <Text as="span" variant="bodySm" fontWeight="semibold">{k.query}</Text>
                             )}
@@ -1722,7 +1723,8 @@ function ProductCard({
                             <Badge tone={scoreTone(k.product_fit_score)}>
                               {`Fit ${k.product_fit_score}`}
                             </Badge>
-                            {!addedKeywordLabels.has(k.query.toLowerCase()) && (
+                            {!addedKeywordLabels.has(k.query.toLowerCase()) &&
+                              !usedKeywords.has(k.query.toLowerCase()) && (
                               <Button size="slim" onClick={() => addKeywordTag(k.query)}>
                                 {fr ? "Ajouter" : "Add"}
                               </Button>
@@ -1777,7 +1779,9 @@ function ProductCard({
                           </Text>
                         )}
                         {(() => {
-                          const notes = (k.notes ?? []).filter((n) => !/^seed (ajouté|added)/i.test(n));
+                          const notes = (k.notes ?? []).filter(
+                            (n) => !/^seed (ajouté|added)/i.test(n) && !/aucune donnée gsc|no gsc data/i.test(n),
+                          );
                           return notes.length > 0 ? (
                             <Text as="p" variant="bodySm" tone="subdued">
                               {notes.join(" · ")}
