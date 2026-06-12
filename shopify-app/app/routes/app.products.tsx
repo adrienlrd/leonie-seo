@@ -1034,6 +1034,7 @@ function ImprovementTags({
   onNewLabelChange,
   onAdd,
   locale,
+  leading,
 }: {
   addedTags: ImprovementTag[];
   retiredTags: ImprovementTag[];
@@ -1045,11 +1046,13 @@ function ImprovementTags({
   onNewLabelChange: (v: string) => void;
   onAdd: () => void;
   locale: Locale;
+  leading?: React.ReactNode;
 }) {
   const fr = locale === "fr";
   return (
     <BlockStack gap="200">
       <InlineStack gap="150">
+        {leading}
         <Button
           size="slim"
           pressed={openBucket === "added"}
@@ -1549,6 +1552,15 @@ function ProductCard({
           onNewLabelChange={setNewTagLabel}
           onAdd={addManualTag}
           locale={locale}
+          leading={
+            displayedKeywords.length > 0 ? (
+              <Button size="slim" pressed={openSection === "keywords"} onClick={() => toggle("keywords")}>
+                {fr
+                  ? `Mots-clés (${displayedKeywords.filter((k) => !keywordTagLabels.has(k.query.toLowerCase())).length})`
+                  : `Keywords (${displayedKeywords.filter((k) => !keywordTagLabels.has(k.query.toLowerCase())).length})`}
+              </Button>
+            ) : null
+          }
         />
 
         {applyResult && (
@@ -1592,28 +1604,13 @@ function ProductCard({
           hideRegenerateButton
         />
 
-        {/* Uncommitted keywords = those not yet in localTags as keyword type */}
-        {(() => {
-          const uncommitted = displayedKeywords.filter(
-            (k) => !keywordTagLabels.has(k.query.toLowerCase()),
-          );
-          return (
-            <InlineStack gap="150" wrap>
-              {displayedKeywords.length > 0 && (
-                <Button size="slim" pressed={openSection === "keywords"} onClick={() => toggle("keywords")}>
-                  {fr
-                    ? `Mots-clés (${uncommitted.length})`
-                    : `Keywords (${uncommitted.length})`}
-                </Button>
-              )}
-              {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (
-                <Button size="slim" pressed={openSection === "links"} onClick={() => toggle("links")}>
-                  {`${t(locale, "marketAnalysisInternalLinks")} (${pack.recommended_internal_links.length})`}
-                </Button>
-              )}
-            </InlineStack>
-          );
-        })()}
+        {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (
+          <InlineStack gap="150" wrap>
+            <Button size="slim" pressed={openSection === "links"} onClick={() => toggle("links")}>
+              {`${t(locale, "marketAnalysisInternalLinks")} (${pack.recommended_internal_links.length})`}
+            </Button>
+          </InlineStack>
+        )}
 
         {displayedKeywords.length > 0 && (
           <Collapsible id={`kw-${product.product_id}`} open={openSection === "keywords"}>
