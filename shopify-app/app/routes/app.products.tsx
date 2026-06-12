@@ -1682,9 +1682,24 @@ function ProductCard({
                           : 1;
                       return rank(a.query) - rank(b.query);
                     })
-                    .map((k, idx) => (
-                    <Box
+                    .map((k, idx) => {
+                      const isRetired = retiredKeywordLabels.has(k.query.toLowerCase());
+                      const isAdded =
+                        !isRetired &&
+                        (addedKeywordLabels.has(k.query.toLowerCase()) ||
+                          usedKeywords.has(k.query.toLowerCase()));
+                      return (
+                    <div
                       key={`${k.query}-${idx}`}
+                      style={
+                        isRetired
+                          ? { outline: "2px solid var(--p-color-border-critical)", borderRadius: 8 }
+                          : isAdded
+                          ? { outline: "2px solid #F4C430", borderRadius: 8 }
+                          : {}
+                      }
+                    >
+                    <Box
                       padding="200"
                       borderWidth="025"
                       borderRadius="200"
@@ -1694,14 +1709,7 @@ function ProductCard({
                       <BlockStack gap="100">
                         <InlineStack gap="200" align="space-between" wrap blockAlign="center">
                           <InlineStack gap="200" blockAlign="center" wrap>
-                            {retiredKeywordLabels.has(k.query.toLowerCase()) ? (
-                              <Badge tone="critical">{k.query}</Badge>
-                            ) : addedKeywordLabels.has(k.query.toLowerCase()) ||
-                              usedKeywords.has(k.query.toLowerCase()) ? (
-                              <Badge tone="attention">{k.query}</Badge>
-                            ) : (
-                              <Text as="span" variant="bodySm" fontWeight="semibold">{k.query}</Text>
-                            )}
+                            <Text as="span" variant="bodySm" fontWeight="semibold">{k.query}</Text>
                             <Badge>{k.intent_type || "—"}</Badge>
                             {(k.target_role === "primary" || k.target_role === "secondary") && (
                               <Badge tone={k.target_role === "primary" ? "success" : "info"}>
@@ -1772,7 +1780,9 @@ function ProductCard({
                         })()}
                       </BlockStack>
                     </Box>
-                  ))}
+                    </div>
+                      );
+                    })}
                 </BlockStack>
               </Box>
             </Collapsible>
