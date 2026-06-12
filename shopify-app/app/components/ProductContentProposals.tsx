@@ -65,6 +65,7 @@ export function ProductContentProposals({
   onRetireQuestion,
   onRestoreQuestion,
   onValidateQuestion,
+  enrichmentOpen,
 }: {
   product: ProductResult;
   locale: Locale;
@@ -78,6 +79,11 @@ export function ProductContentProposals({
   onRetireQuestion?: (key: string) => void;
   onRestoreQuestion?: (key: string) => void;
   onValidateQuestion?: (key: string, answer: string) => void;
+  /**
+   * Controlled mode: when defined, the parent owns the "Améliorer le contenu"
+   * toggle (e.g. a button in its own toolbar) and the internal one is hidden.
+   */
+  enrichmentOpen?: boolean;
 }) {
   const pack = product.content_test_pack;
   // Optimistic local state — updates immediately on retire/restore without waiting for server
@@ -656,20 +662,25 @@ export function ProductContentProposals({
 
   const hasContent = activeEnrichmentQuestions.length > 0 || allCompletedQuestions.length > 0;
 
-  const enrichmentBlock = !editMode && hasContent ? (
+  const controlledEnrichment = enrichmentOpen !== undefined;
+  const enrichmentIsOpen = controlledEnrichment ? enrichmentOpen : showEnrichmentQuestions;
+
+  const enrichmentBlock = !editMode && hasContent && (!controlledEnrichment || enrichmentIsOpen) ? (
     <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border-secondary">
       <BlockStack gap="200">
-        <InlineStack>
-          <Button
-            size="slim"
-            pressed={showEnrichmentQuestions}
-            onClick={() => setShowEnrichmentQuestions((v) => !v)}
-          >
-            {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
-            {activeEnrichmentQuestions.length > 0 ? ` (${activeEnrichmentQuestions.length})` : ""}
-          </Button>
-        </InlineStack>
-        <Collapsible id={`enrichment-${product.product_id}`} open={showEnrichmentQuestions}>
+        {!controlledEnrichment && (
+          <InlineStack>
+            <Button
+              size="slim"
+              pressed={showEnrichmentQuestions}
+              onClick={() => setShowEnrichmentQuestions((v) => !v)}
+            >
+              {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
+              {activeEnrichmentQuestions.length > 0 ? ` (${activeEnrichmentQuestions.length})` : ""}
+            </Button>
+          </InlineStack>
+        )}
+        <Collapsible id={`enrichment-${product.product_id}`} open={enrichmentIsOpen}>
           <BlockStack gap="300">
             <Text as="p" variant="bodySm" tone="subdued">
               {locale === "fr"
@@ -831,7 +842,7 @@ export function ProductContentProposals({
     const showYellow = isApplyable && fieldHasNewProposal(f.key) && isChecked;
     return (
       <InlineStack key={f.key} gap="050" blockAlign="center">
-        {isApplyable && onToggleApplyField && (
+        {isApplyable && onToggleApplyField && !appliedAt && (
           <Checkbox
             label=""
             labelHidden

@@ -1035,6 +1035,7 @@ function ImprovementTags({
   onAdd,
   locale,
   leading,
+  trailing,
 }: {
   addedTags: ImprovementTag[];
   retiredTags: ImprovementTag[];
@@ -1047,6 +1048,7 @@ function ImprovementTags({
   onAdd: () => void;
   locale: Locale;
   leading?: React.ReactNode;
+  trailing?: React.ReactNode;
 }) {
   const fr = locale === "fr";
   return (
@@ -1069,6 +1071,7 @@ function ImprovementTags({
             {fr ? `Tags retirés (${retiredTags.length})` : `Retired tags (${retiredTags.length})`}
           </Button>
         )}
+        {trailing}
       </InlineStack>
 
       {openBucket === "added" && (
@@ -1258,6 +1261,7 @@ function ProductCard({
   const fr = locale === "fr";
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
+  const [enrichmentOpen, setEnrichmentOpen] = useState(false);
 
   // ── Question retire/restore ───────────────────────────────────────────────
   const questionFetcher = useFetcher<{ type: string; ok: boolean }>();
@@ -1564,6 +1568,19 @@ function ProductCard({
               </Button>
             ) : null
           }
+          trailing={(() => {
+            const completedKeys = new Set((pack.completed_questions ?? []).map((q) => q.key));
+            const retiredKeys = new Set(pack.retired_question_keys ?? []);
+            const activeCount = (pack.enrichment_questions ?? []).filter(
+              (q) => !completedKeys.has(q.key) && !retiredKeys.has(q.key),
+            ).length;
+            const hasQuestions = activeCount > 0 || completedKeys.size > 0 || retiredKeys.size > 0;
+            return hasQuestions ? (
+              <Button size="slim" pressed={enrichmentOpen} onClick={() => setEnrichmentOpen((v) => !v)}>
+                {(fr ? "Améliorer le contenu" : "Improve content") + (activeCount > 0 ? ` (${activeCount})` : "")}
+              </Button>
+            ) : null;
+          })()}
         />
 
         {applyResult && (
@@ -1604,6 +1621,7 @@ function ProductCard({
           onRetireQuestion={onRetireQuestion}
           onRestoreQuestion={onRestoreQuestion}
           onValidateQuestion={onValidateQuestion}
+          enrichmentOpen={enrichmentOpen}
         />
 
         {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (
