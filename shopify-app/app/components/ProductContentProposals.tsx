@@ -65,7 +65,6 @@ export function ProductContentProposals({
   onRetireQuestion,
   onRestoreQuestion,
   onValidateQuestion,
-  hideRegenerateButton = false,
 }: {
   product: ProductResult;
   locale: Locale;
@@ -79,8 +78,6 @@ export function ProductContentProposals({
   onRetireQuestion?: (key: string) => void;
   onRestoreQuestion?: (key: string) => void;
   onValidateQuestion?: (key: string, answer: string) => void;
-  /** Hide the inline regenerate button (the parent renders its own, e.g. a header icon). */
-  hideRegenerateButton?: boolean;
 }) {
   const pack = product.content_test_pack;
   // Optimistic local state — updates immediately on retire/restore without waiting for server
@@ -768,27 +765,13 @@ export function ProductContentProposals({
   // Sole single-product analyze action — replaces the old "Analyze this product"
   // button. Always available (not gated on having enrichment questions): it saves
   // whatever draft answers exist, then relaunches and persists the analysis.
-  const regenerateAction = !editMode ? (
-    <BlockStack gap="200">
-      {!hideRegenerateButton && (
-        <InlineStack>
-          <Button
-            variant="primary"
-            loading={isAnalyzing}
-            disabled={analyzeDisabled}
-            onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
-          >
-            {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
-          </Button>
-        </InlineStack>
-      )}
-      {isAnalyzing && (
-        <AnalysisLoader
-          phrases={loaderPhrases(locale, "analysis")}
-          estimateMs={150_000}
-        />
-      )}
-    </BlockStack>
+  // The regenerate button itself lives at the bottom of the "Améliorer le
+  // contenu" panel (enrichmentBlock); here we only surface the progress loader.
+  const regenerateAction = !editMode && isAnalyzing ? (
+    <AnalysisLoader
+      phrases={loaderPhrases(locale, "analysis")}
+      estimateMs={150_000}
+    />
   ) : null;
 
   // Transparency: where each targeted keyword comes from and where it is used.

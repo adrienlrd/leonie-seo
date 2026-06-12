@@ -1592,7 +1592,6 @@ function ProductCard({
           onRetireQuestion={onRetireQuestion}
           onRestoreQuestion={onRestoreQuestion}
           onValidateQuestion={onValidateQuestion}
-          hideRegenerateButton
         />
 
         {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (
