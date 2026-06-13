@@ -169,17 +169,3 @@ def test_live_apply_blocked_without_confirmation(mock_env) -> None:
     assert resp.status_code == 409
 
 
-def test_live_apply_pilot_safe_mode_blocked(mock_env, monkeypatch) -> None:
-    monkeypatch.setenv("LEONIE_PILOT_SAFE_MODE", "true")
-    result = _make_result(status=ContentStatus.APPROVED)
-    with (
-        patch("app.api.safe_apply._load_action", return_value=result),
-        patch("app.api.safe_apply.get_features") as mock_features,
-    ):
-        mock_features.return_value.can_apply = True
-        client = _make_client()
-        resp = client.post(
-            f"/api/shops/{_SHOP}/safe-apply/live?plan=pro",
-            json={"action_id": "act-1", "confirm_live_write": True},
-        )
-    assert resp.status_code == 403

@@ -90,24 +90,6 @@ def test_dashboard_zone1_null_when_no_products(mock_env) -> None:
     assert z1["products_in_scope"] == 0
 
 
-def test_dashboard_pilot_safe_banner(mock_env, monkeypatch) -> None:
-    monkeypatch.setenv("LEONIE_PILOT_SAFE_MODE", "true")
-    with (
-        patch("app.api.dashboard._load_snapshot", return_value=_empty_snapshot()),
-        patch("app.api.dashboard._load_crawl_findings", return_value=[]),
-        patch("app.api.dashboard.get_validated_niche_hypothesis", return_value=None),
-        patch("app.api.dashboard._find_gsc_file", return_value=None),
-        patch("app.api.dashboard._load_gsc_query_rows", return_value=[]),
-        patch("app.api.dashboard.list_geo_events", return_value=[]),
-        patch("app.api.dashboard.build_priority_actions", return_value={"actions": [], "sparse_signal": True}),
-        patch("app.api.dashboard.get_shop_metrics", return_value={"total_cost_usd": 0.0}),
-        patch("app.api.dashboard.check_budget", side_effect=Exception("no db")),
-    ):
-        client = _make_client()
-        resp = client.get(f"/api/shops/{_SHOP}/dashboard")
-    assert resp.json()["banners"]["pilot_safe"] is True
-
-
 def test_dashboard_llm_budget_pro_plan(mock_env) -> None:
     with (
         patch("app.api.dashboard._load_snapshot", return_value=_empty_snapshot()),

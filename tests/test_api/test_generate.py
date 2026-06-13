@@ -120,15 +120,3 @@ def test_enqueue_bulk_apply_live_requires_explicit_confirmation(client: TestClie
     assert enqueued == []
 
 
-def test_enqueue_bulk_apply_pilot_safe_blocks_live_even_when_confirmed(client: TestClient):
-    with (
-        patch("app.api.deps.get_token", return_value=None),
-        patch.dict("os.environ", {"LEONIE_PILOT_SAFE_MODE": "true"}),
-    ):
-        resp = client.post(
-            f"/api/shops/{SHOP}/generate/meta/apply",
-            json={"dry_run": False, "confirm_live_write": True},
-        )
-
-    assert resp.status_code == 403
-    assert "Pilot-safe mode blocks live Shopify writes" in resp.json()["detail"]

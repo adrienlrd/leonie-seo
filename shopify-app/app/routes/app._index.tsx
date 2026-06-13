@@ -1487,11 +1487,6 @@ export default function IndexPage() {
     <Page title="Giulio Geo">
       <BlockStack gap="400">
         {/* Banners */}
-        {banners.pilot_safe && (
-          <Banner tone="warning">
-            <p>{t(locale, "dashboardPilotSafeBanner")}</p>
-          </Banner>
-        )}
         {auditRunning && (
           <Banner tone="info">
             <AnalysisLoader

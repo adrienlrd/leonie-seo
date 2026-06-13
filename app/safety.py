@@ -7,13 +7,14 @@ import os
 from fastapi import HTTPException
 
 
-def _is_truthy(value: str | None) -> bool:
-    return (value or "").strip().lower() in {"1", "true", "yes", "on"}
-
-
 def is_pilot_safe_mode() -> bool:
-    """Return whether live Shopify writes are blocked for the pilot."""
-    return _is_truthy(os.getenv("LEONIE_PILOT_SAFE_MODE"))
+    """Pilot-safe mode is permanently disabled — live Shopify writes are always
+    allowed (gated only by per-write ``confirm_live_write`` confirmation).
+
+    Kept as a single chokepoint returning False so the env var
+    ``LEONIE_PILOT_SAFE_MODE`` can never re-block writes from configuration.
+    """
+    return False
 
 
 _THEME_WRITE_MODES = {"disabled", "review_safe", "live"}

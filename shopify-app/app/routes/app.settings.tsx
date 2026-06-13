@@ -139,15 +139,15 @@ export default function Settings() {
           <Card>
             <BlockStack gap="200">
               <Text as="h2" variant="headingMd">
-                {status?.pilot_safe_mode ? "Mode pilot-safe actif" : "Mode pilote inactif"}
+                {locale === "fr" ? "Écritures Shopify" : "Shopify writes"}
               </Text>
-              <Badge tone={status?.pilot_safe_mode ? "success" : "warning"}>
-                {status?.pilot_safe_mode ? "Écritures live bloquées" : "Écritures live possibles"}
+              <Badge tone="success">
+                {locale === "fr" ? "Écritures live activées" : "Live writes enabled"}
               </Badge>
               <Text as="p" tone="subdued">
-                {status?.pilot_safe_mode
-                  ? "Les dry-runs restent autorisés; aucune écriture Shopify live ne peut partir."
-                  : "Les écritures Shopify live nécessitent une confirmation explicite."}
+                {locale === "fr"
+                  ? "Les écritures Shopify live sont activées; chaque application est confirmée explicitement."
+                  : "Live Shopify writes are enabled; each apply is explicitly confirmed."}
               </Text>
               <Text as="p" tone="subdued">
                 {t(locale, "locales")}:{" "}

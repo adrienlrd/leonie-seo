@@ -12,6 +12,18 @@
 
 - **Date:** 2026-06-13
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Supprimer le « mode pilote » (`LEONIE_PILOT_SAFE_MODE`) qui désactivait toute écriture Shopify : les écritures live doivent être activées dans tous les cas et non désactivables depuis l'app.
+- **Summary:** `is_pilot_safe_mode()` (`app/safety.py`) retourne désormais **toujours `False`** (chokepoint unique → la variable d'env ne peut plus rebloquer les écritures). Le garde-fou **`confirm_live_write` est conservé** : chaque écriture live exige toujours une confirmation explicite (c'est lui qui fait fonctionner « Valider »). `app/api/dashboard.py` : `pilot_safe = False` en dur (env plus lu, import `os` retiré). **Frontend** : bannière « Mode pilote actif… » retirée du dashboard (`app._index.tsx`), carte Réglages (`app.settings.tsx`) remplacée par « Écritures Shopify — Écritures live activées », clé i18n `dashboardPilotSafeBanner` supprimée (FR+EN). **Tests** : suppression des tests devenus obsolètes qui attendaient un blocage en mode pilote (dashboard banner, billing subscribe/cancel, bulk orchestrator, safe-apply live, generate bulk-apply, apply meta blocks) ; conservation du test dry-run (renommé `test_apply_meta_allows_dry_run`).
+- **Files modified:** `app/safety.py`, `app/api/dashboard.py`, `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.settings.tsx`, `shopify-app/app/lib/i18n.ts`, et 6 fichiers de tests (suppression des cas mode pilote).
+- **Decisions made:** Neutralisation à la source plutôt que suppression complète de la fonction/garde-fous : `is_pilot_safe_mode()` et `require_billing_write_allowed()` restent (signatures stables, no-op) pour limiter la surface du diff. Distinction clé maintenue : **mode pilote supprimé ≠ confirmation live supprimée**.
+- **Validations run:** `ruff check tests/ app/` ✅ ; `npm run typecheck`/`build` ✅ ; fichiers de tests affectés 37 passed / 22 skipped ; suite complète `pytest -q` (voir ci-dessous).
+- **Open issues:** La variable d'env `LEONIE_PILOT_SAFE_MODE` sur Render n'a plus aucun effet (peut être retirée du dashboard Render, optionnel).
+- **Next recommended action:** Déployer ; vérifier que la bannière a disparu et qu'une écriture live (Valider) fonctionne.
+
+## Previous completed task
+
+- **Date:** 2026-06-13
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** Uniformiser `app/api/geo.py` : déplacer **toutes** les lectures bloquantes restantes (snapshot 10-100 Mo + CSV GSC) hors de la boucle asyncio, comme déjà fait pour `next-best-actions`/`control-groups`.
 - **Summary:** Ajout de 3 helpers bloquants module-level (`_load_snapshot_blocking`, `_read_gsc_rows_blocking`, `_read_gsc_query_page_rows_blocking`) appelés via `await asyncio.to_thread(...)`. Conversion de tous les endpoints `async def` qui lisaient le snapshot ou un CSV GSC en synchrone : `facts`, `priorities`, `weekly-actions`, `faq-content`, `risk-guard`, `collections`, `answer-blocks`, `crawlability`, `competitors`, et le POST `optimization-snapshots`. Après ce diff, **aucune route async de geo.py ne fait plus d'I/O bloquante sur la boucle** — les seules lectures restantes (`load_snapshot_from_file_or_db`, `read_text`) sont dans les helpers sync (`_load_next_best_actions`, `_load_control_groups`, + les 3 nouveaux), tous invoqués via `to_thread`. Comportement et réponses inchangés (404 snapshot absent compris).
 - **Files modified:** `app/api/geo.py`.

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
@@ -286,7 +285,7 @@ def _build_llm_budget(shop: str, plan: str) -> dict:
 
 
 def _build_banners(shop: str, snapshot: dict) -> dict:
-    pilot_safe = os.getenv("LEONIE_PILOT_SAFE_MODE", "").lower() in {"1", "true", "yes"}
+    pilot_safe = False  # pilot-safe mode removed — live writes always allowed
 
     age = _snapshot_age_days(snapshot)
     # Trigger sync when snapshot is missing (age=None) OR older than 7 days
