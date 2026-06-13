@@ -41,6 +41,7 @@ import {
   MicrophoneIcon,
   NatureIcon,
   PersonIcon,
+  InfoIcon,
   PhoneIcon,
   ProductIcon,
   RefreshIcon,
@@ -530,11 +531,11 @@ function DashboardHeader({
   );
 }
 
-const SUB_SCORE_KEYS: Array<{ key: keyof NonNullable<DashboardData["zone1"]["sub_scores"]>; i18n: string }> = [
-  { key: "seo", i18n: "seoSubScore" },
-  { key: "geo", i18n: "geoSubScore" },
-  { key: "content", i18n: "contentSubScore" },
-  { key: "technical", i18n: "technicalSubScore" },
+const SUB_SCORE_KEYS: Array<{ key: keyof NonNullable<DashboardData["zone1"]["sub_scores"]>; i18n: string; help: string }> = [
+  { key: "seo", i18n: "seoSubScore", help: "seoSubScoreHelp" },
+  { key: "geo", i18n: "geoSubScore", help: "geoSubScoreHelp" },
+  { key: "content", i18n: "contentSubScore", help: "contentSubScoreHelp" },
+  { key: "technical", i18n: "technicalSubScore", help: "technicalSubScoreHelp" },
 ];
 
 function Zone1({
@@ -554,22 +555,33 @@ function Zone1({
         {data.global_score !== null ? (
           <BlockStack gap="200">
             <InlineStack gap="300" blockAlign="center">
-              <Tooltip content={t(locale, "dashboardScoreTooltip")}>
-                <Text as="p" variant="headingXl" fontWeight="bold">
-                  {data.global_score}/100
-                </Text>
-              </Tooltip>
+              <Text as="p" variant="headingXl" fontWeight="bold">
+                {data.global_score}/100
+              </Text>
               <Badge tone={tone}>{t(locale, LEVEL_I18N_KEYS[level] ?? level)}</Badge>
+              <Tooltip content={t(locale, "globalScoreHelp")}>
+                <span style={{ display: "inline-flex", cursor: "help" }}>
+                  <Icon source={InfoIcon} tone="subdued" />
+                </span>
+              </Tooltip>
               <Text as="p" tone="subdued">
                 {data.products_in_scope} {t(locale, "dashboardZone1Products")}
               </Text>
             </InlineStack>
+            <Text as="p" tone="subdued" variant="bodySm">{t(locale, "globalScoreHelp")}</Text>
             {data.sub_scores && (
               <InlineGrid columns={4} gap="200">
-                {SUB_SCORE_KEYS.map(({ key, i18n }) => (
+                {SUB_SCORE_KEYS.map(({ key, i18n, help }) => (
                   <Box key={key} background="bg-surface-secondary" padding="200" borderRadius="200">
                     <BlockStack gap="050">
-                      <Text as="p" variant="bodySm" tone="subdued">{t(locale, i18n)}</Text>
+                      <InlineStack gap="100" blockAlign="center" wrap={false}>
+                        <Text as="p" variant="bodySm" tone="subdued">{t(locale, i18n)}</Text>
+                        <Tooltip content={t(locale, help)}>
+                          <span style={{ display: "inline-flex", cursor: "help" }}>
+                            <Icon source={InfoIcon} tone="subdued" />
+                          </span>
+                        </Tooltip>
+                      </InlineStack>
                       <Text as="p" variant="bodyMd" fontWeight="semibold">
                         {data.sub_scores![key]}/100
                       </Text>
