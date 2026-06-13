@@ -10,6 +10,19 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-13
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Afficher sur l'Accueil (« Vos produits actifs ») la **fiche produit complète et interactive** de la page Produits, limitée aux 2 premiers produits.
+- **Summary:** **Extraction** : `ProductCard` (+ helpers `ImprovementTags`, `InternalLinksSection`, `tagToneInAdded`) sorti de `app.products.tsx` vers `shopify-app/app/components/ProductCard.tsx` (export). Types alignés : ajout à `marketAnalysisShared.tsx` de `BusinessProfileContextStatus`, `InternalLinkSuggestion`, et des champs optionnels `ContentTestPack.recommended_internal_links`, `ProductResult.business_profile_context_status`/`_hash` (optionnels → aucune régression). **Mutualisation des intents** : nouveau `shopify-app/app/lib/productCardActions.server.ts` `handleProductCardIntent(intent, formData, session)` regroupant les 10 handlers du ProductCard (`applyToShopify`, `addTag`, `retireTag`/`restoreTag`, `retireKeyword`, `validateQuestion`, `retireQuestion`/`restoreQuestion`, `syncSchemaFacts`, `saveProposals`) ; les deux routes délèguent à cette fonction en tête de leur `action`. Les blocs dupliqués supprimés de `app.products.tsx` et `app._index.tsx`. **Dashboard** : `ActiveProductsCard` rend `<ProductCard>` pour `products.slice(0, 2)` quand un pack existe (sinon prompt « Analyser » compact) ; `shouldRevalidate` ignore les intents de mutation (liste inline, pas d'import `.server` côté client) ; `shop` passé en prop. Nettoyage : helpers morts retirés de `app.products.tsx` (`scoreTone`, `keywordCoverage`, `confidenceTone`, `formatDate`, `contentWords`, `keywordIsUsed`, `FR_STOP_WORDS`, import `ProgressBar`) — désormais dans le composant partagé.
+- **Files created:** `shopify-app/app/components/ProductCard.tsx`, `shopify-app/app/lib/productCardActions.server.ts`.
+- **Files modified:** `shopify-app/app/lib/marketAnalysisShared.tsx`, `shopify-app/app/routes/app.products.tsx`, `shopify-app/app/routes/app._index.tsx`.
+- **Decisions made:** Le write Shopify `applyToShopify` (« Valider ») est désormais aussi accessible depuis l'Accueil — même endpoint et garde-fous que la page Produits, point d'entrée supplémentaire assumé. `PRODUCT_CARD_INTENTS` n'est PAS exporté du module `.server` (sinon erreur build « server-only module referenced by client » via `shouldRevalidate`) : la liste est dupliquée inline côté dashboard.
+- **Validations run:** `npm run typecheck` ✅, `npm run build` ✅ (1583 modules). Aucun backend Python modifié.
+- **Open issues:** Drift de types restant entre les définitions locales de `app.products.tsx` (JobState, CTP local enrichi) et `marketAnalysisShared.tsx` — non unifié (hors scope), seuls les champs nécessaires à ProductCard ont été ajoutés au shared en optionnel.
+- **Next recommended action:** Déployer ; vérifier sur l'Accueil que les 2 fiches sont identiques à Produits (photo, mots-clés, tags, Améliorer/Valider, décompte) et qu'une validation depuis l'Accueil écrit bien dans Shopify.
+
+## Previous completed task
+
 - **Date:** 2026-06-12
 - **Agent:** Claude (Fable 5)
 - **Goal:** Page Produits : loader élégant sur « Régénérer avec mes réponses », badge « Validé » (et fin de l'encadré jaune) après « Valider les propositions », décompte de 28 jours avant les résultats.

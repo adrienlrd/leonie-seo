@@ -53,8 +53,10 @@ import type { IconSource } from "@shopify/polaris";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
+import { handleProductCardIntent } from "../lib/productCardActions.server";
 import { getLocale, loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
 import { AnalysisLoader } from "../components/AnalysisLoader";
+import { ProductCard } from "../components/ProductCard";
 import { LlmsTxtPanel } from "../components/LlmsTxtPanel";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
@@ -298,6 +300,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const intent = formData.get("intent") as string | null;
 
+  // Shared ProductCard intents (apply, tags, keywords, questions…) so the dashboard
+  // cards behave exactly like the Products page.
+  if (intent) {
+    const shared = await handleProductCardIntent(intent, formData, session);
+    if (shared) return shared;
+  }
+
   // Manual refresh — fire seo_audit + gsc_import (pages only) and return the audit job ID.
   if (intent === "refresh") {
     try {
@@ -409,30 +418,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  if (intent === "saveProposals") {
-    const productId = formData.get("productId") as string;
-    const proposalsRaw = formData.get("proposals") as string;
-    try {
-      const proposals = JSON.parse(proposalsRaw);
-      const resp = await callBackendForShop(
-        session.shop,
-        `/api/shops/${session.shop}/market-analysis/proposals/${encodeURIComponent(productId)}`,
-        {
-          accessToken: session.accessToken,
-          method: "PATCH",
-          body: JSON.stringify(proposals),
-        },
-      );
-      if (!resp.ok) {
-        const err = await resp.text();
-        return json({ type: "saveProposals", error: `HTTP ${resp.status}: ${err}` });
-      }
-      return json({ type: "saveProposals", error: null });
-    } catch (err) {
-      return json({ type: "saveProposals", error: String(err) });
-    }
-  }
-
   // Default — poll a known audit job.
   const jobId = formData.get("jobId") as string;
   try {
@@ -455,6 +440,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 // ── Revalidation guard — polling and refresh must not re-run the loader ─────
 
+// Mirrors PRODUCT_CARD_INTENTS in productCardActions.server (kept here so this
+// client-side guard does not import a .server module).
+const PRODUCT_CARD_MUTATION_INTENTS = new Set([
+  "saveProposals", "syncSchemaFacts", "retireTag", "restoreTag", "addTag",
+  "retireKeyword", "validateQuestion", "retireQuestion", "restoreQuestion", "applyToShopify",
+]);
+
 export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (formData?.get("jobId")) return false;
   const intent = formData?.get("intent");
@@ -462,7 +454,7 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (intent === "startSingle") return false;
   if (intent === "saveFactsAndStartSingle") return false;
   if (intent === "pollSingle") return false;
-  if (intent === "saveProposals") return false;
+  if (typeof intent === "string" && PRODUCT_CARD_MUTATION_INTENTS.has(intent)) return false;
   return true;
 };
 
@@ -675,6 +667,7 @@ function ActiveProductsCard({
   products,
   productPacks,
   locale,
+  shop,
   onRefresh,
   isRefreshing,
   onAnalyzeProduct,
@@ -685,6 +678,7 @@ function ActiveProductsCard({
   products: ActiveProduct[];
   productPacks: Record<string, ProductResult>;
   locale: Locale;
+  shop: string;
   onRefresh: () => void;
   isRefreshing: boolean;
   onAnalyzeProduct: (productId: string) => void;
@@ -713,9 +707,24 @@ function ActiveProductsCard({
           <Text as="p" tone="subdued">{t(locale, "dashboardActiveProductsEmpty")}</Text>
         ) : (
           <BlockStack gap="300">
-            {products.map((product) => {
+            {products.slice(0, 2).map((product) => {
               const pack = productPacks[product.id] ?? productPacks[product.handle];
               const analyzingThis = analyzingProductId === product.id;
+              // With a pack → the full Products-page card. Without → a compact
+              // "analyze this product" prompt.
+              if (pack) {
+                return (
+                  <ProductCard
+                    key={product.id}
+                    product={pack}
+                    locale={locale}
+                    shop={shop}
+                    isAnalyzing={analyzingThis}
+                    onEnrichAndAnalyze={(answers) => onEnrichAndAnalyze(product.id, answers)}
+                    analyzeDisabled={isAnalyzingSingle}
+                  />
+                );
+              }
               return (
                 <Box
                   key={product.id}
@@ -739,15 +748,8 @@ function ActiveProductsCard({
                             </Tooltip>
                           )
                         )}
-                        {pack && qualityWarningText(pack.content_test_pack, locale) && (
-                          <Tooltip content={qualityWarningText(pack.content_test_pack, locale)}>
-                            <span style={{ display: "inline-flex", cursor: "help" }}>
-                              <Icon source={AlertTriangleIcon} tone="warning" />
-                            </span>
-                          </Tooltip>
-                        )}
                       </InlineStack>
-                      {!pack && !analyzingThis && (
+                      {!analyzingThis && (
                         <Button
                           size="slim"
                           onClick={() => onAnalyzeProduct(product.id)}
@@ -757,20 +759,10 @@ function ActiveProductsCard({
                         </Button>
                       )}
                     </InlineStack>
-                    {!pack && analyzingThis && (
+                    {analyzingThis && (
                       <AnalysisLoader
                         phrases={loaderPhrases(locale, "analysis")}
                         estimateMs={150_000}
-                      />
-                    )}
-                    {pack && (
-                      <ProductContentProposals
-                        product={pack}
-                        locale={locale}
-                        isAnalyzing={analyzingThis}
-                        onEnrichAndAnalyze={(answers) => onEnrichAndAnalyze(product.id, answers)}
-                        analyzeDisabled={isAnalyzingSingle}
-                        layout="buttons"
                       />
                     )}
                   </BlockStack>
@@ -1308,7 +1300,7 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, error } = useLoaderData<typeof loader>() as LoaderData;
   // OAuth status is authoritative; fall back to the per-product flag (GSC data
   // file present) only when the status call itself failed.
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
@@ -1608,6 +1600,7 @@ export default function IndexPage() {
           products={activeProducts}
           productPacks={productPacks}
           locale={locale}
+          shop={shop}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
           onAnalyzeProduct={handleAnalyzeProduct}

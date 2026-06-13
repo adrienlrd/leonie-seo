@@ -155,6 +155,16 @@ export interface ConfirmedFact {
   confidence: string;
 }
 
+export type BusinessProfileContextStatus = "current" | "stale" | "unknown" | "missing_profile";
+
+export interface InternalLinkSuggestion {
+  target_url: string;
+  target_title: string;
+  anchors: string[];
+  reason: "sibling_product" | "collection_parent" | "informational_support";
+  confidence: "high" | "medium" | "low";
+}
+
 export interface ContentTestPack {
   current_meta_title: string;
   proposed_meta_title: string;
@@ -182,6 +192,7 @@ export interface ContentTestPack {
   content_guardrail_reflection?: ContentGuardrailReflection;
   current_product_images?: { id: string; url: string; current_alt: string | null }[];
   proposed_image_alts?: { image_id: string; proposed_alt: string }[];
+  recommended_internal_links?: InternalLinkSuggestion[];
   faq_sync?: {
     applied: boolean;
     error: string | null;
@@ -368,6 +379,8 @@ export interface ProductResult {
   improvement_tags?: ImprovementTag[];
   improvement_elements?: ImprovementElement[];
   optimization_context?: Record<string, unknown>;
+  business_profile_context_hash?: string | null;
+  business_profile_context_status?: BusinessProfileContextStatus;
   competitor_crawl_insights?: CompetitorCrawlInsights;
   competitor_pattern_boost?: number;
   competitor_pattern_gaps?: CompetitorCrawlGap[];
