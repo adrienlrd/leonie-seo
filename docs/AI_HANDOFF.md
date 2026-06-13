@@ -12,6 +12,18 @@
 
 - **Date:** 2026-06-13
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Uniformiser `app/api/geo.py` : déplacer **toutes** les lectures bloquantes restantes (snapshot 10-100 Mo + CSV GSC) hors de la boucle asyncio, comme déjà fait pour `next-best-actions`/`control-groups`.
+- **Summary:** Ajout de 3 helpers bloquants module-level (`_load_snapshot_blocking`, `_read_gsc_rows_blocking`, `_read_gsc_query_page_rows_blocking`) appelés via `await asyncio.to_thread(...)`. Conversion de tous les endpoints `async def` qui lisaient le snapshot ou un CSV GSC en synchrone : `facts`, `priorities`, `weekly-actions`, `faq-content`, `risk-guard`, `collections`, `answer-blocks`, `crawlability`, `competitors`, et le POST `optimization-snapshots`. Après ce diff, **aucune route async de geo.py ne fait plus d'I/O bloquante sur la boucle** — les seules lectures restantes (`load_snapshot_from_file_or_db`, `read_text`) sont dans les helpers sync (`_load_next_best_actions`, `_load_control_groups`, + les 3 nouveaux), tous invoqués via `to_thread`. Comportement et réponses inchangés (404 snapshot absent compris).
+- **Files modified:** `app/api/geo.py`.
+- **Decisions made:** Uniformisation préventive — ces endpoints ne sont pas appelés par le frontend actuel (seuls les 6 de Mesure + continuous-improvement le sont), donc aucun impact perf immédiat ; bénéfice = cohérence + filet si l'un est rebranché à une page faisant des appels parallèles. Le helper sync `_load_control_groups` (ligne ~512) garde sa lecture GSC interne telle quelle (déjà sous `to_thread`).
+- **Validations run:** `ruff check app/api/geo.py` ✅ ; `pytest tests/test_api/test_geo.py -q` → 34 passed ; suite complète `pytest -q` (voir ci-dessous).
+- **Open issues:** Aucun connu sur geo.py. Le drift de types frontend (tâche précédente) reste hors scope.
+- **Next recommended action:** Déployer ; aucun changement visible attendu côté marchand (uniformisation interne).
+
+## Previous completed task
+
+- **Date:** 2026-06-13
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** Afficher sur l'Accueil (« Vos produits actifs ») la **fiche produit complète et interactive** de la page Produits, limitée aux 2 premiers produits.
 - **Summary:** **Extraction** : `ProductCard` (+ helpers `ImprovementTags`, `InternalLinksSection`, `tagToneInAdded`) sorti de `app.products.tsx` vers `shopify-app/app/components/ProductCard.tsx` (export). Types alignés : ajout à `marketAnalysisShared.tsx` de `BusinessProfileContextStatus`, `InternalLinkSuggestion`, et des champs optionnels `ContentTestPack.recommended_internal_links`, `ProductResult.business_profile_context_status`/`_hash` (optionnels → aucune régression). **Mutualisation des intents** : nouveau `shopify-app/app/lib/productCardActions.server.ts` `handleProductCardIntent(intent, formData, session)` regroupant les 10 handlers du ProductCard (`applyToShopify`, `addTag`, `retireTag`/`restoreTag`, `retireKeyword`, `validateQuestion`, `retireQuestion`/`restoreQuestion`, `syncSchemaFacts`, `saveProposals`) ; les deux routes délèguent à cette fonction en tête de leur `action`. Les blocs dupliqués supprimés de `app.products.tsx` et `app._index.tsx`. **Dashboard** : `ActiveProductsCard` rend `<ProductCard>` pour `products.slice(0, 2)` quand un pack existe (sinon prompt « Analyser » compact) ; `shouldRevalidate` ignore les intents de mutation (liste inline, pas d'import `.server` côté client) ; `shop` passé en prop. Nettoyage : helpers morts retirés de `app.products.tsx` (`scoreTone`, `keywordCoverage`, `confidenceTone`, `formatDate`, `contentWords`, `keywordIsUsed`, `FR_STOP_WORDS`, import `ProgressBar`) — désormais dans le composant partagé.
 - **Files created:** `shopify-app/app/components/ProductCard.tsx`, `shopify-app/app/lib/productCardActions.server.ts`.

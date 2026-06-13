@@ -62,6 +62,21 @@ def _validated_scope(scope: str) -> str:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
+# Blocking I/O helpers — snapshot files are 10-100MB and the GSC CSVs are large
+# enough that reading + parsing them on the event loop can stall /health checks.
+# Always call these via ``await asyncio.to_thread(...)`` from async routes.
+def _load_snapshot_blocking(shop: str, snapshot_path: Path) -> dict | None:
+    return load_snapshot_from_file_or_db(shop, snapshot_path)
+
+
+def _read_gsc_rows_blocking(gsc_file: Path | None) -> dict:
+    return _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+
+
+def _read_gsc_query_page_rows_blocking(query_page_file: Path | None) -> list:
+    return parse_gsc_query_page_csv(query_page_file.read_text()) if query_page_file else []
+
+
 class GeoLedgerEventRequest(BaseModel):
     event_type: str = Field(default="planned_optimization")
     resource_type: str = Field(default="product")
@@ -126,7 +141,7 @@ async def get_geo_facts(
     top: int = 50,
 ) -> dict:
     """Return confirmed product facts and merchant verification gaps for GEO."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = await asyncio.to_thread(_load_snapshot_blocking, ctx.shop, ctx.snapshot_path)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -165,7 +180,7 @@ async def get_geo_priorities(
     scope: str = Query(default="active", pattern="^(active|draft|unlisted|archived|all)$"),
 ) -> dict:
     """Return revenue-aware GEO action priorities for products."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = await asyncio.to_thread(_load_snapshot_blocking, ctx.shop, ctx.snapshot_path)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -173,7 +188,7 @@ async def get_geo_priorities(
         )
 
     gsc_file = _find_gsc_file(ctx.shop)
-    gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+    gsc_rows = await asyncio.to_thread(_read_gsc_rows_blocking, gsc_file)
     shop_domain = snapshot.get("shop", {}).get("domain", ctx.shop)
     analysis = prioritize_catalog(
         snapshot.get("products", []),
@@ -208,7 +223,7 @@ async def get_geo_weekly_actions(
     scope: str = Query(default="active", pattern="^(active|draft|unlisted|archived|all)$"),
 ) -> dict:
     """Return a short weekly GEO action list for merchants."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = await asyncio.to_thread(_load_snapshot_blocking, ctx.shop, ctx.snapshot_path)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -216,7 +231,7 @@ async def get_geo_weekly_actions(
         )
 
     gsc_file = _find_gsc_file(ctx.shop)
-    gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+    gsc_rows = await asyncio.to_thread(_read_gsc_rows_blocking, gsc_file)
     shop_domain = snapshot.get("shop", {}).get("domain", ctx.shop)
     analysis = build_weekly_actions(
         snapshot.get("products", []),
@@ -453,7 +468,7 @@ async def get_geo_faq_content(
     scope: str = Query(default="active", pattern="^(active|draft|unlisted|archived|all)$"),
 ) -> dict:
     """Generate GEO FAQ, buying guides and JSON-LD from confirmed product facts and GSC queries."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = await asyncio.to_thread(_load_snapshot_blocking, ctx.shop, ctx.snapshot_path)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -464,7 +479,7 @@ async def get_geo_faq_content(
     collections = snapshot.get("collections") or []
 
     gsc_file = _find_gsc_file(ctx.shop)
-    gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+    gsc_rows = await asyncio.to_thread(_read_gsc_rows_blocking, gsc_file)
     gsc_queries = list(gsc_rows.keys())
 
     result = generate_catalog_content(
@@ -566,7 +581,7 @@ async def get_geo_risk_guard(
     average_order_value: float = Query(default=50.0, gt=0),
 ) -> dict:
     """Return GEO risk guard decisions for product pages."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = await asyncio.to_thread(_load_snapshot_blocking, ctx.shop, ctx.snapshot_path)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -574,7 +589,7 @@ async def get_geo_risk_guard(
         )
 
     gsc_file = _find_gsc_file(ctx.shop)
-    gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+    gsc_rows = await asyncio.to_thread(_read_gsc_rows_blocking, gsc_file)
     shop_domain = snapshot.get("shop", {}).get("domain", ctx.shop)
     analysis = assess_catalog_risk(
         snapshot.get("products", []),
@@ -600,7 +615,7 @@ async def get_geo_collections(
     min_products: int = Query(default=2, ge=1, le=20),
 ) -> dict:
     """Return dry-run Shopify collection suggestions for conversational intents."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = await asyncio.to_thread(_load_snapshot_blocking, ctx.shop, ctx.snapshot_path)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -608,7 +623,7 @@ async def get_geo_collections(
         )
 
     query_page_file = _find_gsc_query_page_file(ctx.shop)
-    query_rows = parse_gsc_query_page_csv(query_page_file.read_text()) if query_page_file else []
+    query_rows = await asyncio.to_thread(_read_gsc_query_page_rows_blocking, query_page_file)
     analysis = build_collection_suggestions(
         snapshot.get("products", []),
         snapshot.get("collections", []),
@@ -632,7 +647,7 @@ async def get_geo_answer_blocks(
     max_blocks: int = Query(default=6, ge=1, le=10),
 ) -> dict:
     """Return fact-grounded FAQ and answer block previews for products."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = await asyncio.to_thread(_load_snapshot_blocking, ctx.shop, ctx.snapshot_path)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -659,7 +674,7 @@ async def get_geo_crawlability(
     top_collections: int = Query(default=20, ge=1, le=100),
 ) -> dict:
     """Return llms.txt preview and AI crawlability recommendations."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = await asyncio.to_thread(_load_snapshot_blocking, ctx.shop, ctx.snapshot_path)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -687,7 +702,7 @@ async def get_geo_competitors(
     top: int = Query(default=10, ge=1, le=50),
 ) -> dict:
     """Return a light AI-answer competitor monitor for conversational queries."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = await asyncio.to_thread(_load_snapshot_blocking, ctx.shop, ctx.snapshot_path)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -695,7 +710,7 @@ async def get_geo_competitors(
         )
 
     query_page_file = _find_gsc_query_page_file(ctx.shop)
-    query_rows = parse_gsc_query_page_csv(query_page_file.read_text()) if query_page_file else []
+    query_rows = await asyncio.to_thread(_read_gsc_query_page_rows_blocking, query_page_file)
     analysis = build_competitor_monitor(
         snapshot.get("products", []),
         query_rows,
@@ -815,7 +830,7 @@ async def create_geo_optimization_snapshot(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict:
     """Create a before-optimization snapshot for later impact validation."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = await asyncio.to_thread(_load_snapshot_blocking, ctx.shop, ctx.snapshot_path)
     if snapshot is None:
         raise HTTPException(
             status_code=404,
@@ -823,7 +838,7 @@ async def create_geo_optimization_snapshot(
         )
 
     gsc_file = _find_gsc_file(ctx.shop)
-    gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+    gsc_rows = await asyncio.to_thread(_read_gsc_rows_blocking, gsc_file)
     try:
         built = build_optimization_snapshot(
             shop=ctx.shop,
