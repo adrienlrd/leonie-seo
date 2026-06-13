@@ -1602,20 +1602,11 @@ function ProductCard({
               (q) => !completedKeys.has(q.key) && !retiredKeys.has(q.key),
             ).length;
             const hasQuestions = activeCount > 0 || completedKeys.size > 0 || retiredKeys.size > 0;
-            return (
-              <>
-                {hasQuestions && (
-                  <Button size="slim" pressed={enrichmentOpen} onClick={() => setEnrichmentOpen((v) => !v)}>
-                    {(fr ? "Améliorer" : "Improve") + (activeCount > 0 ? ` (${activeCount})` : "")}
-                  </Button>
-                )}
-                {checkedApplyFields.size > 0 && (
-                  <Button size="slim" variant="primary" loading={applyLoading} onClick={handleApplyProposals}>
-                    {fr ? "Valider" : "Apply"}
-                  </Button>
-                )}
-              </>
-            );
+            return hasQuestions ? (
+              <Button size="slim" pressed={enrichmentOpen} onClick={() => setEnrichmentOpen((v) => !v)}>
+                {(fr ? "Améliorer" : "Improve") + (activeCount > 0 ? ` (${activeCount})` : "")}
+              </Button>
+            ) : null;
           })()}
         />
 
@@ -1658,6 +1649,13 @@ function ProductCard({
           onRestoreQuestion={onRestoreQuestion}
           onValidateQuestion={onValidateQuestion}
           enrichmentOpen={enrichmentOpen}
+          applyAction={
+            checkedApplyFields.size > 0 ? (
+              <Button size="slim" variant="primary" loading={applyLoading} onClick={handleApplyProposals}>
+                {fr ? "Valider" : "Apply"}
+              </Button>
+            ) : null
+          }
         />
 
         {pack.recommended_internal_links && pack.recommended_internal_links.length > 0 && (

@@ -30,7 +30,7 @@ import {
   Tooltip,
 } from "@shopify/polaris";
 import { AlertTriangleIcon, CheckIcon } from "@shopify/polaris-icons";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { loaderPhrases, t, type Locale } from "../lib/i18n";
 import { AnalysisLoader } from "./AnalysisLoader";
 
@@ -66,6 +66,7 @@ export function ProductContentProposals({
   onRestoreQuestion,
   onValidateQuestion,
   enrichmentOpen,
+  applyAction,
 }: {
   product: ProductResult;
   locale: Locale;
@@ -84,6 +85,8 @@ export function ProductContentProposals({
    * toggle (e.g. a button in its own toolbar) and the internal one is hidden.
    */
   enrichmentOpen?: boolean;
+  /** Rendered to the right of the field buttons (e.g. the "Valider" apply button). */
+  applyAction?: ReactNode;
 }) {
   const pack = product.content_test_pack;
   // Optimistic local state — updates immediately on retire/restore without waiting for server
@@ -903,6 +906,7 @@ export function ProductContentProposals({
             </Button>
           )}
           {fieldButtons}
+          {applyAction}
         </InlineStack>
         <Collapsible id={`kw-sources-${product.product_id}`} open={showKeywords}>
           <Box paddingBlockStart="100">{keywordSourcesPanel}</Box>
