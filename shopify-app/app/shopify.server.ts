@@ -116,6 +116,13 @@ const shopify = shopifyApp({
 });
 
 export default shopify;
+// Typed accessor for the configured session storage (the const above is cast to
+// `unknown` for a peer-dep skew). Used by the webhook route to delete a shop's
+// sessions on app/uninstalled. Both methods are part of every adapter's interface.
+export const appSessionStorage = sessionStorage as unknown as {
+  findSessionsByShop(shop: string): Promise<{ id: string }[]>;
+  deleteSessions(ids: string[]): Promise<boolean>;
+};
 export const apiVersion = LATEST_API_VERSION;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;

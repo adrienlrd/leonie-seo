@@ -10,6 +10,18 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-15
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Audit Shopify complet (architecture, conformité App Store, versions API, webhooks, billing, scopes) + correction des 2 constats faisables sans intervention/déploiement.
+- **Summary:** Audit complet réalisé (voir tableau priorisé dans la conversation) via cartographie + reviewer `shopify-architecture-reviewer` + doc Shopify à jour (Shopify ≈ 2026-04). **2 fixes code-only appliqués** : (1) **#3 secret webhook** — `shopify-app/app/routes/webhooks.tsx` `isValidWebhookHmac` accepte désormais `SHOPIFY_CLIENT_SECRET || SHOPIFY_API_SECRET` (même ordre que `shopify.server.ts`) + log explicite si aucun n'est défini (avant : `SHOPIFY_API_SECRET` seul, sans fallback → 401 silencieux si l'env est consolidé) ; (2) **#5 sessions à la désinstallation** — sur `app/uninstalled`, le relais supprime maintenant les sessions Remix du shop via `appSessionStorage.findSessionsByShop`/`deleteSessions` (best-effort, ne bloque jamais le 200). Nouvel export typé `appSessionStorage` depuis `shopify.server.ts`. Vérifié : les 3 adaptateurs (redis/postgres/sqlite) exposent ces méthodes.
+- **Files modified:** `shopify-app/app/routes/webhooks.tsx`, `shopify-app/app/shopify.server.ts`.
+- **Decisions made:** Périmètre limité aux fixes sans déploiement ni changement de manifeste Shopify. **Restent à traiter avec ton accord/déploiement** : #1 version API (montée `@shopify/shopify-app-remix` v4+ + épinglage explicite + alignement toml/extension/Python + `shopify app deploy`), #2 abonnement `app_subscriptions/update` (toml + `shopify app deploy`), #4 dédoublonnage webhooks (deploy), #6 retrait `read_orders` de `render.yaml` (config prod/scopes), #7 `test:true` billing (décision soumission App Store). Note runtime corrigée : le client Remix résout en **2025-07** (copie imbriquée `@shopify/shopify-api@11.14.1`), pas 2024-04 ; Python/toml/extension en `2025-01`.
+- **Validations run:** `npm run typecheck` ✅, `npm run build` ✅.
+- **Open issues:** Voir #1/#2/#4/#6/#7 ci-dessus. Snapshot mémoire d'audit dans `.claude/agent-memory/shopify-architecture-reviewer/`.
+- **Next recommended action:** Déployer ces 2 fixes (push → auto-deploy web), puis planifier #2 (petit diff, impact revenu) et #3-aligné, puis #1 (montée de version) en session dédiée.
+
+## Previous completed task
+
 - **Date:** 2026-06-13
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Supprimer le « mode pilote » (`LEONIE_PILOT_SAFE_MODE`) qui désactivait toute écriture Shopify : les écritures live doivent être activées dans tous les cas et non désactivables depuis l'app.

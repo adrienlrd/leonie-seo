@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "@remix-run/node";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { callBackend, callBackendForShop } from "../lib/api.server";
+import { appSessionStorage } from "../shopify.server";
 
 /**
  * Verify the Shopify webhook HMAC over the raw request body.
@@ -11,8 +12,16 @@ import { callBackend, callBackendForShop } from "../lib/api.server";
  * forward the unmodified raw body so the Python backend can re-verify too.
  */
 function isValidWebhookHmac(rawBody: string, hmacHeader: string): boolean {
-  const secret = process.env.SHOPIFY_API_SECRET;
-  if (!secret || !hmacHeader) {
+  // Same secret as shopify.server.ts (apiSecretKey): accept either name so a
+  // single canonical value works regardless of which env-var name is set.
+  const secret = process.env.SHOPIFY_CLIENT_SECRET || process.env.SHOPIFY_API_SECRET;
+  if (!secret) {
+    console.error(
+      "[webhooks] no SHOPIFY_CLIENT_SECRET/SHOPIFY_API_SECRET set — every webhook will be rejected",
+    );
+    return false;
+  }
+  if (!hmacHeader) {
     return false;
   }
   const digest = createHmac("sha256", secret).update(rawBody, "utf8").digest("base64");
@@ -91,6 +100,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Log but always return 200 to Shopify — they will retry on non-2xx.
     // Returning 200 here prevents duplicate webhook deliveries.
     console.error(`[webhooks] relay failed for topic=${topic} shop=${shop}:`, err);
+  }
+
+  // On uninstall, also drop the Remix-side session(s) for this shop. The Python
+  // relay deletes its own OAuth token; without this the offline session lingers
+  // in Redis/Postgres indefinitely. Best-effort — never block the 200 to Shopify.
+  if (topic === "app/uninstalled" && shop) {
+    try {
+      const sessions = await appSessionStorage.findSessionsByShop(shop);
+      if (sessions.length > 0) {
+        await appSessionStorage.deleteSessions(sessions.map((s) => s.id));
+      }
+    } catch (err) {
+      console.error(`[webhooks] session cleanup failed for shop=${shop}:`, err);
+    }
   }
 
   return new Response(null, { status: 200 });
