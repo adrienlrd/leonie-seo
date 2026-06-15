@@ -8,7 +8,7 @@ from typing import Any
 import click
 import requests
 
-DEFAULT_WEB_URL = "https://pilot.leoniedelacroix.com"
+DEFAULT_WEB_URL = "https://pilot.leoniedelacroixfrance.com"
 DEFAULT_API_URL = "https://leonie-seo-pilot-api.onrender.com"
 
 

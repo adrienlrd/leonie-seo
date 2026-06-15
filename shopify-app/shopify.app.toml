@@ -1,6 +1,6 @@
 name = "Giulio Geo"
 client_id = "bfdee818e5750cdf0a6b699eb914b87e"
-application_url = "https://pilot.leoniedelacroix.com"
+application_url = "https://pilot.leoniedelacroixfrance.com"
 embedded = true
 
 [access_scopes]
@@ -8,8 +8,8 @@ scopes = "read_products,write_products,write_content,read_themes,write_themes"
 
 [auth]
 redirect_urls = [
-  "https://pilot.leoniedelacroix.com/auth/callback",
-  "https://pilot.leoniedelacroix.com/auth/shopify/callback",
+  "https://pilot.leoniedelacroixfrance.com/auth/callback",
+  "https://pilot.leoniedelacroixfrance.com/auth/shopify/callback",
   "http://localhost:3000/auth/callback",
   "http://localhost:3000/auth/shopify/callback",
 ]

@@ -10,14 +10,14 @@ services:
     autoDeployTrigger: commit
     healthCheckPath: /healthz
     domains:
-      - pilot.leoniedelacroix.com
+      - pilot.leoniedelacroixfrance.com
     envVars:
       - key: HOST
         value: 0.0.0.0
       - key: PGSSLMODE
         value: require
       - key: SHOPIFY_APP_URL
-        value: https://pilot.leoniedelacroix.com
+        value: https://pilot.leoniedelacroixfrance.com
       - key: SCOPES
         value: read_products,write_products,read_orders,write_content,read_themes,write_themes
       - key: SHOPIFY_API_KEY
@@ -51,7 +51,7 @@ services:
       sizeGB: 1
     envVars:
       - key: APP_URL
-        value: https://pilot.leoniedelacroix.com
+        value: https://pilot.leoniedelacroixfrance.com
       - key: DATA_DIR
         value: /app/data/raw
       - key: SHOPIFY_SCOPES
@@ -65,7 +65,7 @@ services:
       - key: LEONIE_THEME_WRITE_MODE
         value: review_safe
       - key: CORS_ALLOWED_ORIGINS
-        value: https://pilot.leoniedelacroix.com
+        value: https://pilot.leoniedelacroixfrance.com
       - key: SHOPIFY_CLIENT_ID
         sync: false
       - key: SHOPIFY_CLIENT_SECRET
