@@ -57,7 +57,6 @@ import { handleProductCardIntent } from "../lib/productCardActions.server";
 import { getLocale, loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
 import { AnalysisLoader } from "../components/AnalysisLoader";
 import { ProductCard } from "../components/ProductCard";
-import { LlmsTxtPanel } from "../components/LlmsTxtPanel";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
 import {
@@ -500,9 +499,11 @@ const SUB_SCORE_KEYS: Array<{ key: keyof NonNullable<DashboardData["zone1"]["sub
 function Zone1({
   data,
   locale,
+  llmsPublished,
 }: {
   data: DashboardData["zone1"];
   locale: Locale;
+  llmsPublished: boolean;
 }) {
   const level = data.global_level ?? "faible";
   const tone = LEVEL_TONES[level] ?? "info";
@@ -551,6 +552,19 @@ function Zone1({
             {locale === "fr" ? "Importation Shopify en cours…" : "Shopify import in progress…"}
           </Text>
         )}
+        <Box background="bg-surface-secondary" padding="200" borderRadius="200">
+          <InlineStack align="space-between" blockAlign="center">
+            <InlineStack gap="200" blockAlign="center">
+              <Text as="p" variant="bodySm">{t(locale, "llmsTxtTitle")}</Text>
+              <Badge tone={llmsPublished ? "success" : undefined}>
+                {t(locale, llmsPublished ? "llmsTxtStatusPublished" : "llmsTxtStatusNotPublished")}
+              </Badge>
+            </InlineStack>
+            <Button url="/app/geo-llms-txt" size="slim" variant="plain">
+              {t(locale, llmsPublished ? "llmsTxtManage" : "llmsTxtPublish")}
+            </Button>
+          </InlineStack>
+        </Box>
       </BlockStack>
     </Card>
   );
@@ -1245,6 +1259,15 @@ export default function IndexPage() {
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
   const gscReauthRequired = gscStatus?.reauth_required === true;
 
+  // ── llms.txt status ───────────────────────────────────────────────────────
+  const llmsFetcher = useFetcher<{ status: { is_published: boolean; divergent: boolean } | null }>();
+  useEffect(() => {
+    if (llmsFetcher.state === "idle" && !llmsFetcher.data) {
+      llmsFetcher.load("/app/geo-llms-txt");
+    }
+  }, [llmsFetcher]);
+  const llmsPublished = Boolean(llmsFetcher.data?.status?.is_published);
+
   // ── Audit job polling ─────────────────────────────────────────────────────
   type PollData = { type?: string; status?: string; resultStatus?: string | null; error?: string | null };
   type RefreshData = { type: "refresh"; jobId: string | null; error: string | null };
@@ -1518,10 +1541,10 @@ export default function IndexPage() {
             manualCompetitors={manualCompetitors}
             excludedDomains={excludedDomains}
             locale={locale}
-            afterRow1={<Zone1 data={zone1} locale={locale} />}
+            afterRow1={<Zone1 data={zone1} locale={locale} llmsPublished={llmsPublished} />}
           />
         ) : (
-          <Zone1 data={zone1} locale={locale} />
+          <Zone1 data={zone1} locale={locale} llmsPublished={llmsPublished} />
         )}
 
         {/* Zone 2 — Active products */}
@@ -1538,8 +1561,6 @@ export default function IndexPage() {
           isAnalyzingSingle={isAnalyzingSingle}
         />
 
-        {/* AI files (llms.txt + llms-full.txt) — one-click publish */}
-        <LlmsTxtPanel locale={locale} />
 
 
         {/* Zone 5 — Alerts (conditional) */}
