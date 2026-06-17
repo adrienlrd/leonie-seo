@@ -40,8 +40,10 @@ import { SaveBar } from "@shopify/app-bridge-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { callBackendForShop } from "../lib/api.server";
+import { handleShopifyFilesIntent } from "../lib/shopifyFiles.server";
 import { getLocale, loaderPhrases, type Locale } from "../lib/i18n";
 import { AnalysisLoader } from "../components/AnalysisLoader";
+import { ShopifyImagePicker } from "../components/ShopifyImagePicker";
 import { scoreTone } from "../lib/marketAnalysisShared";
 import { authenticate } from "../shopify.server";
 
@@ -229,7 +231,7 @@ interface ActionResult {
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
   const proxy = (path: string, init?: RequestInit) =>
@@ -368,6 +370,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         suggestions: data?.suggestions ?? [],
       });
     }
+    // Shopify Files API intents (browse, upload)
+    const filesResponse = await handleShopifyFilesIntent(intent, form, admin);
+    if (filesResponse) return filesResponse;
   } catch (exc) {
     return respond(false, null, String(exc));
   }
@@ -981,29 +986,14 @@ export default function BlogIndexPage() {
                       autoComplete="off"
                     />
 
-                    <BlockStack gap="200">
-                      <Text as="h3" variant="headingSm">{fr ? "Image de couverture" : "Cover image"}</Text>
-                      <TextField
-                        label={fr ? "URL de l'image" : "Image URL"}
-                        value={draft.image_url ?? ""}
-                        onChange={(v) => setDraft((p) => p ? { ...p, image_url: v } : p)}
-                        autoComplete="off"
-                        helpText={fr
-                          ? "Réutilise une image déjà présente sur ta boutique (produit, fichiers Shopify…)."
-                          : "Reuse an image already hosted on your store (product, Shopify files…)."}
-                      />
-                      {draft.image_url && (
-                        <TextField
-                          label={fr ? "Texte alternatif (alt)" : "Alt text"}
-                          value={draft.image_alt ?? ""}
-                          onChange={(v) => setDraft((p) => p ? { ...p, image_alt: v } : p)}
-                          autoComplete="off"
-                          helpText={fr
-                            ? "Pré-rempli automatiquement à partir du titre de l'article — modifiable."
-                            : "Pre-filled automatically from the article title — editable."}
-                        />
-                      )}
-                    </BlockStack>
+                    <ShopifyImagePicker
+                      locale={locale}
+                      imageUrl={draft.image_url ?? null}
+                      imageAlt={draft.image_alt ?? null}
+                      onSelect={(url, alt) => setDraft((p) => p ? { ...p, image_url: url, image_alt: alt || p.image_alt } : p)}
+                      onAltChange={(alt) => setDraft((p) => p ? { ...p, image_alt: alt } : p)}
+                      onRemove={() => setDraft((p) => p ? { ...p, image_url: "", image_alt: "" } : p)}
+                    />
 
                     {draft.sections.map((section, idx) => (
                       <Card key={`${section.h2}-${idx}`} padding="300">
