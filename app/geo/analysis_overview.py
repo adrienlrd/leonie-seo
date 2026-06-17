@@ -80,8 +80,8 @@ def _window_status_for_date(
                 "window_status": "insufficient",
                 "days_remaining": 0,
                 "days_to_next": days_to_next,
-                "window_message_fr": f"Modifié à nouveau {days_to_next} j après — il aurait fallu 28 j sans changement pour mesurer l'impact",
-                "window_message_en": f"Modified again after {days_to_next} d — 28 d without changes were needed to measure impact",
+                "window_message_fr": "Modifié à nouveau en moins de 28 j — pas assez de recul pour mesurer l'impact",
+                "window_message_en": "Modified again within 28 d — not enough time to measure impact",
             }
         return {
             "j28_date": j28_date,
