@@ -207,6 +207,10 @@ export interface ContentTestPack {
   } | null;
   /** Field key → ISO timestamp of the live Shopify apply ("Valider les propositions"). */
   applied_fields?: Record<string, string>;
+  /** Field keys armed for automatic publishing (the per-product checkboxes). */
+  auto_publish_fields?: string[];
+  /** Field key → reasons a checked field was held back from auto-publish. */
+  auto_publish_held?: Record<string, string[]>;
 }
 
 export interface BlogIdea {

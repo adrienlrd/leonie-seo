@@ -88,6 +88,64 @@ def _check_do_not_say(text: str, do_not_say: list[str]) -> list[str]:
     return violations
 
 
+_FIELD_TO_CONTENT_TYPE: dict[str, ContentType] = {
+    "meta_title": ContentType.META_TITLE,
+    "meta_description": ContentType.META_DESCRIPTION,
+    "description": ContentType.PRODUCT_DESCRIPTION,
+    "product_description": ContentType.PRODUCT_DESCRIPTION,
+    "collection_description": ContentType.COLLECTION_DESCRIPTION,
+    "alt_text": ContentType.ALT_TEXT,
+    "image_alts": ContentType.ALT_TEXT,
+    "answer_block": ContentType.ANSWER_BLOCK,
+}
+
+# Language heuristic needs ~3 French marker words to be reliable; that is only
+# dependable on longer text. Skip it for short fields to avoid false rejects on
+# legitimate French titles like "Harnais Premium pour Chien".
+_LANGUAGE_CHECKED_TYPES = frozenset(
+    {ContentType.META_DESCRIPTION, ContentType.PRODUCT_DESCRIPTION,
+     ContentType.COLLECTION_DESCRIPTION, ContentType.ANSWER_BLOCK}
+)
+
+
+def validate_proposal_text(
+    field: str,
+    text: str,
+    *,
+    locale: str = "fr",
+    forbidden_promises: list[str] | None = None,
+    do_not_say: list[str] | None = None,
+) -> tuple[bool, list[str]]:
+    """Validate one proposed text against safety constraints before auto-publish.
+
+    Reuses the same checks as the content_actions audit (length, language,
+    forbidden promises, banned words). Returns ``(is_safe, reasons)`` where an
+    empty ``reasons`` list means the text is safe to publish.
+    """
+    content_type = _FIELD_TO_CONTENT_TYPE.get(field.strip().lower())
+    reasons: list[str] = []
+
+    fp_violations = _check_forbidden_promises(text, forbidden_promises or [])
+    if fp_violations:
+        reasons.append("forbidden_promise: " + ", ".join(fp_violations))
+
+    dns_violations = _check_do_not_say(text, do_not_say or [])
+    if dns_violations:
+        reasons.append("do_not_say: " + ", ".join(dns_violations))
+
+    if content_type is not None and not _length_ok(text, content_type):
+        reasons.append("length_out_of_bounds")
+
+    if (
+        locale == "fr"
+        and content_type in _LANGUAGE_CHECKED_TYPES
+        and _detect_language(text) != "fr"
+    ):
+        reasons.append("language_mismatch")
+
+    return (len(reasons) == 0, reasons)
+
+
 def _compute_quality_score(
     result: ContentActionResult,
     request: ContentActionRequest,

@@ -146,6 +146,24 @@ export async function handleProductCardIntent(
     return json({ type: intent, ok: true, error: null });
   }
 
+  if (intent === "setAutoPublishFields") {
+    const productId = String(formData.get("productId") ?? "");
+    const autoPublishFields = JSON.parse(String(formData.get("autoPublishFields") ?? "[]")) as string[];
+    try {
+      await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/proposals/${encodeURIComponent(productId)}`,
+        {
+          accessToken: session.accessToken,
+          method: "PATCH",
+          body: JSON.stringify({ auto_publish_fields: autoPublishFields }),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+    } catch { /* best-effort */ }
+    return json({ type: "setAutoPublishFields", ok: true });
+  }
+
   if (intent === "applyToShopify") {
     const productId = String(formData.get("productId") ?? "");
     const fields = JSON.parse(String(formData.get("fields") ?? "[]")) as string[];

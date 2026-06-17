@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -21,6 +22,7 @@ from app.business_profile.context import (
     resolve_business_profile_context_status,
 )
 from app.business_profile.jobs import load_business_profile
+from app.content_actions.audit import validate_proposal_text
 from app.geo.auto_tracking import record_applied_change
 from app.geo.continuous_improvement import (
     enrich_market_analysis_result,
@@ -32,6 +34,8 @@ from app.geo.continuous_improvement import (
 )
 from app.gsc.client import ensure_fresh_gsc
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
+from app.learning.models import LearningMode
+from app.learning.store import get_settings
 from app.market_analysis.competitors import (
     load_competitors,
     load_excluded_competitors,
@@ -64,6 +68,7 @@ from app.market_analysis.jobs import (
 from app.market_analysis.providers.dataforseo_provider import DataForSEOProvider
 from app.market_analysis.providers.google_ads_provider import GoogleAdsKeywordProvider
 from app.niche.understanding import get_validated_niche_hypothesis
+from app.oauth.token_store import get_token
 from app.paths import data_dir
 from app.snapshot.scope import filter_products_by_scope
 
@@ -423,6 +428,7 @@ def _run_analysis_background(
             save_latest_result(shop_domain, completed_data)
             _auto_sync_schema_facts(shop_domain, completed_data["products"])
             auto_create_orphan_drafts(shop_domain, completed_data)
+            auto_publish_checked_proposals(shop_domain, completed_data, niche_hypothesis)
         elif persist_product_results:
             for product_result in completed_data["products"]:
                 replace_product_analysis(shop_domain, product_result, result["analyzed_at"])
@@ -434,6 +440,7 @@ def _run_analysis_background(
                 business_profile=business_profile,
                 niche_hypothesis=niche_hypothesis,
             )
+            auto_publish_checked_proposals(shop_domain, completed_data, niche_hypothesis)
         else:
             completed_data = enrich_market_analysis_result(
                 shop_domain,
@@ -839,6 +846,12 @@ async def patch_market_analysis_proposals(
             "publish_ready": False,
             "issues": ["merchant_edit_requires_revalidation"],
         }
+    # Per-product auto-publish checkbox selection — a toggle, not a content edit,
+    # so it does not trigger content revalidation.
+    if "auto_publish_fields" in body and isinstance(body["auto_publish_fields"], list):
+        proposals["auto_publish_fields"] = [
+            f for f in body["auto_publish_fields"] if f in _APPLYABLE_FIELDS
+        ]
     found = patch_product_proposals(ctx.shop, product_id, proposals)
     if not found:
         raise HTTPException(
@@ -899,6 +912,251 @@ class ApplyProposalsRequest(BaseModel):
     confirm_live_write: bool = False
 
 
+def _apply_proposals_core(
+    shop: str,
+    access_token: str | None,
+    product: dict[str, Any],
+    fields: list[str],
+) -> dict[str, Any]:
+    """Write the selected market-analysis proposals to Shopify (sync).
+
+    Shared by the manual apply endpoint and the auto-publish hook. Records each
+    successful write in the GEO ledger (feeds learning) and persists
+    ``applied_fields``. Returns ``{"results": ..., "applied_fields": ...}``.
+    """
+    product_id = str(product.get("product_id") or "")
+    pack = product.get("content_test_pack") or {}
+    writer = ShopifyWriter(shop, access_token)
+    results: dict[str, Any] = {}
+    resource_title = str(product.get("product_title") or product_id)
+    resource_handle = str(product.get("product_handle") or "")
+
+    seo_fields = [f for f in fields if f in {"meta_title", "meta_description"}]
+    if seo_fields:
+        title = str(pack.get("proposed_meta_title") or "") if "meta_title" in seo_fields else None
+        desc = (
+            str(pack.get("proposed_meta_description") or "")
+            if "meta_description" in seo_fields
+            else None
+        )
+        r = writer.apply_product_seo(product_id, title or None, desc or None)
+        for f in seo_fields:
+            results[f] = {"applied": r.applied, "error": r.error}
+            if r.applied:
+                record_applied_change(
+                    shop=shop,
+                    resource_type="product",
+                    resource_id=product_id,
+                    resource_title=resource_title,
+                    resource_handle=resource_handle,
+                    action_type=f,
+                    field=f,
+                    old_value=pack.get(f"current_{f}"),
+                    new_value=title if f == "meta_title" else desc,
+                )
+
+    if "description" in fields:
+        proposed_description = str(pack.get("proposed_product_description") or "")
+        r = writer.apply_product_description(product_id, proposed_description)
+        results["description"] = {"applied": r.applied, "error": r.error}
+        if r.applied:
+            record_applied_change(
+                shop=shop,
+                resource_type="product",
+                resource_id=product_id,
+                resource_title=resource_title,
+                resource_handle=resource_handle,
+                action_type="product_description",
+                field="product_description",
+                old_value=pack.get("current_product_description_summary"),
+                new_value=proposed_description,
+            )
+
+    if "image_alts" in fields:
+        image_alts = pack.get("proposed_image_alts") or []
+        current_images = {
+            str(img.get("id") or ""): img.get("current_alt")
+            for img in (pack.get("current_product_images") or [])
+            if isinstance(img, dict)
+        }
+        alt_errors: list[str] = []
+        applied_alts: list[dict[str, Any]] = []
+        for alt_item in image_alts if isinstance(image_alts, list) else []:
+            image_id = str(alt_item.get("image_id") or "")
+            proposed_alt = str(alt_item.get("proposed_alt") or "")
+            if image_id and proposed_alt:
+                r = writer.apply_image_alt(product_id, image_id, proposed_alt)
+                if r.applied:
+                    applied_alts.append(
+                        {
+                            "image_id": image_id,
+                            "old_alt": current_images.get(image_id),
+                            "new_alt": proposed_alt,
+                        }
+                    )
+                elif r.error:
+                    alt_errors.append(r.error)
+        results["image_alts"] = {
+            "applied": bool(applied_alts),
+            "applied_count": len(applied_alts),
+            "error": "; ".join(alt_errors) if alt_errors else None,
+        }
+        if applied_alts:
+            record_applied_change(
+                shop=shop,
+                resource_type="product",
+                resource_id=product_id,
+                resource_title=resource_title,
+                resource_handle=resource_handle,
+                action_type="alt_text",
+                field="alt_text",
+                old_value=[item["old_alt"] for item in applied_alts],
+                new_value=[item["new_alt"] for item in applied_alts],
+            )
+
+    applied_ok = [f for f, r in results.items() if r.get("applied")]
+    applied_fields = dict(pack.get("applied_fields") or {})
+    if applied_ok:
+        now_iso = datetime.now(UTC).isoformat()
+        applied_fields.update({f: now_iso for f in applied_ok})
+        patch_product_proposals(shop, product_id, {"applied_fields": applied_fields})
+
+    return {"results": results, "applied_fields": applied_fields}
+
+
+_APPLYABLE_FIELDS = ("meta_title", "meta_description", "description", "image_alts")
+
+
+def _proposed_text(pack: dict[str, Any], field: str) -> str:
+    if field == "meta_title":
+        return str(pack.get("proposed_meta_title") or "")
+    if field == "meta_description":
+        return str(pack.get("proposed_meta_description") or "")
+    if field == "description":
+        return str(pack.get("proposed_product_description") or "")
+    if field == "image_alts":
+        alts = pack.get("proposed_image_alts") or []
+        return " | ".join(str(a.get("proposed_alt") or "") for a in alts if isinstance(a, dict))
+    return ""
+
+
+def _current_text(pack: dict[str, Any], field: str) -> str:
+    if field == "meta_title":
+        return str(pack.get("current_meta_title") or "")
+    if field == "meta_description":
+        return str(pack.get("current_meta_description") or "")
+    if field == "description":
+        return str(pack.get("current_product_description_summary") or "")
+    return ""
+
+
+def _default_auto_publish_fields(pack: dict[str, Any]) -> list[str]:
+    """Fields that have a proposal — the merchant's chosen default (all proposed)."""
+    return [f for f in _APPLYABLE_FIELDS if _proposed_text(pack, f)]
+
+
+def _validate_field(
+    field: str,
+    proposed: str,
+    pack: dict[str, Any],
+    *,
+    forbidden_promises: list[str],
+    do_not_say: list[str],
+) -> tuple[bool, list[str]]:
+    """Validate a field's proposal. image_alts validates each alt individually."""
+    if field == "image_alts":
+        reasons: list[str] = []
+        for alt in pack.get("proposed_image_alts") or []:
+            if not isinstance(alt, dict):
+                continue
+            text = str(alt.get("proposed_alt") or "")
+            if not text:
+                continue
+            safe, alt_reasons = validate_proposal_text(
+                "alt_text", text, forbidden_promises=forbidden_promises, do_not_say=do_not_say
+            )
+            if not safe:
+                reasons.extend(alt_reasons)
+        return (len(reasons) == 0, sorted(set(reasons)))
+    return validate_proposal_text(
+        field, proposed, forbidden_promises=forbidden_promises, do_not_say=do_not_say
+    )
+
+
+def auto_publish_checked_proposals(
+    shop: str,
+    completed_data: dict[str, Any],
+    niche_hypothesis: dict[str, Any] | None,
+    *,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Auto-publish the per-product checked proposals when the shop is in auto mode.
+
+    For each product, the checked fields (``auto_publish_fields`` or, if unset,
+    all fields with a proposal) are published to Shopify — but only when the
+    proposal passes safety validation and differs from the current value.
+    Fields that fail validation are held (``auto_publish_held``) for manual
+    review and regenerated at the next analysis. No-op when the shop is in
+    manual mode or has no Shopify token. Fail-open: never raises.
+    """
+    import logging  # noqa: PLC0415
+
+    logger = logging.getLogger(__name__)
+    summary = {"published": 0, "held": 0, "products": 0, "mode": "manual"}
+    try:
+        settings = get_settings(shop, db_path=db_path)
+        if settings.mode != LearningMode.AUTO_APPLY:
+            return summary
+        summary["mode"] = "auto"
+        token = get_token(shop)
+        if not token:
+            summary["skipped_reason"] = "no_token"
+            return summary
+
+        niche = niche_hypothesis or {}
+        forbidden_promises = list(niche.get("forbidden_promises") or [])
+        do_not_say = list((niche.get("brand_voice") or {}).get("do_not_say") or [])
+
+        for product in completed_data.get("products") or []:
+            if not isinstance(product, dict):
+                continue
+            pack = product.get("content_test_pack") or {}
+            if "auto_publish_fields" in pack:
+                selected = [f for f in pack["auto_publish_fields"] if f in _APPLYABLE_FIELDS]
+            else:
+                selected = _default_auto_publish_fields(pack)
+
+            fields_to_apply: list[str] = []
+            held: dict[str, list[str]] = {}
+            for field in selected:
+                proposed = _proposed_text(pack, field)
+                if not proposed:
+                    continue
+                if field != "image_alts" and proposed == _current_text(pack, field):
+                    continue  # identical → no need to re-publish
+                safe, reasons = _validate_field(
+                    field,
+                    proposed,
+                    pack,
+                    forbidden_promises=forbidden_promises,
+                    do_not_say=do_not_say,
+                )
+                if safe:
+                    fields_to_apply.append(field)
+                else:
+                    held[field] = reasons
+
+            if fields_to_apply:
+                _apply_proposals_core(shop, token, product, fields_to_apply)
+                summary["published"] += len(fields_to_apply)
+            patch_product_proposals(shop, str(product.get("product_id") or ""), {"auto_publish_held": held})
+            summary["held"] += len(held)
+            summary["products"] += 1
+    except Exception:
+        logger.exception("auto_publish_checked_proposals failed for shop=%s", shop)
+    return summary
+
+
 @router.post("/shops/{shop}/market-analysis/proposals/{product_id:path}/apply-to-shopify")
 async def apply_market_analysis_proposals_to_shopify(
     shop: str,
@@ -918,106 +1176,22 @@ async def apply_market_analysis_proposals_to_shopify(
         raise HTTPException(
             status_code=404, detail=f"Product {product_id} not found in latest analysis"
         )
-    pack = product.get("content_test_pack") or {}
     if not body.confirm_live_write:
-        return {"dry_run": True, "shop": ctx.shop, "product_id": product_id, "fields_requested": body.fields}
-
-    writer = ShopifyWriter(ctx.shop, ctx.access_token)
-    results: dict[str, Any] = {}
-    resource_title = str(product.get("product_title") or product_id)
-    resource_handle = str(product.get("product_handle") or "")
-
-    seo_fields = [f for f in body.fields if f in {"meta_title", "meta_description"}]
-    if seo_fields:
-        title = str(pack.get("proposed_meta_title") or "") if "meta_title" in seo_fields else None
-        desc = str(pack.get("proposed_meta_description") or "") if "meta_description" in seo_fields else None
-        r = await asyncio.to_thread(writer.apply_product_seo, product_id, title or None, desc or None)
-        for f in seo_fields:
-            results[f] = {"applied": r.applied, "error": r.error}
-            if r.applied:
-                record_applied_change(
-                    shop=ctx.shop,
-                    resource_type="product",
-                    resource_id=product_id,
-                    resource_title=resource_title,
-                    resource_handle=resource_handle,
-                    action_type=f,
-                    field=f,
-                    old_value=pack.get(f"current_{f}"),
-                    new_value=title if f == "meta_title" else desc,
-                )
-
-    if "description" in body.fields:
-        proposed_description = str(pack.get("proposed_product_description") or "")
-        r = await asyncio.to_thread(writer.apply_product_description, product_id, proposed_description)
-        results["description"] = {"applied": r.applied, "error": r.error}
-        if r.applied:
-            record_applied_change(
-                shop=ctx.shop,
-                resource_type="product",
-                resource_id=product_id,
-                resource_title=resource_title,
-                resource_handle=resource_handle,
-                action_type="product_description",
-                field="product_description",
-                old_value=pack.get("current_product_description_summary"),
-                new_value=proposed_description,
-            )
-
-    if "image_alts" in body.fields:
-        image_alts = pack.get("proposed_image_alts") or []
-        current_images = {
-            str(img.get("id") or ""): img.get("current_alt")
-            for img in (pack.get("current_product_images") or [])
-            if isinstance(img, dict)
+        return {
+            "dry_run": True,
+            "shop": ctx.shop,
+            "product_id": product_id,
+            "fields_requested": body.fields,
         }
-        alt_errors: list[str] = []
-        applied_alts: list[dict[str, Any]] = []
-        for alt_item in (image_alts if isinstance(image_alts, list) else []):
-            image_id = str(alt_item.get("image_id") or "")
-            proposed_alt = str(alt_item.get("proposed_alt") or "")
-            if image_id and proposed_alt:
-                r = await asyncio.to_thread(writer.apply_image_alt, product_id, image_id, proposed_alt)
-                if r.applied:
-                    applied_alts.append(
-                        {
-                            "image_id": image_id,
-                            "old_alt": current_images.get(image_id),
-                            "new_alt": proposed_alt,
-                        }
-                    )
-                elif r.error:
-                    alt_errors.append(r.error)
-        results["image_alts"] = {
-            "applied": bool(applied_alts),
-            "applied_count": len(applied_alts),
-            "error": "; ".join(alt_errors) if alt_errors else None,
-        }
-        if applied_alts:
-            record_applied_change(
-                shop=ctx.shop,
-                resource_type="product",
-                resource_id=product_id,
-                resource_title=resource_title,
-                resource_handle=resource_handle,
-                action_type="alt_text",
-                field="alt_text",
-                old_value=[item["old_alt"] for item in applied_alts],
-                new_value=[item["new_alt"] for item in applied_alts],
-            )
 
-    applied_ok = [f for f, r in results.items() if r.get("applied")]
-    applied_fields = dict(pack.get("applied_fields") or {})
-    if applied_ok:
-        now_iso = datetime.now(UTC).isoformat()
-        applied_fields.update({f: now_iso for f in applied_ok})
-        patch_product_proposals(ctx.shop, product_id, {"applied_fields": applied_fields})
-
+    core = await asyncio.to_thread(
+        _apply_proposals_core, ctx.shop, ctx.access_token, product, body.fields
+    )
     return {
         "shop": ctx.shop,
         "product_id": product_id,
-        "results": results,
-        "applied_fields": applied_fields,
+        "results": core["results"],
+        "applied_fields": core["applied_fields"],
     }
 
 

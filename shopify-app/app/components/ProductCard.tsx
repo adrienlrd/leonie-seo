@@ -229,10 +229,25 @@ export function ProductCard({
   // their countdown).
   const isFieldApplied = (key: FieldKey): boolean =>
     Boolean((pack?.applied_fields ?? {})[key === "alt_text" ? "image_alts" : key]);
-  const defaultChecked = () =>
-    new Set(APPLY_FIELDS.filter((f) => fieldHasProposal(f) && !isFieldApplied(f)));
+  const FIELD_TO_BACKEND: Record<FieldKey, string> = {
+    meta_title: "meta_title",
+    meta_description: "meta_description",
+    description: "description",
+    alt_text: "image_alts",
+  } as unknown as Record<FieldKey, string>;
+  const defaultChecked = () => {
+    // Persisted per-product selection wins (an empty array means the merchant
+    // unchecked everything); otherwise default to every field that has a
+    // proposal and is not already applied.
+    const persisted = pack?.auto_publish_fields;
+    if (persisted) {
+      return new Set(APPLY_FIELDS.filter((f) => persisted.includes(FIELD_TO_BACKEND[f] ?? f)));
+    }
+    return new Set(APPLY_FIELDS.filter((f) => fieldHasProposal(f) && !isFieldApplied(f)));
+  };
 
   const [checkedApplyFields, setCheckedApplyFields] = useState<Set<FieldKey>>(defaultChecked);
+  const autoPublishFetcher = useFetcher();
 
   const packSig = JSON.stringify(pack);
   useEffect(() => {
@@ -244,6 +259,16 @@ export function ProductCard({
     setCheckedApplyFields((prev) => {
       const next = new Set(prev);
       if (next.has(field)) next.delete(field); else next.add(field);
+      // Persist the per-product auto-publish selection (best-effort).
+      const backendFields = [...next].map((f) => FIELD_TO_BACKEND[f] ?? f);
+      autoPublishFetcher.submit(
+        {
+          intent: "setAutoPublishFields",
+          productId: product.product_id,
+          autoPublishFields: JSON.stringify(backendFields),
+        },
+        { method: "post" },
+      );
       return next;
     });
 

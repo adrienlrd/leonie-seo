@@ -24,6 +24,7 @@ from app.api.market_analysis import (
     _attach_business_profile_context_status,
     _auto_sync_schema_facts,
     _gather_analysis_inputs,
+    auto_publish_checked_proposals,
 )
 from app.billing.subscription_store import get_plan_for_shop
 from app.blog.auto_draft import auto_create_orphan_drafts
@@ -149,6 +150,7 @@ def run_market_reanalysis(
     save_latest_result(shop, completed_data)
     _auto_sync_schema_facts(shop, completed_data["products"])
     auto_create_orphan_drafts(shop, completed_data)
+    auto_publish_checked_proposals(shop, completed_data, niche_hypothesis, db_path=db_path)
     return completed_data
 
 

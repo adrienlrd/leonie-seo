@@ -836,7 +836,9 @@ export function ProductContentProposals({
   const fieldButtons = fields.filter((f) => f.has).map((f) => {
     const isApplyable = APPLY_FIELD_KEYS.includes(f.key);
     const isChecked = isApplyable && (checkedApplyFields?.has(f.key) ?? false);
-    const appliedAt = editedPack.applied_fields?.[f.key === "alt_text" ? "image_alts" : f.key];
+    const backendKey = f.key === "alt_text" ? "image_alts" : f.key;
+    const appliedAt = editedPack.applied_fields?.[backendKey];
+    const heldReasons = editedPack.auto_publish_held?.[backendKey];
     // Re-checking an applied field deliberately re-arms the apply (and will
     // restart its countdown), so the outline comes back as feedback.
     const showYellow = isApplyable && fieldHasNewProposal(f.key) && isChecked;
@@ -868,6 +870,9 @@ export function ProductContentProposals({
             {t(locale, f.labelKey)}
           </Button>
         </div>
+        {heldReasons && heldReasons.length > 0 && !appliedAt && (
+          <Badge tone="warning">{t(locale, "autoPublishHeld")}</Badge>
+        )}
       </InlineStack>
     );
   });
