@@ -664,13 +664,12 @@ const FR: Dictionary = {
   llmsTxtError: "Une erreur est survenue. Réessayez dans quelques instants.",
   llmsTxtNoSnapshot:
     "Lancez d'abord un audit de la boutique pour générer les fichiers.",
-  // Analyse (grouped by application date)
+  // Analyse (grouped by product then validation date)
   analyseNav: "Analyse",
   analyseTitle: "Analyse des optimisations",
-  analyseSubtitle: "Vos optimisations groupées par date d'application, avec le trafic GSC à J+28 quand disponible.",
+  analyseSubtitle: "Vos optimisations par produit avec le trafic GSC à J+28 quand disponible.",
   analyseProductsOptimized: "Produits optimisés",
   analyseTotalActions: "Actions appliquées",
-  analyseTotalDates: "Dates d'application",
   analyseActionsCount: "action(s)",
   analyseEmpty: "Aucune optimisation appliquée pour le moment.",
   analyseAppliedAt: "Validé le",
@@ -1424,10 +1423,9 @@ const EN: Dictionary = {
   // Analyse (grouped by application date)
   analyseNav: "Analysis",
   analyseTitle: "Optimization analysis",
-  analyseSubtitle: "Your optimizations grouped by application date, with GSC traffic at J+28 when available.",
+  analyseSubtitle: "Your optimizations by product with GSC traffic at J+28 when available.",
   analyseProductsOptimized: "Products optimized",
   analyseTotalActions: "Actions applied",
-  analyseTotalDates: "Application dates",
   analyseActionsCount: "action(s)",
   analyseEmpty: "No optimizations applied yet.",
   analyseAppliedAt: "Applied on",
