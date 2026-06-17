@@ -21,6 +21,7 @@ import {
 import {
   AlertCircleIcon,
   AlertTriangleIcon,
+  AutomationIcon,
   BookOpenIcon,
   CalendarIcon,
   CameraIcon,
@@ -153,6 +154,7 @@ interface LoaderData {
   auditJobId: string | null;
   businessProfile: BusinessProfile | null;
   gscStatus: GscStatus | null;
+  learningMode: "semi_auto" | "auto_apply";
   error: string | null;
 }
 
@@ -179,6 +181,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let auditJobId: string | null = null;
   let businessProfile: BusinessProfile | null = null;
   let gscStatus: GscStatus | null = null;
+  let learningMode: "semi_auto" | "auto_apply" = "semi_auto";
 
   try {
     // Bound every backend call so a cold/slow backend cannot hang the page
@@ -187,19 +190,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // degrade to their default empty values on timeout via Promise.allSettled.
     const DASHBOARD_TIMEOUT_MS = 12_000;
     const SECONDARY_TIMEOUT_MS = 8_000;
-    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken, signal: AbortSignal.timeout(DASHBOARD_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/market-analysis/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/market-analysis/competitors`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/gsc/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/learning/settings`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
     ]);
 
     if (gscStatusResp.status === "fulfilled" && gscStatusResp.value.ok) {
       try {
         const data = (await gscStatusResp.value.json()) as { connected?: boolean; reauth_required?: boolean };
         gscStatus = { connected: data.connected === true, reauth_required: data.reauth_required === true };
+      } catch (_parseErr) { /* ignore */ }
+    }
+
+    if (learningResp.status === "fulfilled" && learningResp.value.ok) {
+      try {
+        const data = (await learningResp.value.json()) as { settings?: { mode?: string } };
+        if (data.settings?.mode === "auto_apply") learningMode = "auto_apply";
       } catch (_parseErr) { /* ignore */ }
     }
 
@@ -264,6 +275,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         auditJobId: null,
         businessProfile,
         gscStatus,
+        learningMode,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
       });
     }
@@ -274,7 +286,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirect(localizedPath("/app/onboarding", locale));
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, learningMode, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -287,6 +299,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       auditJobId,
       businessProfile,
       gscStatus,
+      learningMode,
       error: err instanceof Error ? err.message : "Network error",
     });
   }
@@ -339,6 +352,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ type: "refresh", jobId: data.job_id, error: null });
     } catch (err) {
       return json({ type: "refresh", jobId: null, error: String(err) });
+    }
+  }
+
+  if (intent === "setPublishMode") {
+    const mode = formData.get("mode") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/learning/settings`,
+        {
+          accessToken: session.accessToken,
+          method: "PUT",
+          body: JSON.stringify({ mode }),
+        },
+      );
+      if (!resp.ok) return json({ type: "setPublishMode", ok: false, error: `HTTP ${resp.status}` });
+      return json({ type: "setPublishMode", ok: true, error: null });
+    } catch (err) {
+      return json({ type: "setPublishMode", ok: false, error: String(err) });
     }
   }
 
@@ -450,6 +482,7 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (formData?.get("jobId")) return false;
   const intent = formData?.get("intent");
   if (intent === "refresh") return false;
+  if (intent === "setPublishMode") return false;
   if (intent === "startSingle") return false;
   if (intent === "saveFactsAndStartSingle") return false;
   if (intent === "pollSingle") return false;
@@ -885,6 +918,95 @@ function Zone4({
   );
 }
 
+function PublishModeCard({
+  currentMode,
+  locale,
+}: {
+  currentMode: "semi_auto" | "auto_apply";
+  locale: Locale;
+}) {
+  const fetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
+  const [selected, setSelected] = useState<"semi_auto" | "auto_apply">(currentMode);
+
+  const handleToggle = (mode: "semi_auto" | "auto_apply") => {
+    setSelected(mode);
+    const fd = new FormData();
+    fd.set("intent", "setPublishMode");
+    fd.set("mode", mode);
+    fetcher.submit(fd, { method: "post" });
+  };
+
+  const busy = fetcher.state !== "idle";
+  const isAuto = selected === "auto_apply";
+
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineGrid columns={2} gap="300">
+          <Box
+            padding="300"
+            borderWidth="025"
+            borderRadius="200"
+            borderColor={!isAuto ? "border-emphasis" : "border"}
+            background={!isAuto ? "bg-surface-secondary" : "bg-surface"}
+          >
+            <BlockStack gap="200">
+              <InlineStack gap="200" blockAlign="center">
+                <Icon source={ContentIcon} />
+                <Text as="p" variant="bodyMd" fontWeight="semibold">
+                  {t(locale, "publishModeManualTitle")}
+                </Text>
+              </InlineStack>
+              <Text as="p" variant="bodySm" tone="subdued">
+                {t(locale, "publishModeManualDesc")}
+              </Text>
+              {!isAuto ? (
+                <Badge tone="success">{locale === "fr" ? "Actif" : "Active"}</Badge>
+              ) : (
+                <Button size="slim" onClick={() => handleToggle("semi_auto")} loading={busy}>
+                  {locale === "fr" ? "Activer" : "Activate"}
+                </Button>
+              )}
+            </BlockStack>
+          </Box>
+
+          <Box
+            padding="300"
+            borderWidth="025"
+            borderRadius="200"
+            borderColor={isAuto ? "border-emphasis" : "border"}
+            background={isAuto ? "bg-surface-secondary" : "bg-surface"}
+          >
+            <BlockStack gap="200">
+              <InlineStack gap="200" blockAlign="center">
+                <Icon source={AutomationIcon} />
+                <Text as="p" variant="bodyMd" fontWeight="semibold">
+                  {t(locale, "publishModeAutoTitle")} 🚀
+                </Text>
+              </InlineStack>
+              <Text as="p" variant="bodySm" tone="subdued">
+                {t(locale, "publishModeAutoDesc")}
+              </Text>
+              {isAuto ? (
+                <Badge tone="attention">{locale === "fr" ? "Actif" : "Active"}</Badge>
+              ) : (
+                <Button size="slim" variant="primary" onClick={() => handleToggle("auto_apply")} loading={busy}>
+                  {locale === "fr" ? "Activer" : "Activate"}
+                </Button>
+              )}
+            </BlockStack>
+          </Box>
+        </InlineGrid>
+        {isAuto && (
+          <Banner tone="info">
+            <p>{t(locale, "publishModeAutoDisclaimer")}</p>
+          </Banner>
+        )}
+      </BlockStack>
+    </Card>
+  );
+}
+
 function Zone5({
   data,
   locale,
@@ -1253,7 +1375,7 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, learningMode, error } = useLoaderData<typeof loader>() as LoaderData;
   // OAuth status is authoritative; fall back to the per-product flag (GSC data
   // file present) only when the status call itself failed.
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
@@ -1562,6 +1684,9 @@ export default function IndexPage() {
         />
 
 
+
+        {/* Publish mode toggle */}
+        <PublishModeCard currentMode={learningMode} locale={locale} />
 
         {/* Zone 5 — Alerts (conditional) */}
         <Zone5 data={zone5} locale={locale} />
