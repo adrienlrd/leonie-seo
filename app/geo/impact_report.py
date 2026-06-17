@@ -124,9 +124,18 @@ def _extract_ga4(event: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _compute_verdict(confidence_score: int, geo_delta: int | None) -> tuple[str, str]:
+def _compute_verdict(
+    confidence_score: int,
+    geo_delta: int | None,
+    gsc_impressions_delta: int | None = None,
+) -> tuple[str, str]:
     if geo_delta is not None and geo_delta < 0:
+        if gsc_impressions_delta is not None and gsc_impressions_delta > 0:
+            return "neutre", "Le score GEO a baissé mais les impressions GSC ont augmenté."
         return "négatif_possible", "Le score GEO a diminué après l'optimisation."
+    # GSC improvement can strengthen verdict even without GEO score change
+    if gsc_impressions_delta is not None and gsc_impressions_delta > 0 and confidence_score >= 25:
+        return "positif_probable", "Les impressions GSC ont augmenté après l'optimisation."
     if confidence_score >= 50 and (geo_delta is None or geo_delta >= 0):
         return "positif_probable", "Score de confiance élevé et score GEO stable ou en hausse."
     if confidence_score >= 25 and geo_delta == 0:
@@ -153,7 +162,9 @@ def build_event_report(
 
     conf_score = confidence.get("score", 0)
     conf_label = confidence.get("label", "données_insuffisantes")
-    verdict, verdict_note = _compute_verdict(conf_score, scores["geo_delta"])
+    verdict, verdict_note = _compute_verdict(
+        conf_score, scores["geo_delta"], gsc["impressions_delta"],
+    )
     next_rec = _RECOMMENDATIONS.get(verdict, "attendre")
 
     applied_at = ""
@@ -163,7 +174,9 @@ def build_event_report(
     if not applied_at:
         applied_at = event.get("created_at", "")
 
-    return {
+    from app.geo.measurement_loop import build_verdict_summary  # noqa: PLC0415
+
+    report = {
         "event_id": event.get("id"),
         "resource_type": event.get("resource_type", ""),
         "resource_id": event.get("resource_id", ""),
@@ -182,7 +195,10 @@ def build_event_report(
         "verdict": verdict,
         "verdict_note": verdict_note,
         "next_recommendation": next_rec,
+        "verdict_summary": "",
     }
+    report["verdict_summary"] = build_verdict_summary(report)
+    return report
 
 
 def build_catalog_report(

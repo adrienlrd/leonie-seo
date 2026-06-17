@@ -59,14 +59,27 @@ interface RetentionData {
   retention_message_en: string;
 }
 
+interface ImpactReportGsc {
+  impressions_before: number | null;
+  impressions_after: number | null;
+  impressions_delta: number | null;
+  clicks_before: number | null;
+  clicks_after: number | null;
+  clicks_delta: number | null;
+  position_before: number | null;
+  position_after: number | null;
+}
+
 interface ImpactReportEntry {
   event_id: number;
   resource_title: string;
   action_type: string;
   applied_at: string;
   verdict: string;
+  verdict_summary: string;
   next_recommendation: string;
   confidence: { score: number; label: string };
+  gsc?: ImpactReportGsc;
 }
 
 interface ImpactReportData {
@@ -343,27 +356,63 @@ export default function MeasurePage() {
           <BlockStack gap="300">
             <Text as="h2" variant="headingMd">{t(locale, "measureImpactReportTitle")}</Text>
             {impactReport && impactReport.reports.length > 0 ? (
-              <DataTable
-                columnContentTypes={["text", "text", "text", "text", "text", "text"]}
-                headings={[
-                  t(locale, "measureColResource"),
-                  t(locale, "measureColAction"),
-                  t(locale, "measureColAppliedAt"),
-                  t(locale, "measureColVerdict"),
-                  t(locale, "measureColConfidence"),
-                  t(locale, "measureColRecommendation"),
-                ]}
-                rows={impactReport.reports.map((report) => [
-                  report.resource_title,
-                  report.action_type,
-                  (report.applied_at || "").slice(0, 10) || "—",
-                  <Badge key="verdict" tone={verdictTone(report.verdict)}>
-                    {localize(locale, VERDICT_KEYS, report.verdict)}
-                  </Badge>,
-                  `${report.confidence.score} — ${localize(locale, CONFIDENCE_LABEL_KEYS, report.confidence.label)}`,
-                  localize(locale, RECOMMENDATION_KEYS, report.next_recommendation),
-                ])}
-              />
+              <BlockStack gap="300">
+                {impactReport.reports.map((report) => (
+                  <Box key={report.event_id} padding="300" background="bg-surface-secondary" borderRadius="200">
+                    <BlockStack gap="200">
+                      <InlineStack gap="200" blockAlign="center" wrap>
+                        <Text as="span" fontWeight="semibold">{report.resource_title}</Text>
+                        <Badge>{report.action_type}</Badge>
+                        <Badge tone={verdictTone(report.verdict)}>
+                          {localize(locale, VERDICT_KEYS, report.verdict)}
+                        </Badge>
+                        <Text as="span" variant="bodySm" tone="subdued">
+                          {(report.applied_at || "").slice(0, 10) || "—"}
+                        </Text>
+                      </InlineStack>
+                      {report.verdict_summary ? (
+                        <Text as="p" variant="bodyMd">{report.verdict_summary}</Text>
+                      ) : null}
+                      {report.gsc && report.gsc.impressions_after != null ? (
+                        <InlineStack gap="400" wrap>
+                          <BlockStack gap="050">
+                            <Text as="span" variant="bodySm" tone="subdued">{t(locale, "measureColImpressions")}</Text>
+                            <Text as="span" variant="bodySm">
+                              {report.gsc.impressions_before ?? "—"} → {report.gsc.impressions_after ?? "—"}
+                              {report.gsc.impressions_delta != null && (
+                                <> ({report.gsc.impressions_delta > 0 ? "+" : ""}{report.gsc.impressions_delta})</>
+                              )}
+                            </Text>
+                          </BlockStack>
+                          <BlockStack gap="050">
+                            <Text as="span" variant="bodySm" tone="subdued">{t(locale, "measureColClicks")}</Text>
+                            <Text as="span" variant="bodySm">
+                              {report.gsc.clicks_before ?? "—"} → {report.gsc.clicks_after ?? "—"}
+                              {report.gsc.clicks_delta != null && (
+                                <> ({report.gsc.clicks_delta > 0 ? "+" : ""}{report.gsc.clicks_delta})</>
+                              )}
+                            </Text>
+                          </BlockStack>
+                          <BlockStack gap="050">
+                            <Text as="span" variant="bodySm" tone="subdued">{t(locale, "measureColPosition")}</Text>
+                            <Text as="span" variant="bodySm">
+                              {report.gsc.position_before != null ? report.gsc.position_before.toFixed(1) : "—"} → {report.gsc.position_after != null ? report.gsc.position_after.toFixed(1) : "—"}
+                            </Text>
+                          </BlockStack>
+                        </InlineStack>
+                      ) : null}
+                      <InlineStack gap="200" blockAlign="center">
+                        <Text as="span" variant="bodySm" tone="subdued">
+                          {t(locale, "measureColConfidence")}: {report.confidence.score} — {localize(locale, CONFIDENCE_LABEL_KEYS, report.confidence.label)}
+                        </Text>
+                        <Text as="span" variant="bodySm">
+                          → {localize(locale, RECOMMENDATION_KEYS, report.next_recommendation)}
+                        </Text>
+                      </InlineStack>
+                    </BlockStack>
+                  </Box>
+                ))}
+              </BlockStack>
             ) : (
               <Text as="p" tone="subdued">{t(locale, "measureImpactReportEmpty")}</Text>
             )}

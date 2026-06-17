@@ -90,12 +90,20 @@ def test_verdict_is_positif_probable_when_confidence_high_and_geo_delta_positive
     assert report["next_recommendation"] == "répliquer"
 
 
-def test_verdict_is_negatif_possible_when_geo_delta_negative() -> None:
-    event = _event(score_before=75, score_after=60)
+def test_verdict_is_negatif_possible_when_geo_delta_negative_and_no_gsc_improvement() -> None:
+    event = _event(score_before=75, score_after=60, impressions_after=None)
     report = build_event_report(event, _confidence(score=70))
 
     assert report["verdict"] == "négatif_possible"
     assert report["next_recommendation"] == "rollback"
+
+
+def test_verdict_is_neutre_when_geo_delta_negative_but_gsc_impressions_up() -> None:
+    event = _event(score_before=75, score_after=60, impressions_before=500, impressions_after=800)
+    report = build_event_report(event, _confidence(score=70))
+
+    assert report["verdict"] == "neutre"
+    assert report["next_recommendation"] == "ajuster"
 
 
 def test_verdict_is_inconclusif_when_confidence_below_25() -> None:
@@ -135,7 +143,7 @@ def test_render_markdown_contains_resource_title() -> None:
 def test_build_catalog_report_returns_correct_summary() -> None:
     events = [
         _event(eid=1, score_before=60, score_after=75),
-        _event(eid=2, score_before=70, score_after=65),
+        _event(eid=2, score_before=70, score_after=65, impressions_after=None),
     ]
     confidences = [
         _confidence(eid=1, score=65, label="impact_probable"),

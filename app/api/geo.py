@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -46,7 +47,19 @@ from app.geo.weekly import build_weekly_actions
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.snapshot.scope import normalize_product_scope
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["geo"])
+
+
+def _run_measurement_loop_safe(shop: str) -> None:
+    """Run the measurement loop, swallowing any error."""
+    try:
+        from app.geo.measurement_loop import run_measurement_loop  # noqa: PLC0415
+
+        run_measurement_loop(shop)
+    except Exception:
+        logger.warning("measurement loop failed for %s", shop, exc_info=True)
 
 
 def _find_gsc_query_page_file(shop: str) -> Path | None:
@@ -353,6 +366,24 @@ async def _load_ga4_daily(shop: str, days: int) -> tuple[dict, bool]:
     return rows, True
 
 
+@router.get("/shops/{shop}/geo/analysis-overview")
+async def get_geo_analysis_overview(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Per-product analysis overview: applied changes, before/after, 28-day traffic."""
+    await asyncio.to_thread(_run_measurement_loop_safe, ctx.shop)
+
+    from app.geo.analysis_overview import build_analysis_overview  # noqa: PLC0415
+
+    result = await asyncio.to_thread(build_analysis_overview, ctx.shop, db_path=DB_PATH)
+    return {
+        "shop": ctx.shop,
+        "generated_at": datetime.now(UTC).isoformat(),
+        **result,
+    }
+
+
 @router.get("/shops/{shop}/geo/progress-curve")
 async def get_geo_progress_curve(
     shop: str,
@@ -360,6 +391,7 @@ async def get_geo_progress_curve(
     days: int = Query(default=90, ge=7, le=180),
 ) -> dict:
     """Aggregate snapshots, events, GSC and GA4 daily rows into dashboard time-series."""
+    await asyncio.to_thread(_run_measurement_loop_safe, ctx.shop)
     snapshots = list_optimization_snapshots(ctx.shop, limit=500, db_path=DB_PATH)["snapshots"]
     events = list_geo_events(ctx.shop, limit=500, db_path=DB_PATH)["events"]
     gsc_file = _find_gsc_file(ctx.shop)
@@ -399,6 +431,7 @@ async def get_geo_impact_report(
     limit: int = Query(default=500, ge=1, le=500),
 ) -> dict:
     """Return a before/after impact report with verdict and Markdown export."""
+    await asyncio.to_thread(_run_measurement_loop_safe, ctx.shop)
     events = list_geo_events(ctx.shop, limit=limit, db_path=DB_PATH)["events"]
     confidence_data = compute_catalog_confidence(events)
     catalog = build_catalog_report(events, confidence_data["scores"])
@@ -419,6 +452,7 @@ async def get_geo_retention_milestones(
     limit: int = Query(default=500, ge=1, le=500),
 ) -> dict:
     """Return J+14/J+28/J+60 retention milestones for applied GEO events."""
+    await asyncio.to_thread(_run_measurement_loop_safe, ctx.shop)
     events = list_geo_events(ctx.shop, limit=limit, db_path=DB_PATH)["events"]
     result = build_retention_milestones(events)
     return {
