@@ -8,7 +8,7 @@ Scope: checks that do not require a Shopify Admin embedded session.
 
 | Check | Command | Result |
 |---|---|---|
-| Remix app health | `curl -fsS https://pilot.leoniedelacroixfrance.com/healthz` | `ok` |
+| Remix app health | `curl -fsS https://leonie-seo-pilot-web.onrender.com/healthz` | `ok` |
 | Python backend health | `curl -fsS https://leonie-seo-pilot-api.onrender.com/health` | `{"status":"ok","missing_env":[]}` |
 | Privacy page | `curl -fsS -o /dev/null -w '%{http_code}\n' https://leonie-seo-pilot-api.onrender.com/privacy` | `200` |
 | CLI smoke command | `python -m scripts.cli pilot smoke-public --timeout 90` | all 3 checks OK |

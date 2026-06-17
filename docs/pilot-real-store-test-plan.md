@@ -16,7 +16,7 @@ Target store:
 
 - Storefront: `https://www.leoniedelacroix.com`
 - Shopify shop: `287c4a-bb.myshopify.com`
-- Pilot app origin: `https://pilot.leoniedelacroixfrance.com`
+- Pilot app origin: `https://leonie-seo-pilot-web.onrender.com`
 - Backend: `https://leonie-seo-pilot-api.onrender.com`
 
 Required backend posture:

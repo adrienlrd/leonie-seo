@@ -1,7 +1,7 @@
 # Shopify App Store Submission Checklist
 
 > Last updated: 2026-05-17
-> Status snapshot: **pilot live on `pilot.leoniedelacroixfrance.com`**, public App Store submission deferred until checklist below is 100 %.
+> Status snapshot: **pilot live on `leonie-seo-pilot-web.onrender.com`**, public App Store submission deferred until checklist below is 100 %.
 
 This document is the single source of truth for the App Store submission. Every
 item is classified as **✅ Done**, **🔄 In progress**, **⚠️ Blocker**, or
@@ -48,7 +48,7 @@ Verify each one before submitting.
 | Item | Where | Notes |
 |---|---|---|
 | **App name** ("Giulio Geo") unique on the App Store | Partner Dashboard → App setup → Name | Must not collide with another app |
-| **App URL** = `https://pilot.leoniedelacroixfrance.com` (will change for production app) | App setup → URLs | Use a non-pilot URL when going GA |
+| **App URL** = `https://leonie-seo-pilot-web.onrender.com` (will change for production app) | App setup → URLs | Use a non-pilot URL when going GA |
 | **Allowed redirection URLs** | App setup → URLs | Currently in `shopify.app.pilot.toml` |
 | **Access scopes** = `read_products,write_products,write_content,read_themes,write_themes` | App setup → Access scopes | Matches `shopify.app.toml`. `read_orders` removed (unused). `write_themes` is tightly scoped, consented, reversible and audited — see `docs/shopify-write-themes-review-justification.md` (paste its summary into the review notes) |
 | **API version** ≥ `2025-01` | App setup → Webhooks | Already set |

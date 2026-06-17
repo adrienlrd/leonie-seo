@@ -47,7 +47,7 @@ Voir [`docs/plans.md`](docs/plans.md) pour le détail.
 
 ### Pilote marchand réel avant App Store
 
-Avant la soumission publique, Giulio Geo passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à l'URL stable `https://pilot.leoniedelacroixfrance.com`. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md), et le plan de test réel dans [`docs/pilot-real-store-test-plan.md`](docs/pilot-real-store-test-plan.md).
+Avant la soumission publique, Giulio Geo passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à l'URL stable `https://leonie-seo-pilot-web.onrender.com`. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md), et le plan de test réel dans [`docs/pilot-real-store-test-plan.md`](docs/pilot-real-store-test-plan.md).
 
 Smoke check public du pilote :
 
