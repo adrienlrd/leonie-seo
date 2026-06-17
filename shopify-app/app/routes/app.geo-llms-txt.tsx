@@ -146,7 +146,7 @@ export default function LlmsTxtPage() {
   const fetcher = useFetcher<ActionResult>();
   const prefsFetcher = useFetcher<ActionResult>();
   const [preview, setPreview] = useState<string | null>(null);
-  const [confirmChecked, setConfirmChecked] = useState(false);
+  const [confirmChecked, setConfirmChecked] = useState(Boolean(status?.is_published));
 
   const knownAgents = status?.known_agents ?? [];
   const [prefs, setPrefs] = useState<CrawlerPrefs>(
