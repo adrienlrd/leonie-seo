@@ -10,6 +10,18 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-17
+- **Agent:** Claude (Sonnet 4.6)
+- **Goal:** Attribution & apprentissage SEO/GEO — étapes 1/2/3 : scoring d'impact conscient de la surface, garde-fou « fenêtre propre », apprentissage au niveau des mots ; + score marchand simplifié sur la page Analyse.
+- **Summary:** **Étape 1** — nouveau `app/learning/surface_metrics.py` (profils de pondération métrique par surface : meta_description jugée sur CTR/clics et plus sur impressions/position, meta_title sur position+CTR, alt_text sur impressions image, etc. ; défaut = ancienne formule fixe → rétro-compat). `calculate_outcome()` (`app/learning/outcomes.py`) accepte `field`/`action_type` et pondère via le profil ; retourne une `decomposition` (métrique dominante + cause lisible FR/EN). **Étape 2** — `_window_purity()` dans `scheduler.py` calcule `clean`/`mixed` (combien de surfaces modifiées sur la fenêtre 28 j) ; `calculate_confidence()` bonus +8 si clean, −12 si mixed ; les features-mots ne sont apprises que sur fenêtres non-mixed. **Étape 3** — `text_features()` (`features.py`) tokenise titres/descriptions (normalisation, stopwords FR/EN, mots+bigrammes, taguées par surface : `title_word`, `desc_bigram`…) ; branché dans `features_for_observation` (apprentissage) et `features_for_candidate` (biais du scoring futur). Persistance & feedback déjà câblés (système `learning_weights` existant, merchant+global) → chaque nouvelle analyse relit le passé, aucune nouvelle table. **Front** — `app/geo/analysis_overview.py` expose par produit `reach_gained` + `clicks_gained` (SEO+GEO combinés, baseline→J+28) + `traffic_confidence` (strong/to_confirm/insufficient) + décomposition par action ; `app.analyse.tsx` affiche un headline simple « +X personnes touchées / +Y clics générés » + badge de fiabilité + cause « 💡 » par action.
+- **Files modified:** `app/learning/surface_metrics.py` (nouveau), `app/learning/outcomes.py`, `app/learning/features.py`, `app/learning/scheduler.py`, `app/geo/analysis_overview.py`, `shopify-app/app/routes/app.analyse.tsx`, `shopify-app/app/lib/i18n.ts`, `tests/test_learning/test_surface_metrics.py` (nouveau).
+- **Decisions made:** Pas de nouveau cron ni de nouvelle persistance — on branche sur le cycle 28 j (`reanalysis_frequency_days`) et l'auto-apply (`mode == auto_apply` + `auto_publish_scopes`) existants. Citations IA volontairement non comptées : seul le trafic organique gagné (Google + IA) est exposé. Profils de surface garderont la formule fixe par défaut pour ne pas casser les appelants existants.
+- **Validations run:** `pytest` ✅ (1897 passed, 182 skipped ; 16 nouveaux tests surface/mots/fenêtre), `ruff check app/` ✅, `npm run typecheck` ✅, `npm run build` ✅.
+- **Open issues:** Éditeur de cases à cocher par champ pour `auto_publish_scopes` (quels champs auto-publier) pas encore exposé dans le dashboard — le toggle manuel/auto + les scopes par défaut (titre SEO, méta-description, alt text, description) existent déjà. Apprentissage des mots = corrélationnel, nécessite du volume (le scope global compense). Mesure de citation IA réelle hors GSC = chantier futur séparé.
+- **Next recommended action:** Optionnel : ajouter l'éditeur de cases `auto_publish_scopes` au dashboard ; observer l'accumulation des poids-mots sur quelques cycles 28 j réels.
+
+## Previous completed task
+
 - **Date:** 2026-06-15
 - **Agent:** Claude (Sonnet 4.6)
 - **Goal:** Migration du domaine pilote `pilot.leoniedelacroix.com` → `leonie-seo-pilot-web.onrender.com` (Adrien a perdu l'accès DNS à `leoniedelacroix.com`, ce qui cassait le custom domain Render et donc l'app embarquée Shopify).

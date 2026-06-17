@@ -102,6 +102,46 @@ def _pollution_flags(
     return sorted(flags)
 
 
+def _event_field(event: dict[str, Any]) -> str:
+    after = event.get("after_snapshot") if isinstance(event.get("after_snapshot"), dict) else {}
+    return str(after.get("field") or event.get("action_type") or "").strip().lower()
+
+
+def _window_purity(
+    event: dict[str, Any],
+    events: list[dict[str, Any]],
+    *,
+    window_days: int,
+) -> tuple[str, list[str]]:
+    """Return ("clean"|"mixed", changed_surfaces) for an event's window.
+
+    A window is "clean" when only one surface changed on the resource during the
+    window — fully attributable to that surface. It is "mixed" when several
+    surfaces changed, so the observed delta blends causes.
+    """
+    surfaces: set[str] = set()
+    own = _event_field(event)
+    if own:
+        surfaces.add(own)
+    applied_at = event_applied_at(event)
+    resource_id = str(event.get("resource_id") or "")
+    if applied_at is not None:
+        for other in events:
+            if other.get("id") == event.get("id"):
+                continue
+            if str(other.get("resource_id") or "") != resource_id:
+                continue
+            other_applied_at = event_applied_at(other)
+            if other_applied_at is None:
+                continue
+            if abs((other_applied_at - applied_at).days) <= window_days:
+                other_field = _event_field(other)
+                if other_field:
+                    surfaces.add(other_field)
+    purity = "clean" if len(surfaces) <= 1 else "mixed"
+    return purity, sorted(surfaces)
+
+
 def _eligible_events(events: list[dict[str, Any]], *, now: datetime) -> list[dict[str, Any]]:
     eligible = []
     for event in events:
@@ -159,11 +199,14 @@ def create_due_observations(
                 window_days=window_days,
                 db_path=db_path,
             )
+            purity, changed_surfaces = _window_purity(event, events, window_days=window_days)
             payload = build_observation_from_event(
                 event,
                 window_days=window_days,
                 control_metrics=control_metrics,
                 pollution_flags=_pollution_flags(event, events, window_days=window_days),
+                window_purity=purity,
+                changed_surfaces=changed_surfaces,
             )
             observation_payload = {key: value for key, value in payload.items() if key != "deltas"}
             observation_id = create_observation(shop=shop, db_path=db_path, **observation_payload)

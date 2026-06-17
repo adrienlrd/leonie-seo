@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.learning.models import PRIMARY_WINDOW_DAYS, LearningVerdict
+from app.learning.surface_metrics import decompose_outcome, get_metric_profile, weighted_outcome
 
 
 def _num(value: Any) -> float:
@@ -58,8 +59,16 @@ def calculate_outcome(
     control_metrics: dict[str, Any] | None = None,
     score_before: int | None = None,
     score_after: int | None = None,
+    field: str | None = None,
+    action_type: str | None = None,
 ) -> dict[str, Any]:
-    """Return deltas and an outcome score between -100 and +100."""
+    """Return deltas and an outcome score between -100 and +100.
+
+    When ``field``/``action_type`` are given, the outcome is weighted by the
+    surface's metric profile (e.g. a meta description scored on CTR, not
+    impressions). Without them, the historical fixed weighting is used so
+    existing callers are unaffected.
+    """
     imp_b = _metric(before_metrics, "impressions")
     imp_a = _metric(after_metrics, "impressions")
     clk_b = _metric(before_metrics, "clicks")
@@ -87,15 +96,8 @@ def calculate_outcome(
         ),
     }
 
-    weighted = (
-        0.23 * deltas["impressions"]
-        + 0.23 * deltas["clicks"]
-        + 0.12 * deltas["ctr"]
-        + 0.12 * deltas["position"]
-        + 0.12 * deltas["conversions"]
-        + 0.10 * deltas["revenue"]
-        + 0.08 * deltas["score"]
-    )
+    profile = get_metric_profile(field, action_type)
+    weighted = weighted_outcome(deltas, profile)
 
     control = control_metrics or {}
     control_uplift = 0.0
@@ -112,6 +114,7 @@ def calculate_outcome(
         "outcome_score": round(outcome_score, 2),
         "deltas": deltas,
         "control_uplift": round(control_uplift, 4),
+        "decomposition": decompose_outcome(deltas, field=field, action_type=action_type),
     }
 
 
@@ -122,8 +125,15 @@ def calculate_confidence(
     control_metrics: dict[str, Any] | None,
     window_days: int,
     outcome_deltas: dict[str, float],
+    window_purity: str | None = None,
 ) -> int:
-    """Return a confidence score between 0 and 100."""
+    """Return a confidence score between 0 and 100.
+
+    ``window_purity`` ("clean" / "mixed") reflects whether a single surface or
+    several changed during the window. A clean window is fully attributable to
+    one surface, so it earns a confidence bonus; a mixed window is penalised
+    because the observed delta blends several causes.
+    """
     impressions = max(_metric(before_metrics, "impressions"), _metric(after_metrics, "impressions"))
     volume_score = min(30.0, math.sqrt(max(impressions, 0.0)) / math.sqrt(500.0) * 30.0)
     score = volume_score
@@ -143,6 +153,11 @@ def calculate_confidence(
         score += 16 * consistency
         if positives and negatives:
             score -= 10
+
+    if window_purity == "clean":
+        score += 8
+    elif window_purity == "mixed":
+        score -= 12
 
     if impressions < 25:
         score = min(score, 35)
@@ -241,24 +256,45 @@ def _experiment_metadata(
     }
 
 
+def _resolve_field(event: dict[str, Any]) -> str:
+    after = event.get("after_snapshot") if isinstance(event.get("after_snapshot"), dict) else {}
+    attribution = _attribution_from_event(event)
+    estimated = (
+        event.get("estimated_impact") if isinstance(event.get("estimated_impact"), dict) else {}
+    )
+    return str(
+        after.get("field")
+        or attribution.get("field")
+        or estimated.get("field")
+        or event.get("action_type")
+        or ""
+    )
+
+
 def build_observation_from_event(
     event: dict[str, Any],
     *,
     window_days: int,
     control_metrics: dict[str, Any] | None = None,
     pollution_flags: list[str] | None = None,
+    window_purity: str | None = None,
+    changed_surfaces: list[str] | None = None,
 ) -> dict[str, Any]:
     """Build a serializable learning observation payload from a ledger event."""
     before = event.get("metrics_before") or {}
     after = event.get("metrics_after") or {}
     if not after and event.get("observed_impact"):
         after = {"observed": event.get("observed_impact") or {}}
+    field = _resolve_field(event)
+    action_type = str(event.get("action_type") or "")
     outcome = calculate_outcome(
         before_metrics=before,
         after_metrics=after,
         control_metrics=control_metrics,
         score_before=event.get("score_before"),
         score_after=event.get("score_after"),
+        field=field,
+        action_type=action_type,
     )
     confidence = calculate_confidence(
         before_metrics=before,
@@ -266,6 +302,7 @@ def build_observation_from_event(
         control_metrics=control_metrics,
         window_days=window_days,
         outcome_deltas=outcome["deltas"],
+        window_purity=window_purity,
     )
     metadata = _experiment_metadata(
         event=event,
@@ -274,6 +311,18 @@ def build_observation_from_event(
         window_days=window_days,
         pollution_flags=pollution_flags,
     )
+    metadata["decomposition"] = outcome.get("decomposition", {})
+    if window_purity:
+        metadata["window_purity"] = window_purity
+    if changed_surfaces is not None:
+        metadata["changed_surfaces_in_window"] = changed_surfaces
+    after_snap = event.get("after_snapshot") if isinstance(event.get("after_snapshot"), dict) else {}
+    before_snap = (
+        event.get("before_snapshot") if isinstance(event.get("before_snapshot"), dict) else {}
+    )
+    metadata["text_field"] = field
+    metadata["text_new"] = str(after_snap.get("value") or "")
+    metadata["text_old"] = str((before_snap.get("content") or {}).get(field) or "")
     return {
         "ledger_event_id": event.get("id"),
         "resource_type": str(event.get("resource_type") or "product"),
