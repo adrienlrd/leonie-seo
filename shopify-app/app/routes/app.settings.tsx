@@ -4,6 +4,7 @@ import { useLoaderData } from "@remix-run/react";
 import {
   Badge,
   BlockStack,
+  Button,
   Card,
   InlineGrid,
   InlineStack,
@@ -156,6 +157,17 @@ export default function Settings() {
             </BlockStack>
           </Card>
         </InlineGrid>
+
+        <Card>
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="h2" variant="headingMd">
+              {t(locale, "businessProfileTitle")}
+            </Text>
+            <Button url={`${localizedPath("/app/onboarding", locale)}&step=2`} size="slim">
+              {t(locale, "businessProfileRegenerate")}
+            </Button>
+          </InlineStack>
+        </Card>
       </BlockStack>
     </Page>
   );

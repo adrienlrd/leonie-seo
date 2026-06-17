@@ -13,7 +13,6 @@ import {
   InlineGrid,
   InlineStack,
   Page,
-  ProgressBar,
   Spinner,
   Text,
   TextField,
@@ -490,46 +489,6 @@ const SEV_TONES: Record<string, "critical" | "warning" | "info"> = {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function DashboardHeader({
-  shop,
-  plan,
-  budget,
-  locale,
-}: {
-  shop: string;
-  plan: string;
-  budget: DashboardData["llm_budget"];
-  locale: Locale;
-}) {
-  const planTone = plan === "agency" ? "success" : plan === "pro" ? "info" : undefined;
-  return (
-    <Card>
-      <InlineStack align="space-between" blockAlign="center" wrap={false}>
-        <InlineStack gap="200" blockAlign="center" align="start">
-          <Text as="p" variant="bodyMd" fontWeight="semibold">{shop}</Text>
-          <Badge tone={planTone}>{plan.charAt(0).toUpperCase() + plan.slice(1)}</Badge>
-        </InlineStack>
-        <Tooltip content={t(locale, "dashboardHeaderLLMBudget")}>
-          <BlockStack gap="050">
-            <Text as="p" variant="bodySm" tone="subdued">
-              {t(locale, "dashboardHeaderLLMBudget")}
-            </Text>
-            <InlineStack gap="100" blockAlign="center">
-              <Text as="p" variant="bodyMd">
-                {budget.used_usd.toFixed(2)} $ / {budget.limit_usd.toFixed(0)} $
-              </Text>
-              <ProgressBar
-                progress={Math.min(budget.pct, 100)}
-                tone={budget.pct >= 80 ? "critical" : "highlight"}
-                size="small"
-              />
-            </InlineStack>
-          </BlockStack>
-        </Tooltip>
-      </InlineStack>
-    </Card>
-  );
-}
 
 const SUB_SCORE_KEYS: Array<{ key: keyof NonNullable<DashboardData["zone1"]["sub_scores"]>; i18n: string; help: string }> = [
   { key: "seo", i18n: "seoSubScore", help: "seoSubScoreHelp" },
@@ -558,15 +517,11 @@ function Zone1({
               <Text as="p" variant="headingXl" fontWeight="bold">
                 {data.global_score}/100
               </Text>
-              <Badge tone={tone}>{t(locale, LEVEL_I18N_KEYS[level] ?? level)}</Badge>
               <Tooltip content={t(locale, "globalScoreHelp")}>
                 <span style={{ display: "inline-flex", cursor: "help" }}>
                   <Icon source={InfoIcon} tone="subdued" />
                 </span>
               </Tooltip>
-              <Text as="p" tone="subdued">
-                {data.products_in_scope} {t(locale, "dashboardZone1Products")}
-              </Text>
             </InlineStack>
             <Text as="p" tone="subdued" variant="bodySm">{t(locale, "globalScoreHelp")}</Text>
             {data.sub_scores && (
@@ -596,23 +551,6 @@ function Zone1({
             {locale === "fr" ? "Importation Shopify en cours…" : "Shopify import in progress…"}
           </Text>
         )}
-        <Box background="bg-surface-secondary" padding="300" borderRadius="200">
-          <BlockStack gap="200">
-            <Text as="p" tone="subdued" variant="bodySm">{t(locale, "dashboardZone1Niche")}</Text>
-            {data.niche_summary ? (
-              <Text as="p">{data.niche_summary}</Text>
-            ) : (
-              <Text as="p" tone="subdued">{t(locale, "dashboardZone1NicheUnvalidated")}</Text>
-            )}
-            <Button
-              url={`${localizedPath("/app/onboarding", locale)}&step=2`}
-              variant={data.niche_validated ? "plain" : "primary"}
-              size="slim"
-            >
-              {t(locale, "dashboardZone1Cta")}
-            </Button>
-          </BlockStack>
-        </Box>
       </BlockStack>
     </Card>
   );
@@ -1146,7 +1084,7 @@ function CompetitorsCard({
   );
 }
 
-function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale }) {
+function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale, afterRow1 }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale; afterRow1?: React.ReactNode }) {
   const intensityTone = (i: string): "success" | "warning" | "info" =>
     i === "high" ? "success" : i === "medium" ? "warning" : "info";
   const NicheIcon = getNicheIcon(profile);
@@ -1188,6 +1126,8 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
           </BlockStack>
         </Card>
       </InlineGrid>
+
+      {afterRow1}
 
       {/* Row 2 — Personas + Style contenu */}
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
@@ -1273,39 +1213,26 @@ function BusinessProfileSummary({
   manualCompetitors,
   excludedDomains,
   locale,
+  afterRow1,
 }: {
   profile: BusinessProfile | null;
   competitorSignals: string[];
   manualCompetitors: string[];
   excludedDomains: string[];
   locale: Locale;
+  afterRow1?: React.ReactNode;
 }) {
   if (!profile || profile.status !== "validated") return null;
 
   return (
-    <BlockStack gap="400">
-      <Card>
-        <InlineStack align="space-between" blockAlign="center">
-          <InlineStack gap="200" blockAlign="center" align="start">
-            <SectionTitle source={CompassIcon}>{t(locale, "businessProfileTitle")}</SectionTitle>
-            <Badge tone="success">{t(locale, "businessProfileValidated")}</Badge>
-            {profile.sources_used?.includes("market_analysis_product_signals") && (
-              <Badge tone="info">{t(locale, "businessProfileProductSignals")}</Badge>
-            )}
-          </InlineStack>
-          <Button url={`${localizedPath("/app/onboarding", locale)}&step=2`} size="slim" variant="plain">
-            {t(locale, "businessProfileRegenerate")}
-          </Button>
-        </InlineStack>
-      </Card>
-      <BizProfileCards
-        profile={profile}
-        competitorSignals={competitorSignals}
-        manualCompetitors={manualCompetitors}
-        excludedDomains={excludedDomains}
-        locale={locale}
-      />
-    </BlockStack>
+    <BizProfileCards
+      profile={profile}
+      competitorSignals={competitorSignals}
+      manualCompetitors={manualCompetitors}
+      excludedDomains={excludedDomains}
+      locale={locale}
+      afterRow1={afterRow1}
+    />
   );
 }
 
@@ -1536,16 +1463,6 @@ export default function IndexPage() {
           </Banner>
         )}
 
-        {/* Header — shop, plan, LLM budget */}
-        <DashboardHeader
-          shop={dashboard.shop}
-          plan={dashboard.plan}
-          budget={dashboard.llm_budget}
-          locale={locale}
-        />
-
-        {/* Zone 1 — Store health */}
-        <Zone1 data={zone1} locale={locale} />
 
         {gscReauthRequired ? (
           <Banner
@@ -1593,14 +1510,19 @@ export default function IndexPage() {
           </Banner>
         ) : null}
 
-        {/* Business profile — niche, brand, personas, content style */}
-        <BusinessProfileSummary
-          profile={businessProfile}
-          competitorSignals={competitorSignals}
-          manualCompetitors={manualCompetitors}
-          excludedDomains={excludedDomains}
-          locale={locale}
-        />
+        {/* Business profile — niche, brand, GEO score, personas, content style */}
+        {businessProfile?.status === "validated" ? (
+          <BusinessProfileSummary
+            profile={businessProfile}
+            competitorSignals={competitorSignals}
+            manualCompetitors={manualCompetitors}
+            excludedDomains={excludedDomains}
+            locale={locale}
+            afterRow1={<Zone1 data={zone1} locale={locale} />}
+          />
+        ) : (
+          <Zone1 data={zone1} locale={locale} />
+        )}
 
         {/* Zone 2 — Active products */}
         <ActiveProductsCard
@@ -1619,11 +1541,6 @@ export default function IndexPage() {
         {/* AI files (llms.txt + llms-full.txt) — one-click publish */}
         <LlmsTxtPanel locale={locale} />
 
-        {/* Zone 3 — Ongoing optimizations */}
-        <Zone3 data={zone3} locale={locale} />
-
-        {/* Zone 4 — Onboarding (conditional) */}
-        <Zone4 data={zone4} locale={locale} />
 
         {/* Zone 5 — Alerts (conditional) */}
         <Zone5 data={zone5} locale={locale} />
