@@ -13,7 +13,7 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: PGSSLMODE
-        value: require
+        value: no-verify
       - key: SHOPIFY_APP_URL
         value: https://leonie-seo-pilot-web.onrender.com
       - key: SCOPES
