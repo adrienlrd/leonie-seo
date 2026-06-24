@@ -51,6 +51,40 @@ def test_queue_position_unknown_job_is_zero() -> None:
     assert jobs.queue_position("does-not-exist") == 0
 
 
+def test_active_job_returns_running_job_for_shop() -> None:
+    _reset_jobs()
+    jid = jobs.create_job("shop-a.myshopify.com")
+    jobs.update_job(jid, status="running")
+    active = jobs.active_job("shop-a.myshopify.com")
+    assert active is not None
+    assert active["job_id"] == jid
+
+
+def test_active_job_none_when_completed() -> None:
+    _reset_jobs()
+    jid = jobs.create_job("shop-a.myshopify.com")
+    jobs.update_job(jid, status="completed")
+    assert jobs.active_job("shop-a.myshopify.com") is None
+
+
+def test_active_job_scoped_to_shop() -> None:
+    _reset_jobs()
+    jobs.create_job("shop-a.myshopify.com")  # queued for A
+    jb = jobs.create_job("shop-b.myshopify.com")
+    jobs.update_job(jb, status="running")
+    # B sees its own running job; A's queued job is not returned for B.
+    assert jobs.active_job("shop-b.myshopify.com")["job_id"] == jb
+
+
+def test_active_job_returns_most_recent() -> None:
+    _reset_jobs()
+    old = jobs.create_job("shop-a.myshopify.com")
+    time.sleep(0.001)
+    new = jobs.create_job("shop-a.myshopify.com")
+    assert jobs.active_job("shop-a.myshopify.com")["job_id"] == new
+    assert old != new
+
+
 def test_semaphore_serializes_analyses() -> None:
     """With MAX_CONCURRENT_ANALYSES=1, two acquirers cannot hold the gate at once."""
     gate = threading.Semaphore(1)

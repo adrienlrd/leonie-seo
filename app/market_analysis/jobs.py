@@ -45,6 +45,23 @@ def get_job(job_id: str) -> dict[str, Any] | None:
     return _jobs.get(job_id)
 
 
+def active_job(shop: str) -> dict[str, Any] | None:
+    """Return the shop's most recent still-running analysis job, or None.
+
+    The analysis keeps running server-side (BackgroundTask) after the merchant
+    navigates away, but the client loses the job_id on reload. The products page
+    uses this to resume the progress bar + polling when the merchant returns.
+    """
+    candidates = [
+        j
+        for j in _jobs.values()
+        if j.get("shop") == shop and j.get("status") in {"queued", "pending", "running"}
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda j: str(j.get("created_at", "")))
+
+
 def queue_position(job_id: str) -> int:
     """Number of still-waiting analyses queued before this one (0 = at the front).
 

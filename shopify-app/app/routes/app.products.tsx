@@ -349,6 +349,7 @@ interface LoaderData {
   locale: Locale;
   shop: string;
   latestJob: JobState | null;
+  activeJob: JobState | null;
   latestIdentification: {
     labels: Record<string, string>;
     product_titles: Record<string, string>;
@@ -381,7 +382,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const fetchOpt = { accessToken: session.accessToken, method: "GET" as const };
 
-  const [latestJobResp, identifyResp, gscResp, ga4Resp, activeProductsResp] = await Promise.allSettled([
+  const [latestJobResp, identifyResp, gscResp, ga4Resp, activeProductsResp, activeJobResp] = await Promise.allSettled([
     callBackendForShop(session.shop, `/api/shops/${session.shop}/market-analysis/latest`, {
       ...fetchOpt,
       signal: AbortSignal.timeout(5_000),
@@ -402,11 +403,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ...fetchOpt,
       signal: AbortSignal.timeout(5_000),
     }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/market-analysis/active-job`, {
+      ...fetchOpt,
+      signal: AbortSignal.timeout(5_000),
+    }),
   ]);
 
   let latestJob: JobState | null = null;
   if (latestJobResp.status === "fulfilled" && latestJobResp.value.ok) {
     latestJob = await latestJobResp.value.json() as JobState;
+  }
+
+  // An analysis still running server-side after the merchant navigated away:
+  // resume the progress bar + polling instead of showing the initial state.
+  let activeJob: JobState | null = null;
+  if (activeJobResp.status === "fulfilled" && activeJobResp.value.ok) {
+    try {
+      activeJob = (await activeJobResp.value.json()) as JobState | null;
+    } catch { /* ignore */ }
   }
 
   let latestIdentification: { labels: Record<string, string>; product_titles: Record<string, string> } | null = null;
@@ -451,7 +465,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .map((p) => p.product_id);
   }
 
-  return json({ locale, shop: session.shop, latestJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds });
+  return json({ locale, shop: session.shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -1162,12 +1176,12 @@ function CannibalizationBanner({
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
-  const { locale, shop, latestJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds } =
+  const { locale, shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds } =
     useLoaderData<LoaderData>();
 
   // ── UI step: "identification" (step 1) or "analysis" (step 2) ────────────
   const [step, setStep] = useState<"identification" | "analysis">(
-    latestJob ? "analysis" : "identification",
+    latestJob || activeJob ? "analysis" : "identification",
   );
 
   // ── Identification state ──────────────────────────────────────────────────
@@ -1185,8 +1199,11 @@ export default function ProductsPage() {
   );
 
   // ── Analysis state ────────────────────────────────────────────────────────
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [job, setJob] = useState<JobState | null>(latestJob);
+  // Resume an in-progress analysis (activeJob) after navigating away/back:
+  // seeding jobId restarts the polling loop and the progress bar. Falls back to
+  // the last completed result (latestJob) when nothing is running.
+  const [jobId, setJobId] = useState<string | null>(activeJob?.job_id ?? null);
+  const [job, setJob] = useState<JobState | null>(activeJob ?? latestJob);
   const [pollError, setPollError] = useState<string | null>(null);
 
   // ── Edit mode (came from "Modifier l'identification") ─────────────────────

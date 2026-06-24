@@ -47,6 +47,7 @@ from app.market_analysis.competitors import (
 from app.market_analysis.engine import run_market_analysis
 from app.market_analysis.identifier import generate_product_labels
 from app.market_analysis.jobs import (
+    active_job,
     create_job,
     get_job,
     load_identification_job,
@@ -614,6 +615,18 @@ async def start_market_analysis_job(
         "snapshot_age_days": age,
         "reflection_test": reflection_test,
     }
+
+
+@router.get("/shops/{shop}/market-analysis/active-job")
+async def get_active_market_analysis_job(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any] | None:
+    """Return the shop's in-progress analysis job (queued/running) so the UI can resume it.
+
+    Distinct path from /jobs/{job_id} to avoid the path-param catching "active-job".
+    """
+    return active_job(ctx.shop)
 
 
 @router.get("/shops/{shop}/market-analysis/jobs/{job_id}")
