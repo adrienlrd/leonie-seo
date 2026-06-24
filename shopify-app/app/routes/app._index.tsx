@@ -173,6 +173,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const plan = (url.searchParams.get("plan") ?? "free") as "free" | "pro" | "agency";
 
+  // Redirect to onboarding while preserving the embedded auth context
+  // (shop, host, embedded, id_token). Dropping these makes the onboarding
+  // loader see a non-embedded request, fail to authenticate, and bounce to
+  // /auth/login — the cause of the "asks for shop domain" loop on fresh installs.
+  const redirectToOnboarding = () => {
+    const params = new URLSearchParams(url.searchParams);
+    params.set("locale", locale);
+    return redirect(`/app/onboarding?${params.toString()}`);
+  };
+
   let activeProducts: ActiveProduct[] = [];
   let productResults: Record<string, ProductResult> = {};
   let competitorSignals: string[] = [];
@@ -269,7 +279,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       // surfacing a raw "HTTP 404". This is also the first-open experience for
       // App Store reviewers, who would otherwise land on an error screen.
       if (errStatus === 404) {
-        return redirect(localizedPath("/app/onboarding", locale));
+        return redirectToOnboarding();
       }
       return json<LoaderData>({
         shop, locale, plan,
@@ -290,7 +300,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const dashboard = (await dashResp.value.json()) as DashboardData;
 
     if (!businessProfile || businessProfile.status !== "validated") {
-      return redirect(localizedPath("/app/onboarding", locale));
+      return redirectToOnboarding();
     }
 
     return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, learningMode, error: null });
