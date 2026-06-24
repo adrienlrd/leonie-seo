@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -54,6 +56,7 @@ from app.market_analysis.jobs import (
     load_question_metadata,
     load_retired_questions,
     patch_product_proposals,
+    queue_position,
     remove_products_from_analysis,
     replace_product_analysis,
     restore_question,
@@ -73,6 +76,12 @@ from app.paths import data_dir
 from app.snapshot.scope import filter_products_by_scope
 
 router = APIRouter(prefix="/api", tags=["market_analysis"])
+
+# Serialize heavy market analyses so concurrent merchants don't saturate the
+# single API instance's RAM. Default 1 (one at a time); raise via env once the
+# instance has more headroom. _run_analysis_background runs in the BackgroundTasks
+# threadpool, so this is a threading primitive (not asyncio).
+_ANALYSIS_GATE = threading.Semaphore(int(os.getenv("MAX_CONCURRENT_ANALYSES", "1")))
 
 _DATA_DIR = data_dir()
 _MERCHANT_FACT_KEYS = frozenset(
@@ -314,6 +323,10 @@ def _run_analysis_background(
             ),
         )
 
+    # Mark the job queued, then block until a concurrency slot frees up so
+    # simultaneous analyses run one after another instead of saturating the API.
+    update_job(job_id, status="queued", queue_position=queue_position(job_id))
+    _ANALYSIS_GATE.acquire()
     try:
         # Compute provider_status early (env-var check only, no I/O) so the
         # frontend sees the correct badges from the very first poll
@@ -454,6 +467,8 @@ def _run_analysis_background(
 
         logging.getLogger(__name__).exception("Market analysis job %s failed", job_id)
         update_job(job_id, status="failed", error=str(exc))
+    finally:
+        _ANALYSIS_GATE.release()
 
 
 @router.post("/shops/{shop}/market-analysis/identify")

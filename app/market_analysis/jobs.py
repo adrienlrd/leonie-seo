@@ -25,10 +25,11 @@ def create_job(shop: str) -> str:
     _jobs[job_id] = {
         "job_id": job_id,
         "shop": shop,
-        "status": "pending",
+        "status": "queued",
         "created_at": datetime.now(UTC).isoformat(),
         "progress": 0,
         "total": 0,
+        "queue_position": 0,
         "products": [],
         "analyzed_at": None,
         "active_product_count": 0,
@@ -42,6 +43,25 @@ def create_job(shop: str) -> str:
 
 def get_job(job_id: str) -> dict[str, Any] | None:
     return _jobs.get(job_id)
+
+
+def queue_position(job_id: str) -> int:
+    """Number of still-waiting analyses queued before this one (0 = at the front).
+
+    Counts jobs in queued/pending state created earlier, so the frontend can show
+    "X analyses ahead of you" while the concurrency gate serializes execution.
+    """
+    job = _jobs.get(job_id)
+    if job is None:
+        return 0
+    created = str(job.get("created_at", ""))
+    return sum(
+        1
+        for other_id, other in _jobs.items()
+        if other_id != job_id
+        and other.get("status") in {"queued", "pending"}
+        and str(other.get("created_at", "")) < created
+    )
 
 
 def update_job(job_id: str, **kwargs: Any) -> None:

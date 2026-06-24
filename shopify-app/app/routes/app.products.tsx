@@ -312,10 +312,11 @@ interface ProductResult {
 
 interface JobState {
   job_id?: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "queued" | "pending" | "running" | "completed" | "failed";
   phase?: "targeting" | "content";
   progress: number;
   total: number;
+  queue_position?: number;
   products: ProductResult[];
   analyzed_at: string | null;
   active_product_count: number;
@@ -1323,6 +1324,19 @@ export default function ProductsPage() {
     }
   }, [pollFetcher.data]);
 
+  // Notify the merchant via an App Bridge toast when an analysis just finished
+  // (transition → completed only, so it doesn't fire on page load of an
+  // already-completed analysis).
+  const prevJobStatusForToast = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevJobStatusForToast.current;
+    if (job?.status === "completed" && prev && prev !== "completed") {
+      (window as unknown as { shopify?: { toast?: { show: (m: string) => void } } }).shopify
+        ?.toast?.show(t(locale, "marketAnalysisDoneToast"));
+    }
+    prevJobStatusForToast.current = job?.status;
+  }, [job?.status, locale]);
+
   // saveOnly — labels saved, go back to step 2
   useEffect(() => {
     if (startFetcher.data?.type === "saveOnly") {
@@ -1855,7 +1869,17 @@ export default function ProductsPage() {
                         : t(locale, "marketAnalysisRun")}
                     </Button>
                   ) : null}
-                  {isRunning && (
+                  {isRunning && job?.status === "queued" && (
+                    <Banner tone="info">
+                      <Text as="p">
+                        {t(locale, "marketAnalysisQueued")}
+                        {job.queue_position && job.queue_position > 0
+                          ? ` ${t(locale, "marketAnalysisQueuePosition").replace("{n}", String(job.queue_position))}`
+                          : ""}
+                      </Text>
+                    </Banner>
+                  )}
+                  {isRunning && job?.status !== "queued" && (
                     <BlockStack gap="100">
                       {job?.phase && (
                         <Text as="p" variant="bodySm" tone="subdued">

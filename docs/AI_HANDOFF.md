@@ -10,6 +10,18 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-24
+- **Agent:** Claude (Sonnet 4.6)
+- **Goal:** (A) Migration base Neon → Render Postgres (quota Neon dépassé) + corrections d'auth/dashboard que ça a révélées ; (B) file d'attente d'analyses pour éviter la saturation de l'instance API quand plusieurs marchands lancent une analyse en même temps, + notif de fin.
+- **Summary:** **(A) Migration & fixes** — base migrée vers Render Postgres (`leonie-seo-pilot-db`), `DATABASE_URL` repointé, `PGSSLMODE=no-verify` (sinon « self-signed certificate » sur la connexion interne Render — fix mis dans `render.yaml`), Redis (`leonie-seo-pilot-sessions`) supprimé → sessions sur Postgres. Bugs corrigés au passage : route `/auth/login` manquante (`shopify-app/app/routes/auth.login.tsx` ajoutée → appelle `login()`) ; redirections vers onboarding qui perdaient les params embedded (`app._index.tsx` `redirectToOnboarding()` préserve `url.searchParams`) ; dashboard qui renvoyait 404 sans snapshot → `_assemble_dashboard` (`app/api/dashboard.py`) dégrade gracieusement (snapshot vide + bannière `stale_snapshot`) au lieu de 404, ce qui cassait une boucle de redirection → `/auth/login`. **(B) File d'analyses** — `_ANALYSIS_GATE = threading.Semaphore(MAX_CONCURRENT_ANALYSES=1)` dans `app/api/market_analysis.py` ; `_run_analysis_background` marque le job `queued` puis acquiert le sémaphore (libéré en `finally`) → analyses sérialisées. `queue_position()` + statut `queued` dans `app/market_analysis/jobs.py`. Front (`app.products.tsx`) : bannière « analyse en attente / X avant vous », Toast App Bridge « Analyse terminée ✓ » à la transition → completed.
+- **Files modified:** `render.yaml`, `app/api/dashboard.py`, `app/api/market_analysis.py`, `app/market_analysis/jobs.py`, `shopify-app/app/routes/auth.login.tsx` (nouveau), `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.products.tsx`, `shopify-app/app/lib/i18n.ts`, `tests/market_analysis/test_analysis_queue.py` (nouveau).
+- **Decisions made:** Migration « repartir propre » (snapshot était dans Neon, perdu → re-crawl via bouton Actualiser du dashboard). Anti-saturation par **plafond de concurrence** (sémaphore, défaut 1) plutôt que mesure RAM ; pas de migration vers la file DB (`app/jobs/`) — réservée au scaling horizontal futur. Notif = Toast in-app (le push natif Shopify hors-app n'existe pas) ; email de fin hors scope (aucune infra email). `PGSSLMODE=no-verify` sûr car connexion sur réseau privé interne Render.
+- **Validations run:** `pytest` ✅ (1915 passed, 182 skipped ; nouveaux tests file/position), `ruff check` ✅, `npm run typecheck` ✅, `npm run build` ✅.
+- **Open issues:** L'API a un disque persistant → **coupure ~2-5 min à chaque deploy** (pas de zero-downtime), 502 transitoire normal. Sémaphore = per-process (OK car 1 seule instance API) ; les tâches en attente occupent un thread du threadpool (négligeable à l'échelle pilote). Mot de passe DB exposé dans le chat de migration → à faire tourner côté Render quand pratique. Email de fin + partage du gate avec la réanalyse planifiée = futurs.
+- **Next recommended action:** Surveiller la conso compute Render Postgres ; quand l'API passe en Standard (2 Go), monter `MAX_CONCURRENT_ANALYSES` à 2-3.
+
+## Previous completed task
+
 - **Date:** 2026-06-17
 - **Agent:** Claude (Sonnet 4.6)
 - **Goal:** Auto-publication pilotée par les cases à cocher par produit : en mode publication automatique, une case cochée (meta title / meta description / description / alt text) est publiée automatiquement à chaque analyse (manuelle ou planifiée 28 j) si la proposition passe les contrôles de sécurité ; sinon gardée « à revoir ».
