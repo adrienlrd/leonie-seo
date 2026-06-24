@@ -264,6 +264,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (dashResp.status !== "fulfilled" || !dashResp.value.ok) {
       const errStatus = dashResp.status === "fulfilled" ? dashResp.value.status : 0;
+      // 404 = no crawl/snapshot yet (fresh install). The dashboard has nothing to
+      // show, so guide the merchant to onboarding to run the first audit instead of
+      // surfacing a raw "HTTP 404". This is also the first-open experience for
+      // App Store reviewers, who would otherwise land on an error screen.
+      if (errStatus === 404) {
+        return redirect(localizedPath("/app/onboarding", locale));
+      }
       return json<LoaderData>({
         shop, locale, plan,
         dashboard: null,
