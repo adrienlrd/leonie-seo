@@ -6,7 +6,7 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_days
 from app.api.deps import ShopContext, get_shop_context
@@ -322,7 +322,18 @@ def _assemble_dashboard(ctx: ShopContext, plan: str) -> dict[str, Any]:
     Extracted from get_dashboard so the blocking file/SQLite reads can run in a
     worker thread via asyncio.to_thread, keeping the event loop responsive.
     """
-    snapshot = _load_snapshot(ctx)
+    # Degrade gracefully when no crawl/snapshot exists yet (fresh install, or a
+    # snapshot that lived only in a since-migrated DB). The dashboard already
+    # surfaces this via the stale_snapshot banner; returning 404 here would make
+    # the frontend bounce to onboarding and — when a business profile + analysis
+    # already exist on disk — create a redirect loop ending at /auth/login.
+    try:
+        snapshot = _load_snapshot(ctx)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            snapshot = {}
+        else:
+            raise
     products = snapshot.get("products", [])
     shop_info = snapshot.get("shop")
     shop_domain = (
