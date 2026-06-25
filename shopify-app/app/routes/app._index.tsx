@@ -968,7 +968,7 @@ function PublishModeCard({
             background={!isAuto ? "bg-surface-secondary" : "bg-surface"}
           >
             <BlockStack gap="200">
-              <InlineStack gap="200" blockAlign="center">
+              <InlineStack gap="200" blockAlign="center" align="start">
                 <Icon source={ContentIcon} />
                 <Text as="p" variant="bodyMd" fontWeight="semibold">
                   {t(locale, "publishModeManualTitle")}
@@ -995,7 +995,7 @@ function PublishModeCard({
             background={isAuto ? "bg-surface-secondary" : "bg-surface"}
           >
             <BlockStack gap="200">
-              <InlineStack gap="200" blockAlign="center">
+              <InlineStack gap="200" blockAlign="center" align="end">
                 <Icon source={AutomationIcon} />
                 <Text as="p" variant="bodyMd" fontWeight="semibold">
                   {t(locale, "publishModeAutoTitle")} 🚀
