@@ -968,12 +968,12 @@ function PublishModeCard({
             background={!isAuto ? "bg-surface-secondary" : "bg-surface"}
           >
             <BlockStack gap="200">
-              <InlineStack gap="200" blockAlign="center" align="start">
+              <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-start" }}>
                 <Icon source={ContentIcon} />
                 <Text as="p" variant="bodyMd" fontWeight="semibold">
                   {t(locale, "publishModeManualTitle")}
                 </Text>
-              </InlineStack>
+              </div>
               <Text as="p" variant="bodySm" tone="subdued">
                 {t(locale, "publishModeManualDesc")}
               </Text>
@@ -995,12 +995,12 @@ function PublishModeCard({
             background={isAuto ? "bg-surface-secondary" : "bg-surface"}
           >
             <BlockStack gap="200">
-              <InlineStack gap="200" blockAlign="center" align="end">
+              <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-end" }}>
                 <Icon source={AutomationIcon} />
                 <Text as="p" variant="bodyMd" fontWeight="semibold">
                   {t(locale, "publishModeAutoTitle")} 🚀
                 </Text>
-              </InlineStack>
+              </div>
               <Text as="p" variant="bodySm" tone="subdued">
                 {t(locale, "publishModeAutoDesc")}
               </Text>
