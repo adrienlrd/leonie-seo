@@ -1241,7 +1241,7 @@ function CompetitorsCard({
   );
 }
 
-function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale, afterRow1 }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale; afterRow1?: React.ReactNode }) {
+function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale, afterRow1, afterGeoScore }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale; afterRow1?: React.ReactNode; afterGeoScore?: React.ReactNode }) {
   const intensityTone = (i: string): "success" | "warning" | "info" =>
     i === "high" ? "success" : i === "medium" ? "warning" : "info";
   const NicheIcon = getNicheIcon(profile);
@@ -1285,6 +1285,8 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
       </InlineGrid>
 
       {afterRow1}
+
+      {afterGeoScore}
 
       {/* Row 2 — Personas + Style contenu */}
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
@@ -1371,6 +1373,7 @@ function BusinessProfileSummary({
   excludedDomains,
   locale,
   afterRow1,
+  afterGeoScore,
 }: {
   profile: BusinessProfile | null;
   competitorSignals: string[];
@@ -1378,6 +1381,7 @@ function BusinessProfileSummary({
   excludedDomains: string[];
   locale: Locale;
   afterRow1?: React.ReactNode;
+  afterGeoScore?: React.ReactNode;
 }) {
   if (!profile || profile.status !== "validated") return null;
 
@@ -1389,6 +1393,7 @@ function BusinessProfileSummary({
       excludedDomains={excludedDomains}
       locale={locale}
       afterRow1={afterRow1}
+      afterGeoScore={afterGeoScore}
     />
   );
 }
@@ -1676,9 +1681,6 @@ export default function IndexPage() {
           </Banner>
         ) : null}
 
-        {/* Publish mode toggle — top of the dashboard */}
-        <PublishModeCard currentMode={learningMode} locale={locale} />
-
         {/* Business profile — niche, brand, GEO score, personas, content style */}
         {businessProfile?.status === "validated" ? (
           <BusinessProfileSummary
@@ -1688,9 +1690,13 @@ export default function IndexPage() {
             excludedDomains={excludedDomains}
             locale={locale}
             afterRow1={<Zone1 data={zone1} locale={locale} llmsPublished={llmsPublished} />}
+            afterGeoScore={<PublishModeCard currentMode={learningMode} locale={locale} />}
           />
         ) : (
-          <Zone1 data={zone1} locale={locale} llmsPublished={llmsPublished} />
+          <>
+            <Zone1 data={zone1} locale={locale} llmsPublished={llmsPublished} />
+            <PublishModeCard currentMode={learningMode} locale={locale} />
+          </>
         )}
 
         {/* Zone 2 — Active products */}
