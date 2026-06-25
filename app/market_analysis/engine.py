@@ -4620,6 +4620,26 @@ def _build_product_result(
         }
     )
 
+    # GEO readiness score: current state vs. what it becomes once the proposed
+    # meta title / meta description / product description are applied. The
+    # products page shows this and interpolates current→potential as fields are
+    # validated, so the score rises with each applied optimization.
+    from app.geo.readiness import score_product_readiness  # noqa: PLC0415
+
+    geo_score = score_product_readiness(product)["readiness_score"]
+    improved_product = {
+        **product,
+        "seo": {
+            **seo,
+            "title": proposed_meta_title or current_meta_title,
+            "description": proposed_meta_description or current_meta_description,
+        },
+        "body_html": proposed_product_description or body_html,
+    }
+    geo_score_potential = max(
+        geo_score, score_product_readiness(improved_product)["readiness_score"]
+    )
+
     return {
         "product_id": product_id,
         "product_title": product_title,
@@ -4734,6 +4754,8 @@ def _build_product_result(
             or _coerce_str(opportunity.get("confidence", "low"), "low")
         ),
         "opportunity_score": opportunity.get("opportunity_score", 0),
+        "geo_score": geo_score,
+        "geo_score_potential": geo_score_potential,
         "sources_used": opportunity.get("sources_used", []),
         "business_profile_context_hash": business_profile_context_hash,
         "business_profile_context_status": (

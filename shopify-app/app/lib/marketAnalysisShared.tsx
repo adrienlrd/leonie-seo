@@ -378,6 +378,8 @@ export interface ProductResult {
   recommended_content_actions: string[];
   confidence: string;
   opportunity_score: number;
+  geo_score?: number;
+  geo_score_potential?: number;
   sources_used: string[];
   keyword_clusters?: KeywordCluster[];
   improvement_tags?: ImprovementTag[];

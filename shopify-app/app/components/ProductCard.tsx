@@ -280,6 +280,21 @@ export function ProductCard({
     );
   };
 
+  // GEO score shown on the card: starts at the product's current readiness
+  // (geo_score) and rises toward its potential (geo_score_potential) as proposed
+  // fields get applied. Uses the live appliedFields state so it climbs the moment
+  // a field is validated (manually or via auto-publish). Falls back to the legacy
+  // inverted opportunity score when the backend score is absent (older results).
+  const geoCurrent = product.geo_score ?? Math.max(0, 100 - product.opportunity_score);
+  const geoPotential = product.geo_score_potential ?? geoCurrent;
+  const proposedApplyFields = APPLY_FIELDS.filter((f) => fieldHasProposal(f));
+  const appliedProposedCount = proposedApplyFields.filter((f) =>
+    Boolean(appliedFields[FIELD_TO_BACKEND[f] ?? f]),
+  ).length;
+  const appliedFraction =
+    proposedApplyFields.length > 0 ? appliedProposedCount / proposedApplyFields.length : 0;
+  const geoDisplayed = Math.round(geoCurrent + (geoPotential - geoCurrent) * appliedFraction);
+
   const applyResult = applyFetcher.data?.type === "applyToShopify" ? applyFetcher.data : null;
 
   // ── Tag state managed at ProductCard level ─────────────────────────────────
@@ -506,8 +521,8 @@ export function ProductCard({
             </InlineStack>
           </BlockStack>
           <InlineStack gap="200">
-            <Badge tone={scoreTone(100 - product.opportunity_score)}>
-              {`Potentiel SEO ${100 - product.opportunity_score}/100`}
+            <Badge tone={scoreTone(geoDisplayed)}>
+              {`${t(locale, "productGeoScore")} ${geoDisplayed}/100`}
             </Badge>
             {product.business_profile_context_status === "stale" && (
               <Badge tone="attention">{t(locale, "marketAnalysisProfileContextStaleBadge")}</Badge>

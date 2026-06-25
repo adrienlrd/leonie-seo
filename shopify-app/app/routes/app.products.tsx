@@ -301,6 +301,8 @@ interface ProductResult {
   recommended_content_actions: string[];
   confidence: string;
   opportunity_score: number;
+  geo_score?: number;
+  geo_score_potential?: number;
   sources_used: string[];
   business_profile_context_hash?: string | null;
   business_profile_context_status?: BusinessProfileContextStatus;
