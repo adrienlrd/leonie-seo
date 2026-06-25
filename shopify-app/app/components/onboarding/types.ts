@@ -82,5 +82,12 @@ export interface OnboardingActionData {
   jobId?: string;
   authorizationUrl?: string;
   disconnected?: boolean;
+  ga4PropertySaved?: boolean;
   error?: string;
+}
+
+export interface GA4Property {
+  property_id: string;
+  property_name: string;
+  account_name: string;
 }

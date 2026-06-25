@@ -10,6 +10,18 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-25
+- **Agent:** Claude (Sonnet 4.6)
+- **Goal:** Harmoniser l'état de connexion Google sur les 3 écrans (Réglages, Onboarding, Mesure) — incohérence : GA4 « autorisé mais sans propriété sélectionnée » s'affichait comme connecté côté carte mais demandait une connexion côté Mesure. Choix marchand : « Ajouter le sélecteur + harmoniser ».
+- **Summary:** **(1) Sélecteur de propriété GA4** dans `GoogleConnectionsCard` — quand GA4 est autorisé (`oauth_connected`) mais pas `ready`, la carte affiche un `<Select>` des propriétés (via endpoints existants `GET /ga4/properties` + `POST /ga4/settings`) + bouton « Valider la propriété » (intent `ga4_select_property`). Câblé sur **Réglages** (`app.account.tsx`) ET **Onboarding** (`app.onboarding.tsx`) : les deux loaders fetchent `ga4Properties` quand `oauth_connected && !ready` et les passent à la carte. **(2) Bouton reload** (icône ↻) en haut à droite de la carte (`useRevalidator`). **(3) Bannière Mesure précise** — `progress_curve.py` expose désormais `flags.gsc_available` et `flags.ga4_connected` ; `app.measure.tsx` choisit le message exact (les deux / GSC seul / propriété GA4 seule) au lieu d'un message générique « Connectez GSC + GA4 ». **(4) Harmonisation wording** — badge GA4 de la carte « Analyse SEO — sources » : `Réel` / `Propriété à sélectionner` / `À connecter`. Nettoyage antérieur même session : suppression des cases globales `auto_publish_scopes` des Réglages (redondantes avec les cases par produit).
+- **Files modified:** `app/geo/progress_curve.py`, `shopify-app/app/components/GoogleConnectionsCard.tsx`, `shopify-app/app/components/onboarding/types.ts`, `shopify-app/app/routes/app.account.tsx`, `shopify-app/app/routes/app.onboarding.tsx`, `shopify-app/app/routes/app.measure.tsx`, `shopify-app/app/lib/i18n.ts`.
+- **Decisions made:** Réutiliser les endpoints GA4 existants (pas de nouvel endpoint). Exposer 2 flags atomiques côté backend plutôt que coder la logique « quoi manque » en dur côté front. La carte revalide automatiquement après sauvegarde de la propriété (fetcher → `ga4PropertySaved` → `revalidator.revalidate()`).
+- **Validations run:** `npx tsc --noEmit` ✅, `npm run build` ✅, `ruff check app/geo/progress_curve.py` ✅, `pytest -k "progress"` ✅ (11 passed).
+- **Open issues:** `pytest` complet non relancé (changement backend isolé à `progress_curve` + flags additifs) — à lancer avant commit si souhaité. Commit/push non effectués (en attente de validation utilisateur).
+- **Next recommended action:** Commit (`feat(connections): GA4 property selector + harmonized Google connection state across screens`) après confirmation.
+
+## Previous completed task
+
 - **Date:** 2026-06-24
 - **Agent:** Claude (Sonnet 4.6)
 - **Goal:** (A) Migration base Neon → Render Postgres (quota Neon dépassé) + corrections d'auth/dashboard que ça a révélées ; (B) file d'attente d'analyses pour éviter la saturation de l'instance API quand plusieurs marchands lancent une analyse en même temps, + notif de fin.

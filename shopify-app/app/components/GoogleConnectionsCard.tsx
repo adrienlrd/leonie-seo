@@ -1,14 +1,17 @@
-import { Badge, BlockStack, Button, Card, InlineStack, Text, Tooltip } from "@shopify/polaris";
+import { useEffect, useState, type ReactNode } from "react";
+import { Badge, BlockStack, Button, Card, Divider, InlineStack, Select, Text, Tooltip } from "@shopify/polaris";
 import { useNavigation, useRevalidator, useSubmit, type FetcherWithComponents } from "@remix-run/react";
 import { GlobeIcon, RefreshIcon } from "@shopify/polaris-icons";
 import { SectionTitle } from "../lib/marketAnalysisShared";
 import { t, type Locale } from "../lib/i18n";
-import type { GA4Status, GSCStatus, OnboardingActionData } from "./onboarding/types";
+import type { GA4Property, GA4Status, GSCStatus, OnboardingActionData } from "./onboarding/types";
 
 interface Props {
   locale: Locale;
   gsc: GSCStatus | null;
   ga4: GA4Status | null;
+  /** GA4 properties to choose from, fetched when GA4 is authorized but no property is set. */
+  ga4Properties?: GA4Property[];
   legacyActionData?: OnboardingActionData;
   title: string;
   description: string;
@@ -21,6 +24,8 @@ interface Props {
    * card is rendered on a route other than the one owning the GSC/GA4 connect action intents.
    */
   fetcher?: FetcherWithComponents<OnboardingActionData>;
+  /** Extra content rendered inside the same card, below the connection controls. */
+  footer?: ReactNode;
 }
 
 /** GSC + GA4 connection status, connect and disconnect controls. Reused by onboarding and Réglages. */
@@ -28,16 +33,19 @@ export function GoogleConnectionsCard({
   locale,
   gsc,
   ga4,
+  ga4Properties = [],
   legacyActionData,
   title,
   description,
   actionPath,
   onContinue,
   fetcher,
+  footer,
 }: Props) {
   const submit = useSubmit();
   const navigation = useNavigation();
   const revalidator = useRevalidator();
+  const [selectedProperty, setSelectedProperty] = useState("");
   const busy = fetcher ? fetcher.state !== "idle" : navigation.state !== "idle";
   const submittingAction = String(
     (fetcher ? fetcher.formData?.get("intent") : navigation.formData?.get("intent")) || "",
@@ -59,6 +67,30 @@ export function GoogleConnectionsCard({
       actionPath ? { method: "post", action: actionPath } : { method: "post" },
     );
   };
+
+  const submitGa4Property = () => {
+    const prop = ga4Properties.find((p) => p.property_id === selectedProperty);
+    if (!prop) return;
+    const payload = {
+      intent: "ga4_select_property",
+      property_id: prop.property_id,
+      property_name: prop.property_name,
+    };
+    if (fetcher) {
+      const fd = new FormData();
+      Object.entries(payload).forEach(([k, v]) => fd.set(k, v));
+      fetcher.submit(fd, { method: "post", action: actionPath });
+      return;
+    }
+    submit(payload, actionPath ? { method: "post", action: actionPath } : { method: "post" });
+  };
+
+  // When using a fetcher (no full navigation), re-fetch status after saving the
+  // GA4 property so the card flips to "connected" without a manual reload.
+  useEffect(() => {
+    if (fetcher?.data?.ga4PropertySaved) revalidator.revalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetcher?.data?.ga4PropertySaved]);
 
   return (
     <Card>
@@ -116,7 +148,32 @@ export function GoogleConnectionsCard({
               </Button>
             </InlineStack>
           ) : ga4OauthPending ? (
-            <Badge tone="info">{t(locale, "onboardingGA4PropertyPending")}</Badge>
+            ga4Properties.length > 0 ? (
+              <InlineStack gap="200" blockAlign="end" wrap>
+                <Select
+                  label={t(locale, "onboardingGA4PropertyPending")}
+                  options={[
+                    { label: t(locale, "ga4SelectPropertyPlaceholder"), value: "" },
+                    ...ga4Properties.map((p) => ({
+                      label: p.account_name ? `${p.property_name} — ${p.account_name}` : p.property_name,
+                      value: p.property_id,
+                    })),
+                  ]}
+                  value={selectedProperty}
+                  onChange={setSelectedProperty}
+                />
+                <Button
+                  variant="primary"
+                  disabled={!selectedProperty}
+                  loading={busy && submittingAction === "ga4_select_property"}
+                  onClick={submitGa4Property}
+                >
+                  {t(locale, "ga4SelectPropertyConfirm")}
+                </Button>
+              </InlineStack>
+            ) : (
+              <Badge tone="info">{t(locale, "onboardingGA4PropertyPending")}</Badge>
+            )
           ) : (
             <Button
               loading={busy && submittingAction === "ga4_connect"}
@@ -139,6 +196,13 @@ export function GoogleConnectionsCard({
               {t(locale, "onboardingGoogleContinue")}
             </Button>
           </InlineStack>
+        )}
+
+        {footer && (
+          <>
+            <Divider />
+            {footer}
+          </>
         )}
       </BlockStack>
     </Card>

@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFetcher, useLoaderData, useRevalidator } from "@remix-run/react";
 import {
   Badge,
@@ -21,7 +21,7 @@ import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
 import { HubGrid, type HubItem } from "../components/HubGrid";
 import { GoogleConnectionsCard } from "../components/GoogleConnectionsCard";
-import type { GA4Status, GSCStatus, OnboardingActionData } from "../components/onboarding/types";
+import type { GA4Property, GA4Status, GSCStatus, OnboardingActionData } from "../components/onboarding/types";
 
 interface LearningSettings {
   enabled: boolean;
@@ -56,7 +56,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const llmsTxt = llmsResp.status === "fulfilled" && llmsResp.value.ok
     ? ((await llmsResp.value.json().catch(() => null)) as LlmsTxtStatus | null)
     : null;
-  return json({ locale, gsc, ga4, learningSettings, llmsTxt });
+
+  // When GA4 is authorized but no property is selected yet, fetch the property
+  // list so the card can show a selector (the only way to finish GA4 setup).
+  let ga4Properties: GA4Property[] = [];
+  if (ga4?.oauth_connected && !ga4?.ready) {
+    try {
+      const propsResp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/ga4/properties`,
+        { accessToken: session.accessToken },
+      );
+      if (propsResp.ok) {
+        ga4Properties = (((await propsResp.json()) as { properties?: GA4Property[] }).properties ?? []);
+      }
+    } catch { /* ignore */ }
+  }
+
+  return json({ locale, gsc, ga4, ga4Properties, learningSettings, llmsTxt });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -105,10 +122,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function AccountHub() {
-  const { locale, gsc, ga4, learningSettings, llmsTxt } = useLoaderData<typeof loader>() as {
+  const { locale, gsc, ga4, ga4Properties, learningSettings, llmsTxt } = useLoaderData<typeof loader>() as {
     locale: Locale;
     gsc: GSCStatus | null;
     ga4: GA4Status | null;
+    ga4Properties: GA4Property[];
     learningSettings: LearningSettings | null;
     llmsTxt: LlmsTxtStatus | null;
   };
@@ -305,7 +323,44 @@ export default function AccountHub() {
           locale={locale}
           gsc={gsc}
           ga4={ga4}
+          ga4Properties={ga4Properties}
           fetcher={onboardingFetcher}
+          footer={
+            <BlockStack gap="300">
+              <BlockStack gap="100">
+                <Text as="h3" variant="headingSm">
+                  {fr ? "Analyse SEO — sources de données" : "SEO Analysis — data sources"}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {fr
+                    ? "L'analyse utilise le profil entreprise validé quand il existe et remonte des signaux pour l'améliorer."
+                    : "The analysis uses the validated business profile when available and surfaces signals to improve it."}
+                </Text>
+              </BlockStack>
+              <InlineStack gap="400" wrap>
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" variant="bodySm">Shopify</Text>
+                  <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+                </InlineStack>
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" variant="bodySm">Google Search Console</Text>
+                  <Badge tone={gscConnected ? "success" : "attention"}>
+                    {gscConnected ? (fr ? "Réel" : "Live") : (fr ? "À connecter" : "Not connected")}
+                  </Badge>
+                </InlineStack>
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" variant="bodySm">Google Analytics 4</Text>
+                  <Badge tone={ga4Connected ? "success" : "attention"}>
+                    {ga4Connected
+                      ? (fr ? "Réel" : "Live")
+                      : ga4?.oauth_connected
+                        ? (fr ? "Propriété à sélectionner" : "Select a property")
+                        : (fr ? "À connecter" : "Not connected")}
+                  </Badge>
+                </InlineStack>
+              </InlineStack>
+            </BlockStack>
+          }
         />
 
         <Card>
@@ -331,39 +386,6 @@ export default function AccountHub() {
               <Button url={localizedPath("/app/geo-llms-txt", locale)} variant="plain">
                 {t(locale, "aiCrawlerVisibilityManage")}
               </Button>
-            </InlineStack>
-          </BlockStack>
-        </Card>
-
-        <Card>
-          <BlockStack gap="300">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">
-                {fr ? "Analyse SEO — sources de données" : "SEO Analysis — data sources"}
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                {fr
-                  ? "Mode lecture seule — aucune modification Shopify. L'analyse utilise le profil entreprise validé quand il existe et remonte des signaux pour l'améliorer."
-                  : "Read-only mode — no Shopify modifications. The analysis uses the validated business profile when available and surfaces signals to improve it."}
-              </Text>
-            </BlockStack>
-            <InlineStack gap="400" wrap>
-              <InlineStack gap="200" blockAlign="center">
-                <Text as="span" variant="bodySm">Shopify</Text>
-                <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
-              </InlineStack>
-              <InlineStack gap="200" blockAlign="center">
-                <Text as="span" variant="bodySm">Google Search Console</Text>
-                <Badge tone={gscConnected ? "success" : "attention"}>
-                  {gscConnected ? (fr ? "Réel" : "Live") : (fr ? "À connecter" : "Not connected")}
-                </Badge>
-              </InlineStack>
-              <InlineStack gap="200" blockAlign="center">
-                <Text as="span" variant="bodySm">Google Analytics 4</Text>
-                <Badge tone={ga4Connected ? "success" : "attention"}>
-                  {ga4Connected ? (fr ? "Réel" : "Live") : (fr ? "À connecter" : "Not connected")}
-                </Badge>
-              </InlineStack>
             </InlineStack>
           </BlockStack>
         </Card>
@@ -446,22 +468,28 @@ function GoogleConnectionsCardWrapper({
   locale,
   gsc,
   ga4,
+  ga4Properties,
   fetcher,
+  footer,
 }: {
   locale: Locale;
   gsc: GSCStatus | null;
   ga4: GA4Status | null;
+  ga4Properties: GA4Property[];
   fetcher: ReturnType<typeof useFetcher<OnboardingActionData>>;
+  footer?: ReactNode;
 }) {
   return (
     <GoogleConnectionsCard
       locale={locale}
       gsc={gsc}
       ga4={ga4}
+      ga4Properties={ga4Properties}
       title={t(locale, "connectionsTitle")}
       description={t(locale, "connectionsBody")}
       actionPath={localizedPath("/app/onboarding", locale)}
       fetcher={fetcher}
+      footer={footer}
     />
   );
 }

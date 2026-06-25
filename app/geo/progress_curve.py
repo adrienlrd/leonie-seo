@@ -240,6 +240,8 @@ def build_progress_curve(
     flags = {
         "low_volume": total_impressions < ImpressionLowVolumeThreshold,
         "incomplete_tracking": (not ga4_connected) or (not gsc_available),
+        "gsc_available": gsc_available,
+        "ga4_connected": ga4_connected,
         "out_of_stock_pages": oos_pages,
         "price_changed_pages": price_changed_pages,
     }

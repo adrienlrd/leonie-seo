@@ -28,6 +28,8 @@ interface ProgressCurveData {
   flags: {
     low_volume: boolean;
     incomplete_tracking: boolean;
+    gsc_available: boolean;
+    ga4_connected: boolean;
     out_of_stock_pages: number;
     price_changed_pages: number;
   };
@@ -254,7 +256,13 @@ export default function MeasurePage() {
         {progress?.flags.incomplete_tracking && (
           <Banner
             tone="info"
-            title={t(locale, "measureIncompleteTrackingBanner")}
+            title={
+              !progress.flags.gsc_available && !progress.flags.ga4_connected
+                ? t(locale, "measureIncompleteTrackingBanner")
+                : !progress.flags.gsc_available
+                  ? t(locale, "measureIncompleteTrackingGsc")
+                  : t(locale, "measureIncompleteTrackingGa4")
+            }
             action={{ content: t(locale, "measureConnectGoogle"), url: localizedPath("/app/onboarding", locale) }}
           />
         )}

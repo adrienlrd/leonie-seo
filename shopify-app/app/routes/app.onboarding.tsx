@@ -49,6 +49,7 @@ import {
 } from "../lib/productIdentificationActions.server";
 import type {
   CrawlStatus,
+  GA4Property,
   GA4Status,
   GSCStatus,
   Health,
@@ -64,6 +65,7 @@ interface LoaderData {
   status: ShopStatus | null;
   gsc: GSCStatus | null;
   ga4: GA4Status | null;
+  ga4Properties: GA4Property[];
   pagespeed: PageSpeedStatus | null;
   crawl: CrawlStatus | null;
   recentJobs: number;
@@ -118,6 +120,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (gscConnected && profileValidated) startStep = 3;
   if (forcedStep) startStep = forcedStep;
 
+  // GA4 authorized but no property selected → fetch the property list so the
+  // card can show a selector.
+  let ga4Properties: GA4Property[] = [];
+  if (ga4?.oauth_connected && !ga4?.ready) {
+    const props = await fetchOk<{ properties?: GA4Property[] }>(be(`/api/shops/${shop}/ga4/properties`));
+    ga4Properties = props?.properties ?? [];
+  }
+
   return json<LoaderData>({
     locale,
     shop,
@@ -125,6 +135,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     status,
     gsc,
     ga4,
+    ga4Properties,
     pagespeed,
     crawl,
     recentJobs: jobs?.count ?? 0,
@@ -178,6 +189,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const resp = await be(`/api/shops/${shop}/ga4/disconnect`, { method: "DELETE" });
       if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
       return json<OnboardingActionData>({ disconnected: true });
+    }
+
+    if (intent === "ga4_select_property") {
+      const propertyId = String(form.get("property_id") ?? "");
+      const propertyName = String(form.get("property_name") ?? "");
+      const resp = await be(`/api/shops/${shop}/ga4/settings`, {
+        method: "POST",
+        body: JSON.stringify({ property_id: propertyId, property_name: propertyName }),
+      });
+      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
+      return json<OnboardingActionData>({ ga4PropertySaved: true });
     }
 
     if (intent === "pagespeed_import") {
@@ -325,7 +347,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 // ---------------------------------------------------------------------------
 
 export default function Onboarding() {
-  const { locale, shop, health, status, gsc, ga4, pagespeed, crawl, recentJobs, businessProfile, startStep } =
+  const { locale, shop, health, status, gsc, ga4, ga4Properties, pagespeed, crawl, recentJobs, businessProfile, startStep } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const revalidator = useRevalidator();
@@ -440,6 +462,7 @@ export default function Onboarding() {
             locale={locale}
             gsc={gsc}
             ga4={ga4}
+            ga4Properties={ga4Properties}
             legacyActionData={legacyActionData}
             title={t(locale, "onboardingStepGoogleTitle")}
             description={t(locale, "onboardingStepGoogleBody")}
