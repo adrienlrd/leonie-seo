@@ -44,6 +44,7 @@ from app.geo.retention_milestones import build_retention_milestones
 from app.geo.risk_guard import assess_catalog_risk
 from app.geo.validation_timeline import build_validation_timeline
 from app.geo.weekly import build_weekly_actions
+from app.gsc.token_store import get_google_token
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.snapshot.scope import normalize_product_scope
 
@@ -396,6 +397,7 @@ async def get_geo_progress_curve(
     events = list_geo_events(ctx.shop, limit=500, db_path=DB_PATH)["events"]
     gsc_file = _find_gsc_file(ctx.shop)
     ga4_daily, ga4_connected = await _load_ga4_daily(ctx.shop, days=days)
+    google_authorized = get_google_token(ctx.shop) is not None
 
     return build_progress_curve(
         shop=ctx.shop,
@@ -404,6 +406,7 @@ async def get_geo_progress_curve(
         ga4_daily=ga4_daily,
         gsc_available=gsc_file is not None,
         ga4_connected=ga4_connected,
+        google_authorized=google_authorized,
         window_days=days,
     )
 

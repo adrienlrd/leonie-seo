@@ -30,6 +30,7 @@ interface ProgressCurveData {
     incomplete_tracking: boolean;
     gsc_available: boolean;
     ga4_connected: boolean;
+    google_authorized: boolean;
     out_of_stock_pages: number;
     price_changed_pages: number;
   };
@@ -246,6 +247,41 @@ export default function MeasurePage() {
     ? SERIES_CONFIG.filter((config) => (progress.series[config.key]?.length ?? 0) > 0)
     : [];
 
+  // Tracking banner: distinguish "not connected to Google" from "connected but
+  // data not imported (GSC) / property not selected (GA4)" so the merchant gets
+  // an actionable message consistent with the connections card.
+  let trackingBanner: { title: string; actionContent: string; actionUrl: string } | null = null;
+  if (progress?.flags.incomplete_tracking) {
+    const f = progress.flags;
+    const gscMissing = !f.gsc_available;
+    const ga4Missing = !f.ga4_connected;
+    if (!f.google_authorized) {
+      trackingBanner = {
+        title: t(locale, "measureIncompleteTrackingBanner"),
+        actionContent: t(locale, "measureConnectGoogle"),
+        actionUrl: localizedPath("/app/onboarding", locale),
+      };
+    } else if (gscMissing && ga4Missing) {
+      trackingBanner = {
+        title: t(locale, "measureTrackingGscGa4"),
+        actionContent: t(locale, "measureRefreshData"),
+        actionUrl: localizedPath("/app", locale),
+      };
+    } else if (gscMissing) {
+      trackingBanner = {
+        title: t(locale, "measureGscNotImported"),
+        actionContent: t(locale, "measureRefreshData"),
+        actionUrl: localizedPath("/app", locale),
+      };
+    } else {
+      trackingBanner = {
+        title: t(locale, "measureIncompleteTrackingGa4"),
+        actionContent: t(locale, "measureOpenSettings"),
+        actionUrl: localizedPath("/app/account", locale),
+      };
+    }
+  }
+
   return (
     <Page
       title={t(locale, "measureTitle")}
@@ -253,17 +289,11 @@ export default function MeasurePage() {
       backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}
     >
       <BlockStack gap="400">
-        {progress?.flags.incomplete_tracking && (
+        {trackingBanner && (
           <Banner
             tone="info"
-            title={
-              !progress.flags.gsc_available && !progress.flags.ga4_connected
-                ? t(locale, "measureIncompleteTrackingBanner")
-                : !progress.flags.gsc_available
-                  ? t(locale, "measureIncompleteTrackingGsc")
-                  : t(locale, "measureIncompleteTrackingGa4")
-            }
-            action={{ content: t(locale, "measureConnectGoogle"), url: localizedPath("/app/onboarding", locale) }}
+            title={trackingBanner.title}
+            action={{ content: trackingBanner.actionContent, url: trackingBanner.actionUrl }}
           />
         )}
 

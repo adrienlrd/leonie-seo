@@ -191,6 +191,7 @@ def build_progress_curve(
     ga4_daily: dict[str, dict[str, Any]] | None,
     gsc_available: bool,
     ga4_connected: bool,
+    google_authorized: bool = False,
     window_days: int = 90,
     now: datetime | None = None,
 ) -> dict[str, Any]:
@@ -205,6 +206,9 @@ def build_progress_curve(
             ``None`` or empty when GA4 is not connected.
         gsc_available: True when a per-shop GSC export was located.
         ga4_connected: True when the GA4 client could be built for the shop.
+        google_authorized: True when a Google OAuth token exists for the shop
+            (shared by GSC + GA4). Distinguishes "not connected" from
+            "connected but data not imported / property not selected".
         window_days: Curve window in days (capped to 1–365 by caller).
         now: Reference time for window cutoff (testability).
 
@@ -242,6 +246,7 @@ def build_progress_curve(
         "incomplete_tracking": (not ga4_connected) or (not gsc_available),
         "gsc_available": gsc_available,
         "ga4_connected": ga4_connected,
+        "google_authorized": google_authorized,
         "out_of_stock_pages": oos_pages,
         "price_changed_pages": price_changed_pages,
     }
