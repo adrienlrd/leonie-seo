@@ -969,7 +969,9 @@ function PublishModeCard({
           >
             <BlockStack gap="200">
               <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-start" }}>
-                <Icon source={ContentIcon} />
+                <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
+                  <Icon source={ContentIcon} />
+                </span>
                 <Text as="p" variant="bodyMd" fontWeight="semibold">
                   {t(locale, "publishModeManualTitle")}
                 </Text>
@@ -996,7 +998,9 @@ function PublishModeCard({
           >
             <BlockStack gap="200">
               <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-end" }}>
-                <Icon source={AutomationIcon} />
+                <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
+                  <Icon source={AutomationIcon} />
+                </span>
                 <Text as="p" variant="bodyMd" fontWeight="semibold">
                   {t(locale, "publishModeAutoTitle")} 🚀
                 </Text>
