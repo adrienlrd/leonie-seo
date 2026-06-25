@@ -1672,6 +1672,9 @@ export default function IndexPage() {
           </Banner>
         ) : null}
 
+        {/* Publish mode toggle — top of the dashboard */}
+        <PublishModeCard currentMode={learningMode} locale={locale} />
+
         {/* Business profile — niche, brand, GEO score, personas, content style */}
         {businessProfile?.status === "validated" ? (
           <BusinessProfileSummary
@@ -1700,10 +1703,6 @@ export default function IndexPage() {
           isAnalyzingSingle={isAnalyzingSingle}
         />
 
-
-
-        {/* Publish mode toggle */}
-        <PublishModeCard currentMode={learningMode} locale={locale} />
 
         {/* Zone 5 — Alerts (conditional) */}
         <Zone5 data={zone5} locale={locale} />
