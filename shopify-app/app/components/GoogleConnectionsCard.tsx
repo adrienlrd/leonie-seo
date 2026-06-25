@@ -1,6 +1,6 @@
-import { Badge, BlockStack, Button, Card, InlineStack, Text } from "@shopify/polaris";
-import { useNavigation, useSubmit, type FetcherWithComponents } from "@remix-run/react";
-import { GlobeIcon } from "@shopify/polaris-icons";
+import { Badge, BlockStack, Button, Card, InlineStack, Text, Tooltip } from "@shopify/polaris";
+import { useNavigation, useRevalidator, useSubmit, type FetcherWithComponents } from "@remix-run/react";
+import { GlobeIcon, RefreshIcon } from "@shopify/polaris-icons";
 import { SectionTitle } from "../lib/marketAnalysisShared";
 import { t, type Locale } from "../lib/i18n";
 import type { GA4Status, GSCStatus, OnboardingActionData } from "./onboarding/types";
@@ -37,6 +37,7 @@ export function GoogleConnectionsCard({
 }: Props) {
   const submit = useSubmit();
   const navigation = useNavigation();
+  const revalidator = useRevalidator();
   const busy = fetcher ? fetcher.state !== "idle" : navigation.state !== "idle";
   const submittingAction = String(
     (fetcher ? fetcher.formData?.get("intent") : navigation.formData?.get("intent")) || "",
@@ -62,7 +63,18 @@ export function GoogleConnectionsCard({
   return (
     <Card>
       <BlockStack gap="300">
-        <SectionTitle source={GlobeIcon}>{title}</SectionTitle>
+        <InlineStack align="space-between" blockAlign="center" wrap={false}>
+          <SectionTitle source={GlobeIcon}>{title}</SectionTitle>
+          <Tooltip content={t(locale, "dashboardRefresh")}>
+            <Button
+              icon={RefreshIcon}
+              variant="tertiary"
+              loading={revalidator.state === "loading"}
+              onClick={() => revalidator.revalidate()}
+              accessibilityLabel={t(locale, "dashboardRefresh")}
+            />
+          </Tooltip>
+        </InlineStack>
         <Text as="p" tone="subdued">
           {description}
         </Text>
