@@ -35,13 +35,6 @@ interface LlmsTxtStatus {
   divergent: boolean;
 }
 
-const AUTO_PUBLISH_SCOPE_OPTIONS = [
-  "meta_title",
-  "meta_description",
-  "alt_text",
-  "product_description",
-] as const;
-
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const locale = getLocale(request);
@@ -97,7 +90,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           enabled: automationMode !== "manual",
           mode: automationMode === "auto_apply" ? "auto_apply" : "semi_auto",
           reanalysis_frequency_days: Number(form.get("reanalysis_frequency_days") ?? 28),
-          auto_publish_scopes: form.getAll("auto_publish_scopes").map(String),
         }),
       },
     );
@@ -137,14 +129,10 @@ export default function AccountHub() {
   const [reanalysisFrequency, setReanalysisFrequency] = useState(
     String(learningSettings?.reanalysis_frequency_days ?? 28),
   );
-  const [autoPublishScopes, setAutoPublishScopes] = useState<string[]>(
-    learningSettings?.auto_publish_scopes ?? [],
-  );
 
   useEffect(() => {
     setAutomationMode(initialMode);
     setReanalysisFrequency(String(learningSettings?.reanalysis_frequency_days ?? 28));
-    setAutoPublishScopes(learningSettings?.auto_publish_scopes ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [learningSettings]);
 
@@ -153,7 +141,6 @@ export default function AccountHub() {
     fd.set("intent", "saveAutomation");
     fd.set("automation_mode", automationMode);
     fd.set("reanalysis_frequency_days", reanalysisFrequency);
-    for (const scope of autoPublishScopes) fd.append("auto_publish_scopes", scope);
     automationFetcher.submit(fd, { method: "post" });
   };
 
@@ -281,21 +268,9 @@ export default function AccountHub() {
               />
             </div>
 
-            <ChoiceList
-              title={t(locale, "automationScopesLabel")}
-              allowMultiple
-              choices={AUTO_PUBLISH_SCOPE_OPTIONS.map((scope) => ({
-                label: t(locale, `automationScope${scopeKey(scope)}`),
-                value: scope,
-              }))}
-              selected={autoPublishScopes}
-              onChange={setAutoPublishScopes}
-            />
-            {autoPublishScopes.length === 0 && (
-              <Text as="p" variant="bodySm" tone="critical">
-                {t(locale, "automationScopesEmptyWarning")}
-              </Text>
-            )}
+            <Text as="p" variant="bodySm" tone="subdued">
+              {t(locale, "automationScopesMovedNote")}
+            </Text>
 
             <InlineStack align="space-between" blockAlign="center" wrap>
               <Button
@@ -307,7 +282,6 @@ export default function AccountHub() {
               <Button
                 variant="primary"
                 loading={automationFetcher.state !== "idle"}
-                disabled={autoPublishScopes.length === 0}
                 onClick={saveAutomation}
               >
                 {t(locale, "automationSave")}
@@ -462,13 +436,6 @@ export default function AccountHub() {
       </BlockStack>
     </Page>
   );
-}
-
-function scopeKey(scope: (typeof AUTO_PUBLISH_SCOPE_OPTIONS)[number]): string {
-  return scope
-    .split("_")
-    .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join("");
 }
 
 /**
