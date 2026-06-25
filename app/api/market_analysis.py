@@ -541,6 +541,28 @@ async def save_market_analysis_facts(
     return {"saved": len(answers), "facts": saved, "shopify_write": False}
 
 
+@router.post("/shops/{shop}/market-analysis/auto-publish")
+async def trigger_auto_publish_now(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Publish the latest analysis's checked proposals now.
+
+    Used when the merchant turns on automatic publishing: instead of waiting for
+    the next analysis, immediately push the checked + safe fields of the latest
+    result. Requires auto mode to be already set (the frontend sets it first).
+    Subsequent analyses keep auto-publishing via the in-pipeline hook.
+    """
+    result = load_latest_result(ctx.shop)
+    if result is None:
+        return {"published": 0, "held": 0, "products": 0, "no_analysis": True}
+    niche_hypothesis = get_validated_niche_hypothesis(ctx.shop)
+    summary = await asyncio.to_thread(
+        auto_publish_checked_proposals, ctx.shop, result, niche_hypothesis
+    )
+    return summary
+
+
 @router.post("/shops/{shop}/market-analysis/jobs")
 async def start_market_analysis_job(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],

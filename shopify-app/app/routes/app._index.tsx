@@ -13,6 +13,7 @@ import {
   InlineGrid,
   InlineStack,
   Page,
+  ProgressBar,
   Spinner,
   Text,
   TextField,
@@ -391,6 +392,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  if (intent === "activateAutoPublish") {
+    try {
+      // 1. Switch the shop to automatic publishing.
+      const setResp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/learning/settings`,
+        { accessToken: session.accessToken, method: "PUT", body: JSON.stringify({ mode: "auto_apply" }) },
+      );
+      if (!setResp.ok) {
+        return json({ type: "activateAutoPublish", ok: false, error: `HTTP ${setResp.status}`, summary: null });
+      }
+      // 2. Publish the latest analysis's checked proposals immediately.
+      const pubResp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/auto-publish`,
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(60_000) },
+      );
+      const summary = pubResp.ok ? await pubResp.json() : null;
+      return json({ type: "activateAutoPublish", ok: true, error: null, summary });
+    } catch (err) {
+      return json({ type: "activateAutoPublish", ok: false, error: String(err), summary: null });
+    }
+  }
+
   if (intent === "saveCompetitors") {
     const payload = formData.get("competitorsJson") as string;
     try {
@@ -500,6 +525,7 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   const intent = formData?.get("intent");
   if (intent === "refresh") return false;
   if (intent === "setPublishMode") return false;
+  if (intent === "activateAutoPublish") return false;
   if (intent === "startSingle") return false;
   if (intent === "saveFactsAndStartSingle") return false;
   if (intent === "pollSingle") return false;
@@ -943,18 +969,56 @@ function PublishModeCard({
   locale: Locale;
 }) {
   const fetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
+  const activateFetcher = useFetcher<{ type: string; ok: boolean; error: string | null; summary: { published?: number } | null }>();
   const [selected, setSelected] = useState<"semi_auto" | "auto_apply">(currentMode);
+  const [activating, setActivating] = useState(false);
+  const [activateProgress, setActivateProgress] = useState(0);
+  const [activated, setActivated] = useState(currentMode === "auto_apply");
 
   const handleToggle = (mode: "semi_auto" | "auto_apply") => {
     setSelected(mode);
+    if (mode === "semi_auto") setActivated(false);
     const fd = new FormData();
     fd.set("intent", "setPublishMode");
     fd.set("mode", mode);
     fetcher.submit(fd, { method: "post" });
   };
 
+  // Turning ON automatic publishing: show an artificial progress bar
+  // ("Activation… en cours" → "Activée"), set the mode AND publish everything
+  // currently checked now (the action chains both backend calls).
+  const handleActivateAuto = () => {
+    setSelected("auto_apply");
+    setActivated(false);
+    setActivating(true);
+    setActivateProgress(8);
+    const fd = new FormData();
+    fd.set("intent", "activateAutoPublish");
+    activateFetcher.submit(fd, { method: "post" });
+  };
+
+  useEffect(() => {
+    if (!activating) return;
+    const id = setInterval(() => {
+      setActivateProgress((p) => (p < 90 ? p + 6 : p));
+    }, 130);
+    return () => clearInterval(id);
+  }, [activating]);
+
+  useEffect(() => {
+    if (activateFetcher.state === "idle" && activateFetcher.data?.type === "activateAutoPublish") {
+      setActivateProgress(100);
+      const id = setTimeout(() => {
+        setActivating(false);
+        setActivated(true);
+      }, 450);
+      return () => clearTimeout(id);
+    }
+  }, [activateFetcher.state, activateFetcher.data]);
+
   const busy = fetcher.state !== "idle";
   const isAuto = selected === "auto_apply";
+  const publishedCount = activateFetcher.data?.summary?.published ?? 0;
 
   return (
     <Card>
@@ -1008,10 +1072,23 @@ function PublishModeCard({
               <Text as="p" variant="bodySm" tone="subdued">
                 {t(locale, "publishModeAutoDesc")}
               </Text>
-              {isAuto ? (
-                <Badge tone="attention">{locale === "fr" ? "Actif" : "Active"}</Badge>
+              {activating ? (
+                <BlockStack gap="100">
+                  <Text as="p" variant="bodySm">{t(locale, "publishModeActivating")}</Text>
+                  <ProgressBar progress={activateProgress} size="small" tone="highlight" />
+                </BlockStack>
+              ) : isAuto ? (
+                <BlockStack gap="100">
+                  <Badge tone="success">{locale === "fr" ? "Actif" : "Active"}</Badge>
+                  {activated && (
+                    <Text as="p" variant="bodySm" tone="success">
+                      {t(locale, "publishModeActivated")}
+                      {publishedCount > 0 ? ` — ${publishedCount} ${t(locale, "publishModeActivatedCount")}` : ""}
+                    </Text>
+                  )}
+                </BlockStack>
               ) : (
-                <Button size="slim" variant="primary" onClick={() => handleToggle("auto_apply")} loading={busy}>
+                <Button size="slim" variant="primary" onClick={handleActivateAuto}>
                   {locale === "fr" ? "Activer" : "Activate"}
                 </Button>
               )}
