@@ -1505,20 +1505,34 @@ export default function ProductsPage() {
       singleProductJob?.status !== "failed");
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  // Client-side export of the current analysis as a JSON file the merchant can
-  // share (keywords + sources, content packs, GEO questions, data sources used).
-  const handleExportResults = () => {
+  // Single comprehensive export of everything the analysis produced, A→Z, as one
+  // JSON file: data sources used + provider status, per-product keywords with
+  // their provenance (data_source), GEO questions, generated content proposals,
+  // the reflection/guardrail pass and quality scores. The full `job` is embedded
+  // verbatim so the run can be read back completely to study/improve the algorithm.
+  const handleExportFull = () => {
     if (typeof document === "undefined" || !job) return;
+    const reflectionThreshold =
+      job.products.find((p) => p.content_test_pack.content_guardrail_reflection)
+        ?.content_test_pack.content_guardrail_reflection?.threshold ?? null;
     const payload = {
+      export_version: 2,
       exported_at: new Date().toISOString(),
-      source: "market-analysis",
-      analyzed_at: job.analyzed_at,
-      analyzed_product_count: job.analyzed_product_count,
-      total_opportunity_count: job.total_opportunity_count,
-      sources_used: job.sources_used,
-      provider_status: job.provider_status,
-      business_profile_context: job.business_profile_context,
-      products: job.products,
+      source: "market-analysis-full",
+      shop,
+      summary: {
+        analyzed_at: job.analyzed_at,
+        analyzed_product_count: job.analyzed_product_count,
+        total_opportunity_count: job.total_opportunity_count,
+        sources_used: job.sources_used,
+        provider_status: job.provider_status,
+        reflection_test: job.reflection_test === true,
+        reflection_threshold: reflectionThreshold,
+      },
+      // Full run verbatim: products[] carry content_test_pack (proposals,
+      // content_guardrail_reflection, content_quality), seo_keywords with
+      // data_source, geo_questions, confirmed facts, and business profile context.
+      analysis: job,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json",
@@ -1526,37 +1540,7 @@ export default function ProductsPage() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `analyse-marche-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportReflection = () => {
-    if (typeof document === "undefined" || !job) return;
-    const payload = {
-      exported_at: new Date().toISOString(),
-      source: "market-analysis-reflection-test",
-      analyzed_at: job.analyzed_at,
-      reflection_test: job.reflection_test === true,
-      threshold: job.products.find((product) => product.content_test_pack.content_guardrail_reflection)?.content_test_pack.content_guardrail_reflection?.threshold ?? null,
-      products: job.products.map((product) => ({
-        product_id: product.product_id,
-        product_title: product.product_title,
-        product_handle: product.product_handle,
-        primary_keyword: product.seo_keywords.find((keyword) => keyword.target_role === "primary")?.query ?? product.seo_keywords[0]?.query ?? null,
-        reflection: product.content_test_pack.content_guardrail_reflection ?? null,
-        content_quality: product.content_test_pack.content_quality ?? null,
-      })),
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `analyse-marche-reflection-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.download = `analyse-complete-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
@@ -1937,11 +1921,8 @@ export default function ProductsPage() {
                       {locale === "fr" ? "Mode réflexion test" : "Reflection test mode"}
                     </Badge>
                   )}
-                  <Button onClick={handleExportResults}>
-                    {t(locale, "marketAnalysisExport")}
-                  </Button>
-                  <Button onClick={handleExportReflection}>
-                    {locale === "fr" ? "Télécharger la réflexion" : "Download reflection"}
+                  <Button onClick={handleExportFull}>
+                    {t(locale, "marketAnalysisExportFull")}
                   </Button>
                 </InlineStack>
                 <SummaryCard
