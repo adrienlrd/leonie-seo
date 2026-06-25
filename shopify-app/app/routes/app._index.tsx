@@ -386,6 +386,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         },
       );
       if (!resp.ok) return json({ type: "setPublishMode", ok: false, error: `HTTP ${resp.status}` });
+      // Switching back to manual also turns off the daily/28-day autonomous agent
+      // so nothing is published or re-analysed in the background.
+      if (mode === "semi_auto") {
+        await callBackendForShop(
+          session.shop,
+          `/api/shops/${session.shop}/agent-schedule/disable`,
+          { accessToken: session.accessToken, method: "POST" },
+        ).catch(() => {});
+      }
       return json({ type: "setPublishMode", ok: true, error: null });
     } catch (err) {
       return json({ type: "setPublishMode", ok: false, error: String(err) });
@@ -394,11 +403,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "activateAutoPublish") {
     try {
-      // 1. Switch the shop to automatic publishing.
+      // 1. Enable the daily continuous-improvement agent in auto mode. This also
+      // syncs merchant_learning_settings (enabled + mode=auto_apply) and turns on
+      // the 28-day background re-analysis (runs server-side via the scheduler tick,
+      // no need to open the app).
       const setResp = await callBackendForShop(
         session.shop,
-        `/api/shops/${session.shop}/learning/settings`,
-        { accessToken: session.accessToken, method: "PUT", body: JSON.stringify({ mode: "auto_apply" }) },
+        `/api/shops/${session.shop}/agent-schedule/settings`,
+        { accessToken: session.accessToken, method: "PUT", body: JSON.stringify({ enabled: true, mode: "auto_apply" }) },
       );
       if (!setResp.ok) {
         return json({ type: "activateAutoPublish", ok: false, error: `HTTP ${setResp.status}`, summary: null });
