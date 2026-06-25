@@ -58,3 +58,31 @@ def test_geo_score_potential_rises_with_text_proposals() -> None:
     }
     res = _build_product_result(product, {}, llm_pack, "shop.myshopify.com")
     assert res["geo_score_potential"] > res["geo_score"]
+
+
+def test_geo_score_field_deltas_are_non_negative_and_bounded() -> None:
+    product = {"id": "1", "title": "Harnais", "handle": "harnais", "seo": {}, "images": [], "variants": []}
+    llm_pack = {
+        "proposed_meta_title": "Harnais Premium pour Chien de Berger Allemand robuste et ajustable",
+        "proposed_meta_description": "Harnais confortable et ajustable pour chien, idéal promenade et dressage au quotidien sans tirer.",
+        "proposed_product_description": "<p>"
+        + ("Harnais premium nylon résistant rembourrage sangles réglables anneau renforcé. " * 8)
+        + "</p>",
+    }
+    res = _build_product_result(product, {}, llm_pack, "shop.myshopify.com")
+    deltas = res["geo_score_field_deltas"]
+
+    assert set(deltas) == {"meta_title", "meta_description", "description"}
+    # No field ever lowers the displayed score.
+    assert all(v >= 0 for v in deltas.values())
+    # Adding a meta description to a product that has none lifts readiness.
+    assert deltas["meta_description"] > 0
+    # Each single-field delta stays within the joint current→potential gap.
+    gap = res["geo_score_potential"] - res["geo_score"]
+    assert all(v <= gap for v in deltas.values())
+
+
+def test_geo_score_field_deltas_zero_without_proposals() -> None:
+    product = {"id": "1", "title": "Harnais", "handle": "harnais", "seo": {}, "images": [], "variants": []}
+    res = _build_product_result(product, {}, {}, "shop.myshopify.com")
+    assert res["geo_score_field_deltas"] == {"meta_title": 0, "meta_description": 0, "description": 0}

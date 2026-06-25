@@ -9,6 +9,7 @@ import {
   Box,
   Button,
   Card,
+  Divider,
   Icon,
   InlineGrid,
   InlineStack,
@@ -588,10 +589,12 @@ function Zone1({
   data,
   locale,
   llmsPublished,
+  publishMode,
 }: {
   data: DashboardData["zone1"];
   locale: Locale;
   llmsPublished: boolean;
+  publishMode?: React.ReactNode;
 }) {
   const level = data.global_level ?? "faible";
   const tone = LEVEL_TONES[level] ?? "info";
@@ -653,6 +656,12 @@ function Zone1({
             </Button>
           </InlineStack>
         </Box>
+        {publishMode && (
+          <>
+            <Divider />
+            {publishMode}
+          </>
+        )}
       </BlockStack>
     </Card>
   );
@@ -976,9 +985,12 @@ function Zone4({
 function PublishModeCard({
   currentMode,
   locale,
+  bare = false,
 }: {
   currentMode: "semi_auto" | "auto_apply";
   locale: Locale;
+  /** When true, render the content without the outer Card (to embed inside another card). */
+  bare?: boolean;
 }) {
   const fetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const activateFetcher = useFetcher<{ type: string; ok: boolean; error: string | null; summary: { published?: number } | null }>();
@@ -1032,10 +1044,9 @@ function PublishModeCard({
   const isAuto = selected === "auto_apply";
   const publishedCount = activateFetcher.data?.summary?.published ?? 0;
 
-  return (
-    <Card>
-      <BlockStack gap="300">
-        <InlineGrid columns={2} gap="300">
+  const content = (
+    <BlockStack gap="300">
+      <InlineGrid columns={2} gap="300">
           <Box
             padding="300"
             borderWidth="025"
@@ -1112,9 +1123,10 @@ function PublishModeCard({
             <p>{t(locale, "publishModeAutoDisclaimer")}</p>
           </Banner>
         )}
-      </BlockStack>
-    </Card>
+    </BlockStack>
   );
+
+  return bare ? content : <Card>{content}</Card>;
 }
 
 function Zone5({
@@ -1330,7 +1342,7 @@ function CompetitorsCard({
   );
 }
 
-function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale, afterRow1, afterGeoScore }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale; afterRow1?: React.ReactNode; afterGeoScore?: React.ReactNode }) {
+function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale, afterRow1 }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale; afterRow1?: React.ReactNode }) {
   const intensityTone = (i: string): "success" | "warning" | "info" =>
     i === "high" ? "success" : i === "medium" ? "warning" : "info";
   const NicheIcon = getNicheIcon(profile);
@@ -1374,8 +1386,6 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
       </InlineGrid>
 
       {afterRow1}
-
-      {afterGeoScore}
 
       {/* Row 2 — Personas + Style contenu */}
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
@@ -1462,7 +1472,6 @@ function BusinessProfileSummary({
   excludedDomains,
   locale,
   afterRow1,
-  afterGeoScore,
 }: {
   profile: BusinessProfile | null;
   competitorSignals: string[];
@@ -1470,7 +1479,6 @@ function BusinessProfileSummary({
   excludedDomains: string[];
   locale: Locale;
   afterRow1?: React.ReactNode;
-  afterGeoScore?: React.ReactNode;
 }) {
   if (!profile || profile.status !== "validated") return null;
 
@@ -1482,7 +1490,6 @@ function BusinessProfileSummary({
       excludedDomains={excludedDomains}
       locale={locale}
       afterRow1={afterRow1}
-      afterGeoScore={afterGeoScore}
     />
   );
 }
@@ -1778,14 +1785,22 @@ export default function IndexPage() {
             manualCompetitors={manualCompetitors}
             excludedDomains={excludedDomains}
             locale={locale}
-            afterRow1={<Zone1 data={zone1} locale={locale} llmsPublished={llmsPublished} />}
-            afterGeoScore={<PublishModeCard currentMode={learningMode} locale={locale} />}
+            afterRow1={
+              <Zone1
+                data={zone1}
+                locale={locale}
+                llmsPublished={llmsPublished}
+                publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare />}
+              />
+            }
           />
         ) : (
-          <>
-            <Zone1 data={zone1} locale={locale} llmsPublished={llmsPublished} />
-            <PublishModeCard currentMode={learningMode} locale={locale} />
-          </>
+          <Zone1
+            data={zone1}
+            locale={locale}
+            llmsPublished={llmsPublished}
+            publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare />}
+          />
         )}
 
         {/* Zone 2 — Active products */}

@@ -423,20 +423,6 @@ export default function LlmsTxtPage() {
           </BlockStack>
         </Card>
 
-        <Card>
-          <BlockStack gap="200">
-            <InlineStack gap="200" blockAlign="center">
-              <Text as="h2" variant="headingMd">
-                {t(locale, "aiVisibilityTitle")}
-              </Text>
-              <Badge>{t(locale, "aiVisibilityComingSoon")}</Badge>
-            </InlineStack>
-            <Text as="p" tone="subdued">
-              {t(locale, "aiVisibilityNote")}
-            </Text>
-          </BlockStack>
-        </Card>
-
         {preview && (
           <Card>
             <BlockStack gap="200">

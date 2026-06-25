@@ -4640,6 +4640,35 @@ def _build_product_result(
         geo_score, score_product_readiness(improved_product)["readiness_score"]
     )
 
+    # Per-field readiness contribution: how much each applied field alone lifts
+    # the score over the current state. The products page sums the deltas of the
+    # fields actually validated, so the displayed score moves by each field's
+    # real value instead of a diluted count fraction. image_alts is omitted (it
+    # does not feed the readiness scorer).
+    def _field_delta(merged: dict[str, Any]) -> int:
+        return max(0, score_product_readiness(merged)["readiness_score"] - geo_score)
+
+    geo_score_field_deltas = {
+        "meta_title": _field_delta(
+            {**product, "seo": {**seo, "title": proposed_meta_title or current_meta_title}}
+        )
+        if proposed_meta_title
+        else 0,
+        "meta_description": _field_delta(
+            {
+                **product,
+                "seo": {**seo, "description": proposed_meta_description or current_meta_description},
+            }
+        )
+        if proposed_meta_description
+        else 0,
+        "description": _field_delta(
+            {**product, "body_html": proposed_product_description or body_html}
+        )
+        if proposed_product_description
+        else 0,
+    }
+
     return {
         "product_id": product_id,
         "product_title": product_title,
@@ -4756,6 +4785,7 @@ def _build_product_result(
         "opportunity_score": opportunity.get("opportunity_score", 0),
         "geo_score": geo_score,
         "geo_score_potential": geo_score_potential,
+        "geo_score_field_deltas": geo_score_field_deltas,
         "sources_used": opportunity.get("sources_used", []),
         "business_profile_context_hash": business_profile_context_hash,
         "business_profile_context_status": (

@@ -380,6 +380,7 @@ export interface ProductResult {
   opportunity_score: number;
   geo_score?: number;
   geo_score_potential?: number;
+  geo_score_field_deltas?: Record<string, number>;
   sources_used: string[];
   keyword_clusters?: KeywordCluster[];
   improvement_tags?: ImprovementTag[];

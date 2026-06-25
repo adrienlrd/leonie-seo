@@ -303,6 +303,7 @@ interface ProductResult {
   opportunity_score: number;
   geo_score?: number;
   geo_score_potential?: number;
+  geo_score_field_deltas?: Record<string, number>;
   sources_used: string[];
   business_profile_context_hash?: string | null;
   business_profile_context_status?: BusinessProfileContextStatus;
@@ -1346,6 +1347,10 @@ export default function ProductsPage() {
   // Notify the merchant via an App Bridge toast when an analysis just finished
   // (transition → completed only, so it doesn't fire on page load of an
   // already-completed analysis).
+  // True while a single-product job was launched from "Améliorer" (enrich),
+  // so we can show the "answers saved — validate the description" toast on
+  // completion instead of the generic analysis-done toast.
+  const enrichTriggeredRef = useRef(false);
   const prevJobStatusForToast = useRef<string | undefined>(undefined);
   useEffect(() => {
     const prev = prevJobStatusForToast.current;
@@ -1399,6 +1404,11 @@ export default function ProductsPage() {
           });
           // Mark as analyzed so the delta banner hides this product
           setAnalyzedNewIds((prev) => new Set([...prev, updated.product_id]));
+          if (enrichTriggeredRef.current) {
+            (window as unknown as { shopify?: { toast?: { show: (m: string) => void } } }).shopify
+              ?.toast?.show(t(locale, "enrichSavedToast"));
+            enrichTriggeredRef.current = false;
+          }
           setSingleProductJobId(null);
           setSingleProductId(null);
           setSingleProductJob(null);
@@ -1605,6 +1615,7 @@ export default function ProductsPage() {
   };
 
   const handleEnrichAndAnalyze = (productId: string, answers: Record<string, string>) => {
+    enrichTriggeredRef.current = true;
     setSingleProductJobId(null);
     setSingleProductId(productId);
     setSingleProductJob(null);

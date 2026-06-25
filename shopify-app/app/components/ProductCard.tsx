@@ -287,13 +287,15 @@ export function ProductCard({
   // inverted opportunity score when the backend score is absent (older results).
   const geoCurrent = product.geo_score ?? Math.max(0, 100 - product.opportunity_score);
   const geoPotential = product.geo_score_potential ?? geoCurrent;
-  const proposedApplyFields = APPLY_FIELDS.filter((f) => fieldHasProposal(f));
-  const appliedProposedCount = proposedApplyFields.filter((f) =>
-    Boolean(appliedFields[FIELD_TO_BACKEND[f] ?? f]),
-  ).length;
-  const appliedFraction =
-    proposedApplyFields.length > 0 ? appliedProposedCount / proposedApplyFields.length : 0;
-  const geoDisplayed = Math.round(geoCurrent + (geoPotential - geoCurrent) * appliedFraction);
+  // Each applied field lifts the score by its real readiness contribution
+  // (geo_score_field_deltas), so validating one field moves the score by its
+  // true value instead of a diluted count fraction. Capped at the potential.
+  const fieldDeltas = product.geo_score_field_deltas ?? {};
+  const appliedDelta = APPLY_FIELDS.reduce((sum, f) => {
+    const key = FIELD_TO_BACKEND[f] ?? f;
+    return appliedFields[key] ? sum + (fieldDeltas[key] ?? 0) : sum;
+  }, 0);
+  const geoDisplayed = Math.round(Math.min(geoPotential, geoCurrent + appliedDelta));
 
   const applyResult = applyFetcher.data?.type === "applyToShopify" ? applyFetcher.data : null;
 
@@ -572,12 +574,18 @@ export function ProductCard({
             const activeCount = (pack.enrichment_questions ?? []).filter(
               (q) => !completedKeys.has(q.key) && !retiredKeys.has(q.key),
             ).length;
-            const hasQuestions = activeCount > 0 || completedKeys.size > 0 || retiredKeys.size > 0;
-            return hasQuestions ? (
+            // Nothing left to enrich → show an "optimized" badge instead of an
+            // open Improve button (objective reached for this product).
+            if (activeCount === 0) {
+              return completedKeys.size > 0 || retiredKeys.size > 0 ? (
+                <Badge tone="success">{t(locale, "productOptimizedBadge")}</Badge>
+              ) : null;
+            }
+            return (
               <Button size="slim" pressed={enrichmentOpen} onClick={() => setEnrichmentOpen((v) => !v)}>
-                {(fr ? "Améliorer" : "Improve") + (activeCount > 0 ? ` (${activeCount})` : "")}
+                {(fr ? "Améliorer" : "Improve") + ` (${activeCount})`}
               </Button>
-            ) : null;
+            );
           })()}
         />
 

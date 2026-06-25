@@ -684,8 +684,8 @@ export function ProductContentProposals({
           <BlockStack gap="300">
             <Text as="p" variant="bodySm" tone="subdued">
               {locale === "fr"
-                ? "Vos réponses sont persistées et réinjectées automatiquement dans chaque analyse."
-                : "Your answers are persisted and automatically re-injected into every analysis."}
+                ? "Vos réponses sont enregistrées et intégrées à la description ci-dessous. Validez la description pour les publier sur Shopify."
+                : "Your answers are saved and woven into the description below. Validate the description to publish them to Shopify."}
             </Text>
 
             {/* Questions actives — toujours visibles, bouton Retirer inline */}
