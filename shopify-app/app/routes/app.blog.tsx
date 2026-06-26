@@ -40,7 +40,6 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { CheckIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
-import { SaveBar } from "@shopify/app-bridge-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { callBackendForShop } from "../lib/api.server";
@@ -440,37 +439,6 @@ function DraftListItem({
   );
 }
 
-// Only the fields persisted by the `saveDraft` action, serialized in a fixed key
-// order so the contextual Save Bar can reliably detect unsaved changes regardless
-// of object key ordering.
-function serializeEditableDraft(d: Draft | null): string {
-  if (!d) return "";
-  return JSON.stringify({
-    blog_title: d.blog_title,
-    intro: d.intro,
-    summary: d.summary,
-    meta_description: d.meta_description ?? "",
-    sections: d.sections,
-    internal_links: d.internal_links ?? [],
-    faq: d.faq ?? [],
-    tags: d.tags ?? [],
-    author_type: d.author_type ?? "Organization",
-    author_name: d.author_name ?? "",
-    author_url: d.author_url ?? null,
-    author_bio: d.author_bio ?? "",
-    image_url: d.image_url ?? "",
-    image_alt: d.image_alt ?? "",
-    image_style: d.image_style ?? "hero",
-    show_toc: d.show_toc ?? false,
-    numbered_steps: d.numbered_steps ?? false,
-    cta_enabled: d.cta_enabled ?? false,
-    cta_label: d.cta_label ?? "",
-    cta_url: d.cta_url ?? "",
-    cta_description: d.cta_description ?? "",
-    cta_position: d.cta_position ?? "end",
-  });
-}
-
 function linkReasonBadge(reason: string, fr: boolean): { tone: "info" | "success" | "attention"; label: string } {
   switch (reason) {
     case "related_article":
@@ -731,12 +699,6 @@ export default function BlogIndexPage() {
     );
   };
 
-  // Drives the App Bridge contextual Save Bar (Built for Shopify requirement for
-  // forms with editable inputs). Dirty = the editable draft differs from the
-  // last saved version returned by the loader.
-  const dirty = draft != null && serializeEditableDraft(draft) !== serializeEditableDraft(selected);
-  const onDiscard = () => setDraft(selected);
-
   const onRegenerate = (h2: string) => {
     if (!draft || !productCtx) return;
     fetcher.submit(
@@ -839,23 +801,6 @@ export default function BlogIndexPage() {
 
   return (
     <>
-      {/*
-        App Bridge contextual Save Bar — shows in the admin chrome whenever the
-        draft has unsaved edits. The button with variant="primary" is Save, the
-        other is Discard (per the ui-save-bar contract).
-      */}
-      <SaveBar id="blog-draft-save-bar" open={dirty} discardConfirmation>
-        <button
-          {...({ variant: "primary" } as Record<string, unknown>)}
-          onClick={onSave}
-          disabled={isBusy}
-        >
-          {fr ? "Enregistrer" : "Save"}
-        </button>
-        <button onClick={onDiscard} disabled={isBusy}>
-          {fr ? "Annuler" : "Discard"}
-        </button>
-      </SaveBar>
     <Page title="Blog" fullWidth>
       <BlockStack gap="400">
         {error && (
@@ -1077,8 +1022,8 @@ export default function BlogIndexPage() {
                         phrases={loaderPhrases(locale, "writing")}
                         estimateMs={90_000}
                         title={fr
-                          ? "Génération en cours… cela peut prendre 1 à 2 minutes. Inutile de cliquer à nouveau."
-                          : "Generating… this can take 1-2 minutes. No need to click again."}
+                          ? "Génération en cours… cela peut prendre 1 à 2 minutes."
+                          : "Generating… this can take 1-2 minutes."}
                       />
                     )}
                   </BlockStack>

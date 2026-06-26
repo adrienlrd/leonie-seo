@@ -254,3 +254,30 @@ def test_draft_from_product_adds_source_product_link_without_recommendations() -
             "reason": "source_product",
         }
     ]
+
+
+def test_draft_from_product_auto_sets_cover_image() -> None:
+    latest = {
+        "products": [
+            {
+                "product_id": "gid://shopify/Product/1",
+                "product_title": "Fontaine chat inox",
+                "product_handle": "fontaine-chat-inox",
+                "content_test_pack": {
+                    "proposed_blog_title": "Fontaine chat inox",
+                    "proposed_blog_intro": "Intro complète sur la fontaine.",
+                    "proposed_blog_outline": ["Pourquoi l'inox ?"],
+                    "current_product_images": [
+                        {"url": "https://cdn.shopify.com/img-1.jpg", "current_alt": "Fontaine vue de face"},
+                        {"url": "https://cdn.shopify.com/img-2.jpg", "current_alt": "Vue de dessus"},
+                    ],
+                },
+            }
+        ]
+    }
+
+    with patch("app.api.blog.load_latest_result", return_value=latest):
+        draft = _draft_from_product("shop.myshopify.com", "gid://shopify/Product/1")
+
+    assert draft["image_url"] == "https://cdn.shopify.com/img-1.jpg"
+    assert draft["image_alt"] == "Fontaine vue de face"

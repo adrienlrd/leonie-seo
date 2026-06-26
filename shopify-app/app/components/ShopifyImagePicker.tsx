@@ -7,6 +7,7 @@ import {
   DropZone,
   InlineStack,
   Modal,
+  ProgressBar,
   Spinner,
   Tabs,
   Text,
@@ -260,8 +261,24 @@ function UploadTab({
   const stageFetcher = useFetcher<StagedUploadResult>();
   const createFetcher = useFetcher<FileCreateResult>();
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const pendingFileRef = useRef<File | null>(null);
+
+  // Fetch gives no upload progress events, so simulate a climb to ~90% while the
+  // upload + Shopify file processing run, then jump to 100% on completion.
+  useEffect(() => {
+    if (!uploading) {
+      setProgress(0);
+      return;
+    }
+    setProgress(10);
+    const id = setInterval(
+      () => setProgress((p) => (p < 90 ? p + Math.max(1, Math.round((90 - p) / 6)) : p)),
+      350,
+    );
+    return () => clearInterval(id);
+  }, [uploading]);
 
   const handleDrop = useCallback(
     (_dropped: File[], accepted: File[]) => {
@@ -342,10 +359,13 @@ function UploadTab({
       <div style={{ paddingTop: 12 }}>
         {error && <Banner tone="critical" onDismiss={() => setError(null)}>{error}</Banner>}
         {uploading ? (
-          <InlineStack gap="200" blockAlign="center" align="center">
-            <Spinner size="small" />
-            <Text as="span">{t(locale, "coverImageUploading")}</Text>
-          </InlineStack>
+          <BlockStack gap="200">
+            <InlineStack gap="200" blockAlign="center">
+              <Spinner size="small" />
+              <Text as="span">{t(locale, "coverImageUploading")}</Text>
+            </InlineStack>
+            <ProgressBar progress={progress} size="small" tone="primary" />
+          </BlockStack>
         ) : (
           <DropZone
             accept="image/*"

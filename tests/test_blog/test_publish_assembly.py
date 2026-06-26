@@ -6,11 +6,13 @@ from app.api.blog import (
     BlogSection,
     _assemble_body_html,
     _author_bio_html,
+    _cover_image_html,
     _cta_html,
     _faq_html,
     _reading_time_html,
     _reading_time_minutes,
     _toc_html,
+    _truncate_clean,
 )
 from app.blog.schema import build_article_jsonld, build_howto_jsonld
 
@@ -146,6 +148,51 @@ def test_create_article_includes_meta_description_metafield() -> None:
     assert metafields[0]["namespace"] == "global"
     assert metafields[0]["key"] == "description_tag"
     assert "meta description SEO" in metafields[0]["value"]
+
+
+def test_truncate_clean_no_midword_cut() -> None:
+    text = "Choisir un harnais pour chien confortable et solide adapté à toutes les tailles de races"
+    out = _truncate_clean(text, 40)
+    assert len(out) <= 41  # +1 for the ellipsis
+    assert out.endswith("…")
+    assert " " not in out[-2:]  # did not cut mid-word right before ellipsis
+    assert not out.rstrip("…").endswith(" ")
+
+
+def test_truncate_clean_keeps_short_text() -> None:
+    assert _truncate_clean("Court texte", 100) == "Court texte"
+
+
+def test_cover_image_html_renders_and_empty() -> None:
+    assert _cover_image_html("", "", "Titre") == ""
+    html = _cover_image_html("https://cdn/x.jpg", "Un chien", "Titre")
+    assert 'src="https://cdn/x.jpg"' in html
+    assert 'alt="Un chien"' in html
+
+
+def test_update_article_uses_articleupdate_mutation() -> None:
+    from app.blog.shopify_articles import BlogPublisher
+
+    publisher = BlogPublisher("shop.myshopify.com", "token")
+    captured: dict = {}
+
+    def fake_post(query, variables):  # noqa: ANN001
+        captured["query"] = query
+        captured["variables"] = variables
+        return {"data": {"articleUpdate": {"article": {"id": "gid://x/1", "handle": "h"}, "userErrors": []}}}
+
+    publisher._post = fake_post  # type: ignore[method-assign]
+    updated = publisher.update_article(
+        article_id="gid://shopify/Article/1",
+        title="T",
+        body_html="<p>x</p>",
+        published=True,
+    )
+    assert "articleUpdate" in captured["query"]
+    assert captured["variables"]["id"] == "gid://shopify/Article/1"
+    assert "blogId" not in captured["variables"]["article"]  # blog fixed once created
+    assert captured["variables"]["article"]["isPublished"] is True
+    assert updated["id"] == "gid://x/1"
 
 
 def test_create_article_draft_by_default_and_live_when_published() -> None:

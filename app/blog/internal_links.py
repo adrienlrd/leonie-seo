@@ -268,10 +268,14 @@ def render_internal_links_html(
         url = escape(link["target_url"], quote=True)
         anchor = escape(link["anchor"])
         title = escape(link.get("target_title") or link["anchor"], quote=True)
-        items.append(f'<li><a href="{url}" title="{title}">{anchor}</a></li>')
+        items.append(
+            f'<li style="margin:4px 0;"><a href="{url}" title="{title}" '
+            f'style="color:#2563EB;text-decoration:none;">{anchor}</a></li>'
+        )
+    # Self-contained inline styles so the block renders correctly on any theme.
     return (
-        '<aside class="leonie-internal-links">'
-        f"<h2>{escape(heading)}</h2>"
-        "<ul>" + "".join(items) + "</ul>"
+        '<aside class="leonie-internal-links" style="margin-top:32px;border-top:1px solid #E5E7EB;padding-top:20px;">'
+        f'<h2 style="font-size:20px;margin-bottom:10px;">{escape(heading)}</h2>'
+        '<ul style="margin:0;padding-left:20px;">' + "".join(items) + "</ul>"
         "</aside>"
     )

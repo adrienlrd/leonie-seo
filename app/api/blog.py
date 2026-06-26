@@ -169,6 +169,19 @@ def _apply_keyword_check(draft: dict[str, Any]) -> None:
     )
 
 
+def _truncate_clean(text: str, limit: int) -> str:
+    """Truncate at a word boundary (never mid-word) and trim trailing punctuation.
+
+    Avoids the ugly mid-word cuts the merchant saw in the Shopify excerpt and meta
+    description. Adds an ellipsis only when content was actually dropped.
+    """
+    text = " ".join((text or "").split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(" ,;:.–-")
+    return f"{cut}…" if cut else text[:limit]
+
+
 def _apply_seo_score(draft: dict[str, Any]) -> None:
     """Compute the blog GEO/SEO readiness score and attach it to the draft in-place.
 
@@ -266,6 +279,18 @@ def _draft_from_product(
     product_title_str = str(product.get("product_title") or "").strip()
     cta_url = str((source_product_link or {}).get("target_url") or "")
 
+    # Auto-pick the product's first image as the article cover so a freshly
+    # generated article already scores on the "cover image" GEO pillar.
+    cover_image_url = ""
+    cover_image_alt = ""
+    for img in pack.get("current_product_images") or []:
+        if isinstance(img, dict) and str(img.get("url") or "").strip():
+            cover_image_url = str(img["url"]).strip()
+            cover_image_alt = str(img.get("current_alt") or "").strip()
+            break
+    if cover_image_url and not cover_image_alt:
+        cover_image_alt = _default_blog_image_alt(blog_title, target_keyword)
+
     faq = [
         {"q": str(item.get("q") or item.get("question") or ""), "a": str(item.get("a") or item.get("answer") or "")}
         for item in (pack.get("proposed_faq") or [])
@@ -279,10 +304,12 @@ def _draft_from_product(
         "blog_title": blog_title,
         "target_keyword": target_keyword,
         "intro": intro,
-        "summary": (intro or "")[:200],
-        "meta_description": (intro or "")[:155],
+        "summary": _truncate_clean(intro, 300),
+        "meta_description": _truncate_clean(intro, 155),
         "outline": list(outline or []),
         "sections": [],
+        "image_url": cover_image_url,
+        "image_alt": cover_image_alt,
         "internal_links": select_blog_internal_links(raw_internal_links),
         "faq": faq,
         "confirmed_facts": pack.get("confirmed_facts") or [],
@@ -632,16 +659,34 @@ def _reading_time_html(word_count: int) -> str:
 
 def _toc_html(sections: list[BlogSection]) -> str:
     items = [
-        f'<li><a href="#section-{idx}">{section.h2.strip()}</a></li>'
+        f'<li style="margin:4px 0;"><a href="#section-{idx}" style="color:#2563EB;text-decoration:none;">{html.escape(section.h2.strip())}</a></li>'
         for idx, section in enumerate(sections)
         if (section.h2 or "").strip()
     ]
     if not items:
         return ""
+    # Self-contained inline styles so the block looks right on any theme (themes
+    # rarely ship CSS for a .table-of-contents class).
     return (
-        '<nav class="table-of-contents"><strong>Sommaire</strong><ol>'
+        '<nav class="table-of-contents" style="background:#F9FAFB;border:1px solid #E5E7EB;'
+        'border-radius:8px;padding:16px 20px;margin:24px 0;">'
+        '<strong style="display:block;margin-bottom:8px;">Sommaire</strong>'
+        '<ol style="margin:0;padding-left:20px;">'
         + "".join(items)
         + "</ol></nav>"
+    )
+
+
+def _cover_image_html(image_url: str, image_alt: str, blog_title: str) -> str:
+    """Cover image rendered inside the article body (the featured image alone is
+    not shown in the body by most themes — merchants expect it in the content)."""
+    url = (image_url or "").strip()
+    if not url:
+        return ""
+    alt = html.escape((image_alt or blog_title or "").strip(), quote=True)
+    return (
+        f'<img src="{html.escape(url, quote=True)}" alt="{alt}" '
+        'style="width:100%;max-height:420px;object-fit:cover;border-radius:8px;margin:0 0 24px;display:block;" />'
     )
 
 
@@ -714,10 +759,13 @@ def publish_blog_draft(
     # the author bio (closest to where the reader finishes). Default: end.
     cta_mid = cta_block if draft.get("cta_position") == "mid" else ""
     cta_end = cta_block if draft.get("cta_position") != "mid" else ""
-    # Reading time + (optional) table of contents lead the article; FAQ and
-    # author bio close it — all SEO/GEO signals that travel into the published HTML.
+    # Reading time + cover image + (optional) table of contents lead the article;
+    # FAQ and author bio close it. The cover image is injected into the body too —
+    # the Shopify featured image alone is not shown in the content by most themes.
     html = (
         _reading_time_html(int(draft.get("word_count") or 0))
+        + "\n"
+        + _cover_image_html(draft.get("image_url", ""), draft.get("image_alt", ""), draft.get("blog_title", ""))
         + ("\n" + _toc_html(sections) if draft.get("show_toc") else "")
         + "\n"
         + content_html
@@ -755,21 +803,39 @@ def publish_blog_draft(
     ) if numbered_steps else None
     body_html = html + "\n" + render_jsonld_blocks(article_ld, faq_ld, howto_ld)
 
+    existing_article_id = str(draft.get("shopify_article_id") or "")
     try:
         publisher = BlogPublisher(ctx.shop, ctx.access_token)
-        blog_id = body.blog_id or publisher.ensure_default_blog()
-        created = publisher.create_draft_article(
-            blog_id=blog_id,
-            title=draft.get("blog_title", ""),
-            body_html=body_html,
-            summary=meta_description or draft.get("summary", ""),
-            tags=draft.get("tags") or [],
-            author_name=draft.get("author_name", ""),
-            image_url=draft.get("image_url"),
-            image_alt=draft.get("image_alt"),
-            meta_description=meta_description,
-            published=body.published,
-        )
+        if existing_article_id:
+            # Re-publishing an already-pushed draft edits the SAME Shopify article
+            # in place instead of creating a duplicate.
+            blog_id = str(draft.get("shopify_blog_id") or body.blog_id or "")
+            created = publisher.update_article(
+                article_id=existing_article_id,
+                title=draft.get("blog_title", ""),
+                body_html=body_html,
+                summary=meta_description or draft.get("summary", ""),
+                tags=draft.get("tags") or [],
+                author_name=draft.get("author_name", ""),
+                image_url=draft.get("image_url"),
+                image_alt=draft.get("image_alt"),
+                meta_description=meta_description,
+                published=body.published,
+            )
+        else:
+            blog_id = body.blog_id or publisher.ensure_default_blog()
+            created = publisher.create_draft_article(
+                blog_id=blog_id,
+                title=draft.get("blog_title", ""),
+                body_html=body_html,
+                summary=meta_description or draft.get("summary", ""),
+                tags=draft.get("tags") or [],
+                author_name=draft.get("author_name", ""),
+                image_url=draft.get("image_url"),
+                image_alt=draft.get("image_alt"),
+                meta_description=meta_description,
+                published=body.published,
+            )
     except ShopifyWriteError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -777,7 +843,8 @@ def publish_blog_draft(
     draft["shopify_visible"] = bool(created.get("isPublished", body.published))
     draft["shopify_article_id"] = created.get("id")
     draft["shopify_article_handle"] = created.get("handle")
-    draft["shopify_blog_id"] = blog_id
+    if blog_id:
+        draft["shopify_blog_id"] = blog_id
     saved = save_draft(ctx.shop, draft)
     record_applied_change(
         shop=ctx.shop,

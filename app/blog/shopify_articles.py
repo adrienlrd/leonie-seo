@@ -38,6 +38,15 @@ mutation CreateArticle($article: ArticleCreateInput!) {
 }
 """.strip()
 
+_UPDATE_ARTICLE_MUTATION = """
+mutation UpdateArticle($id: ID!, $article: ArticleUpdateInput!) {
+  articleUpdate(id: $id, article: $article) {
+    article { id handle title isPublished }
+    userErrors { field message }
+  }
+}
+""".strip()
+
 _CREATE_BLOG_MUTATION = """
 mutation CreateBlog($blog: BlogInput!) {
   blogCreate(blog: $blog) {
@@ -153,28 +162,27 @@ class BlogPublisher:
             if isinstance(n, dict) and n.get("id")
         ]
 
-    def create_draft_article(
-        self,
+    @staticmethod
+    def _build_article_input(
         *,
-        blog_id: str,
+        blog_id: str | None,
         title: str,
         body_html: str,
-        summary: str = "",
-        tags: list[str] | None = None,
-        author_name: str = "",
-        image_url: str | None = None,
-        image_alt: str | None = None,
-        meta_description: str = "",
-        published: bool = False,
+        summary: str,
+        tags: list[str] | None,
+        author_name: str,
+        image_url: str | None,
+        image_alt: str | None,
+        meta_description: str,
+        published: bool,
     ) -> dict[str, Any]:
-        """Create the article. Default ``isPublished=false`` (draft) so the merchant
-        reviews first; pass ``published=True`` to put it live (visible) immediately."""
         article: dict[str, Any] = {
-            "blogId": blog_id,
             "title": title,
             "body": body_html,
             "isPublished": bool(published),
         }
+        if blog_id:
+            article["blogId"] = blog_id
         if summary:
             article["summary"] = summary
         if tags:
@@ -196,7 +204,36 @@ class BlogPublisher:
                     "value": meta_description.strip()[:320],
                 }
             ]
+        return article
 
+    def create_draft_article(
+        self,
+        *,
+        blog_id: str,
+        title: str,
+        body_html: str,
+        summary: str = "",
+        tags: list[str] | None = None,
+        author_name: str = "",
+        image_url: str | None = None,
+        image_alt: str | None = None,
+        meta_description: str = "",
+        published: bool = False,
+    ) -> dict[str, Any]:
+        """Create the article. Default ``isPublished=false`` (draft) so the merchant
+        reviews first; pass ``published=True`` to put it live (visible) immediately."""
+        article = self._build_article_input(
+            blog_id=blog_id,
+            title=title,
+            body_html=body_html,
+            summary=summary,
+            tags=tags,
+            author_name=author_name,
+            image_url=image_url,
+            image_alt=image_alt,
+            meta_description=meta_description,
+            published=published,
+        )
         data = self._post(_CREATE_ARTICLE_MUTATION, {"article": article})
         _raise_for_graphql_errors(data, "articleCreate")
         payload = ((data.get("data") or {}).get("articleCreate")) or {}
@@ -215,3 +252,45 @@ class BlogPublisher:
             )
         time.sleep(self._delay)
         return created
+
+    def update_article(
+        self,
+        *,
+        article_id: str,
+        title: str,
+        body_html: str,
+        summary: str = "",
+        tags: list[str] | None = None,
+        author_name: str = "",
+        image_url: str | None = None,
+        image_alt: str | None = None,
+        meta_description: str = "",
+        published: bool = False,
+    ) -> dict[str, Any]:
+        """Update an existing Shopify article in place (re-publish edits the same post)."""
+        article = self._build_article_input(
+            blog_id=None,  # blog is fixed once the article exists
+            title=title,
+            body_html=body_html,
+            summary=summary,
+            tags=tags,
+            author_name=author_name,
+            image_url=image_url,
+            image_alt=image_alt,
+            meta_description=meta_description,
+            published=published,
+        )
+        data = self._post(_UPDATE_ARTICLE_MUTATION, {"id": article_id, "article": article})
+        _raise_for_graphql_errors(data, "articleUpdate")
+        payload = ((data.get("data") or {}).get("articleUpdate")) or {}
+        user_errors = payload.get("userErrors") or []
+        if user_errors:
+            joined = "; ".join(
+                f"{e.get('field')}: {e.get('message')}" for e in user_errors if isinstance(e, dict)
+            )
+            raise ShopifyWriteError(f"articleUpdate userErrors → {joined}")
+        updated = payload.get("article") or {}
+        if not updated.get("id"):
+            raise ShopifyWriteError("articleUpdate returned no article.")
+        time.sleep(self._delay)
+        return updated
