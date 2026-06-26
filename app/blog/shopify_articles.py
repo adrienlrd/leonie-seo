@@ -165,13 +165,15 @@ class BlogPublisher:
         image_url: str | None = None,
         image_alt: str | None = None,
         meta_description: str = "",
+        published: bool = False,
     ) -> dict[str, Any]:
-        """Create the article as ``isPublished=false`` (draft) so the merchant reviews first."""
+        """Create the article. Default ``isPublished=false`` (draft) so the merchant
+        reviews first; pass ``published=True`` to put it live (visible) immediately."""
         article: dict[str, Any] = {
             "blogId": blog_id,
             "title": title,
             "body": body_html,
-            "isPublished": False,
+            "isPublished": bool(published),
         }
         if summary:
             article["summary"] = summary

@@ -146,3 +146,22 @@ def test_create_article_includes_meta_description_metafield() -> None:
     assert metafields[0]["namespace"] == "global"
     assert metafields[0]["key"] == "description_tag"
     assert "meta description SEO" in metafields[0]["value"]
+
+
+def test_create_article_draft_by_default_and_live_when_published() -> None:
+    from app.blog.shopify_articles import BlogPublisher
+
+    publisher = BlogPublisher("shop.myshopify.com", "token")
+    captured: dict = {}
+
+    def fake_post(query, variables):  # noqa: ANN001
+        captured["variables"] = variables
+        return {"data": {"articleCreate": {"article": {"id": "gid://x/1", "handle": "h"}, "userErrors": []}}}
+
+    publisher._post = fake_post  # type: ignore[method-assign]
+
+    publisher.create_draft_article(blog_id="gid://shopify/Blog/1", title="T", body_html="<p>x</p>")
+    assert captured["variables"]["article"]["isPublished"] is False
+
+    publisher.create_draft_article(blog_id="gid://shopify/Blog/1", title="T", body_html="<p>x</p>", published=True)
+    assert captured["variables"]["article"]["isPublished"] is True

@@ -682,6 +682,7 @@ class DraftPublishRequest(BaseModel):
     blog_id: str = ""  # empty → backend auto-creates a default blog if none exists
     publisher_name: str = ""
     publisher_logo_url: str | None = None
+    published: bool = False  # False → Shopify draft (hidden); True → live (visible)
 
 
 @router.post("/shops/{shop}/blog/drafts/{draft_id}/publish")
@@ -767,11 +768,13 @@ def publish_blog_draft(
             image_url=draft.get("image_url"),
             image_alt=draft.get("image_alt"),
             meta_description=meta_description,
+            published=body.published,
         )
     except ShopifyWriteError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     draft["status"] = "published_to_shopify"
+    draft["shopify_visible"] = bool(created.get("isPublished", body.published))
     draft["shopify_article_id"] = created.get("id")
     draft["shopify_article_handle"] = created.get("handle")
     draft["shopify_blog_id"] = blog_id

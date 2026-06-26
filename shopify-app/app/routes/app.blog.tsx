@@ -102,6 +102,7 @@ interface Draft {
   target_customer?: string;
   product_summary?: string;
   status?: "draft" | "published_to_shopify";
+  shopify_visible?: boolean;
   shopify_article_id?: string;
   shopify_article_handle?: string;
   updated_at?: string;
@@ -623,6 +624,7 @@ export default function BlogIndexPage() {
   const [showArticlePicker, setShowArticlePicker] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [publishVisible, setPublishVisible] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
   const [showPublished, setShowPublished] = useState(true);
   const [showIdeas, setShowIdeas] = useState(true);
@@ -823,7 +825,7 @@ export default function BlogIndexPage() {
       {
         intent: "publishDraft",
         id: draft.id,
-        payload: JSON.stringify({ blog_id: selectedBlog, publisher_name: shop }),
+        payload: JSON.stringify({ blog_id: selectedBlog, publisher_name: shop, published: publishVisible }),
       },
       { method: "post" },
     );
@@ -1129,7 +1131,9 @@ export default function BlogIndexPage() {
 
                 {draft.status === "published_to_shopify" && (
                   <Banner tone="success">
-                    <p>{fr ? "Cet article a été créé sur Shopify (en brouillon). Publiez-le depuis Shopify Admin." : "This article was created on Shopify (as draft). Publish it from Shopify Admin."}</p>
+                    <p>{draft.shopify_visible
+                      ? (fr ? "Cet article est en ligne et visible sur ta boutique Shopify." : "This article is live and visible on your Shopify store.")
+                      : (fr ? "Cet article a été créé sur Shopify (en brouillon, masqué). Mets-le en ligne depuis Shopify Admin, ou republie-le en choisissant « En ligne directement »." : "This article was created on Shopify (draft, hidden). Publish it from Shopify Admin, or re-publish choosing \"Live now\".")}</p>
                   </Banner>
                 )}
 
@@ -1764,9 +1768,11 @@ export default function BlogIndexPage() {
       <Modal
         open={publishOpen}
         onClose={() => setPublishOpen(false)}
-        title={fr ? "Publier le brouillon sur Shopify" : "Publish draft to Shopify"}
+        title={fr ? "Publier sur Shopify" : "Publish to Shopify"}
         primaryAction={{
-          content: fr ? "Créer le brouillon" : "Create draft",
+          content: publishVisible
+            ? (fr ? "Mettre en ligne" : "Publish live")
+            : (fr ? "Créer le brouillon" : "Create draft"),
           onAction: onPublish,
           loading: isBusy && fetcher.formData?.get("intent") === "publishDraft",
         }}
@@ -1818,10 +1824,28 @@ export default function BlogIndexPage() {
                 autoComplete="off"
               />
             )}
-            <Text as="p" variant="bodySm" tone="subdued">
-              {fr ? "Brouillon créé sur Shopify, publiez-le depuis Shopify Admin après vérif."
-                  : "Created as a draft on Shopify. Publish from Shopify Admin after review."}
-            </Text>
+            <Divider />
+            <ChoiceList
+              title={fr ? "Visibilité" : "Visibility"}
+              choices={[
+                {
+                  label: fr ? "Brouillon (masqué, à relire)" : "Draft (hidden, for review)",
+                  value: "draft",
+                  helpText: fr
+                    ? "Créé masqué sur Shopify. Tu le mets en ligne depuis Shopify Admin après vérification."
+                    : "Created hidden on Shopify. You publish it from Shopify Admin after review.",
+                },
+                {
+                  label: fr ? "En ligne directement (visible)" : "Live now (visible)",
+                  value: "live",
+                  helpText: fr
+                    ? "Publié immédiatement et visible sur ta boutique. Tu peux toujours le modifier ensuite."
+                    : "Published immediately and visible on your store. You can still edit it afterwards.",
+                },
+              ]}
+              selected={[publishVisible ? "live" : "draft"]}
+              onChange={(s) => setPublishVisible(s[0] === "live")}
+            />
           </BlockStack>
         </Modal.Section>
       </Modal>
