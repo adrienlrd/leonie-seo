@@ -4640,7 +4640,9 @@ def _build_product_result(
     # validated, so the score rises with each applied optimization.
     from app.geo.readiness import score_product_readiness  # noqa: PLC0415
 
-    geo_score = score_product_readiness(product)["readiness_score"]
+    _readiness = score_product_readiness(product)
+    geo_score = _readiness["readiness_score"]
+    geo_score_components = _readiness.get("components", {})
     improved_product = {
         **product,
         "seo": {
@@ -4800,6 +4802,7 @@ def _build_product_result(
         "geo_score": geo_score,
         "geo_score_potential": geo_score_potential,
         "geo_score_field_deltas": geo_score_field_deltas,
+        "geo_score_components": geo_score_components,
         "sources_used": opportunity.get("sources_used", []),
         "business_profile_context_hash": business_profile_context_hash,
         "business_profile_context_status": (

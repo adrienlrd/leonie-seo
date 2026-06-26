@@ -305,6 +305,7 @@ interface ProductResult {
   geo_score?: number;
   geo_score_potential?: number;
   geo_score_field_deltas?: Record<string, number>;
+  geo_score_components?: Record<string, { score: number; weight: number }>;
   sources_used: string[];
   business_profile_context_hash?: string | null;
   business_profile_context_status?: BusinessProfileContextStatus;

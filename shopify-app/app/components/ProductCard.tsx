@@ -8,12 +8,13 @@ import {
   Collapsible,
   Icon,
   InlineStack,
+  Popover,
   Spinner,
   Text,
   TextField,
   Tooltip,
 } from "@shopify/polaris";
-import { AlertTriangleIcon } from "@shopify/polaris-icons";
+import { AlertTriangleIcon, CheckIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { t, type Locale } from "../lib/i18n";
 import { ProductContentProposals, type FieldKey } from "./ProductContentProposals";
@@ -146,6 +147,65 @@ function ImprovementTags({
   );
 }
 
+/** Per-pillar breakdown of the GEO readiness score: shows ✓ (done) / ✗ (to improve)
+ * for each weighted component so the merchant understands why the score is what it is. */
+function GeoScoreBreakdown({
+  components,
+  locale,
+}: {
+  components?: Record<string, { score: number; weight: number }>;
+  locale: Locale;
+}) {
+  const fr = locale === "fr";
+  // Order by weight (biggest lever first). Labels mirror the readiness scorer.
+  const pillars: Array<{ key: string; label: string }> = [
+    { key: "facts", label: fr ? "Faits produit" : "Product facts" },
+    { key: "schema", label: fr ? "Données structurées" : "Structured data" },
+    { key: "answerability", label: fr ? "Répondabilité IA" : "AI answerability" },
+    { key: "trust", label: fr ? "Confiance" : "Trust" },
+    { key: "seo", label: fr ? "SEO (méta)" : "SEO (meta)" },
+    { key: "commerce", label: fr ? "Commerce" : "Commerce" },
+  ];
+  const has = components && Object.keys(components).length > 0;
+
+  return (
+    <BlockStack gap="200">
+      <Text as="p" variant="headingSm">
+        {fr ? "Détail du Score GEO" : "GEO score breakdown"}
+      </Text>
+      <Text as="p" variant="bodySm" tone="subdued">
+        {fr
+          ? "Ce que les moteurs IA évaluent. ✓ = en place, ✗ = à compléter. Le % est le poids dans le score."
+          : "What AI engines assess. ✓ = in place, ✗ = to complete. The % is its weight in the score."}
+      </Text>
+      {!has ? (
+        <Text as="p" variant="bodySm" tone="subdued">
+          {fr
+            ? "Relancez une analyse pour voir le détail par critère."
+            : "Re-run an analysis to see the per-criterion breakdown."}
+        </Text>
+      ) : (
+        pillars.map(({ key, label }) => {
+          const comp = components![key];
+          if (!comp) return null;
+          const done = comp.score >= 70;
+          const weight = Math.round((comp.weight ?? 0) * 100);
+          return (
+            <InlineStack key={key} gap="150" blockAlign="center" wrap={false}>
+              <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1rem", height: "1rem" }}>
+                <Icon source={done ? CheckIcon : XIcon} tone={done ? "success" : "critical"} />
+              </span>
+              <Text as="span" variant="bodySm">
+                {`${label} — ${comp.score}/100 (${weight}%)`}
+              </Text>
+            </InlineStack>
+          );
+        })
+      )}
+    </BlockStack>
+  );
+}
+
 export function ProductCard({
   product,
   locale,
@@ -165,6 +225,7 @@ export function ProductCard({
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
   const [enrichmentOpen, setEnrichmentOpen] = useState(false);
+  const [geoHelpOpen, setGeoHelpOpen] = useState(false);
 
   // ── Question retire/restore ───────────────────────────────────────────────
   const questionFetcher = useFetcher<{ type: string; ok: boolean }>();
@@ -522,7 +583,24 @@ export function ProductCard({
               })()}
             </InlineStack>
           </BlockStack>
-          <InlineStack gap="200">
+          <InlineStack gap="200" blockAlign="center">
+            <Popover
+              active={geoHelpOpen}
+              onClose={() => setGeoHelpOpen(false)}
+              preferredAlignment="left"
+              activator={
+                <Button
+                  variant="tertiary"
+                  icon={QuestionCircleIcon}
+                  onClick={() => setGeoHelpOpen((o) => !o)}
+                  accessibilityLabel={fr ? "Détail du Score GEO" : "GEO score breakdown"}
+                />
+              }
+            >
+              <Box padding="300" maxWidth="340px">
+                <GeoScoreBreakdown components={product.geo_score_components} locale={locale} />
+              </Box>
+            </Popover>
             <Badge tone={scoreTone(geoDisplayed)}>
               {`${t(locale, "productGeoScore")} ${geoDisplayed}/100`}
             </Badge>

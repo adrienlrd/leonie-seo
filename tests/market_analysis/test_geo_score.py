@@ -86,3 +86,14 @@ def test_geo_score_field_deltas_zero_without_proposals() -> None:
     product = {"id": "1", "title": "Harnais", "handle": "harnais", "seo": {}, "images": [], "variants": []}
     res = _build_product_result(product, {}, {}, "shop.myshopify.com")
     assert res["geo_score_field_deltas"] == {"meta_title": 0, "meta_description": 0, "description": 0}
+
+
+def test_geo_score_components_breakdown_attached() -> None:
+    product = {"id": "1", "title": "Harnais", "handle": "harnais", "seo": {}, "images": [], "variants": []}
+    res = _build_product_result(product, {}, {}, "shop.myshopify.com")
+    comp = res["geo_score_components"]
+    assert {"facts", "schema", "answerability", "trust", "seo", "commerce"} <= set(comp)
+    # Each pillar exposes a 0-100 score and its weight.
+    for pillar in comp.values():
+        assert 0 <= pillar["score"] <= 100
+        assert 0 < pillar["weight"] <= 1

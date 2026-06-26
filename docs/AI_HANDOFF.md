@@ -12,6 +12,18 @@
 
 - **Date:** 2026-06-26
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Ajouter un « ? » à gauche du badge Score GEO (carte produit) avec le détail par pilier — coche ✓/✗ ce qui est en place pour comprendre pourquoi le score est à son niveau.
+- **Summary:** Backend — `_build_product_result` (`engine.py`) attache `geo_score_components` (les 6 piliers `facts/schema/answerability/trust/seo/commerce` avec `{score, weight}`, déjà calculés par `score_product_readiness`). Front — nouveau composant `GeoScoreBreakdown` dans `ProductCard.tsx` : `Popover` déclenché par un bouton `QuestionCircleIcon` placé à gauche du badge « Score GEO ». Il liste chaque pilier avec ✓ (`CheckIcon`, score ≥ 70) ou ✗ (`XIcon`), le score /100 et le poids %. Fallback si composants absents (données anciennes) → invite à ré-analyser. Libellés FR/EN inline (style du fichier).
+- **Files modified:** `app/market_analysis/engine.py`, `shopify-app/app/components/ProductCard.tsx`, `shopify-app/app/routes/app.products.tsx`, `shopify-app/app/lib/marketAnalysisShared.tsx`, `tests/market_analysis/test_geo_score.py`.
+- **Decisions made:** Seuil ✓ à 70/100 par pilier (binaire « fait/à compléter » comme demandé) tout en affichant le score réel + poids pour la nuance. Popover (pas Tooltip) car checklist interactive. Réutilise `components` du scoreur (zéro recalcul).
+- **Validations run:** `pytest tests/market_analysis/test_geo_score.py` ✅ 6 passed (1 nouveau : breakdown attaché), `ruff check` ✅, `npm run typecheck` ✅, `npm run build` ✅.
+- **Open issues:** Le détail reflète le produit *actuel* (geo_score), pas le score interpolé affiché après validations — cohérent avec « pourquoi le score est tel quel ». Produits analysés avant ce commit n'ont pas `geo_score_components` → fallback « ré-analysez ».
+- **Next recommended action:** Vérifier en réel le popover « ? » sur un produit ré-analysé (✓/✗ par pilier).
+
+## Previous completed task
+
+- **Date:** 2026-06-26
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** Corriger l'enrichissement produit (« Améliorer ») : le marchand répondait aux questions mais (1) le Score GEO montait à peine (61→63), (2) seules 2/4 questions passaient en « complété », (3) 2 questions réapparaissaient à chaque fois. Diagnostic confirmé via l'export JSON déposé (`Ananlyse_json/`).
 - **Summary:** Deux bugs dans `_build_enrichment_questions` (`app/market_analysis/engine.py`) et son site d'appel. **Fix A** — le builder plafonnait les questions de faits à 2 (`if len(questions) == 2: break` + `return questions[:4]`) et dans un ordre (warranty, compatibility en tête) décorrélé des faits affichés sur la carte readiness (origins/care/dimensions/size). Plafond supprimé + ordre réaligné sur les faits scorés (origins=trust, care/dimensions/size=answerability d'abord) → « Améliorer » propose désormais TOUS les faits manquants, donc le marchand peut tout renseigner et le score monte vraiment. **Fix B** — les questions n'étaient retirées des actives que si « Retirées » manuellement ; les répondues (et surtout les 2 éditoriales `use_cases`/`selection_criteria` ré-ajoutées inconditionnellement) réapparaissaient. Ajout d'un filtre par clés répondues (`confirmed_facts` source merchant + fichier `merchant_facts`) → persistance, plus de réapparition, passage correct en « complété » (métadonnées déjà fusionnées par `save_question_metadata`). Note honnête : `use_cases`/`selection_criteria` n'entrent dans aucun set scoré (`answer_keys`/`trust_keys` de `readiness.py`) → y répondre n'a jamais bougé le score (sert au contenu, pas à la readiness).
 - **Files modified:** `app/market_analysis/engine.py`, `tests/market_analysis/test_two_pass_engine.py`.
