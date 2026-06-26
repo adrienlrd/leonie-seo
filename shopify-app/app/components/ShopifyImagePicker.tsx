@@ -24,17 +24,18 @@ interface Props {
   onSelect: (url: string, alt: string) => void;
   onAltChange: (alt: string) => void;
   onRemove: () => void;
+  label?: string;
 }
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
 
-export function ShopifyImagePicker({ locale, imageUrl, imageAlt, onSelect, onAltChange, onRemove }: Props) {
+export function ShopifyImagePicker({ locale, imageUrl, imageAlt, onSelect, onAltChange, onRemove, label }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
     <BlockStack gap="200">
       <Text as="h3" variant="headingSm">
-        {locale === "fr" ? "Image de couverture" : "Cover image"}
+        {label ?? (locale === "fr" ? "Image de couverture" : "Cover image")}
       </Text>
 
       {imageUrl ? (

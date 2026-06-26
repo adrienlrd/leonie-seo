@@ -51,7 +51,7 @@ import { ShopifyImagePicker } from "../components/ShopifyImagePicker";
 import { scoreTone } from "../lib/marketAnalysisShared";
 import { authenticate } from "../shopify.server";
 
-interface Section { h2: string; direct_answer: string; body: string }
+interface Section { h2: string; direct_answer: string; body: string; image_url?: string; image_alt?: string }
 interface FaqItem { q: string; a: string }
 interface GeoScoreComponent { score: number; weight: number }
 interface InternalLink {
@@ -89,6 +89,12 @@ interface Draft {
   image_alt?: string;
   image_style?: "hero" | "banner" | "centered" | "float-left" | "float-right";
   show_toc?: boolean;
+  numbered_steps?: boolean;
+  cta_enabled?: boolean;
+  cta_label?: string;
+  cta_url?: string;
+  cta_description?: string;
+  cta_position?: "mid" | "end";
   geo_score?: number;
   geo_score_components?: Record<string, GeoScoreComponent>;
   word_count?: number;
@@ -455,6 +461,12 @@ function serializeEditableDraft(d: Draft | null): string {
     image_alt: d.image_alt ?? "",
     image_style: d.image_style ?? "hero",
     show_toc: d.show_toc ?? false,
+    numbered_steps: d.numbered_steps ?? false,
+    cta_enabled: d.cta_enabled ?? false,
+    cta_label: d.cta_label ?? "",
+    cta_url: d.cta_url ?? "",
+    cta_description: d.cta_description ?? "",
+    cta_position: d.cta_position ?? "end",
   });
 }
 
@@ -669,6 +681,12 @@ export default function BlogIndexPage() {
           image_alt: draft.image_alt ?? "",
           image_style: draft.image_style ?? "hero",
           show_toc: draft.show_toc ?? false,
+          numbered_steps: draft.numbered_steps ?? false,
+          cta_enabled: draft.cta_enabled ?? false,
+          cta_label: draft.cta_label ?? "",
+          cta_url: draft.cta_url ?? "",
+          cta_description: draft.cta_description ?? "",
+          cta_position: draft.cta_position ?? "end",
         }),
       },
       { method: "post" },
@@ -1205,6 +1223,15 @@ export default function BlogIndexPage() {
                       onChange={(v) => setDraft((p) => p ? { ...p, show_toc: v } : p)}
                     />
 
+                    <Checkbox
+                      label={fr ? "Format guide numéroté (étape par étape)" : "Numbered guide format (step by step)"}
+                      helpText={fr
+                        ? "Numérote les sections (1, 2, 3…) et ajoute le schema HowTo pour les tutoriels."
+                        : "Numbers the sections (1, 2, 3…) and adds HowTo schema for tutorials."}
+                      checked={draft.numbered_steps ?? false}
+                      onChange={(v) => setDraft((p) => p ? { ...p, numbered_steps: v } : p)}
+                    />
+
                     {/* Open Graph / social share preview — how the article looks when shared */}
                     <BlockStack gap="150">
                       <Text as="p" variant="headingSm">{fr ? "Aperçu du partage social" : "Social share preview"}</Text>
@@ -1250,6 +1277,15 @@ export default function BlogIndexPage() {
                             multiline={3} autoComplete="off" />
                           <TextField label={fr ? "Corps" : "Body"} value={section.body}
                             onChange={(v) => setSection(idx, { body: v })} multiline={6} autoComplete="off" />
+                          <ShopifyImagePicker
+                            locale={locale}
+                            label={fr ? "Image de la section (optionnel)" : "Section image (optional)"}
+                            imageUrl={section.image_url ?? null}
+                            imageAlt={section.image_alt ?? null}
+                            onSelect={(url, alt) => setSection(idx, { image_url: url, image_alt: alt || section.image_alt })}
+                            onAltChange={(alt) => setSection(idx, { image_alt: alt })}
+                            onRemove={() => setSection(idx, { image_url: "", image_alt: "" })}
+                          />
                         </BlockStack>
                       </Card>
                     ))}
@@ -1311,6 +1347,56 @@ export default function BlogIndexPage() {
                         ? "2-3 phrases sur l'expertise de l'auteur. Renforce la crédibilité aux yeux de Google."
                         : "2-3 sentences on the author's expertise. Strengthens credibility for Google."}
                     />
+
+                    {/* CTA conversion block — drives blog traffic to the source product */}
+                    <Box padding="400" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                      <BlockStack gap="300">
+                        <Checkbox
+                          label={fr ? "Bouton d'appel à l'action (CTA)" : "Call-to-action button (CTA)"}
+                          helpText={fr
+                            ? "Encart bouton vers le produit. C'est ce qui transforme le trafic du blog en ventes."
+                            : "Button box linking to the product. This turns blog traffic into sales."}
+                          checked={draft.cta_enabled ?? false}
+                          onChange={(v) => setDraft((p) => p ? { ...p, cta_enabled: v } : p)}
+                        />
+                        {draft.cta_enabled && (
+                          <>
+                            <TextField
+                              label={fr ? "Texte du bouton" : "Button label"}
+                              value={draft.cta_label ?? ""}
+                              onChange={(v) => setDraft((p) => p ? { ...p, cta_label: v } : p)}
+                              autoComplete="off"
+                              placeholder={fr ? "Découvrir le produit" : "Discover the product"}
+                            />
+                            <TextField
+                              label={fr ? "Lien du bouton (URL)" : "Button link (URL)"}
+                              value={draft.cta_url ?? ""}
+                              onChange={(v) => setDraft((p) => p ? { ...p, cta_url: v } : p)}
+                              autoComplete="off"
+                              placeholder="/products/..."
+                              helpText={fr ? "Pré-rempli avec le produit source de l'article." : "Pre-filled with the article's source product."}
+                            />
+                            <TextField
+                              label={fr ? "Phrase d'accroche (optionnel)" : "Tagline (optional)"}
+                              value={draft.cta_description ?? ""}
+                              onChange={(v) => setDraft((p) => p ? { ...p, cta_description: v } : p)}
+                              autoComplete="off"
+                              multiline={2}
+                              placeholder={fr ? "Ex. Le harnais préféré des petits chiens frileux." : "e.g. The harness small dogs love."}
+                            />
+                            <Select
+                              label={fr ? "Position du bouton" : "Button position"}
+                              options={[
+                                { label: fr ? "Fin de l'article" : "End of article", value: "end" },
+                                { label: fr ? "Milieu (après le contenu, avant la FAQ)" : "Middle (after content, before FAQ)", value: "mid" },
+                              ]}
+                              value={draft.cta_position ?? "end"}
+                              onChange={(v) => setDraft((p) => p ? { ...p, cta_position: v as "mid" | "end" } : p)}
+                            />
+                          </>
+                        )}
+                      </BlockStack>
+                    </Box>
 
                     <Box
                       padding="400"
@@ -1531,11 +1617,20 @@ export default function BlogIndexPage() {
                       {/* 6. Sections */}
                       {draft.sections.map((section, idx) => (
                         <section key={`prev-${section.h2}-${idx}`} style={{ marginBottom: 28 }}>
-                          <h2 style={{ fontSize: 22, marginBottom: 10 }}>{section.h2}</h2>
+                          <h2 style={{ fontSize: 22, marginBottom: 10 }}>
+                            {draft.numbered_steps ? `${idx + 1}. ${section.h2}` : section.h2}
+                          </h2>
                           {section.direct_answer && (
                             <p style={{ fontWeight: 600, marginBottom: 12 }}>
                               {section.direct_answer}
                             </p>
+                          )}
+                          {section.image_url && (
+                            <img
+                              src={section.image_url}
+                              alt={section.image_alt || section.h2 || ""}
+                              style={{ maxWidth: "100%", borderRadius: 8, margin: "12px 0", display: "block" }}
+                            />
                           )}
                           {section.body && (
                             <div style={{ whiteSpace: "pre-wrap" }}>{section.body}</div>
@@ -1545,6 +1640,15 @@ export default function BlogIndexPage() {
                       {/* Clearfix for float variants */}
                       {(draft.image_style === "float-left" || draft.image_style === "float-right") && (
                         <div style={{ clear: "both" }} />
+                      )}
+                      {/* CTA — mid position (after content, before FAQ) */}
+                      {draft.cta_enabled && draft.cta_position === "mid" && draft.cta_label && draft.cta_url && (
+                        <div style={{ margin: "32px 0", padding: 24, borderRadius: 12, background: "#F4F6F8", border: "1px solid #E1E3E5", textAlign: "center" }}>
+                          {draft.cta_description && <p style={{ margin: "0 0 12px", color: "#374151" }}>{draft.cta_description}</p>}
+                          <a href={draft.cta_url} style={{ display: "inline-block", padding: "12px 28px", borderRadius: 8, background: "#202223", color: "#fff", textDecoration: "none", fontWeight: 600 }}>
+                            {draft.cta_label}
+                          </a>
+                        </div>
                       )}
                       {/* 7. FAQ block */}
                       {(draft.faq ?? []).filter((f) => f.q && f.a).length > 0 && (
@@ -1571,6 +1675,15 @@ export default function BlogIndexPage() {
                             {draft.author_bio}
                           </p>
                         </aside>
+                      )}
+                      {/* CTA — end position (after author bio) */}
+                      {draft.cta_enabled && draft.cta_position !== "mid" && draft.cta_label && draft.cta_url && (
+                        <div style={{ margin: "32px 0", padding: 24, borderRadius: 12, background: "#F4F6F8", border: "1px solid #E1E3E5", textAlign: "center" }}>
+                          {draft.cta_description && <p style={{ margin: "0 0 12px", color: "#374151" }}>{draft.cta_description}</p>}
+                          <a href={draft.cta_url} style={{ display: "inline-block", padding: "12px 28px", borderRadius: 8, background: "#202223", color: "#fff", textDecoration: "none", fontWeight: 600 }}>
+                            {draft.cta_label}
+                          </a>
+                        </div>
                       )}
                       {/* 9. Internal links */}
                       {(draft.internal_links ?? []).length > 0 && (

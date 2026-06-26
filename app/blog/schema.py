@@ -27,6 +27,7 @@ def build_article_jsonld(
     author_type: str = "Organization",
     author_name: str = "",
     author_url: str | None = None,
+    author_bio: str = "",
     publisher_name: str = "",
     publisher_logo_url: str | None = None,
     image_url: str | None = None,
@@ -34,7 +35,9 @@ def build_article_jsonld(
     """Build the Article JSON-LD payload.
 
     ``author_type`` is ``Organization`` (brand-credited, default) or ``Person`` when
-    the merchant credits a real human — Person strengthens E-E-A-T.
+    the merchant credits a real human — Person strengthens E-E-A-T. For a Person, the
+    author URL is also emitted as ``sameAs`` (entity reconciliation) and the bio as
+    ``description``.
     """
     if author_type not in ("Organization", "Person"):
         author_type = "Organization"
@@ -54,6 +57,10 @@ def build_article_jsonld(
     }
     if author_url:
         article["author"]["url"] = author_url
+        if author_type == "Person":
+            article["author"]["sameAs"] = [author_url]
+    if author_type == "Person" and author_bio.strip():
+        article["author"]["description"] = author_bio.strip()
     if publisher_logo_url:
         article["publisher"]["logo"] = {"@type": "ImageObject", "url": publisher_logo_url}
     if image_url:
@@ -84,6 +91,42 @@ def build_faqpage_jsonld(qa_pairs: list[dict[str, str]]) -> dict[str, Any] | Non
         "@context": "https://schema.org",
         "@type": "FAQPage",
         "mainEntity": cleaned,
+    }
+
+
+def build_howto_jsonld(
+    *,
+    name: str,
+    description: str,
+    sections: list[dict[str, str]],
+) -> dict[str, Any] | None:
+    """Build HowTo JSON-LD from numbered sections (step name + text).
+
+    Emitted only for step-by-step guides. Each section becomes a HowToStep so
+    Google and AI engines can parse the procedure as discrete, ordered actions.
+    """
+    steps: list[dict[str, Any]] = []
+    for section in sections or []:
+        step_name = str(section.get("name") or "").strip()
+        text = str(section.get("text") or "").strip()
+        if not step_name or not text:
+            continue
+        steps.append(
+            {
+                "@type": "HowToStep",
+                "position": len(steps) + 1,
+                "name": step_name,
+                "text": text,
+            }
+        )
+    if len(steps) < 2:
+        return None
+    return {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": name,
+        "description": description,
+        "step": steps,
     }
 
 

@@ -23,7 +23,12 @@ from app.blog.internal_links import (
     suggest_links_for_article,
 )
 from app.blog.quality import check_keyword_placement
-from app.blog.schema import build_article_jsonld, build_faqpage_jsonld, render_jsonld_blocks
+from app.blog.schema import (
+    build_article_jsonld,
+    build_faqpage_jsonld,
+    build_howto_jsonld,
+    render_jsonld_blocks,
+)
 from app.blog.section_generator import generate_all_sections, generate_section
 from app.blog.seo_score import score_blog_readiness
 from app.blog.shopify_articles import BlogPublisher
@@ -63,6 +68,8 @@ class BlogSection(BaseModel):
     h2: str
     direct_answer: str
     body: str
+    image_url: str = ""
+    image_alt: str = ""
 
 
 class BlogInternalLink(BaseModel):
@@ -117,6 +124,12 @@ class DraftUpdateRequest(BaseModel):
     image_alt: str | None = None
     image_style: str | None = None
     show_toc: bool | None = None
+    numbered_steps: bool | None = None
+    cta_enabled: bool | None = None
+    cta_label: str | None = None
+    cta_url: str | None = None
+    cta_description: str | None = None
+    cta_position: str | None = None
 
 
 class LinkSuggestionsRequest(BaseModel):
@@ -235,10 +248,11 @@ def _draft_from_product(
         "",
     )
     target_keyword = str(selected_idea.get("target_keyword") or "").strip() or fallback_keyword
+    source_product_link = build_source_product_link(product, selected_idea)
     raw_internal_links = [
         link
         for link in [
-            build_source_product_link(product, selected_idea),
+            source_product_link,
             *(
                 pack.get("recommended_internal_links")
                 or product.get("recommended_internal_links")
@@ -247,6 +261,8 @@ def _draft_from_product(
         ]
         if link
     ]
+    product_title_str = str(product.get("product_title") or "").strip()
+    cta_url = str((source_product_link or {}).get("target_url") or "")
 
     faq = [
         {"q": str(item.get("q") or item.get("question") or ""), "a": str(item.get("a") or item.get("answer") or "")}
@@ -272,6 +288,11 @@ def _draft_from_product(
         "author_type": "Organization",
         "author_name": "",
         "author_bio": "",
+        "cta_enabled": bool(cta_url),
+        "cta_label": f"Découvrir {product_title_str}" if product_title_str else "Voir le produit",
+        "cta_url": cta_url,
+        "cta_description": "",
+        "cta_position": "end",
     }
 
 
@@ -526,14 +547,25 @@ def generate_all(
     return {"blog_title": body.blog_title, "sections": sections}
 
 
+def _section_image_html(section: BlogSection) -> str:
+    url = (section.image_url or "").strip()
+    if not url:
+        return ""
+    alt = (section.image_alt or section.h2 or "").strip()
+    return f'<img src="{url}" alt="{alt}" style="max-width:100%;border-radius:8px;margin:12px 0;" />'
+
+
 def _assemble_body_html(
     intro: str,
     sections: list[BlogSection],
     internal_links: list[BlogInternalLink | dict[str, Any]] | None = None,
+    *,
+    numbered_steps: bool = False,
 ) -> str:
     parts: list[str] = []
     if intro.strip():
         parts.append(f"<p>{intro.strip()}</p>")
+    step_no = 0
     for idx, section in enumerate(sections):
         h2 = (section.h2 or "").strip()
         direct = (section.direct_answer or "").strip()
@@ -541,9 +573,16 @@ def _assemble_body_html(
         if not h2:
             continue
         # id anchor lets the table of contents jump-link to each section.
-        parts.append(f'<h2 id="section-{idx}">{h2}</h2>')
+        if numbered_steps:
+            step_no += 1
+            parts.append(f'<h2 id="section-{idx}">{step_no}. {h2}</h2>')
+        else:
+            parts.append(f'<h2 id="section-{idx}">{h2}</h2>')
         if direct:
             parts.append(f"<p><strong>{direct}</strong></p>")
+        img = _section_image_html(section)
+        if img:
+            parts.append(img)
         if body:
             parts.append(f"<div>{body}</div>")
     link_dicts = [
@@ -554,6 +593,25 @@ def _assemble_body_html(
     if links_html:
         parts.append(links_html)
     return "\n".join(parts)
+
+
+def _cta_html(label: str, url: str, description: str) -> str:
+    """Styled conversion call-to-action linking the article back to its product."""
+    label = (label or "").strip()
+    url = (url or "").strip()
+    if not label or not url:
+        return ""
+    desc = (description or "").strip()
+    desc_html = f'<p style="margin:0 0 12px;color:#374151;">{desc}</p>' if desc else ""
+    return (
+        '<div class="leonie-cta" style="margin:32px 0;padding:24px;border-radius:12px;'
+        'background:#F4F6F8;border:1px solid #E1E3E5;text-align:center;">'
+        + desc_html
+        + f'<a href="{url}" style="display:inline-block;padding:12px 28px;border-radius:8px;'
+        'background:#202223;color:#fff;text-decoration:none;font-weight:600;">'
+        + label
+        + "</a></div>"
+    )
 
 
 def _reading_time_minutes(word_count: int) -> int:
@@ -633,11 +691,22 @@ def publish_blog_draft(
     sections = [BlogSection(**s) for s in (draft.get("sections") or []) if isinstance(s, dict)]
     draft_faq = [f for f in (draft.get("faq") or []) if isinstance(f, dict)]
     meta_description = str(draft.get("meta_description") or "").strip()
+    numbered_steps = bool(draft.get("numbered_steps"))
     content_html = _assemble_body_html(
         draft.get("intro", ""),
         sections,
         draft.get("internal_links") or [],
+        numbered_steps=numbered_steps,
     )
+    cta_block = (
+        _cta_html(draft.get("cta_label", ""), draft.get("cta_url", ""), draft.get("cta_description", ""))
+        if draft.get("cta_enabled")
+        else ""
+    )
+    # A mid-article CTA is injected between content and FAQ; an end CTA sits after
+    # the author bio (closest to where the reader finishes). Default: end.
+    cta_mid = cta_block if draft.get("cta_position") == "mid" else ""
+    cta_end = cta_block if draft.get("cta_position") != "mid" else ""
     # Reading time + (optional) table of contents lead the article; FAQ and
     # author bio close it — all SEO/GEO signals that travel into the published HTML.
     html = (
@@ -646,9 +715,13 @@ def publish_blog_draft(
         + "\n"
         + content_html
         + "\n"
+        + cta_mid
+        + "\n"
         + _faq_html(draft_faq)
         + "\n"
         + _author_bio_html(draft.get("author_name", ""), draft.get("author_bio", ""))
+        + "\n"
+        + cta_end
     )
     canonical_url = f"https://{ctx.shop}/blogs/blog/{draft.get('blog_title', '')}"
     article_ld = build_article_jsonld(
@@ -658,6 +731,7 @@ def publish_blog_draft(
         author_type=draft.get("author_type", "Organization"),
         author_name=draft.get("author_name", ""),
         author_url=draft.get("author_url"),
+        author_bio=draft.get("author_bio", ""),
         publisher_name=body.publisher_name or draft.get("author_name", "") or ctx.shop,
         publisher_logo_url=body.publisher_logo_url,
         image_url=draft.get("image_url"),
@@ -666,7 +740,13 @@ def publish_blog_draft(
         {"question": str(f.get("q") or ""), "answer": str(f.get("a") or "")} for f in draft_faq
     ]
     faq_ld = build_faqpage_jsonld(faq_pairs)
-    body_html = html + "\n" + render_jsonld_blocks(article_ld, faq_ld)
+    # Step-by-step guides also emit HowTo so Google/AI can parse the procedure.
+    howto_ld = build_howto_jsonld(
+        name=draft.get("blog_title", ""),
+        description=meta_description or draft.get("intro", "")[:200],
+        sections=[{"name": s.h2, "text": s.direct_answer or s.body} for s in sections],
+    ) if numbered_steps else None
+    body_html = html + "\n" + render_jsonld_blocks(article_ld, faq_ld, howto_ld)
 
     try:
         publisher = BlogPublisher(ctx.shop, ctx.access_token)
