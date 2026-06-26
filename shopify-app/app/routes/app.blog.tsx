@@ -24,6 +24,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   ChoiceList,
   Divider,
   EmptyState,
@@ -78,6 +79,8 @@ interface Draft {
   author_url?: string | null;
   image_url?: string;
   image_alt?: string;
+  image_style?: "hero" | "banner" | "centered" | "float-left" | "float-right";
+  show_toc?: boolean;
   confirmed_facts?: Array<{ key: string; value: string }>;
   target_customer?: string;
   product_summary?: string;
@@ -436,6 +439,8 @@ function serializeEditableDraft(d: Draft | null): string {
     author_url: d.author_url ?? null,
     image_url: d.image_url ?? "",
     image_alt: d.image_alt ?? "",
+    image_style: d.image_style ?? "hero",
+    show_toc: d.show_toc ?? false,
   });
 }
 
@@ -542,6 +547,8 @@ export default function BlogIndexPage() {
           author_url: draft.author_url ?? null,
           image_url: draft.image_url ?? "",
           image_alt: draft.image_alt ?? "",
+          image_style: draft.image_style ?? "hero",
+          show_toc: draft.show_toc ?? false,
         }),
       },
       { method: "post" },
@@ -995,6 +1002,30 @@ export default function BlogIndexPage() {
                       onRemove={() => setDraft((p) => p ? { ...p, image_url: "", image_alt: "" } : p)}
                     />
 
+                    {draft.image_url && (
+                      <Select
+                        label={fr ? "Format et emplacement de l'image" : "Image format & placement"}
+                        options={[
+                          { label: fr ? "Couverture pleine largeur" : "Full-width cover", value: "hero" },
+                          { label: fr ? "Bandeau cinématique (plus court)" : "Cinematic banner (shorter)", value: "banner" },
+                          { label: fr ? "Image centrée" : "Centered image", value: "centered" },
+                          { label: fr ? "Flottant à gauche (texte à droite)" : "Float left (text wraps right)", value: "float-left" },
+                          { label: fr ? "Flottant à droite (texte à gauche)" : "Float right (text wraps left)", value: "float-right" },
+                        ]}
+                        value={draft.image_style ?? "hero"}
+                        onChange={(v) => setDraft((p) => p ? { ...p, image_style: v as Draft["image_style"] } : p)}
+                      />
+                    )}
+
+                    <Checkbox
+                      label={fr ? "Afficher la table des matières" : "Show table of contents"}
+                      helpText={fr
+                        ? "Génère automatiquement une liste des sections de l'article."
+                        : "Automatically generates a list of article sections."}
+                      checked={draft.show_toc ?? false}
+                      onChange={(v) => setDraft((p) => p ? { ...p, show_toc: v } : p)}
+                    />
+
                     {draft.sections.map((section, idx) => (
                       <Card key={`${section.h2}-${idx}`} padding="300">
                         <BlockStack gap="200">
@@ -1175,21 +1206,55 @@ export default function BlogIndexPage() {
                     borderColor="border"
                     borderWidth="025"
                   >
-                    <article style={{ maxWidth: 720, margin: "0 auto", lineHeight: 1.65 }}>
+                    <article style={{ maxWidth: 720, margin: "0 auto", lineHeight: 1.65, overflow: "hidden" }}>
                       <h1 style={{ marginBottom: 16, fontSize: 28 }}>
                         {draft.blog_title || (fr ? "(sans titre)" : "(untitled)")}
                       </h1>
-                      {draft.image_url && (
-                        <img
-                          src={draft.image_url}
-                          alt={draft.image_alt || draft.blog_title || ""}
-                          style={{ width: "100%", maxHeight: 400, objectFit: "cover", borderRadius: 8, marginBottom: 24 }}
-                        />
+                      {/* Cover image — rendered before intro for hero/banner/centered;
+                          for float variants it sits alongside the intro block */}
+                      {draft.image_url && (() => {
+                        const style = draft.image_style ?? "hero";
+                        const imgStyle: React.CSSProperties =
+                          style === "banner"
+                            ? { width: "100%", height: 220, objectFit: "cover", borderRadius: 0, marginBottom: 24, display: "block" }
+                            : style === "centered"
+                            ? { display: "block", margin: "0 auto 24px", maxWidth: 480, width: "100%", borderRadius: 8 }
+                            : style === "float-left"
+                            ? { float: "left", width: "40%", maxWidth: 280, marginRight: 20, marginBottom: 8, borderRadius: 8 }
+                            : style === "float-right"
+                            ? { float: "right", width: "40%", maxWidth: 280, marginLeft: 20, marginBottom: 8, borderRadius: 8 }
+                            : /* hero default */ { width: "100%", maxHeight: 400, objectFit: "cover", borderRadius: 8, marginBottom: 24, display: "block" };
+                        return (
+                          <img
+                            src={draft.image_url}
+                            alt={draft.image_alt || draft.blog_title || ""}
+                            style={imgStyle}
+                          />
+                        );
+                      })()}
+                      {/* Table of contents */}
+                      {draft.show_toc && draft.sections.length > 0 && (
+                        <nav style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px", marginBottom: 28 }}>
+                          <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>
+                            {fr ? "Sommaire" : "Table of contents"}
+                          </p>
+                          <ol style={{ margin: 0, paddingLeft: 20 }}>
+                            {draft.sections.map((section, idx) => (
+                              <li key={`toc-${idx}`} style={{ marginBottom: 4 }}>
+                                <span style={{ color: "#2563EB", fontSize: 14 }}>{section.h2}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        </nav>
                       )}
                       {draft.intro && (
                         <p style={{ color: "#374151", fontSize: 17, marginBottom: 24 }}>
                           {draft.intro}
                         </p>
+                      )}
+                      {/* Clearfix for float variants */}
+                      {(draft.image_style === "float-left" || draft.image_style === "float-right") && (
+                        <div style={{ clear: "both" }} />
                       )}
                       {draft.sections.map((section, idx) => (
                         <section key={`prev-${section.h2}-${idx}`} style={{ marginBottom: 28 }}>

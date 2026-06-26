@@ -106,6 +106,8 @@ class DraftUpdateRequest(BaseModel):
     author_url: str | None = None
     image_url: str | None = None
     image_alt: str | None = None
+    image_style: str | None = None
+    show_toc: bool | None = None
 
 
 class LinkSuggestionsRequest(BaseModel):
