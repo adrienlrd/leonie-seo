@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -356,6 +357,36 @@ def analyze_product_facts(product: dict[str, Any]) -> dict[str, Any]:
             confirmed.append(
                 _confirmed_fact(key, label, "Mentioned in product content", _ENTITY_SOURCE)
             )
+
+    # Read back merchant-confirmed facts previously written to Shopify as leonie.schema_facts.
+    # This makes the raw GEO score reflect what the merchant confirmed via the enrichment form,
+    # without requiring the description to be published first.
+    _SCHEMA_FACTS_LABELS: dict[str, str] = {
+        "materials": "Materials", "origins": "Origins", "certifications": "Certifications",
+        "warranty": "Warranty", "care": "Care instructions", "dimensions": "Dimensions",
+        "compatibility": "Compatibility", "size_recommendation": "Size recommendation",
+        "targets": "Recommended target", "properties": "Product properties",
+        "delivery": "Delivery", "returns": "Returns",
+    }
+    for _mf in _metafield_items(product):
+        if (
+            str(_mf.get("namespace") or "") == "leonie"
+            and str(_mf.get("key") or "") == "schema_facts"
+        ):
+            try:
+                _schema_data = json.loads(str(_mf.get("value") or "{}"))
+            except (json.JSONDecodeError, TypeError):
+                _schema_data = {}
+            for _fk, _fv in (_schema_data if isinstance(_schema_data, dict) else {}).items():
+                if _fv:
+                    _append_fact_once(
+                        confirmed,
+                        str(_fk),
+                        _SCHEMA_FACTS_LABELS.get(str(_fk), str(_fk).replace("_", " ").title()),
+                        str(_fv),
+                        "shopify_metafields",
+                    )
+            break
 
     confirmed_keys = {fact["key"] for fact in confirmed}
     missing = [

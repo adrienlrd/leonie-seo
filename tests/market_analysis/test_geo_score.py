@@ -126,6 +126,31 @@ def test_build_product_result_reflects_confirmed_facts_in_score() -> None:
     assert enriched_res["geo_score"] > bare_res["geo_score"]
 
 
+def test_schema_facts_metafield_raises_raw_score() -> None:
+    """leonie.schema_facts written by the save-facts endpoint must be read by the scorer."""
+    bare = {"id": "1", "title": "Harnais", "handle": "harnais", "seo": {}, "images": [], "variants": []}
+    import json as _json
+    product_with_metafield = {
+        **bare,
+        "metafields": [
+            {
+                "namespace": "leonie",
+                "key": "schema_facts",
+                "value": _json.dumps({
+                    "origins": "Fabriqué en France",
+                    "warranty": "Garantie 2 ans",
+                    "certifications": "Oeko-Tex Standard 100",
+                    "targets": "Chiens adultes de petite race",
+                    "care": "Lavable en machine à 30°C",
+                }),
+            }
+        ],
+    }
+    bare_score = score_product_readiness(bare)["readiness_score"]
+    enriched_score = score_product_readiness(product_with_metafield)["readiness_score"]
+    assert enriched_score > bare_score
+
+
 def test_enrichment_questions_include_targets_and_trust_signals() -> None:
     from app.market_analysis.engine import _build_enrichment_questions
 

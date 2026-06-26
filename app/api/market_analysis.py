@@ -95,6 +95,10 @@ _MERCHANT_FACT_KEYS = frozenset(
         "dimensions",
         "compatibility",
         "size_recommendation",
+        "targets",
+        "properties",
+        "delivery",
+        "returns",
         "use_cases",
         "selection_criteria",
     }
@@ -525,8 +529,14 @@ async def save_market_analysis_facts(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     product_id: str,
     body: dict[str, Any],
+    background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
-    """Save confirmed merchant answers for generation only, without a Shopify write."""
+    """Save confirmed merchant answers and write them to Shopify as leonie.schema_facts.
+
+    Writing to Shopify runs in background so the endpoint returns immediately.
+    The metafield is read back by analyze_product_facts on the next analysis,
+    so the raw GEO score reflects confirmed facts without waiting for a description publish.
+    """
     raw_answers = body.get("answers")
     if not isinstance(raw_answers, dict):
         raise HTTPException(status_code=400, detail="answers must be an object")
@@ -537,8 +547,24 @@ async def save_market_analysis_facts(
     }
     if not answers:
         raise HTTPException(status_code=400, detail="At least one supported answer is required")
+    # Merge new answers with all previously saved facts for this product so the
+    # Shopify metafield always contains the full accumulated set, not just the delta.
     saved = save_merchant_facts(ctx.shop, product_id, answers)
-    return {"saved": len(answers), "facts": saved, "shopify_write": False}
+    confirmed_for_shopify = [
+        {
+            "key": k,
+            "label": k.replace("_", " ").title(),
+            "value": v,
+            "confidence": "confirmed",
+        }
+        for k, v in saved.items()
+        if v
+    ]
+    if confirmed_for_shopify:
+        background_tasks.add_task(
+            apply_schema_facts_to_shopify, ctx.shop, product_id, confirmed_for_shopify
+        )
+    return {"saved": len(answers), "facts": saved, "shopify_write": bool(confirmed_for_shopify)}
 
 
 @router.post("/shops/{shop}/market-analysis/auto-publish")

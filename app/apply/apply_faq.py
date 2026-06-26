@@ -35,6 +35,11 @@ _SCHEMA_FACT_KEYS = frozenset(
         "care",
         "dimensions",
         "compatibility",
+        "size_recommendation",
+        "targets",
+        "properties",
+        "delivery",
+        "returns",
         "use_cases",
         "selection_criteria",
     }

@@ -211,13 +211,18 @@ def test_schema_facts_sync_is_explicit_shopify_write() -> None:
     patch_pack.assert_called_once()
 
 
-def test_merchant_answers_are_saved_without_shopify_write() -> None:
-    """Questionnaire answers only enrich the generation evidence store."""
+def test_merchant_answers_are_saved_and_queued_for_shopify_write() -> None:
+    """Questionnaire answers are saved locally and queued to write leonie.schema_facts."""
+    from unittest.mock import MagicMock
+
     ctx = SimpleNamespace(shop="shop.myshopify.com")
+    mock_bg = MagicMock()
     with patch(
         "app.api.market_analysis.save_merchant_facts",
         return_value={"warranty": "Garantie 2 ans."},
-    ) as save_facts:
+    ) as save_facts, patch(
+        "app.api.market_analysis.apply_schema_facts_to_shopify"
+    ) as mock_apply:
         result = asyncio.run(
             save_market_analysis_facts(
                 ctx=ctx,
@@ -228,16 +233,23 @@ def test_merchant_answers_are_saved_without_shopify_write() -> None:
                         "unsupported_promise": "Meilleur du marché",
                     },
                 },
+                background_tasks=mock_bg,
             )
         )
 
-    assert result["shopify_write"] is False
+    assert result["shopify_write"] is True
     assert result["saved"] == 1
     save_facts.assert_called_once_with(
         "shop.myshopify.com",
         "gid://shopify/Product/1",
         {"warranty": "Garantie 2 ans."},
     )
+    # Shopify write must be scheduled as a background task, not inline.
+    mock_bg.add_task.assert_called_once()
+    call_args = mock_bg.add_task.call_args
+    assert call_args.args[0] is mock_apply
+    assert call_args.args[1] == "shop.myshopify.com"
+    assert call_args.args[2] == "gid://shopify/Product/1"
 
 
 def test_fact_enriched_single_generation_replaces_proposal_without_shopify_write() -> None:
