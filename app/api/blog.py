@@ -25,6 +25,7 @@ from app.blog.internal_links import (
 from app.blog.quality import check_keyword_placement
 from app.blog.schema import build_article_jsonld, build_faqpage_jsonld, render_jsonld_blocks
 from app.blog.section_generator import generate_all_sections, generate_section
+from app.blog.seo_score import score_blog_readiness
 from app.blog.shopify_articles import BlogPublisher
 from app.blog.store import delete_draft, get_draft, list_drafts, save_draft
 from app.geo.auto_tracking import record_applied_change
@@ -71,6 +72,11 @@ class BlogInternalLink(BaseModel):
     reason: str = ""
 
 
+class BlogFaqItem(BaseModel):
+    q: str = ""
+    a: str = ""
+
+
 class PublishDraftRequest(BaseModel):
     blog_id: str
     title: str
@@ -98,12 +104,15 @@ class DraftUpdateRequest(BaseModel):
     blog_title: str | None = None
     intro: str | None = None
     summary: str | None = None
+    meta_description: str | None = None
     sections: list[BlogSection] | None = None
     internal_links: list[BlogInternalLink] | None = None
+    faq: list[BlogFaqItem] | None = None
     tags: list[str] | None = None
     author_type: str | None = None
     author_name: str | None = None
     author_url: str | None = None
+    author_bio: str | None = None
     image_url: str | None = None
     image_alt: str | None = None
     image_style: str | None = None
@@ -143,6 +152,18 @@ def _apply_keyword_check(draft: dict[str, Any]) -> None:
         sections=[s for s in (draft.get("sections") or []) if isinstance(s, dict)],
         target_keyword=keyword,
     )
+
+
+def _apply_seo_score(draft: dict[str, Any]) -> None:
+    """Compute the blog GEO/SEO readiness score and attach it to the draft in-place.
+
+    Advisory only — mirrors the product readiness score so the editor renders the
+    same badge + per-pillar breakdown. Recomputed on every save.
+    """
+    result = score_blog_readiness(draft)
+    draft["geo_score"] = result["readiness_score"]
+    draft["geo_score_components"] = result["components"]
+    draft["word_count"] = result["word_count"]
 
 
 def _default_blog_image_alt(title: str, keyword: str) -> str:
@@ -227,6 +248,11 @@ def _draft_from_product(
         if link
     ]
 
+    faq = [
+        {"q": str(item.get("q") or item.get("question") or ""), "a": str(item.get("a") or item.get("answer") or "")}
+        for item in (pack.get("proposed_faq") or [])
+        if isinstance(item, dict) and (item.get("q") or item.get("question"))
+    ]
     return {
         "product_id": product_id,
         "product_title": product.get("product_title", ""),
@@ -236,13 +262,16 @@ def _draft_from_product(
         "target_keyword": target_keyword,
         "intro": intro,
         "summary": (intro or "")[:200],
+        "meta_description": (intro or "")[:155],
         "outline": list(outline or []),
         "sections": [],
         "internal_links": select_blog_internal_links(raw_internal_links),
+        "faq": faq,
         "confirmed_facts": pack.get("confirmed_facts") or [],
         "tags": [],
         "author_type": "Organization",
         "author_name": "",
+        "author_bio": "",
     }
 
 
@@ -294,6 +323,7 @@ def create_blog_draft(
             "author_type": "Organization",
             "author_name": "",
         }
+    _apply_seo_score(draft)
     saved = save_draft(ctx.shop, draft)
     return saved
 
@@ -388,11 +418,16 @@ def update_blog_draft(
             link.model_dump() if hasattr(link, "model_dump") else link
             for link in patch["internal_links"]
         ]
+    if "faq" in patch and patch["faq"] is not None:
+        patch["faq"] = [
+            item.model_dump() if hasattr(item, "model_dump") else item for item in patch["faq"]
+        ]
     draft.update(patch)
     if {"blog_title", "intro", "sections"} & set(patch):
         _apply_keyword_check(draft)
     if "image_url" in patch:
         _apply_image_alt(draft)
+    _apply_seo_score(draft)
     return save_draft(ctx.shop, draft)
 
 
@@ -438,6 +473,7 @@ def regenerate_draft_section(
         existing.append(section)
     draft["sections"] = existing
     _apply_keyword_check(draft)
+    _apply_seo_score(draft)
     return save_draft(ctx.shop, draft)
 
 
@@ -498,13 +534,14 @@ def _assemble_body_html(
     parts: list[str] = []
     if intro.strip():
         parts.append(f"<p>{intro.strip()}</p>")
-    for section in sections:
+    for idx, section in enumerate(sections):
         h2 = (section.h2 or "").strip()
         direct = (section.direct_answer or "").strip()
         body = (section.body or "").strip()
         if not h2:
             continue
-        parts.append(f"<h2>{h2}</h2>")
+        # id anchor lets the table of contents jump-link to each section.
+        parts.append(f'<h2 id="section-{idx}">{h2}</h2>')
         if direct:
             parts.append(f"<p><strong>{direct}</strong></p>")
         if body:
@@ -517,6 +554,55 @@ def _assemble_body_html(
     if links_html:
         parts.append(links_html)
     return "\n".join(parts)
+
+
+def _reading_time_minutes(word_count: int) -> int:
+    """Average adult reading speed ≈ 200 words/min; floor at 1 minute."""
+    return max(1, round(word_count / 200))
+
+
+def _reading_time_html(word_count: int) -> str:
+    minutes = _reading_time_minutes(word_count)
+    return f'<p class="reading-time"><em>⏱ {minutes} min de lecture</em></p>'
+
+
+def _toc_html(sections: list[BlogSection]) -> str:
+    items = [
+        f'<li><a href="#section-{idx}">{section.h2.strip()}</a></li>'
+        for idx, section in enumerate(sections)
+        if (section.h2 or "").strip()
+    ]
+    if not items:
+        return ""
+    return (
+        '<nav class="table-of-contents"><strong>Sommaire</strong><ol>'
+        + "".join(items)
+        + "</ol></nav>"
+    )
+
+
+def _faq_html(faq: list[dict[str, Any]]) -> str:
+    rows = [
+        f'<div class="faq-item"><h3>{q}</h3><p>{a}</p></div>'
+        for item in (faq or [])
+        if (q := str(item.get("q") or "").strip()) and (a := str(item.get("a") or "").strip())
+    ]
+    if not rows:
+        return ""
+    return '<section class="faq"><h2>Questions fréquentes</h2>' + "".join(rows) + "</section>"
+
+
+def _author_bio_html(author_name: str, author_bio: str) -> str:
+    bio = (author_bio or "").strip()
+    if not bio:
+        return ""
+    name_html = f"<strong>{author_name.strip()}</strong><br/>" if author_name.strip() else ""
+    return (
+        '<aside class="author-bio"><h2>À propos de l\'auteur</h2><p>'
+        + name_html
+        + bio
+        + "</p></aside>"
+    )
 
 
 def _build_faq_pairs(sections: list[BlogSection]) -> list[dict[str, str]]:
@@ -545,15 +631,29 @@ def publish_blog_draft(
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     sections = [BlogSection(**s) for s in (draft.get("sections") or []) if isinstance(s, dict)]
-    html = _assemble_body_html(
+    draft_faq = [f for f in (draft.get("faq") or []) if isinstance(f, dict)]
+    meta_description = str(draft.get("meta_description") or "").strip()
+    content_html = _assemble_body_html(
         draft.get("intro", ""),
         sections,
         draft.get("internal_links") or [],
     )
+    # Reading time + (optional) table of contents lead the article; FAQ and
+    # author bio close it — all SEO/GEO signals that travel into the published HTML.
+    html = (
+        _reading_time_html(int(draft.get("word_count") or 0))
+        + ("\n" + _toc_html(sections) if draft.get("show_toc") else "")
+        + "\n"
+        + content_html
+        + "\n"
+        + _faq_html(draft_faq)
+        + "\n"
+        + _author_bio_html(draft.get("author_name", ""), draft.get("author_bio", ""))
+    )
     canonical_url = f"https://{ctx.shop}/blogs/blog/{draft.get('blog_title', '')}"
     article_ld = build_article_jsonld(
         headline=draft.get("blog_title", ""),
-        description=draft.get("summary") or draft.get("intro", "")[:200],
+        description=meta_description or draft.get("summary") or draft.get("intro", "")[:200],
         url=canonical_url,
         author_type=draft.get("author_type", "Organization"),
         author_name=draft.get("author_name", ""),
@@ -562,7 +662,10 @@ def publish_blog_draft(
         publisher_logo_url=body.publisher_logo_url,
         image_url=draft.get("image_url"),
     )
-    faq_ld = build_faqpage_jsonld(_build_faq_pairs(sections))
+    faq_pairs = _build_faq_pairs(sections) + [
+        {"question": str(f.get("q") or ""), "answer": str(f.get("a") or "")} for f in draft_faq
+    ]
+    faq_ld = build_faqpage_jsonld(faq_pairs)
     body_html = html + "\n" + render_jsonld_blocks(article_ld, faq_ld)
 
     try:
@@ -572,11 +675,12 @@ def publish_blog_draft(
             blog_id=blog_id,
             title=draft.get("blog_title", ""),
             body_html=body_html,
-            summary=draft.get("summary", ""),
+            summary=meta_description or draft.get("summary", ""),
             tags=draft.get("tags") or [],
             author_name=draft.get("author_name", ""),
             image_url=draft.get("image_url"),
             image_alt=draft.get("image_alt"),
+            meta_description=meta_description,
         )
     except ShopifyWriteError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

@@ -164,6 +164,7 @@ class BlogPublisher:
         author_name: str = "",
         image_url: str | None = None,
         image_alt: str | None = None,
+        meta_description: str = "",
     ) -> dict[str, Any]:
         """Create the article as ``isPublished=false`` (draft) so the merchant reviews first."""
         article: dict[str, Any] = {
@@ -182,6 +183,17 @@ class BlogPublisher:
             if image_alt:
                 image["altText"] = image_alt
             article["image"] = image
+        # Article SEO meta description is stored in the global.description_tag
+        # metafield — the storefront theme renders it as <meta name="description">.
+        if meta_description.strip():
+            article["metafields"] = [
+                {
+                    "namespace": "global",
+                    "key": "description_tag",
+                    "type": "single_line_text_field",
+                    "value": meta_description.strip()[:320],
+                }
+            ]
 
         data = self._post(_CREATE_ARTICLE_MUTATION, {"article": article})
         _raise_for_graphql_errors(data, "articleCreate")

@@ -75,7 +75,7 @@ def test_assemble_body_html_appends_internal_links_block() -> None:
         [{"target_url": "/products/a", "anchor": "produit conseillé", "target_title": "A"}],
     )
 
-    assert "<h2>Pourquoi choisir ce produit ?</h2>" in html
+    assert '<h2 id="section-0">Pourquoi choisir ce produit ?</h2>' in html
     assert "leonie-internal-links" in html
     assert '<a href="/products/a"' in html
 

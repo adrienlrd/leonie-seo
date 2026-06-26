@@ -28,15 +28,18 @@ import {
   ChoiceList,
   Divider,
   EmptyState,
+  Icon,
   InlineStack,
   Modal,
   Page,
+  Popover,
   Select,
   Spinner,
   Tabs,
   Text,
   TextField,
 } from "@shopify/polaris";
+import { CheckIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
 import { SaveBar } from "@shopify/app-bridge-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -49,6 +52,8 @@ import { scoreTone } from "../lib/marketAnalysisShared";
 import { authenticate } from "../shopify.server";
 
 interface Section { h2: string; direct_answer: string; body: string }
+interface FaqItem { q: string; a: string }
+interface GeoScoreComponent { score: number; weight: number }
 interface InternalLink {
   target_url: string;
   anchor: string;
@@ -70,17 +75,23 @@ interface Draft {
   keyword_check?: KeywordCheck;
   intro: string;
   summary?: string;
+  meta_description?: string;
   sections: Section[];
   internal_links?: InternalLink[];
+  faq?: FaqItem[];
   outline?: string[];
   tags?: string[];
   author_type?: "Organization" | "Person";
   author_name?: string;
   author_url?: string | null;
+  author_bio?: string;
   image_url?: string;
   image_alt?: string;
   image_style?: "hero" | "banner" | "centered" | "float-left" | "float-right";
   show_toc?: boolean;
+  geo_score?: number;
+  geo_score_components?: Record<string, GeoScoreComponent>;
+  word_count?: number;
   confirmed_facts?: Array<{ key: string; value: string }>;
   target_customer?: string;
   product_summary?: string;
@@ -431,12 +442,15 @@ function serializeEditableDraft(d: Draft | null): string {
     blog_title: d.blog_title,
     intro: d.intro,
     summary: d.summary,
+    meta_description: d.meta_description ?? "",
     sections: d.sections,
     internal_links: d.internal_links ?? [],
+    faq: d.faq ?? [],
     tags: d.tags ?? [],
     author_type: d.author_type ?? "Organization",
     author_name: d.author_name ?? "",
     author_url: d.author_url ?? null,
+    author_bio: d.author_bio ?? "",
     image_url: d.image_url ?? "",
     image_alt: d.image_alt ?? "",
     image_style: d.image_style ?? "hero",
@@ -458,6 +472,75 @@ function linkReasonBadge(reason: string, fr: boolean): { tone: "info" | "success
       return { tone: "attention", label: fr ? "Produit" : "Product" };
   }
 }
+
+/** Per-pillar breakdown of the blog GEO/SEO score — mirrors the product page
+ *  GeoScoreBreakdown: ✓ (done, ≥70) / ✗ (to improve) with weight per pillar. */
+function BlogGeoScoreBreakdown({
+  components,
+  locale,
+}: {
+  components?: Record<string, GeoScoreComponent>;
+  locale: Locale;
+}) {
+  const fr = locale === "fr";
+  const pillars: Array<{ key: string; label: string }> = [
+    { key: "content_length", label: fr ? "Longueur du contenu" : "Content length" },
+    { key: "keyword", label: fr ? "Mot-clé placé" : "Keyword placement" },
+    { key: "structure", label: fr ? "Structure (intro, H2)" : "Structure (intro, H2)" },
+    { key: "meta_description", label: fr ? "Meta description" : "Meta description" },
+    { key: "faq", label: "FAQ" },
+    { key: "internal_links", label: fr ? "Liens internes" : "Internal links" },
+    { key: "image", label: fr ? "Image de couverture" : "Cover image" },
+  ];
+  const has = components && Object.keys(components).length > 0;
+  return (
+    <BlockStack gap="200">
+      <Text as="p" variant="headingSm">
+        {fr ? "Détail du Score GEO" : "GEO score breakdown"}
+      </Text>
+      <Text as="p" variant="bodySm" tone="subdued">
+        {fr
+          ? "Ce que les moteurs évaluent. ✓ = en place, ✗ = à compléter. Le % est le poids dans le score."
+          : "What engines assess. ✓ = in place, ✗ = to complete. The % is its weight in the score."}
+      </Text>
+      {!has ? (
+        <Text as="p" variant="bodySm" tone="subdued">
+          {fr ? "Sauvegardez pour voir le détail par critère." : "Save to see the per-criterion breakdown."}
+        </Text>
+      ) : (
+        pillars.map(({ key, label }) => {
+          const comp = components![key];
+          if (!comp) return null;
+          const done = comp.score >= 70;
+          const weight = Math.round((comp.weight ?? 0) * 100);
+          return (
+            <InlineStack key={key} gap="150" blockAlign="center" wrap={false}>
+              <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1rem", height: "1rem" }}>
+                <Icon source={done ? CheckIcon : XIcon} tone={done ? "success" : "critical"} />
+              </span>
+              <Text as="span" variant="bodySm">
+                {`${label} — ${comp.score}/100 (${weight}%)`}
+              </Text>
+            </InlineStack>
+          );
+        })
+      )}
+    </BlockStack>
+  );
+}
+
+/** Live word count over intro + section answers/bodies (mirrors the backend scorer). */
+function countDraftWords(d: Draft): number {
+  const parts = [d.intro || ""];
+  for (const s of d.sections || []) {
+    parts.push(s.direct_answer || "", s.body || "");
+  }
+  const text = parts.join(" ").replace(/<[^>]+>/g, " ").trim();
+  return text ? text.split(/\s+/).length : 0;
+}
+
+const READING_WORDS_PER_MIN = 200;
+const TARGET_WORDS = 1500;
 
 export default function BlogIndexPage() {
   const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas, pillarIdeaKeys } = useLoaderData<typeof loader>();
@@ -495,6 +578,11 @@ export default function BlogIndexPage() {
   const [selectedBlog, setSelectedBlog] = useState("");
   const [showPublished, setShowPublished] = useState(true);
   const [showIdeas, setShowIdeas] = useState(true);
+  const [geoHelpOpen, setGeoHelpOpen] = useState(false);
+
+  const wordCount = useMemo(() => (draft ? countDraftWords(draft) : 0), [draft]);
+  const readingMinutes = Math.max(1, Math.round(wordCount / READING_WORDS_PER_MIN));
+  const geoScore = draft?.geo_score ?? null;
 
   useEffect(() => {
     if (blogsFetcher.data?.blogs && blogsFetcher.data.blogs.length && !selectedBlog) {
@@ -513,6 +601,25 @@ export default function BlogIndexPage() {
     }
   }, [fetcher.data]);
 
+  // Auto-load internal-link / cluster suggestions when a draft opens so the merchant
+  // immediately sees which sibling/pillar articles they should link to (and which
+  // are still missing) without an extra click. Cheap: pure matching, no LLM call.
+  useEffect(() => {
+    if (!selected?.id) return;
+    const existingUrls = (selected.internal_links ?? []).map((l) => l.target_url).join("||");
+    const keywords = [
+      selected.blog_title,
+      ...(selected.sections ?? []).map((s) => s.h2),
+    ].filter(Boolean).join("||");
+    if (!keywords) return;
+    suggestionsFetcher.submit(
+      { intent: "fetchLinkSuggestions", draftId: selected.id, keywords, excludeUrls: existingUrls },
+      { method: "post" },
+    );
+    setShowSuggestions(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
+
   const productCtx = draft ? {
     product_title: draft.product_title,
     product_summary: draft.product_summary ?? "",
@@ -529,6 +636,16 @@ export default function BlogIndexPage() {
       sections: prev.sections.map((s, i) => i === idx ? { ...s, ...patch } : s),
     } : prev);
 
+  const setFaqItem = (idx: number, patch: Partial<FaqItem>) =>
+    setDraft((prev) => prev ? {
+      ...prev,
+      faq: (prev.faq ?? []).map((f, i) => i === idx ? { ...f, ...patch } : f),
+    } : prev);
+  const addFaqItem = () =>
+    setDraft((prev) => prev ? { ...prev, faq: [...(prev.faq ?? []), { q: "", a: "" }] } : prev);
+  const removeFaqItem = (idx: number) =>
+    setDraft((prev) => prev ? { ...prev, faq: (prev.faq ?? []).filter((_, i) => i !== idx) } : prev);
+
   const onSave = () => {
     if (!draft) return;
     submit(
@@ -539,12 +656,15 @@ export default function BlogIndexPage() {
           blog_title: draft.blog_title,
           intro: draft.intro,
           summary: draft.summary,
+          meta_description: draft.meta_description ?? "",
           sections: draft.sections,
           internal_links: draft.internal_links ?? [],
+          faq: draft.faq ?? [],
           tags: draft.tags ?? [],
           author_type: draft.author_type ?? "Organization",
           author_name: draft.author_name ?? "",
           author_url: draft.author_url ?? null,
+          author_bio: draft.author_bio ?? "",
           image_url: draft.image_url ?? "",
           image_alt: draft.image_alt ?? "",
           image_style: draft.image_style ?? "hero",
@@ -917,7 +1037,29 @@ export default function BlogIndexPage() {
                     <Text as="h2" variant="headingLg">{draft.blog_title || (fr ? "(sans titre)" : "(untitled)")}</Text>
                     <Text as="p" variant="bodySm" tone="subdued">{draft.product_title}</Text>
                   </BlockStack>
-                  <InlineStack gap="200">
+                  <InlineStack gap="200" blockAlign="center">
+                    {geoScore !== null && (
+                      <InlineStack gap="100" blockAlign="center">
+                        <Popover
+                          active={geoHelpOpen}
+                          onClose={() => setGeoHelpOpen(false)}
+                          preferredAlignment="left"
+                          activator={
+                            <Button
+                              variant="tertiary"
+                              icon={QuestionCircleIcon}
+                              onClick={() => setGeoHelpOpen((o) => !o)}
+                              accessibilityLabel={fr ? "Détail du Score GEO" : "GEO score breakdown"}
+                            />
+                          }
+                        >
+                          <Box padding="300" maxWidth="340px">
+                            <BlogGeoScoreBreakdown components={draft.geo_score_components} locale={locale} />
+                          </Box>
+                        </Popover>
+                        <Badge tone={scoreTone(geoScore)}>{`${fr ? "Score GEO" : "GEO score"} ${geoScore}/100`}</Badge>
+                      </InlineStack>
+                    )}
                     <Button onClick={onSave} loading={isBusy && fetcher.formData?.get("intent") === "saveDraft"}>
                       {fr ? "Sauvegarder" : "Save"}
                     </Button>
@@ -993,6 +1135,43 @@ export default function BlogIndexPage() {
                       autoComplete="off"
                     />
 
+                    {/* SEO bar: live word count vs target + reading time */}
+                    <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                      <InlineStack gap="300" blockAlign="center" wrap>
+                        <Badge tone={wordCount >= 1000 ? "success" : wordCount >= 600 ? "warning" : "critical"}>
+                          {`${wordCount.toLocaleString(fr ? "fr-FR" : "en-US")} / ${TARGET_WORDS.toLocaleString(fr ? "fr-FR" : "en-US")} ${fr ? "mots min." : "words min."}`}
+                        </Badge>
+                        <Text as="span" variant="bodySm" tone="subdued">
+                          {fr ? `⏱ ${readingMinutes} min de lecture` : `⏱ ${readingMinutes} min read`}
+                        </Text>
+                        {wordCount < 1000 && (
+                          <Text as="span" variant="bodySm" tone="subdued">
+                            {fr
+                              ? "Sous 1 000 mots, Google peut considérer l'article comme « thin content »."
+                              : "Below 1,000 words Google may treat the article as thin content."}
+                          </Text>
+                        )}
+                      </InlineStack>
+                    </Box>
+
+                    {/* Meta description — what shows in Google + sent as Shopify SEO description */}
+                    <TextField
+                      label={fr ? "Meta description (Google)" : "Meta description (Google)"}
+                      value={draft.meta_description ?? ""}
+                      onChange={(v) => setDraft((p) => p ? { ...p, meta_description: v } : p)}
+                      multiline={2}
+                      autoComplete="off"
+                      maxLength={160}
+                      showCharacterCount
+                      helpText={(() => {
+                        const len = (draft.meta_description ?? "").length;
+                        if (len === 0) return fr ? "Résumé affiché dans les résultats Google (70-155 caractères)." : "Summary shown in Google results (70-155 chars).";
+                        if (len < 70) return fr ? "Un peu court — visez 70-155 caractères." : "A bit short — aim for 70-155 characters.";
+                        if (len > 155) return fr ? "Un peu long — Google tronque au-delà de 155 caractères." : "A bit long — Google truncates beyond 155 characters.";
+                        return fr ? "Longueur idéale ✓" : "Ideal length ✓";
+                      })()}
+                    />
+
                     <ShopifyImagePicker
                       locale={locale}
                       imageUrl={draft.image_url ?? null}
@@ -1026,6 +1205,34 @@ export default function BlogIndexPage() {
                       onChange={(v) => setDraft((p) => p ? { ...p, show_toc: v } : p)}
                     />
 
+                    {/* Open Graph / social share preview — how the article looks when shared */}
+                    <BlockStack gap="150">
+                      <Text as="p" variant="headingSm">{fr ? "Aperçu du partage social" : "Social share preview"}</Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {fr
+                          ? "Ce que voient vos clients quand l'article est partagé sur WhatsApp, Instagram, LinkedIn ou Facebook."
+                          : "What customers see when the article is shared on WhatsApp, Instagram, LinkedIn or Facebook."}
+                      </Text>
+                      <div style={{ maxWidth: 420, border: "1px solid #E1E3E5", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
+                        <div style={{ width: "100%", aspectRatio: "1200 / 630", background: "#F1F2F4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {draft.image_url ? (
+                            <img src={draft.image_url} alt={draft.image_alt || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <Text as="span" variant="bodySm" tone="subdued">{fr ? "Aucune image" : "No image"}</Text>
+                          )}
+                        </div>
+                        <div style={{ padding: "10px 12px" }}>
+                          <div style={{ fontSize: 11, textTransform: "uppercase", color: "#6D7175", letterSpacing: 0.3 }}>{shop}</div>
+                          <div style={{ fontSize: 15, fontWeight: 600, color: "#202223", margin: "2px 0", lineHeight: 1.3 }}>
+                            {draft.blog_title || (fr ? "(titre de l'article)" : "(article title)")}
+                          </div>
+                          <div style={{ fontSize: 13, color: "#6D7175", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                            {draft.meta_description || draft.intro || (fr ? "Ajoutez une meta description ci-dessus." : "Add a meta description above.")}
+                          </div>
+                        </div>
+                      </div>
+                    </BlockStack>
+
                     {draft.sections.map((section, idx) => (
                       <Card key={`${section.h2}-${idx}`} padding="300">
                         <BlockStack gap="200">
@@ -1046,6 +1253,64 @@ export default function BlogIndexPage() {
                         </BlockStack>
                       </Card>
                     ))}
+
+                    {/* FAQ block — editable Q/A appended at the end of the article (GEO signal) */}
+                    <Box padding="400" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                      <BlockStack gap="300">
+                        <BlockStack gap="050">
+                          <Text as="h3" variant="headingSm">{fr ? "Questions fréquentes (FAQ)" : "Frequently asked questions (FAQ)"}</Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {fr
+                              ? "Affichée en bas de l'article. Signal fort pour ChatGPT, Perplexity et Google AI Overviews."
+                              : "Shown at the end of the article. Strong signal for ChatGPT, Perplexity and Google AI Overviews."}
+                          </Text>
+                        </BlockStack>
+                        {(draft.faq ?? []).map((item, idx) => (
+                          <BlockStack key={`faq-${idx}`} gap="100">
+                            <InlineStack align="space-between" blockAlign="center">
+                              <Text as="span" variant="bodySm" fontWeight="semibold">{`FAQ ${idx + 1}`}</Text>
+                              <Button size="slim" variant="plain" tone="critical" onClick={() => removeFaqItem(idx)}>
+                                {fr ? "Retirer" : "Remove"}
+                              </Button>
+                            </InlineStack>
+                            <TextField
+                              label={fr ? "Question" : "Question"}
+                              labelHidden
+                              placeholder={fr ? "Question" : "Question"}
+                              value={item.q}
+                              onChange={(v) => setFaqItem(idx, { q: v })}
+                              autoComplete="off"
+                            />
+                            <TextField
+                              label={fr ? "Réponse" : "Answer"}
+                              labelHidden
+                              placeholder={fr ? "Réponse" : "Answer"}
+                              value={item.a}
+                              onChange={(v) => setFaqItem(idx, { a: v })}
+                              multiline={2}
+                              autoComplete="off"
+                            />
+                          </BlockStack>
+                        ))}
+                        <InlineStack>
+                          <Button size="slim" variant="plain" onClick={addFaqItem}>
+                            {fr ? "Ajouter une question" : "Add a question"}
+                          </Button>
+                        </InlineStack>
+                      </BlockStack>
+                    </Box>
+
+                    {/* Author bio — E-E-A-T signal, rendered at the end of the article */}
+                    <TextField
+                      label={fr ? "Bio de l'auteur (E-E-A-T)" : "Author bio (E-E-A-T)"}
+                      value={draft.author_bio ?? ""}
+                      onChange={(v) => setDraft((p) => p ? { ...p, author_bio: v } : p)}
+                      multiline={3}
+                      autoComplete="off"
+                      helpText={fr
+                        ? "2-3 phrases sur l'expertise de l'auteur. Renforce la crédibilité aux yeux de Google."
+                        : "2-3 sentences on the author's expertise. Strengthens credibility for Google."}
+                    />
 
                     <Box
                       padding="400"
@@ -1207,11 +1472,42 @@ export default function BlogIndexPage() {
                     borderWidth="025"
                   >
                     <article style={{ maxWidth: 720, margin: "0 auto", lineHeight: 1.65, overflow: "hidden" }}>
-                      <h1 style={{ marginBottom: 16, fontSize: 28 }}>
+                      {/* 1. Title */}
+                      <h1 style={{ marginBottom: 8, fontSize: 28 }}>
                         {draft.blog_title || (fr ? "(sans titre)" : "(untitled)")}
                       </h1>
-                      {/* Cover image — rendered before intro for hero/banner/centered;
-                          for float variants it sits alongside the intro block */}
+                      {/* 2. Reading time + last updated date */}
+                      <p style={{ color: "#6D7175", fontSize: 13, marginBottom: 16 }}>
+                        {fr ? `⏱ ${readingMinutes} min de lecture` : `⏱ ${readingMinutes} min read`}
+                        {draft.updated_at && (() => {
+                          const d = new Date(draft.updated_at);
+                          if (Number.isNaN(d.getTime())) return null;
+                          const formatted = d.toLocaleDateString(fr ? "fr-FR" : "en-US", { day: "numeric", month: "long", year: "numeric" });
+                          return ` · ${fr ? "Mis à jour le" : "Updated"} ${formatted}`;
+                        })()}
+                      </p>
+                      {/* 3. Description (intro) */}
+                      {draft.intro && (
+                        <p style={{ color: "#374151", fontSize: 17, marginBottom: 24 }}>
+                          {draft.intro}
+                        </p>
+                      )}
+                      {/* 4. Table of contents — below title + description, above text/image */}
+                      {draft.show_toc && draft.sections.length > 0 && (
+                        <nav style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px", marginBottom: 28 }}>
+                          <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>
+                            {fr ? "Sommaire" : "Table of contents"}
+                          </p>
+                          <ol style={{ margin: 0, paddingLeft: 20 }}>
+                            {draft.sections.map((section, idx) => (
+                              <li key={`toc-${idx}`} style={{ marginBottom: 4 }}>
+                                <span style={{ color: "#2563EB", fontSize: 14 }}>{section.h2}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        </nav>
+                      )}
+                      {/* 5. Cover image — separated from the TOC, opens the content area */}
                       {draft.image_url && (() => {
                         const style = draft.image_style ?? "hero";
                         const imgStyle: React.CSSProperties =
@@ -1232,30 +1528,7 @@ export default function BlogIndexPage() {
                           />
                         );
                       })()}
-                      {/* Table of contents */}
-                      {draft.show_toc && draft.sections.length > 0 && (
-                        <nav style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px", marginBottom: 28 }}>
-                          <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>
-                            {fr ? "Sommaire" : "Table of contents"}
-                          </p>
-                          <ol style={{ margin: 0, paddingLeft: 20 }}>
-                            {draft.sections.map((section, idx) => (
-                              <li key={`toc-${idx}`} style={{ marginBottom: 4 }}>
-                                <span style={{ color: "#2563EB", fontSize: 14 }}>{section.h2}</span>
-                              </li>
-                            ))}
-                          </ol>
-                        </nav>
-                      )}
-                      {draft.intro && (
-                        <p style={{ color: "#374151", fontSize: 17, marginBottom: 24 }}>
-                          {draft.intro}
-                        </p>
-                      )}
-                      {/* Clearfix for float variants */}
-                      {(draft.image_style === "float-left" || draft.image_style === "float-right") && (
-                        <div style={{ clear: "both" }} />
-                      )}
+                      {/* 6. Sections */}
                       {draft.sections.map((section, idx) => (
                         <section key={`prev-${section.h2}-${idx}`} style={{ marginBottom: 28 }}>
                           <h2 style={{ fontSize: 22, marginBottom: 10 }}>{section.h2}</h2>
@@ -1269,6 +1542,37 @@ export default function BlogIndexPage() {
                           )}
                         </section>
                       ))}
+                      {/* Clearfix for float variants */}
+                      {(draft.image_style === "float-left" || draft.image_style === "float-right") && (
+                        <div style={{ clear: "both" }} />
+                      )}
+                      {/* 7. FAQ block */}
+                      {(draft.faq ?? []).filter((f) => f.q && f.a).length > 0 && (
+                        <section style={{ marginTop: 32, borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
+                          <h2 style={{ fontSize: 22, marginBottom: 16 }}>
+                            {fr ? "Questions fréquentes" : "Frequently asked questions"}
+                          </h2>
+                          {(draft.faq ?? []).filter((f) => f.q && f.a).map((item, idx) => (
+                            <div key={`prev-faq-${idx}`} style={{ marginBottom: 16 }}>
+                              <h3 style={{ fontSize: 17, marginBottom: 4 }}>{item.q}</h3>
+                              <p style={{ color: "#374151" }}>{item.a}</p>
+                            </div>
+                          ))}
+                        </section>
+                      )}
+                      {/* 8. Author bio */}
+                      {(draft.author_bio ?? "").trim() && (
+                        <aside style={{ marginTop: 32, background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px" }}>
+                          <h2 style={{ fontSize: 18, marginBottom: 6 }}>
+                            {fr ? "À propos de l'auteur" : "About the author"}
+                          </h2>
+                          <p style={{ color: "#374151" }}>
+                            {draft.author_name && <strong>{draft.author_name}<br /></strong>}
+                            {draft.author_bio}
+                          </p>
+                        </aside>
+                      )}
+                      {/* 9. Internal links */}
                       {(draft.internal_links ?? []).length > 0 && (
                         <aside style={{ marginTop: 32, borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
                           <h2 style={{ fontSize: 20, marginBottom: 10 }}>
