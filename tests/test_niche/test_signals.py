@@ -217,6 +217,65 @@ def test_fetch_related_queries_parses_top_and_rising():
     assert "trends_rising" in sources
 
 
+def test_fetch_related_queries_status_out_reports_unavailable():
+    from app.niche.signals.trends import fetch_related_queries
+
+    status: dict[str, object] = {}
+    with patch("app.niche.signals.trends._import_pytrends") as mock_import:
+        mock_import.side_effect = ImportError("pytrends not installed")
+        fetch_related_queries(["harnais chien"], status_out=status)
+    assert status["status"] == "unavailable"
+
+
+def test_fetch_related_queries_status_out_reports_error_with_reason():
+    from app.niche.signals.trends import fetch_related_queries
+
+    mock_trend_req_class = MagicMock()
+    mock_trend_req_class.return_value.build_payload.return_value = None
+    mock_trend_req_class.return_value.related_queries.side_effect = RuntimeError("429 too many requests")
+
+    status: dict[str, object] = {}
+    with patch("app.niche.signals.trends._import_pytrends", return_value=mock_trend_req_class):
+        fetch_related_queries(["harnais chien"], status_out=status)
+
+    assert status["status"] == "error"
+    assert "429" in str(status["detail"])
+
+
+def test_fetch_related_queries_status_out_reports_ok_and_count():
+    import pandas as pd
+
+    from app.niche.signals.trends import fetch_related_queries
+
+    top_df = pd.DataFrame({"query": ["harnais cuir chien"], "value": [80]})
+    mock_trend_req_class = MagicMock()
+    mock_instance = mock_trend_req_class.return_value
+    mock_instance.build_payload.return_value = None
+    mock_instance.related_queries.return_value = {"harnais chien": {"top": top_df, "rising": None}}
+
+    status: dict[str, object] = {}
+    with patch("app.niche.signals.trends._import_pytrends", return_value=mock_trend_req_class):
+        results = fetch_related_queries(["harnais chien"], status_out=status)
+
+    assert status["status"] == "ok"
+    assert status["count"] == len(results) == 1
+
+
+def test_fetch_related_queries_status_out_reports_empty():
+    from app.niche.signals.trends import fetch_related_queries
+
+    mock_trend_req_class = MagicMock()
+    mock_instance = mock_trend_req_class.return_value
+    mock_instance.build_payload.return_value = None
+    mock_instance.related_queries.return_value = {"harnais chien": {"top": None, "rising": None}}
+
+    status: dict[str, object] = {}
+    with patch("app.niche.signals.trends._import_pytrends", return_value=mock_trend_req_class):
+        fetch_related_queries(["harnais chien"], status_out=status)
+
+    assert status["status"] == "empty"
+
+
 def test_fetch_related_queries_empty_keywords():
     from app.niche.signals.trends import fetch_related_queries
 

@@ -534,16 +534,31 @@ def _coerce_claims(value: Any) -> list[dict[str, Any]]:
     return claims
 
 
-def _fetch_trends_once(top_titles: list[str]) -> list[Any]:
-    """Call Google Trends once with up to 5 product title seeds. Returns [] on any error."""
+def _fetch_trends_once(
+    top_titles: list[str], status_out: dict[str, Any] | None = None
+) -> list[Any]:
+    """Call Google Trends once with up to 5 product title seeds. Returns [] on any error.
+
+    ``status_out`` (optional) is populated with the outcome (``ok`` | ``empty`` |
+    ``error`` | ``unavailable`` + detail + count) so the analysis can record *why*
+    Trends returned no data, distinguishing a real empty result from a 429 block.
+    """
     if not top_titles:
+        if status_out is not None:
+            status_out.update({"status": "empty", "detail": "no product titles", "count": 0})
         return []
     try:
         from app.niche.signals.trends import fetch_related_queries  # noqa: PLC0415
 
-        return fetch_related_queries(top_titles[:5], geo="FR", timeframe="today 12-m")
+        return fetch_related_queries(
+            top_titles[:5], geo="FR", timeframe="today 12-m", status_out=status_out
+        )
     except Exception as exc:
-        logger.debug("Google Trends unavailable: %s", exc)
+        logger.warning("Google Trends unavailable: %s", exc)
+        if status_out is not None:
+            status_out.update(
+                {"status": "error", "detail": f"{type(exc).__name__}: {exc}", "count": 0}
+            )
         return []
 
 
@@ -5422,7 +5437,8 @@ def run_market_analysis(
         for opp in opportunities[:5]
         if opp.get("product_id") in product_by_id
     ]
-    trend_signals = _fetch_trends_once([t for t in top_titles if t])
+    trends_status: dict[str, Any] = {}
+    trend_signals = _fetch_trends_once([t for t in top_titles if t], status_out=trends_status)
     if trend_signals:
         sources_used.append("trends")
 
@@ -5441,6 +5457,7 @@ def run_market_analysis(
         "free": True,
         "dataforseo": dataforseo_provider.available,
         "google_ads": google_ads_provider.available,
+        "trends": trends_status or {"status": "empty", "detail": "no seeds", "count": 0},
     }
     if dataforseo_provider.available:
         sources_used.append("dataforseo")

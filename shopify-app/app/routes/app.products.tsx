@@ -105,6 +105,7 @@ interface ProviderStatus {
   free?: boolean;
   dataforseo?: boolean;
   google_ads?: boolean;
+  trends?: { status?: string; detail?: string; count?: number };
 }
 
 interface BusinessProfileContextMeta {

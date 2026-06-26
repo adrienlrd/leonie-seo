@@ -10,6 +10,18 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-26
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Rendre diagnosticable dans l'export JSON *pourquoi* Google Trends (pytrends) n'a pas ramené de données — distinguer « vide » (pas de tendance) d'une « erreur/blocage 429 », sans avoir à lire les logs Render.
+- **Summary:** `fetch_related_queries` (`app/niche/signals/trends.py`) accepte un `status_out: dict | None` rempli avec `{status, detail, count}` où status ∈ `ok` | `empty` | `error` | `unavailable`. L'except est élargi à `Exception` (justifié : pytrends est un scraper non officiel, tout échec 429/réseau/parse doit fail-open ET être tracé). `_fetch_trends_once` (`app/market_analysis/engine.py`) propage `status_out` et le remplit aussi sur exception. Le statut est injecté dans `provider_status["trends"]`, déjà inclus dans `summary.provider_status` de l'export « analyse complète (JSON) ». Type front `ProviderStatus.trends` ajouté (`app.products.tsx`).
+- **Files modified:** `app/niche/signals/trends.py`, `app/market_analysis/engine.py`, `shopify-app/app/routes/app.products.tsx`, `tests/test_niche/test_signals.py`.
+- **Decisions made:** Statut via `status_out` (dict muté) plutôt que changer le type de retour → zéro impact sur les autres appelants (niche aggregator). `except Exception` documenté plutôt que liste d'exceptions (pytrends peut lever `TooManyRequestsError`/`ResponseError` non couverts avant). Pas de retry/cache dans ce lot (proposés séparément).
+- **Validations run:** `pytest tests/test_niche tests/market_analysis` ✅ 378 passed (4 nouveaux tests status_out), `ruff check` ✅, `npm run typecheck` ✅, `npm run build` ✅. Sonde live locale : pytrends 5/5 OK (mais IP locale ≠ IP datacenter Render).
+- **Open issues:** Le statut renseigne le *pourquoi* mais le seul vrai test de fiabilité reste depuis l'IP Render (datacenter, plus exposée au 429). Améliorations non faites : cache 24h + 1 retry/backoff pour réduire les 429.
+- **Next recommended action:** Faire relancer une analyse sur Render au marchand, exporter le JSON, et lire `summary.provider_status.trends.status` pour conclure sur la fiabilité réelle.
+
+## Previous completed task
+
 - **Date:** 2026-06-25
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Score GEO qui bouge réellement à chaque validation + état « produit optimisé » + clarifier le lien réponse→description→Shopify. (Suite du diagnostic : le score ne bougeait pas car l'interpolation diluait le gain au prorata du nombre de champs, et les données antérieures n'avaient pas `geo_score_potential`.)

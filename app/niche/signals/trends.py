@@ -26,6 +26,7 @@ def fetch_related_queries(
     geo: str = "FR",
     timeframe: str = "today 12-m",
     lang: str = "fr-FR",
+    status_out: dict[str, object] | None = None,
 ) -> list[SignalKeyword]:
     """Fetch top and rising related queries from Google Trends.
 
@@ -34,26 +35,38 @@ def fetch_related_queries(
         geo: Country code for regional data.
         timeframe: Trends timeframe string.
         lang: Interface language.
+        status_out: Optional dict populated with the outcome so callers can tell
+            why no data was returned. Keys: ``status`` (``ok`` | ``empty`` |
+            ``error`` | ``unavailable``), ``detail``, ``count``.
 
     Returns:
         List of SignalKeyword from "top" and "rising" buckets.
         Returns [] on rate-limit or error (non-blocking).
     """
+
+    def _status(status: str, detail: str = "", count: int = 0) -> None:
+        if status_out is not None:
+            status_out.clear()
+            status_out.update({"status": status, "detail": detail, "count": count})
+
     if not keywords:
+        _status("empty", "no seed keywords")
         return []
 
     try:
         TrendReq = _import_pytrends()
     except ImportError as exc:
         logger.warning("Google Trends unavailable: %s", exc)
+        _status("unavailable", str(exc))
         return []
 
     try:
         pytrends = TrendReq(hl=lang, tz=60, timeout=(10, 25))
         pytrends.build_payload(keywords[:5], timeframe=timeframe, geo=geo)
         related = pytrends.related_queries()
-    except (RuntimeError, ValueError, KeyError, TypeError) as exc:
+    except Exception as exc:  # noqa: BLE001 — pytrends is an unofficial scraper: any failure (429 rate-limit, network, HTML parse) must fail-open and be recorded for diagnostics.
         logger.warning("Google Trends error: %s", exc)
+        _status("error", f"{type(exc).__name__}: {exc}")
         return []
 
     results: list[SignalKeyword] = []
@@ -100,4 +113,5 @@ def fetch_related_queries(
                         )
                     )
 
+    _status("ok" if results else "empty", count=len(results))
     return results
