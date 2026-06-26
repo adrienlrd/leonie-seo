@@ -2808,9 +2808,10 @@ def _build_enrichment_questions(
 ) -> list[dict[str, Any]]:
     """Create merchant questions that improve content quality.
 
-    Always returns the 2 editorial questions (benefit + selection guide) so every
-    product card offers a way to enrich the analysis.  Up to 2 additional fact-based
-    questions are prepended when specific facts are genuinely missing.
+    Returns one fact-based question per genuinely missing fact (so the merchant can
+    close every gap shown on the readiness card, not just two at a time), followed
+    by the 2 editorial questions (benefit + selection guide). Answered questions are
+    filtered out by the caller so the list stays in sync with what is still missing.
     """
     primary_query = str(keywords[0].get("query", "")).strip() if keywords else ""
     if not primary_query:
@@ -2863,14 +2864,14 @@ def _build_enrichment_questions(
     }
     questions: list[dict[str, Any]] = []
     for key in (
+        "origins",
+        "care",
+        "dimensions",
+        "size_recommendation",
+        "materials",
+        "certifications",
         "warranty",
         "compatibility",
-        "dimensions",
-        "care",
-        "materials",
-        "origins",
-        "certifications",
-        "size_recommendation",
     ):
         if key not in available_missing:
             continue
@@ -2888,8 +2889,6 @@ def _build_enrichment_questions(
                 "unlocks_surfaces": ["faq", "geo_answer"],
             }
         )
-        if len(questions) == 2:
-            break
     questions.extend(
         [
             {
@@ -2912,7 +2911,7 @@ def _build_enrichment_questions(
             },
         ]
     )
-    return questions[:4]
+    return questions
 
 
 def _forbidden_phrases_from_niche(niche_hypothesis: dict[str, Any] | None) -> list[str]:
@@ -5666,8 +5665,21 @@ def run_market_analysis(
         )
         _pid = str(state.get("product_id") or state["fields"].get("product_id") or "")
         _retired = frozenset((retired_questions_by_product or {}).get(_pid) or [])
-        if _retired:
-            merchant_questions = [q for q in merchant_questions if q.get("key") not in _retired]
+        # A question is answered once its fact is confirmed (merchant answer or
+        # extracted from the product) or saved in the merchant facts file. Drop it
+        # so it does not reappear — this makes both fact and editorial questions
+        # persistent across analyses instead of only the manually "Retired" ones.
+        _answered = {
+            str(fact.get("key"))
+            for fact in state["fields"].get("confirmed_facts", [])
+            if isinstance(fact, dict) and fact.get("key")
+        }
+        _answered |= set((merchant_facts_by_product or {}).get(_pid) or {})
+        merchant_questions = [
+            q
+            for q in merchant_questions
+            if q.get("key") not in _retired and q.get("key") not in _answered
+        ]
         state["pack"]["enrichment_questions"] = merchant_questions
         state["pack"]["merchant_questions"] = merchant_questions
         state["pack"]["pending_questions"] = merchant_questions

@@ -1097,6 +1097,32 @@ def test_enrichment_questions_reuse_primary_keyword_for_missing_warranty_and_art
     assert all(question["target_keyword"] == "fontaine chat silencieuse" for question in questions)
 
 
+def test_build_enrichment_questions_surfaces_all_missing_facts() -> None:
+    keywords = [
+        {
+            "query": "harnais chien",
+            "target_role": "primary",
+            "intent_type": "commercial",
+            "paa_questions": [],
+        }
+    ]
+    plan = engine._build_surface_plan(keywords, [])
+    missing = [
+        {"key": "origins", "label": "Manufacturing origin"},
+        {"key": "care", "label": "Care instructions"},
+        {"key": "dimensions", "label": "Dimensions"},
+        {"key": "size_recommendation", "label": "Size recommendation"},
+    ]
+
+    questions = engine._build_enrichment_questions(keywords, missing, plan)
+    keys = {q["key"] for q in questions}
+
+    # Every missing fact gets its own question (no 2-question cap), plus the two
+    # editorial questions.
+    assert {"origins", "care", "dimensions", "size_recommendation"} <= keys
+    assert {"use_cases", "selection_criteria"} <= keys
+
+
 def test_merchant_answers_unlock_keyword_grounded_optional_content() -> None:
     keywords = [
         {
