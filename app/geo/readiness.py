@@ -281,20 +281,31 @@ def score_product_readiness(
     *,
     niche_hypothesis: dict[str, Any] | None = None,
     crawl_findings: list[dict[str, Any]] | None = None,
+    extra_fact_keys: set[str] | None = None,
 ) -> dict[str, Any]:
     """Score one product for AI Search readiness.
 
     The score is an internal readiness indicator, not a ranking guarantee.
+    extra_fact_keys: merchant-confirmed fact keys not yet in the Shopify snapshot
+    (e.g. answered via the enrichment form). They are merged into fact_keys so the
+    score reflects what the merchant has confirmed, not only what is already in Shopify.
     """
+    from app.geo.facts import _SENSITIVE_FACTS  # noqa: PLC0415
+
     facts = analyze_product_facts(product)
     fact_keys = {fact["key"] for fact in facts["confirmed_facts"]}
+    if extra_fact_keys:
+        fact_keys |= extra_fact_keys
+        _sensitive_set = frozenset(k for k, _ in _SENSITIVE_FACTS)
+        facts_score = round(len(_sensitive_set & fact_keys) / len(_sensitive_set), 2)
+    else:
+        facts_score = facts["completeness_score"]
 
     seo_score, seo_recs = _seo_score(product)
     schema_score, schema_recs = _schema_score(product, fact_keys)
     answer_score, answer_recs = _answer_score(product, fact_keys)
     trust_score, trust_recs = _trust_score(fact_keys)
     commerce_score, commerce_recs = _commerce_score(product)
-    facts_score = facts["completeness_score"]
 
     niche_trust_delta, niche_alerts = _niche_trust_adjustment(product, niche_hypothesis)
     niche_answer_delta = _niche_answerability_adjustment(fact_keys, _description(product), niche_hypothesis)

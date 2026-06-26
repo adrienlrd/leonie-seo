@@ -2861,6 +2861,22 @@ def _build_enrichment_questions(
             f"Comment choisir la bonne taille de « {primary_query} » pour son animal ?",
             "Ex. mesure à prendre (tour de poitrine, longueur dos) et correspondance taille confirmée.",
         ),
+        "targets": (
+            f"À qui s'adresse principalement « {primary_query} » (espèce, race, profil) ?",
+            "Ex. chiens adultes de petite race frileux, chats d'intérieur séniors, lapins nains.",
+        ),
+        "properties": (
+            f"Quelles sont les 2-3 propriétés distinctives de « {primary_query} » face aux alternatives ?",
+            "Ex. fermeture à clipper réglable, lavable en machine à 30°C, bandes réfléchissantes la nuit.",
+        ),
+        "delivery": (
+            f"Quelle information de livraison souhaitez-vous mentionner pour « {primary_query} » ?",
+            "Ex. expédié sous 24h, livraison offerte dès 49€.",
+        ),
+        "returns": (
+            f"Quelle politique de retour ou satisfaction s'applique à « {primary_query} » ?",
+            "Ex. retours acceptés 30 jours, remboursement garanti si insatisfait.",
+        ),
     }
     questions: list[dict[str, Any]] = []
     for key in (
@@ -2885,6 +2901,26 @@ def _build_enrichment_questions(
                 "why_it_matters": (
                     f"Permet une réponse factuelle liée à « {paa_question or primary_query} »."
                 ),
+                "target_keyword": primary_query,
+                "unlocks_surfaces": ["faq", "geo_answer"],
+            }
+        )
+    # Score-boosting questions not gated by Shopify snapshot: always proposed until answered.
+    # targets + properties → Répondabilité IA (20%). delivery + returns → Confiance (15%).
+    for key, why in (
+        ("targets", "Améliore la Répondabilité IA — pilier à 20% dans le Score GEO."),
+        ("properties", "Améliore la Répondabilité IA — pilier à 20% dans le Score GEO."),
+        ("delivery", "Améliore le pilier Confiance — à 15% dans le Score GEO."),
+        ("returns", "Améliore le pilier Confiance — à 15% dans le Score GEO."),
+    ):
+        question, placeholder = templates[key]
+        questions.append(
+            {
+                "key": key,
+                "field_key": key,
+                "question": question,
+                "placeholder": placeholder,
+                "why_it_matters": why,
                 "target_keyword": primary_query,
                 "unlocks_surfaces": ["faq", "geo_answer"],
             }
@@ -4640,7 +4676,14 @@ def _build_product_result(
     # validated, so the score rises with each applied optimization.
     from app.geo.readiness import score_product_readiness  # noqa: PLC0415
 
-    _readiness = score_product_readiness(product)
+    # Merchant-confirmed fact keys (from enrichment form answers) are injected so
+    # the score reflects what the merchant has validated, not only the Shopify snapshot.
+    _merchant_fact_keys: set[str] = {
+        str(f.get("key"))
+        for f in confirmed_facts_list
+        if isinstance(f, dict) and f.get("key") and f.get("source") != "shopify_snapshot"
+    }
+    _readiness = score_product_readiness(product, extra_fact_keys=_merchant_fact_keys or None)
     geo_score = _readiness["readiness_score"]
     geo_score_components = _readiness.get("components", {})
     improved_product = {
@@ -4653,7 +4696,10 @@ def _build_product_result(
         "body_html": proposed_product_description or body_html,
     }
     geo_score_potential = max(
-        geo_score, score_product_readiness(improved_product)["readiness_score"]
+        geo_score,
+        score_product_readiness(improved_product, extra_fact_keys=_merchant_fact_keys or None)[
+            "readiness_score"
+        ],
     )
 
     # Per-field readiness contribution: how much each applied field alone lifts
@@ -4662,7 +4708,13 @@ def _build_product_result(
     # real value instead of a diluted count fraction. image_alts is omitted (it
     # does not feed the readiness scorer).
     def _field_delta(merged: dict[str, Any]) -> int:
-        return max(0, score_product_readiness(merged)["readiness_score"] - geo_score)
+        return max(
+            0,
+            score_product_readiness(merged, extra_fact_keys=_merchant_fact_keys or None)[
+                "readiness_score"
+            ]
+            - geo_score,
+        )
 
     geo_score_field_deltas = {
         "meta_title": _field_delta(
