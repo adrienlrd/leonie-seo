@@ -6,6 +6,7 @@ Stateless endpoints driven by the frontend editor, so the merchant can mix Auto
 
 from __future__ import annotations
 
+import html
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,6 +23,7 @@ from app.blog.internal_links import (
     suggest_cluster_links,
     suggest_links_for_article,
 )
+from app.blog.markdown import render_inline_markdown, render_markdown
 from app.blog.quality import check_keyword_placement
 from app.blog.schema import (
     build_article_jsonld,
@@ -564,7 +566,7 @@ def _assemble_body_html(
 ) -> str:
     parts: list[str] = []
     if intro.strip():
-        parts.append(f"<p>{intro.strip()}</p>")
+        parts.append(f"<p>{render_inline_markdown(intro.strip())}</p>")
     step_no = 0
     for idx, section in enumerate(sections):
         h2 = (section.h2 or "").strip()
@@ -579,12 +581,14 @@ def _assemble_body_html(
         else:
             parts.append(f'<h2 id="section-{idx}">{h2}</h2>')
         if direct:
-            parts.append(f"<p><strong>{direct}</strong></p>")
+            parts.append(f"<p><strong>{render_inline_markdown(direct)}</strong></p>")
         img = _section_image_html(section)
         if img:
             parts.append(img)
         if body:
-            parts.append(f"<div>{body}</div>")
+            # LLM bodies arrive as Markdown (bold, bullet lists) → render to HTML so
+            # readers never see literal **Confort** or "- " bullets.
+            parts.append(render_markdown(body))
     link_dicts = [
         link.model_dump() if hasattr(link, "model_dump") else dict(link)
         for link in (internal_links or [])
@@ -602,14 +606,16 @@ def _cta_html(label: str, url: str, description: str) -> str:
     if not label or not url:
         return ""
     desc = (description or "").strip()
-    desc_html = f'<p style="margin:0 0 12px;color:#374151;">{desc}</p>' if desc else ""
+    desc_html = (
+        f'<p style="margin:0 0 12px;color:#374151;">{render_inline_markdown(desc)}</p>' if desc else ""
+    )
     return (
         '<div class="leonie-cta" style="margin:32px 0;padding:24px;border-radius:12px;'
         'background:#F4F6F8;border:1px solid #E1E3E5;text-align:center;">'
         + desc_html
-        + f'<a href="{url}" style="display:inline-block;padding:12px 28px;border-radius:8px;'
+        + f'<a href="{html.escape(url, quote=True)}" style="display:inline-block;padding:12px 28px;border-radius:8px;'
         'background:#202223;color:#fff;text-decoration:none;font-weight:600;">'
-        + label
+        + render_inline_markdown(label)
         + "</a></div>"
     )
 
@@ -641,7 +647,7 @@ def _toc_html(sections: list[BlogSection]) -> str:
 
 def _faq_html(faq: list[dict[str, Any]]) -> str:
     rows = [
-        f'<div class="faq-item"><h3>{q}</h3><p>{a}</p></div>'
+        f'<div class="faq-item"><h3>{render_inline_markdown(q)}</h3><p>{render_inline_markdown(a)}</p></div>'
         for item in (faq or [])
         if (q := str(item.get("q") or "").strip()) and (a := str(item.get("a") or "").strip())
     ]
@@ -654,11 +660,11 @@ def _author_bio_html(author_name: str, author_bio: str) -> str:
     bio = (author_bio or "").strip()
     if not bio:
         return ""
-    name_html = f"<strong>{author_name.strip()}</strong><br/>" if author_name.strip() else ""
+    name_html = f"<strong>{render_inline_markdown(author_name.strip())}</strong><br/>" if author_name.strip() else ""
     return (
         '<aside class="author-bio"><h2>À propos de l\'auteur</h2><p>'
         + name_html
-        + bio
+        + render_inline_markdown(bio)
         + "</p></aside>"
     )
 

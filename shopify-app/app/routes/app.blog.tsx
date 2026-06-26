@@ -541,6 +541,42 @@ function BlogGeoScoreBreakdown({
   );
 }
 
+/** Minimal Markdown → HTML for the preview, mirroring app/blog/markdown.py.
+ *  LLM bodies contain **bold**, bullet lists, links — render them instead of
+ *  showing literal asterisks. Input is HTML-escaped first, so it is safe to inject. */
+function escapeHtml(s: string): string {
+  return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function renderInlineMd(text: string): string {
+  let s = escapeHtml(text);
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]*)\)/g, '<a href="$2">$1</a>');
+  s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
+  s = s.replace(/(^|[^A-Za-z0-9_])_([^_\n]+?)_(?![A-Za-z0-9_])/g, "$1<em>$2</em>");
+  return s;
+}
+function renderMd(text: string): string {
+  if (!text || !text.trim()) return "";
+  const blocks: string[] = [];
+  let para: string[] = [];
+  let items: string[] = [];
+  let listTag = "";
+  const flushPara = () => { if (para.length) { blocks.push("<p>" + para.join(" ") + "</p>"); para = []; } };
+  const flushList = () => { if (items.length) { blocks.push(`<${listTag}>` + items.map((i) => `<li>${i}</li>`).join("") + `</${listTag}>`); items = []; listTag = ""; } };
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\s+$/, "");
+    if (!line.trim()) { flushPara(); flushList(); continue; }
+    const heading = line.match(/^\s*(#{2,4})\s+(.*)$/);
+    if (heading) { flushPara(); flushList(); const lvl = Math.min(heading[1].length + 1, 4); blocks.push(`<h${lvl}>${renderInlineMd(heading[2])}</h${lvl}>`); continue; }
+    const bullet = line.match(/^\s*[-*•]\s+(.*)$/);
+    const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (bullet || numbered) { flushPara(); const tag = bullet ? "ul" : "ol"; if (listTag && listTag !== tag) flushList(); listTag = tag; items.push(renderInlineMd((bullet || numbered)![1])); continue; }
+    flushList(); para.push(renderInlineMd(line));
+  }
+  flushPara(); flushList();
+  return blocks.join("\n");
+}
+
 /** Live word count over intro + section answers/bodies (mirrors the backend scorer). */
 function countDraftWords(d: Draft): number {
   const parts = [d.intro || ""];
@@ -1574,9 +1610,10 @@ export default function BlogIndexPage() {
                       </p>
                       {/* 3. Description (intro) */}
                       {draft.intro && (
-                        <p style={{ color: "#374151", fontSize: 17, marginBottom: 24 }}>
-                          {draft.intro}
-                        </p>
+                        <p
+                          style={{ color: "#374151", fontSize: 17, marginBottom: 24 }}
+                          dangerouslySetInnerHTML={{ __html: renderInlineMd(draft.intro) }}
+                        />
                       )}
                       {/* 4. Table of contents — below title + description, above text/image */}
                       {draft.show_toc && draft.sections.length > 0 && (
@@ -1621,9 +1658,10 @@ export default function BlogIndexPage() {
                             {draft.numbered_steps ? `${idx + 1}. ${section.h2}` : section.h2}
                           </h2>
                           {section.direct_answer && (
-                            <p style={{ fontWeight: 600, marginBottom: 12 }}>
-                              {section.direct_answer}
-                            </p>
+                            <p
+                              style={{ fontWeight: 600, marginBottom: 12 }}
+                              dangerouslySetInnerHTML={{ __html: renderInlineMd(section.direct_answer) }}
+                            />
                           )}
                           {section.image_url && (
                             <img
@@ -1633,7 +1671,7 @@ export default function BlogIndexPage() {
                             />
                           )}
                           {section.body && (
-                            <div style={{ whiteSpace: "pre-wrap" }}>{section.body}</div>
+                            <div dangerouslySetInnerHTML={{ __html: renderMd(section.body) }} />
                           )}
                         </section>
                       ))}
@@ -1658,8 +1696,8 @@ export default function BlogIndexPage() {
                           </h2>
                           {(draft.faq ?? []).filter((f) => f.q && f.a).map((item, idx) => (
                             <div key={`prev-faq-${idx}`} style={{ marginBottom: 16 }}>
-                              <h3 style={{ fontSize: 17, marginBottom: 4 }}>{item.q}</h3>
-                              <p style={{ color: "#374151" }}>{item.a}</p>
+                              <h3 style={{ fontSize: 17, marginBottom: 4 }} dangerouslySetInnerHTML={{ __html: renderInlineMd(item.q) }} />
+                              <p style={{ color: "#374151" }} dangerouslySetInnerHTML={{ __html: renderInlineMd(item.a) }} />
                             </div>
                           ))}
                         </section>
