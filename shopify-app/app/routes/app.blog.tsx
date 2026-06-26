@@ -1179,6 +1179,13 @@ export default function BlogIndexPage() {
                       <h1 style={{ marginBottom: 16, fontSize: 28 }}>
                         {draft.blog_title || (fr ? "(sans titre)" : "(untitled)")}
                       </h1>
+                      {draft.image_url && (
+                        <img
+                          src={draft.image_url}
+                          alt={draft.image_alt || draft.blog_title || ""}
+                          style={{ width: "100%", maxHeight: 400, objectFit: "cover", borderRadius: 8, marginBottom: 24 }}
+                        />
+                      )}
                       {draft.intro && (
                         <p style={{ color: "#374151", fontSize: 17, marginBottom: 24 }}>
                           {draft.intro}
