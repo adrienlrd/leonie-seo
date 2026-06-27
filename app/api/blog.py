@@ -310,6 +310,7 @@ def _draft_from_product(
         "sections": [],
         "image_url": cover_image_url,
         "image_alt": cover_image_alt,
+        "show_toc": True,
         "internal_links": select_blog_internal_links(raw_internal_links),
         "faq": faq,
         "confirmed_facts": pack.get("confirmed_facts") or [],
@@ -372,6 +373,7 @@ def create_blog_draft(
             "tags": [],
             "author_type": "Organization",
             "author_name": "",
+            "show_toc": True,
         }
     _apply_seo_score(draft)
     saved = save_draft(ctx.shop, draft)
@@ -677,17 +679,25 @@ def _toc_html(sections: list[BlogSection]) -> str:
     )
 
 
-def _cover_image_html(image_url: str, image_alt: str, blog_title: str) -> str:
-    """Cover image rendered inside the article body (the featured image alone is
-    not shown in the body by most themes — merchants expect it in the content)."""
+_COVER_IMAGE_STYLES: dict[str, str] = {
+    "hero": "width:100%;max-height:420px;object-fit:cover;border-radius:8px;margin:0 0 24px;display:block;",
+    "banner": "width:100%;height:220px;object-fit:cover;margin:0 0 24px;display:block;",
+    "centered": "display:block;margin:0 auto 24px;max-width:480px;width:100%;border-radius:8px;",
+    "float-left": "float:left;width:40%;max-width:280px;margin:0 20px 8px 0;border-radius:8px;",
+    "float-right": "float:right;width:40%;max-width:280px;margin:0 0 8px 20px;border-radius:8px;",
+}
+
+
+def _cover_image_html(image_url: str, image_alt: str, blog_title: str, image_style: str = "hero") -> str:
+    """Cover image rendered inside the article body, honoring the chosen layout
+    (hero / banner / centered / float). The featured image alone is not shown in
+    the body by most themes — merchants expect the visual in the content."""
     url = (image_url or "").strip()
     if not url:
         return ""
     alt = html.escape((image_alt or blog_title or "").strip(), quote=True)
-    return (
-        f'<img src="{html.escape(url, quote=True)}" alt="{alt}" '
-        'style="width:100%;max-height:420px;object-fit:cover;border-radius:8px;margin:0 0 24px;display:block;" />'
-    )
+    style = _COVER_IMAGE_STYLES.get(image_style, _COVER_IMAGE_STYLES["hero"])
+    return f'<img src="{html.escape(url, quote=True)}" alt="{alt}" style="{style}" />'
 
 
 def _faq_html(faq: list[dict[str, Any]]) -> str:
@@ -759,16 +769,25 @@ def publish_blog_draft(
     # the author bio (closest to where the reader finishes). Default: end.
     cta_mid = cta_block if draft.get("cta_position") == "mid" else ""
     cta_end = cta_block if draft.get("cta_position") != "mid" else ""
-    # Reading time + cover image + (optional) table of contents lead the article;
-    # FAQ and author bio close it. The cover image is injected into the body too —
-    # the Shopify featured image alone is not shown in the content by most themes.
+    # Order mirrors the in-app preview: reading time, table of contents, cover
+    # image (with the chosen layout), then the content. The cover image lives in
+    # the body — the Shopify featured image is intentionally not set, so it is not
+    # duplicated in the native article image box.
+    image_style = str(draft.get("image_style") or "hero")
+    cover_html = _cover_image_html(
+        draft.get("image_url", ""), draft.get("image_alt", ""), draft.get("blog_title", ""), image_style
+    )
+    # Float layouts need a clearfix so the FAQ/bio don't wrap around the image.
+    clearfix = '<div style="clear:both;"></div>' if image_style in ("float-left", "float-right") else ""
     html = (
         _reading_time_html(int(draft.get("word_count") or 0))
-        + "\n"
-        + _cover_image_html(draft.get("image_url", ""), draft.get("image_alt", ""), draft.get("blog_title", ""))
         + ("\n" + _toc_html(sections) if draft.get("show_toc") else "")
         + "\n"
+        + cover_html
+        + "\n"
         + content_html
+        + "\n"
+        + clearfix
         + "\n"
         + cta_mid
         + "\n"
@@ -817,8 +836,10 @@ def publish_blog_draft(
                 summary=meta_description or draft.get("summary", ""),
                 tags=draft.get("tags") or [],
                 author_name=draft.get("author_name", ""),
-                image_url=draft.get("image_url"),
-                image_alt=draft.get("image_alt"),
+                # Featured image intentionally omitted — the cover lives in the body
+                # only, so it is not duplicated in Shopify's native article image box.
+                image_url=None,
+                image_alt=None,
                 meta_description=meta_description,
                 published=body.published,
             )
@@ -831,8 +852,8 @@ def publish_blog_draft(
                 summary=meta_description or draft.get("summary", ""),
                 tags=draft.get("tags") or [],
                 author_name=draft.get("author_name", ""),
-                image_url=draft.get("image_url"),
-                image_alt=draft.get("image_alt"),
+                image_url=None,
+                image_alt=None,
                 meta_description=meta_description,
                 published=body.published,
             )

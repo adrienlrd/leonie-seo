@@ -40,7 +40,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { CheckIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { callBackendForShop } from "../lib/api.server";
 import { handleShopifyFilesIntent } from "../lib/shopifyFiles.server";
@@ -559,6 +559,69 @@ function countDraftWords(d: Draft): number {
 const READING_WORDS_PER_MIN = 200;
 const TARGET_WORDS = 1500;
 
+/** Live blog GEO score, mirroring app/blog/seo_score.py so the badge updates in
+ *  real time as the merchant edits (links, image, meta…) without waiting for a save. */
+function computeBlogGeoScore(d: Draft): { score: number; components: Record<string, GeoScoreComponent> } {
+  const words = countDraftWords(d);
+  const lengthScore = Math.min(words / TARGET_WORDS, 1);
+  const kw = (d.target_keyword || "").trim().toLowerCase();
+  const title = (d.blog_title || "").toLowerCase();
+  const intro = (d.intro || "").toLowerCase();
+  const h2text = (d.sections || []).map((s) => (s.h2 || "").toLowerCase()).join(" ");
+  const keywordScore = kw ? [title.includes(kw), intro.includes(kw), h2text.includes(kw)].filter(Boolean).length / 3 : 0;
+  const sections = (d.sections || []).filter((s) => (s.h2 || "").trim());
+  const answered = sections.filter((s) => (s.direct_answer || "").trim()).length;
+  const hasAnswers = sections.length ? answered >= Math.max(1, Math.floor(sections.length / 2)) : false;
+  const structureScore = [!!(d.intro || "").trim(), sections.length >= 3, hasAnswers].filter(Boolean).length / 3;
+  const meta = (d.meta_description || "").trim();
+  const metaScore = !meta ? 0 : meta.length >= 70 && meta.length <= 155 ? 1 : 0.5;
+  const faqLen = (d.faq || []).length;
+  const faqScore = faqLen >= 2 ? 1 : faqLen >= 1 ? 0.5 : 0;
+  const linksLen = (d.internal_links || []).filter(Boolean).length;
+  const linksScore = Math.min(linksLen / 2, 1);
+  const imageScore = (d.image_url || "").trim() ? 1 : 0;
+  const components: Record<string, GeoScoreComponent> = {
+    content_length: { score: Math.round(lengthScore * 100), weight: 0.2 },
+    keyword: { score: Math.round(keywordScore * 100), weight: 0.2 },
+    structure: { score: Math.round(structureScore * 100), weight: 0.15 },
+    meta_description: { score: Math.round(metaScore * 100), weight: 0.15 },
+    faq: { score: Math.round(faqScore * 100), weight: 0.1 },
+    internal_links: { score: Math.round(linksScore * 100), weight: 0.1 },
+    image: { score: Math.round(imageScore * 100), weight: 0.1 },
+  };
+  const weighted = Object.values(components).reduce((s, c) => s + c.score * c.weight, 0);
+  return { score: Math.round(weighted), components };
+}
+
+/** Editable fields persisted by saveDraft — single source of truth for both the
+ *  manual Save and the debounced auto-save (and dirty detection). */
+function buildSavePayload(d: Draft): Record<string, unknown> {
+  return {
+    blog_title: d.blog_title,
+    intro: d.intro,
+    summary: d.summary,
+    meta_description: d.meta_description ?? "",
+    sections: d.sections,
+    internal_links: d.internal_links ?? [],
+    faq: d.faq ?? [],
+    tags: d.tags ?? [],
+    author_type: d.author_type ?? "Organization",
+    author_name: d.author_name ?? "",
+    author_url: d.author_url ?? null,
+    author_bio: d.author_bio ?? "",
+    image_url: d.image_url ?? "",
+    image_alt: d.image_alt ?? "",
+    image_style: d.image_style ?? "hero",
+    show_toc: d.show_toc ?? true,
+    numbered_steps: d.numbered_steps ?? false,
+    cta_enabled: d.cta_enabled ?? false,
+    cta_label: d.cta_label ?? "",
+    cta_url: d.cta_url ?? "",
+    cta_description: d.cta_description ?? "",
+    cta_position: d.cta_position ?? "end",
+  };
+}
+
 export default function BlogIndexPage() {
   const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas, pillarIdeaKeys } = useLoaderData<typeof loader>();
   const pillarIdeaKeySet = useMemo(() => new Set(pillarIdeaKeys), [pillarIdeaKeys]);
@@ -592,7 +655,6 @@ export default function BlogIndexPage() {
   const [showArticlePicker, setShowArticlePicker] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
-  const [publishVisible, setPublishVisible] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
   const [showPublished, setShowPublished] = useState(true);
   const [showIdeas, setShowIdeas] = useState(true);
@@ -600,7 +662,43 @@ export default function BlogIndexPage() {
 
   const wordCount = useMemo(() => (draft ? countDraftWords(draft) : 0), [draft]);
   const readingMinutes = Math.max(1, Math.round(wordCount / READING_WORDS_PER_MIN));
-  const geoScore = draft?.geo_score ?? null;
+  // GEO score computed live from the current edits (not the last saved value).
+  const liveGeo = useMemo(() => (draft ? computeBlogGeoScore(draft) : null), [draft]);
+  const geoScore = liveGeo?.score ?? null;
+
+  // ── Debounced auto-save ─────────────────────────────────────────────────────
+  const autoSaveFetcher = useFetcher<typeof action>();
+  const lastSavedRef = useRef<string>("");
+  const pendingPublishRef = useRef(false);
+  useEffect(() => {
+    // Reset the saved baseline whenever a different draft loads.
+    lastSavedRef.current = selected ? JSON.stringify(buildSavePayload(selected)) : "";
+  }, [selected?.id]);
+
+  const persistDraft = useCallback((d: Draft) => {
+    autoSaveFetcher.submit(
+      { intent: "saveDraft", id: d.id, payload: JSON.stringify(buildSavePayload(d)) },
+      { method: "post" },
+    );
+    lastSavedRef.current = JSON.stringify(buildSavePayload(d));
+  }, [autoSaveFetcher]);
+
+  useEffect(() => {
+    if (!draft?.id) return;
+    const snapshot = JSON.stringify(buildSavePayload(draft));
+    if (snapshot === lastSavedRef.current) return;
+    const timer = setTimeout(() => persistDraft(draft), 900);
+    return () => clearTimeout(timer);
+  }, [draft, persistDraft]);
+
+  // Chain a forced save → publish so publishing never loses unsaved edits.
+  useEffect(() => {
+    if (autoSaveFetcher.state === "idle" && pendingPublishRef.current && autoSaveFetcher.data) {
+      pendingPublishRef.current = false;
+      doPublish();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSaveFetcher.state, autoSaveFetcher.data]);
 
   useEffect(() => {
     if (blogsFetcher.data?.blogs && blogsFetcher.data.blogs.length && !selectedBlog) {
@@ -611,11 +709,11 @@ export default function BlogIndexPage() {
   useEffect(() => {
     const d = fetcher.data;
     if (!d) return;
-    if ((d.type === "saveDraft" || d.type === "regenerateSection" || d.type === "publishDraft") && d.ok && d.draft) {
+    if ((d.type === "regenerateSection" || d.type === "publishDraft") && d.ok && d.draft) {
+      // Sync the saved baseline so auto-save doesn't immediately re-fire.
+      lastSavedRef.current = JSON.stringify(buildSavePayload(d.draft as Draft));
       setDraft(d.draft as Draft);
       if (d.type === "publishDraft") setPublishOpen(false);
-      // After a save, switch to preview so the merchant sees the final article.
-      if (d.type === "saveDraft") setTabIndex(1);
     }
   }, [fetcher.data]);
 
@@ -663,41 +761,6 @@ export default function BlogIndexPage() {
     setDraft((prev) => prev ? { ...prev, faq: [...(prev.faq ?? []), { q: "", a: "" }] } : prev);
   const removeFaqItem = (idx: number) =>
     setDraft((prev) => prev ? { ...prev, faq: (prev.faq ?? []).filter((_, i) => i !== idx) } : prev);
-
-  const onSave = () => {
-    if (!draft) return;
-    submit(
-      {
-        intent: "saveDraft",
-        id: draft.id,
-        payload: JSON.stringify({
-          blog_title: draft.blog_title,
-          intro: draft.intro,
-          summary: draft.summary,
-          meta_description: draft.meta_description ?? "",
-          sections: draft.sections,
-          internal_links: draft.internal_links ?? [],
-          faq: draft.faq ?? [],
-          tags: draft.tags ?? [],
-          author_type: draft.author_type ?? "Organization",
-          author_name: draft.author_name ?? "",
-          author_url: draft.author_url ?? null,
-          author_bio: draft.author_bio ?? "",
-          image_url: draft.image_url ?? "",
-          image_alt: draft.image_alt ?? "",
-          image_style: draft.image_style ?? "hero",
-          show_toc: draft.show_toc ?? false,
-          numbered_steps: draft.numbered_steps ?? false,
-          cta_enabled: draft.cta_enabled ?? false,
-          cta_label: draft.cta_label ?? "",
-          cta_url: draft.cta_url ?? "",
-          cta_description: draft.cta_description ?? "",
-          cta_position: draft.cta_position ?? "end",
-        }),
-      },
-      { method: "post" },
-    );
-  };
 
   const onRegenerate = (h2: string) => {
     if (!draft || !productCtx) return;
@@ -781,16 +844,30 @@ export default function BlogIndexPage() {
     blogsFetcher.submit({ intent: "listBlogs" }, { method: "post" });
   };
 
-  const onPublish = () => {
+  function doPublish() {
     if (!draft) return;
     fetcher.submit(
       {
         intent: "publishDraft",
         id: draft.id,
-        payload: JSON.stringify({ blog_id: selectedBlog, publisher_name: shop, published: publishVisible }),
+        // Always publish live (visible) — no draft/hidden state exposed to the merchant.
+        payload: JSON.stringify({ blog_id: selectedBlog, publisher_name: shop, published: true }),
       },
       { method: "post" },
     );
+  }
+
+  const onPublish = () => {
+    if (!draft) return;
+    // If there are unsaved edits, force a save first then publish (chained via the
+    // auto-save effect) so the published article always reflects the latest state.
+    const snapshot = JSON.stringify(buildSavePayload(draft));
+    if (snapshot !== lastSavedRef.current) {
+      pendingPublishRef.current = true;
+      persistDraft(draft);
+    } else {
+      doPublish();
+    }
   };
 
   const onDelete = () => {
@@ -1055,18 +1132,20 @@ export default function BlogIndexPage() {
                           }
                         >
                           <Box padding="300" maxWidth="340px">
-                            <BlogGeoScoreBreakdown components={draft.geo_score_components} locale={locale} />
+                            <BlogGeoScoreBreakdown components={liveGeo?.components} locale={locale} />
                           </Box>
                         </Popover>
                         <Badge tone={scoreTone(geoScore)}>{`${fr ? "Score GEO" : "GEO score"} ${geoScore}/100`}</Badge>
                       </InlineStack>
                     )}
-                    <Button onClick={onSave} loading={isBusy && fetcher.formData?.get("intent") === "saveDraft"}>
-                      {fr ? "Sauvegarder" : "Save"}
-                    </Button>
+                    <Text as="span" variant="bodySm" tone="subdued">
+                      {autoSaveFetcher.state !== "idle"
+                        ? (fr ? "Enregistrement…" : "Saving…")
+                        : (fr ? "Enregistré automatiquement" : "Auto-saved")}
+                    </Text>
                     <Button variant="primary" onClick={onOpenPublish}
                       disabled={!draft.sections.length || !draft.sections.some((s) => s.direct_answer)}>
-                      {fr ? "Publier en brouillon" : "Publish as draft"}
+                      {fr ? "Publier" : "Publish"}
                     </Button>
                     <Button tone="critical" variant="plain" onClick={onDelete}>
                       {fr ? "Supprimer" : "Delete"}
@@ -1076,9 +1155,9 @@ export default function BlogIndexPage() {
 
                 {draft.status === "published_to_shopify" && (
                   <Banner tone="success">
-                    <p>{draft.shopify_visible
-                      ? (fr ? "Cet article est en ligne et visible sur ta boutique Shopify." : "This article is live and visible on your Shopify store.")
-                      : (fr ? "Cet article a été créé sur Shopify (en brouillon, masqué). Mets-le en ligne depuis Shopify Admin, ou republie-le en choisissant « En ligne directement »." : "This article was created on Shopify (draft, hidden). Publish it from Shopify Admin, or re-publish choosing \"Live now\".")}</p>
+                    <p>{fr
+                      ? "Cet article est en ligne et visible sur ta boutique Shopify. Tes modifications republiées éditent le même article."
+                      : "This article is live and visible on your Shopify store. Re-publishing edits the same article."}</p>
                   </Banner>
                 )}
 
@@ -1204,7 +1283,7 @@ export default function BlogIndexPage() {
                       helpText={fr
                         ? "Génère automatiquement une liste des sections de l'article."
                         : "Automatically generates a list of article sections."}
-                      checked={draft.show_toc ?? false}
+                      checked={draft.show_toc ?? true}
                       onChange={(v) => setDraft((p) => p ? { ...p, show_toc: v } : p)}
                     />
 
@@ -1715,9 +1794,7 @@ export default function BlogIndexPage() {
         onClose={() => setPublishOpen(false)}
         title={fr ? "Publier sur Shopify" : "Publish to Shopify"}
         primaryAction={{
-          content: publishVisible
-            ? (fr ? "Mettre en ligne" : "Publish live")
-            : (fr ? "Créer le brouillon" : "Create draft"),
+          content: fr ? "Publier" : "Publish",
           onAction: onPublish,
           loading: isBusy && fetcher.formData?.get("intent") === "publishDraft",
         }}
@@ -1769,28 +1846,6 @@ export default function BlogIndexPage() {
                 autoComplete="off"
               />
             )}
-            <Divider />
-            <ChoiceList
-              title={fr ? "Visibilité" : "Visibility"}
-              choices={[
-                {
-                  label: fr ? "Brouillon (masqué, à relire)" : "Draft (hidden, for review)",
-                  value: "draft",
-                  helpText: fr
-                    ? "Créé masqué sur Shopify. Tu le mets en ligne depuis Shopify Admin après vérification."
-                    : "Created hidden on Shopify. You publish it from Shopify Admin after review.",
-                },
-                {
-                  label: fr ? "En ligne directement (visible)" : "Live now (visible)",
-                  value: "live",
-                  helpText: fr
-                    ? "Publié immédiatement et visible sur ta boutique. Tu peux toujours le modifier ensuite."
-                    : "Published immediately and visible on your store. You can still edit it afterwards.",
-                },
-              ]}
-              selected={[publishVisible ? "live" : "draft"]}
-              onChange={(s) => setPublishVisible(s[0] === "live")}
-            />
           </BlockStack>
         </Modal.Section>
       </Modal>

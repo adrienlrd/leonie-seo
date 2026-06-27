@@ -170,6 +170,16 @@ def test_cover_image_html_renders_and_empty() -> None:
     assert 'alt="Un chien"' in html
 
 
+def test_cover_image_html_applies_style() -> None:
+    banner = _cover_image_html("https://cdn/x.jpg", "", "T", "banner")
+    assert "height:220px" in banner
+    float_left = _cover_image_html("https://cdn/x.jpg", "", "T", "float-left")
+    assert "float:left" in float_left
+    # Unknown style falls back to hero.
+    hero = _cover_image_html("https://cdn/x.jpg", "", "T", "weird")
+    assert "max-height:420px" in hero
+
+
 def test_update_article_uses_articleupdate_mutation() -> None:
     from app.blog.shopify_articles import BlogPublisher
 
