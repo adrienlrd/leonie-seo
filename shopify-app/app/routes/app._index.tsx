@@ -11,10 +11,13 @@ import {
   Card,
   Divider,
   Icon,
+  FormLayout,
   InlineGrid,
   InlineStack,
+  Modal,
   Page,
   ProgressBar,
+  Select,
   Spinner,
   Text,
   TextField,
@@ -23,6 +26,7 @@ import {
 import {
   AlertCircleIcon,
   AlertTriangleIcon,
+  EditIcon,
   AutomationIcon,
   BookOpenIcon,
   CalendarIcon,
@@ -63,8 +67,12 @@ import { ProductCard } from "../components/ProductCard";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
 import {
+  linesFromText,
   qualityWarningText,
   SectionTitle,
+  textFromLines,
+  type BusinessPersona,
+  type ContentStyle,
   type ProductResult,
   type MarketJobState,
   type BusinessProfile,
@@ -336,6 +344,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent) {
     const shared = await handleProductCardIntent(intent, formData, session);
     if (shared) return shared;
+  }
+
+  // Save merchant edits to the business profile. The profile feeds the LLM prompts
+  // (brand voice, personas, content style, seasonality), so edits change future
+  // analyses — that's the whole point of letting the merchant correct it here.
+  if (intent === "saveBusinessProfile") {
+    try {
+      const profile = JSON.parse(String(formData.get("profile") ?? "{}"));
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/business-profile`,
+        { accessToken: session.accessToken, method: "POST", body: JSON.stringify(profile) },
+      );
+      return json({ type: "saveBusinessProfile", ok: resp.ok, error: resp.ok ? null : `HTTP ${resp.status}` });
+    } catch (err) {
+      return json({ type: "saveBusinessProfile", ok: false, error: String(err) });
+    }
   }
 
   // Manual refresh — fire seo_audit + gsc_import (pages only) and return the audit job ID.
@@ -1341,10 +1366,53 @@ function CompetitorsCard({
   );
 }
 
+type ProfileSection = null | "niche" | "voice" | "personas" | "style" | "seasonal";
+
 function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale, afterRow1 }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale; afterRow1?: React.ReactNode }) {
+  const fr = locale === "fr";
   const intensityTone = (i: string): "success" | "warning" | "info" =>
     i === "high" ? "success" : i === "medium" ? "warning" : "info";
   const NicheIcon = getNicheIcon(profile);
+
+  const saveFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
+  const [editSection, setEditSection] = useState<ProfileSection>(null);
+  const [draft, setDraft] = useState<BusinessProfile>(profile);
+  // Edits feed the LLM prompts (brand voice, personas, content style, seasonality),
+  // so saving here changes future analyses.
+  useEffect(() => { setDraft(profile); }, [profile]);
+  useEffect(() => {
+    if (saveFetcher.state === "idle" && saveFetcher.data?.type === "saveBusinessProfile" && saveFetcher.data.ok) {
+      setEditSection(null);
+    }
+  }, [saveFetcher.state, saveFetcher.data]);
+
+  const cs: ContentStyle = draft.content_style ?? { tone: "", typical_article_length: "", h2_structure: [], vocabulary_to_use: [], vocabulary_to_avoid: [], hook_patterns: [] };
+  const setField = (patch: Partial<BusinessProfile>) => setDraft((d) => ({ ...d, ...patch }));
+  const setCS = (patch: Partial<ContentStyle>) => setDraft((d) => ({ ...d, content_style: { ...cs, ...patch } }));
+  const personas = draft.target_personas ?? [];
+  const setPersona = (i: number, patch: Partial<BusinessPersona>) =>
+    setField({ target_personas: personas.map((p, idx) => (idx === i ? { ...p, ...patch } : p)) });
+  const seasonal = draft.seasonal_patterns ?? [];
+  const setSeason = (i: number, patch: Partial<{ period: string; theme: string; intensity: string }>) =>
+    setField({ seasonal_patterns: seasonal.map((s, idx) => (idx === i ? { ...s, ...patch } : s)) });
+
+  const onSave = () => saveFetcher.submit(
+    { intent: "saveBusinessProfile", profile: JSON.stringify(draft) },
+    { method: "post" },
+  );
+  const saving = saveFetcher.state !== "idle";
+  const openEdit = (section: ProfileSection) => { setDraft(profile); setEditSection(section); };
+  const EditBtn = ({ section }: { section: ProfileSection }) => (
+    <Button variant="tertiary" icon={EditIcon} accessibilityLabel={fr ? "Modifier" : "Edit"} onClick={() => openEdit(section)} />
+  );
+
+  const sectionTitles: Record<NonNullable<ProfileSection>, string> = {
+    niche: fr ? "Niche & Marque" : "Niche & Brand",
+    voice: fr ? "Voix de marque" : "Brand voice",
+    personas: "Personas",
+    style: fr ? "Style de contenu" : "Content style",
+    seasonal: fr ? "Saisonnalité & Opportunités" : "Seasonality & Gaps",
+  };
 
   return (
     <BlockStack gap="400">
@@ -1352,14 +1420,15 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="200">
-            <SectionTitle source={NicheIcon}>{locale === "fr" ? "Niche & Marque" : "Niche & Brand"}</SectionTitle>
+            <InlineStack align="space-between" blockAlign="center">
+              <SectionTitle source={NicheIcon}>{sectionTitles.niche}</SectionTitle>
+              <EditBtn section="niche" />
+            </InlineStack>
             <Text as="p" variant="headingLg">{profile.brand_name}</Text>
             <Text as="p" tone="subdued">{profile.niche_summary}</Text>
             {(profile.key_themes ?? []).length > 0 && (
               <InlineStack gap="100" wrap>
-                {profile.key_themes.map((theme) => (
-                  <Badge key={theme} tone="info">{theme}</Badge>
-                ))}
+                {profile.key_themes.map((theme) => (<Badge key={theme} tone="info">{theme}</Badge>))}
               </InlineStack>
             )}
           </BlockStack>
@@ -1367,17 +1436,16 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
 
         <Card>
           <BlockStack gap="200">
-            <SectionTitle source={MegaphoneIcon}>{locale === "fr" ? "Voix de marque" : "Brand voice"}</SectionTitle>
+            <InlineStack align="space-between" blockAlign="center">
+              <SectionTitle source={MegaphoneIcon}>{sectionTitles.voice}</SectionTitle>
+              <EditBtn section="voice" />
+            </InlineStack>
             <Text as="p" variant="headingLg">{profile.content_style?.tone ?? "—"}</Text>
             <Text as="p" tone="subdued">{profile.brand_voice}</Text>
             {(profile.content_style?.vocabulary_to_use ?? []).length > 0 && (
               <InlineStack gap="100" wrap>
-                {profile.content_style.vocabulary_to_use.map((v) => (
-                  <Badge key={v} tone="success">{v}</Badge>
-                ))}
-                {(profile.content_style?.vocabulary_to_avoid ?? []).map((v) => (
-                  <Badge key={v} tone="critical">{v}</Badge>
-                ))}
+                {profile.content_style.vocabulary_to_use.map((v) => (<Badge key={v} tone="success">{v}</Badge>))}
+                {(profile.content_style?.vocabulary_to_avoid ?? []).map((v) => (<Badge key={v} tone="critical">{v}</Badge>))}
               </InlineStack>
             )}
           </BlockStack>
@@ -1390,7 +1458,10 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
           <BlockStack gap="300">
-            <SectionTitle source={PersonIcon}>{locale === "fr" ? "Personas" : "Personas"}</SectionTitle>
+            <InlineStack align="space-between" blockAlign="center">
+              <SectionTitle source={PersonIcon}>{sectionTitles.personas}</SectionTitle>
+              <EditBtn section="personas" />
+            </InlineStack>
             {(profile.target_personas ?? []).map((p) => (
               <BlockStack gap="100" key={p.name}>
                 <Text as="p" fontWeight="semibold">{p.name}</Text>
@@ -1403,22 +1474,21 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
 
         <Card>
           <BlockStack gap="200">
-            <SectionTitle source={ContentIcon}>{locale === "fr" ? "Style de contenu" : "Content style"}</SectionTitle>
+            <InlineStack align="space-between" blockAlign="center">
+              <SectionTitle source={ContentIcon}>{sectionTitles.style}</SectionTitle>
+              <EditBtn section="style" />
+            </InlineStack>
             <Text as="p" variant="bodySm" fontWeight="semibold">
               {profile.content_style?.typical_article_length ?? ""}
             </Text>
             {(profile.content_style?.h2_structure ?? []).length > 0 && (
               <BlockStack gap="050">
-                {profile.content_style.h2_structure.map((h) => (
-                  <Text as="p" tone="subdued" variant="bodySm" key={h}>• {h}</Text>
-                ))}
+                {profile.content_style.h2_structure.map((h) => (<Text as="p" tone="subdued" variant="bodySm" key={h}>• {h}</Text>))}
               </BlockStack>
             )}
             {(profile.content_style?.hook_patterns ?? []).length > 0 && (
               <BlockStack gap="050">
-                {profile.content_style.hook_patterns.map((h) => (
-                  <Text as="p" tone="subdued" variant="bodySm" key={h}>→ {h}</Text>
-                ))}
+                {profile.content_style.hook_patterns.map((h) => (<Text as="p" tone="subdued" variant="bodySm" key={h}>→ {h}</Text>))}
               </BlockStack>
             )}
           </BlockStack>
@@ -1437,7 +1507,10 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
 
         <Card>
           <BlockStack gap="300">
-            <SectionTitle source={CalendarIcon}>{locale === "fr" ? "Saisonnalité & Opportunités" : "Seasonality & Gaps"}</SectionTitle>
+            <InlineStack align="space-between" blockAlign="center">
+              <SectionTitle source={CalendarIcon}>{sectionTitles.seasonal}</SectionTitle>
+              <EditBtn section="seasonal" />
+            </InlineStack>
             {(profile.seasonal_patterns ?? []).map((s) => (
               <InlineStack key={s.period} align="space-between" gap="200">
                 <BlockStack gap="0">
@@ -1450,16 +1523,108 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
             {(profile.content_gaps ?? []).length > 0 && (
               <BlockStack gap="050">
                 <Text as="p" variant="bodySm" fontWeight="semibold">
-                  {locale === "fr" ? "Lacunes de contenu" : "Content gaps"}
+                  {fr ? "Lacunes de contenu" : "Content gaps"}
                 </Text>
-                {profile.content_gaps.map((g) => (
-                  <Text as="p" tone="subdued" variant="bodySm" key={g}>• {g}</Text>
-                ))}
+                {profile.content_gaps.map((g) => (<Text as="p" tone="subdued" variant="bodySm" key={g}>• {g}</Text>))}
               </BlockStack>
             )}
           </BlockStack>
         </Card>
       </InlineGrid>
+
+      {/* ── Edit modal (one per section) ───────────────────────────────────── */}
+      <Modal
+        open={editSection !== null}
+        onClose={() => setEditSection(null)}
+        title={editSection ? `${fr ? "Modifier" : "Edit"} — ${sectionTitles[editSection]}` : ""}
+        primaryAction={{ content: fr ? "Enregistrer" : "Save", onAction: onSave, loading: saving }}
+        secondaryActions={[{ content: fr ? "Annuler" : "Cancel", onAction: () => setEditSection(null) }]}
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            <Text as="p" variant="bodySm" tone="subdued">
+              {fr
+                ? "Tes modifications sont prises en compte dans les prochaines analyses (génération de contenu, fiches, articles)."
+                : "Your edits are applied to future analyses (content generation, products, articles)."}
+            </Text>
+            {editSection === "niche" && (
+              <FormLayout>
+                <TextField label={fr ? "Nom de marque" : "Brand name"} value={draft.brand_name ?? ""} onChange={(v) => setField({ brand_name: v })} autoComplete="off" />
+                <TextField label={fr ? "Résumé de la niche" : "Niche summary"} value={draft.niche_summary ?? ""} onChange={(v) => setField({ niche_summary: v })} multiline={3} autoComplete="off" />
+                <TextField label={fr ? "Thèmes clés (un par ligne)" : "Key themes (one per line)"} value={textFromLines(draft.key_themes)} onChange={(v) => setField({ key_themes: linesFromText(v) })} multiline={4} autoComplete="off" />
+              </FormLayout>
+            )}
+            {editSection === "voice" && (
+              <FormLayout>
+                <TextField label={fr ? "Ton éditorial" : "Editorial tone"} value={cs.tone ?? ""} onChange={(v) => setCS({ tone: v })} autoComplete="off" />
+                <TextField label={fr ? "Voix de marque" : "Brand voice"} value={draft.brand_voice ?? ""} onChange={(v) => setField({ brand_voice: v })} multiline={3} autoComplete="off" />
+                <TextField label={fr ? "Vocabulaire à utiliser (un par ligne)" : "Vocabulary to use (one per line)"} value={textFromLines(cs.vocabulary_to_use)} onChange={(v) => setCS({ vocabulary_to_use: linesFromText(v) })} multiline={3} autoComplete="off" />
+                <TextField label={fr ? "Vocabulaire à éviter (un par ligne)" : "Vocabulary to avoid (one per line)"} value={textFromLines(cs.vocabulary_to_avoid)} onChange={(v) => setCS({ vocabulary_to_avoid: linesFromText(v) })} multiline={3} autoComplete="off" />
+              </FormLayout>
+            )}
+            {editSection === "personas" && (
+              <BlockStack gap="300">
+                {personas.map((p, i) => (
+                  <Box key={i} padding="300" background="bg-surface-secondary" borderRadius="200">
+                    <BlockStack gap="200">
+                      <InlineStack align="space-between" blockAlign="center">
+                        <Text as="p" variant="bodySm" fontWeight="semibold">{`${fr ? "Persona" : "Persona"} ${i + 1}`}</Text>
+                        <Button variant="plain" tone="critical" onClick={() => setField({ target_personas: personas.filter((_, idx) => idx !== i) })}>
+                          {fr ? "Retirer" : "Remove"}
+                        </Button>
+                      </InlineStack>
+                      <TextField label={fr ? "Nom" : "Name"} value={p.name ?? ""} onChange={(v) => setPersona(i, { name: v })} autoComplete="off" />
+                      <TextField label={fr ? "Besoin principal" : "Main need"} value={p.main_need ?? ""} onChange={(v) => setPersona(i, { main_need: v })} autoComplete="off" />
+                      <TextField label={fr ? "Déclencheur d'achat" : "Buying trigger"} value={p.buying_trigger ?? ""} onChange={(v) => setPersona(i, { buying_trigger: v })} autoComplete="off" />
+                    </BlockStack>
+                  </Box>
+                ))}
+                <Button onClick={() => setField({ target_personas: [...personas, { name: "", description: "", main_need: "", buying_trigger: "" }] })}>
+                  {fr ? "Ajouter un persona" : "Add a persona"}
+                </Button>
+              </BlockStack>
+            )}
+            {editSection === "style" && (
+              <FormLayout>
+                <TextField label={fr ? "Longueur d'article typique" : "Typical article length"} value={cs.typical_article_length ?? ""} onChange={(v) => setCS({ typical_article_length: v })} autoComplete="off" />
+                <TextField label={fr ? "Structure H2 (un par ligne)" : "H2 structure (one per line)"} value={textFromLines(cs.h2_structure)} onChange={(v) => setCS({ h2_structure: linesFromText(v) })} multiline={4} autoComplete="off" />
+                <TextField label={fr ? "Accroches (une par ligne)" : "Hook patterns (one per line)"} value={textFromLines(cs.hook_patterns)} onChange={(v) => setCS({ hook_patterns: linesFromText(v) })} multiline={3} autoComplete="off" />
+              </FormLayout>
+            )}
+            {editSection === "seasonal" && (
+              <BlockStack gap="300">
+                {seasonal.map((s, i) => (
+                  <Box key={i} padding="300" background="bg-surface-secondary" borderRadius="200">
+                    <BlockStack gap="200">
+                      <InlineStack align="space-between" blockAlign="center">
+                        <Text as="p" variant="bodySm" fontWeight="semibold">{`${fr ? "Période" : "Period"} ${i + 1}`}</Text>
+                        <Button variant="plain" tone="critical" onClick={() => setField({ seasonal_patterns: seasonal.filter((_, idx) => idx !== i) })}>
+                          {fr ? "Retirer" : "Remove"}
+                        </Button>
+                      </InlineStack>
+                      <TextField label={fr ? "Période" : "Period"} value={s.period ?? ""} onChange={(v) => setSeason(i, { period: v })} autoComplete="off" />
+                      <TextField label={fr ? "Thème" : "Theme"} value={s.theme ?? ""} onChange={(v) => setSeason(i, { theme: v })} autoComplete="off" />
+                      <Select
+                        label={fr ? "Intensité" : "Intensity"}
+                        options={[{ label: "high", value: "high" }, { label: "medium", value: "medium" }, { label: "low", value: "low" }]}
+                        value={s.intensity ?? "medium"}
+                        onChange={(v) => setSeason(i, { intensity: v })}
+                      />
+                    </BlockStack>
+                  </Box>
+                ))}
+                <Button onClick={() => setField({ seasonal_patterns: [...seasonal, { period: "", theme: "", intensity: "medium" }] })}>
+                  {fr ? "Ajouter une période" : "Add a period"}
+                </Button>
+                <TextField label={fr ? "Lacunes de contenu (une par ligne)" : "Content gaps (one per line)"} value={textFromLines(draft.content_gaps)} onChange={(v) => setField({ content_gaps: linesFromText(v) })} multiline={4} autoComplete="off" />
+              </BlockStack>
+            )}
+            {saveFetcher.data?.ok === false && (
+              <Banner tone="critical"><p>{fr ? "Échec de l'enregistrement." : "Save failed."}</p></Banner>
+            )}
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
     </BlockStack>
   );
 }
