@@ -745,7 +745,9 @@ export default function BlogIndexPage() {
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
   const [showPublished, setShowPublished] = useState(false);
+  const [showDrafts, setShowDrafts] = useState(true);
   const [showIdeas, setShowIdeas] = useState(true);
+  const [showSuggested, setShowSuggested] = useState(true);
   const [geoHelpOpen, setGeoHelpOpen] = useState(false);
 
   const wordCount = useMemo(() => (draft ? countDraftWords(draft) : 0), [draft]);
@@ -1074,20 +1076,30 @@ export default function BlogIndexPage() {
                 const unpublished = drafts.filter((d) => d.status !== "published_to_shopify");
                 return (
                   <>
-                    <Text as="h2" variant="headingSm">
+                    <Button
+                      onClick={() => setShowDrafts((p) => !p)}
+                      fullWidth
+                      textAlign="left"
+                      disclosure={showDrafts ? "up" : "down"}
+                      variant="tertiary"
+                    >
                       {fr ? `Brouillons (${unpublished.length})` : `Drafts (${unpublished.length})`}
-                    </Text>
-                    {unpublished.length === 0 ? (
-                      <Text as="p" tone="subdued" variant="bodySm">
-                        {fr ? "Aucun brouillon." : "No drafts yet."}
-                      </Text>
-                    ) : (
-                      <Box>
-                        {unpublished.map((d) => (
-                          <DraftListItem key={d.id} draft={d} active={d.id === draft?.id && !selectedIdea} locale={locale} onClick={() => setSelectedIdea(null)} />
-                        ))}
-                      </Box>
-                    )}
+                    </Button>
+                    <Collapsible open={showDrafts} id="blog-drafts">
+                      {unpublished.length === 0 ? (
+                        <Box padding="200">
+                          <Text as="p" tone="subdued" variant="bodySm">
+                            {fr ? "Aucun brouillon." : "No drafts yet."}
+                          </Text>
+                        </Box>
+                      ) : (
+                        <Box>
+                          {unpublished.map((d) => (
+                            <DraftListItem key={d.id} draft={d} active={d.id === draft?.id && !selectedIdea} locale={locale} onClick={() => setSelectedIdea(null)} />
+                          ))}
+                        </Box>
+                      )}
+                    </Collapsible>
                   </>
                 );
               })()}
@@ -1096,15 +1108,16 @@ export default function BlogIndexPage() {
               {blogIdeas.length > 0 && (
                 <>
                   <Divider />
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h2" variant="headingSm">
-                      {fr ? `Idées de blog (${blogIdeas.length})` : `Blog ideas (${blogIdeas.length})`}
-                    </Text>
-                    <Button size="slim" variant="plain" onClick={() => setShowIdeas((p) => !p)}>
-                      {showIdeas ? "▲" : "▼"}
-                    </Button>
-                  </InlineStack>
-                  {showIdeas && (
+                  <Button
+                    onClick={() => setShowIdeas((p) => !p)}
+                    fullWidth
+                    textAlign="left"
+                    disclosure={showIdeas ? "up" : "down"}
+                    variant="tertiary"
+                  >
+                    {fr ? `Idées de blog (${blogIdeas.length})` : `Blog ideas (${blogIdeas.length})`}
+                  </Button>
+                  <Collapsible open={showIdeas} id="blog-ideas">
                     <BlockStack gap="100">
                       {(() => {
                         const byProduct = new Map<string, BlogIdeaFlat[]>();
@@ -1153,7 +1166,7 @@ export default function BlogIndexPage() {
                         ));
                       })()}
                     </BlockStack>
-                  )}
+                  </Collapsible>
                 </>
               )}
 
@@ -1161,15 +1174,23 @@ export default function BlogIndexPage() {
               {ideaSuggestions.length > 0 && (
                 <>
                   <Divider />
-                  <Text as="h2" variant="headingSm">
+                  <Button
+                    onClick={() => setShowSuggested((p) => !p)}
+                    fullWidth
+                    textAlign="left"
+                    disclosure={showSuggested ? "up" : "down"}
+                    variant="tertiary"
+                  >
                     {fr ? `Idées suggérées (${ideaSuggestions.length})` : `Suggested ideas (${ideaSuggestions.length})`}
-                  </Text>
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {fr
-                      ? "Tendances saisonnières, alternatives aux concurrents et avantages produit."
-                      : "Seasonal trends, competitor alternatives and product advantages."}
-                  </Text>
-                  <BlockStack gap="050">
+                  </Button>
+                  <Collapsible open={showSuggested} id="blog-suggested">
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {fr
+                          ? "Tendances saisonnières, alternatives aux concurrents et avantages produit."
+                          : "Seasonal trends, competitor alternatives and product advantages."}
+                      </Text>
+                      <BlockStack gap="050">
                     {ideaSuggestions.map((idea, i) => {
                       const isActive = selectedIdea?.title === idea.title && selectedIdea?.idea_index === -1;
                       const tone = idea.angle === "competitor" ? "warning"
@@ -1199,7 +1220,9 @@ export default function BlogIndexPage() {
                         </div>
                       );
                     })}
-                  </BlockStack>
+                      </BlockStack>
+                    </BlockStack>
+                  </Collapsible>
                 </>
               )}
 
