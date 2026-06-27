@@ -17,6 +17,7 @@ from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_writer import ShopifyWriteError
 from app.blog.authors import delete_author, load_authors, save_author
 from app.blog.clusters import build_blog_idea_clusters
+from app.blog.idea_generator import build_blog_idea_suggestions
 from app.blog.internal_links import (
     build_source_product_link,
     render_internal_links_html,
@@ -103,11 +104,19 @@ class PublishDraftRequest(BaseModel):
     publisher_logo_url: str | None = None
 
 
+class BlogIdeaOverride(BaseModel):
+    title: str = ""
+    target_keyword: str = ""
+    intro: str = ""
+    outline: list[str] = Field(default_factory=list)
+
+
 class DraftCreateRequest(BaseModel):
     product_id: str | None = None
     blog_title: str = ""
     auto_generate: bool = True
     blog_idea_index: int | None = None
+    idea: BlogIdeaOverride | None = None
 
 
 class DraftUpdateRequest(BaseModel):
@@ -234,8 +243,13 @@ def _draft_from_product(
     product_id: str,
     *,
     blog_idea_index: int | None = None,
+    idea_override: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Pre-populate a draft from the latest market analysis result for ``product_id``."""
+    """Pre-populate a draft from the latest market analysis result for ``product_id``.
+
+    ``idea_override`` (title/target_keyword/intro/outline) lets a suggested idea
+    (seasonal, competitor, advantages) seed the draft instead of the analysis pack.
+    """
     latest = load_latest_result(shop) or {}
     product = next(
         (p for p in (latest.get("products") or []) if p.get("product_id") == product_id),
@@ -249,8 +263,8 @@ def _draft_from_product(
     blog_ideas = [
         item for item in (pack.get("proposed_blog_ideas") or []) if isinstance(item, dict)
     ]
-    selected_idea: dict[str, Any] = {}
-    if blog_idea_index is not None and 0 <= blog_idea_index < len(blog_ideas):
+    selected_idea: dict[str, Any] = dict(idea_override or {})
+    if not selected_idea and blog_idea_index is not None and 0 <= blog_idea_index < len(blog_ideas):
         selected_idea = blog_ideas[blog_idea_index]
     blog_title = selected_idea.get("title") or pack.get("proposed_blog_title", "")
     intro = selected_idea.get("intro") or pack.get("proposed_blog_intro", "")
@@ -339,6 +353,23 @@ class AuthorUpsertRequest(BaseModel):
     url: str = ""
 
 
+@router.get("/shops/{shop}/blog/idea-suggestions")
+def list_blog_idea_suggestions(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Suggest blog ideas (seasonal/trending, competitor alternatives, product advantages).
+
+    Built from the latest market-analysis products + competitor signals — no extra
+    LLM/network call. Empty until a market analysis has run.
+    """
+    latest = load_latest_result(ctx.shop) or {}
+    suggestions = build_blog_idea_suggestions(
+        products=latest.get("products") or [],
+        competitor_signals=latest.get("competitor_signals") or [],
+    )
+    return {"suggestions": suggestions}
+
+
 @router.get("/shops/{shop}/blog/authors")
 def list_blog_authors(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict[str, Any]:
     """Return the shop's reusable blog authors."""
@@ -386,7 +417,12 @@ def create_blog_draft(
 ) -> dict[str, Any]:
     """Create a draft. Supply product_id to pre-populate from market analysis, or blog_title alone for a blank draft."""
     if body.product_id:
-        draft = _draft_from_product(ctx.shop, body.product_id, blog_idea_index=body.blog_idea_index)
+        draft = _draft_from_product(
+            ctx.shop,
+            body.product_id,
+            blog_idea_index=body.blog_idea_index,
+            idea_override=body.idea.model_dump() if body.idea else None,
+        )
         if body.auto_generate and draft["outline"]:
             draft["sections"] = generate_all_sections(
                 blog_title=draft["blog_title"],

@@ -114,6 +114,8 @@ interface BlogIdeaFlat {
   product_id: string;
   product_title: string;
   idea_index: number;
+  angle?: string;
+  source_label?: string;
 }
 
 interface LoaderData {
@@ -125,6 +127,7 @@ interface LoaderData {
   prefillTitle: string | null;
   prefillCluster: string | null;
   blogIdeas: BlogIdeaFlat[];
+  ideaSuggestions: BlogIdeaFlat[];
   pillarIdeaKeys: string[];
 }
 
@@ -185,6 +188,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   } catch { /* analysis not available yet */ }
 
+  // Suggested ideas: seasonal/trending, competitor alternatives, product advantages.
+  let ideaSuggestions: BlogIdeaFlat[] = [];
+  try {
+    const suggRes = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/blog/idea-suggestions`,
+      { accessToken: session.accessToken },
+    );
+    if (suggRes.ok) {
+      const data = (await suggRes.json()) as { suggestions?: Array<{
+        title?: string; target_keyword?: string; intro?: string; outline?: string[];
+        product_id?: string; product_title?: string; angle?: string; source_label?: string;
+      }> };
+      ideaSuggestions = (data.suggestions ?? []).map((s) => ({
+        title: s.title ?? "",
+        target_keyword: s.target_keyword ?? "",
+        intro: s.intro ?? "",
+        outline: s.outline ?? [],
+        product_id: s.product_id ?? "",
+        product_title: s.product_title ?? "",
+        idea_index: -1,
+        angle: s.angle,
+        source_label: s.source_label,
+      }));
+    }
+  } catch { /* suggestions are advisory only */ }
+
   // Group ideas sharing a similar target keyword and flag a suggested pillar
   let pillarIdeaKeys: string[] = [];
   if (blogIdeas.length > 1) {
@@ -220,6 +250,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     prefillTitle,
     prefillCluster,
     blogIdeas,
+    ideaSuggestions,
     pillarIdeaKeys,
   });
 };
@@ -276,11 +307,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!productId) return respond(false, null, "Missing productId");
       const rawBlogIdeaIndex = String(form.get("blogIdeaIndex") ?? "");
       const blogIdeaIndex = rawBlogIdeaIndex === "" ? null : Number(rawBlogIdeaIndex);
-      const body: { product_id: string; auto_generate: boolean; blog_idea_index?: number } = {
+      const body: {
+        product_id: string;
+        auto_generate: boolean;
+        blog_idea_index?: number;
+        idea?: { title: string; target_keyword: string; intro: string; outline: string[] };
+      } = {
         product_id: productId,
         auto_generate: true,
       };
-      if (blogIdeaIndex !== null && Number.isFinite(blogIdeaIndex)) {
+      const rawIdea = String(form.get("idea") ?? "");
+      if (rawIdea) {
+        try {
+          body.idea = JSON.parse(rawIdea);
+        } catch { /* ignore malformed idea */ }
+      } else if (blogIdeaIndex !== null && Number.isFinite(blogIdeaIndex)) {
         body.blog_idea_index = blogIdeaIndex;
       }
       const res = await proxy("/blog/drafts", {
@@ -657,7 +698,7 @@ function buildSavePayload(d: Draft): Record<string, unknown> {
 }
 
 export default function BlogIndexPage() {
-  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas, pillarIdeaKeys } = useLoaderData<typeof loader>();
+  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas, ideaSuggestions, pillarIdeaKeys } = useLoaderData<typeof loader>();
   const pillarIdeaKeySet = useMemo(() => new Set(pillarIdeaKeys), [pillarIdeaKeys]);
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
@@ -1107,6 +1148,52 @@ export default function BlogIndexPage() {
                 </>
               )}
 
+              {/* ── Idées suggérées (tendances, concurrents, avantages) ─── */}
+              {ideaSuggestions.length > 0 && (
+                <>
+                  <Divider />
+                  <Text as="h2" variant="headingSm">
+                    {fr ? `Idées suggérées (${ideaSuggestions.length})` : `Suggested ideas (${ideaSuggestions.length})`}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {fr
+                      ? "Tendances saisonnières, alternatives aux concurrents et avantages produit."
+                      : "Seasonal trends, competitor alternatives and product advantages."}
+                  </Text>
+                  <BlockStack gap="050">
+                    {ideaSuggestions.map((idea, i) => {
+                      const isActive = selectedIdea?.title === idea.title && selectedIdea?.idea_index === -1;
+                      const tone = idea.angle === "competitor" ? "warning"
+                        : idea.angle === "seasonal" || idea.angle === "trend" ? "info"
+                        : "success";
+                      return (
+                        <div
+                          key={`sugg-${i}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => { setSelectedIdea(idea); setDraft(null); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { setSelectedIdea(idea); setDraft(null); } }}
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 6,
+                            cursor: "pointer",
+                            background: isActive ? "var(--p-color-bg-surface-active)" : "transparent",
+                            marginBottom: 2,
+                          }}
+                        >
+                          <BlockStack gap="050">
+                            {idea.source_label && <Badge tone={tone} size="small">{idea.source_label}</Badge>}
+                            <Text as="span" variant="bodySm" fontWeight={isActive ? "semibold" : "regular"}>
+                              {idea.title}
+                            </Text>
+                          </BlockStack>
+                        </div>
+                      );
+                    })}
+                  </BlockStack>
+                </>
+              )}
+
               <Button url="/app/products" variant="plain">
                 {fr ? "Aller à Produits →" : "Go to Products →"}
               </Button>
@@ -1120,6 +1207,9 @@ export default function BlogIndexPage() {
                   <BlockStack gap="100">
                     <Text as="h2" variant="headingLg">{selectedIdea.title || (fr ? "(sans titre)" : "(untitled)")}</Text>
                     <Text as="p" variant="bodySm" tone="subdued">{selectedIdea.product_title}</Text>
+                    {selectedIdea.source_label && (
+                      <Badge tone="info">{selectedIdea.source_label}</Badge>
+                    )}
                     {selectedIdea.target_keyword && (
                       <InlineStack gap="100" blockAlign="center">
                         <Text as="span" variant="bodySm" tone="subdued">{fr ? "Mot-clé cible :" : "Target keyword:"}</Text>
@@ -1157,7 +1247,20 @@ export default function BlogIndexPage() {
                     <Form method="post">
                       <input type="hidden" name="intent" value="createFromProduct" />
                       <input type="hidden" name="productId" value={selectedIdea.product_id} />
-                      <input type="hidden" name="blogIdeaIndex" value={String(selectedIdea.idea_index)} />
+                      {selectedIdea.idea_index >= 0 ? (
+                        <input type="hidden" name="blogIdeaIndex" value={String(selectedIdea.idea_index)} />
+                      ) : (
+                        <input
+                          type="hidden"
+                          name="idea"
+                          value={JSON.stringify({
+                            title: selectedIdea.title,
+                            target_keyword: selectedIdea.target_keyword,
+                            intro: selectedIdea.intro,
+                            outline: selectedIdea.outline,
+                          })}
+                        />
+                      )}
                       <Button
                         variant="primary"
                         submit
