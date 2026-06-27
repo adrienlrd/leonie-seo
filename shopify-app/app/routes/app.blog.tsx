@@ -25,6 +25,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Collapsible,
   Divider,
   EmptyState,
   Icon,
@@ -743,7 +744,7 @@ export default function BlogIndexPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
-  const [showPublished, setShowPublished] = useState(true);
+  const [showPublished, setShowPublished] = useState(false);
   const [showIdeas, setShowIdeas] = useState(true);
   const [geoHelpOpen, setGeoHelpOpen] = useState(false);
 
@@ -1047,21 +1048,22 @@ export default function BlogIndexPage() {
                 if (published.length === 0) return null;
                 return (
                   <>
-                    <InlineStack align="space-between" blockAlign="center">
-                      <Text as="h2" variant="headingSm">
-                        {fr ? `Publiés (${published.length})` : `Published (${published.length})`}
-                      </Text>
-                      <Button size="slim" variant="plain" onClick={() => setShowPublished((p) => !p)}>
-                        {showPublished ? "▲" : "▼"}
-                      </Button>
-                    </InlineStack>
-                    {showPublished && (
+                    <Button
+                      onClick={() => setShowPublished((p) => !p)}
+                      fullWidth
+                      textAlign="left"
+                      disclosure={showPublished ? "up" : "down"}
+                      variant="tertiary"
+                    >
+                      {fr ? `Publiés (${published.length})` : `Published (${published.length})`}
+                    </Button>
+                    <Collapsible open={showPublished} id="blog-published">
                       <Box>
                         {published.map((d) => (
                           <DraftListItem key={d.id} draft={d} active={d.id === draft?.id && !selectedIdea} locale={locale} onClick={() => setSelectedIdea(null)} />
                         ))}
                       </Box>
-                    )}
+                    </Collapsible>
                     <Divider />
                   </>
                 );
