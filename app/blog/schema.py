@@ -31,6 +31,11 @@ def build_article_jsonld(
     publisher_name: str = "",
     publisher_logo_url: str | None = None,
     image_url: str | None = None,
+    language: str = "fr",
+    article_body: str = "",
+    word_count: int = 0,
+    keywords: str = "",
+    about: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Build the Article JSON-LD payload.
 
@@ -38,6 +43,10 @@ def build_article_jsonld(
     the merchant credits a real human — Person strengthens E-E-A-T. For a Person, the
     author URL is also emitted as ``sameAs`` (entity reconciliation) and the bio as
     ``description``.
+
+    ``article_body``/``word_count`` expose the full text so LLMs parsing JSON-LD get
+    the content, not just the headline. ``about`` links the article to its source
+    Product entity so AI search ties the post to the product it promotes.
     """
     if author_type not in ("Organization", "Person"):
         author_type = "Organization"
@@ -49,6 +58,7 @@ def build_article_jsonld(
         "@type": "Article",
         "headline": headline,
         "description": description,
+        "inLanguage": language,
         "datePublished": published,
         "dateModified": modified,
         "mainEntityOfPage": {"@type": "WebPage", "@id": url},
@@ -65,6 +75,18 @@ def build_article_jsonld(
         article["publisher"]["logo"] = {"@type": "ImageObject", "url": publisher_logo_url}
     if image_url:
         article["image"] = image_url
+    if word_count > 0:
+        article["wordCount"] = word_count
+    if article_body.strip():
+        article["articleBody"] = article_body.strip()
+    if keywords.strip():
+        article["keywords"] = keywords.strip()
+    if about and str(about.get("name") or "").strip():
+        product: dict[str, Any] = {"@type": "Product", "name": str(about["name"]).strip()}
+        if str(about.get("url") or "").strip():
+            product["url"] = str(about["url"]).strip()
+        article["about"] = product
+        article["mentions"] = product
     return article
 
 

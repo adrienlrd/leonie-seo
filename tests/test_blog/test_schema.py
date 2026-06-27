@@ -36,6 +36,33 @@ def test_article_jsonld_supports_person_author_for_eeat():
     assert ld["author"]["url"] == "https://example.com/about"
 
 
+def test_article_jsonld_emits_machine_readable_signals():
+    ld = build_article_jsonld(
+        headline="Bien choisir une fontaine à chat",
+        description="Guide",
+        url="https://shop/blogs/blog/fontaine",
+        language="fr",
+        article_body="Texte complet de l'article sur la fontaine à eau pour chat.",
+        word_count=1234,
+        keywords="fontaine à eau pour chat",
+        about={"name": "La Fontaine Smart", "url": "/products/fontaine-smart"},
+    )
+    assert ld["inLanguage"] == "fr"
+    assert ld["wordCount"] == 1234
+    assert ld["articleBody"].startswith("Texte complet")
+    assert ld["keywords"] == "fontaine à eau pour chat"
+    assert ld["about"]["@type"] == "Product"
+    assert ld["about"]["name"] == "La Fontaine Smart"
+    assert ld["about"]["url"] == "/products/fontaine-smart"
+    assert ld["mentions"]["name"] == "La Fontaine Smart"
+
+
+def test_article_jsonld_omits_about_without_product_name():
+    ld = build_article_jsonld(headline="x", description="y", url="https://shop/x", about={"name": "  "})
+    assert "about" not in ld
+    assert ld["inLanguage"] == "fr"
+
+
 def test_faqpage_jsonld_filters_empty_pairs():
     ld = build_faqpage_jsonld(
         [

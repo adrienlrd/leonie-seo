@@ -7,6 +7,8 @@ Stateless endpoints driven by the frontend editor, so the merchant can mix Auto
 from __future__ import annotations
 
 import html
+import re
+import unicodedata
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -797,6 +799,37 @@ def _author_bio_html(author_name: str, author_bio: str) -> str:
     )
 
 
+def _slugify_handle(text: str) -> str:
+    """Predict Shopify's article handle from a title (lowercase, ascii, hyphenated).
+
+    Matches Shopify's slugification for the common case; a dedup suffix it can't
+    predict is corrected post-publish from the real handle returned by the API.
+    """
+    normalized = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", normalized).strip("-").lower()
+    return slug[:255] or "article"
+
+
+def _article_plain_text(
+    intro: str, sections: list[BlogSection], faq: list[dict[str, Any]]
+) -> str:
+    """Full article text (no markup) for the Article JSON-LD ``articleBody``."""
+    parts: list[str] = [intro.strip()]
+    for s in sections:
+        parts.extend([s.h2.strip(), s.direct_answer.strip(), s.body.strip()])
+    for item in faq:
+        q = str(item.get("q") or "").strip()
+        a = str(item.get("a") or "").strip()
+        if q and a:
+            parts.append(f"{q} {a}")
+    text = " ".join(p for p in parts if p)
+    text = re.sub(r"<[^>]+>", " ", text)  # strip any HTML
+    text = re.sub(r"[*#_`>]", "", text)  # strip markdown markers
+    text = re.sub(r"(?m)^\s*[-•]\s+", "", text)  # strip leading bullet markers
+    text = re.sub(r"\s[-•]\s", " ", text)  # strip inline bullet dashes (keep word-hyphens)
+    return re.sub(r"\s+", " ", text).strip()[:8000]
+
+
 def _build_faq_pairs(sections: list[BlogSection]) -> list[dict[str, str]]:
     """Use the direct answer as the FAQPage answer — that's the LLM-citable chunk."""
     return [
@@ -870,19 +903,6 @@ def publish_blog_draft(
         + "\n"
         + cta_end
     )
-    canonical_url = f"https://{ctx.shop}/blogs/blog/{draft.get('blog_title', '')}"
-    article_ld = build_article_jsonld(
-        headline=draft.get("blog_title", ""),
-        description=meta_description or draft.get("summary") or draft.get("intro", "")[:200],
-        url=canonical_url,
-        author_type=draft.get("author_type", "Organization"),
-        author_name=draft.get("author_name", ""),
-        author_url=draft.get("author_url"),
-        author_bio=draft.get("author_bio", ""),
-        publisher_name=body.publisher_name or draft.get("author_name", "") or ctx.shop,
-        publisher_logo_url=body.publisher_logo_url,
-        image_url=draft.get("image_url"),
-    )
     faq_pairs = _build_faq_pairs(sections) + [
         {"question": str(f.get("q") or ""), "answer": str(f.get("a") or "")} for f in draft_faq
     ]
@@ -893,7 +913,43 @@ def publish_blog_draft(
         description=meta_description or draft.get("intro", "")[:200],
         sections=[{"name": s.h2, "text": s.direct_answer or s.body} for s in sections],
     ) if numbered_steps else None
-    body_html = html + "\n" + render_jsonld_blocks(article_ld, faq_ld, howto_ld)
+
+    # Machine-readable signals for AI search: full text + word count + the source
+    # product the article is about (about/mentions ties the post to the product).
+    article_body_text = _article_plain_text(draft.get("intro", ""), sections, draft_faq)
+    about_product = {
+        "name": str(draft.get("product_title") or "").strip(),
+        "url": str(draft.get("cta_url") or "").strip(),
+    }
+
+    def _render_body(canonical_url: str) -> str:
+        article_ld = build_article_jsonld(
+            headline=draft.get("blog_title", ""),
+            description=meta_description or draft.get("summary") or draft.get("intro", "")[:200],
+            url=canonical_url,
+            author_type=draft.get("author_type", "Organization"),
+            author_name=draft.get("author_name", ""),
+            author_url=draft.get("author_url"),
+            author_bio=draft.get("author_bio", ""),
+            publisher_name=body.publisher_name or draft.get("author_name", "") or ctx.shop,
+            publisher_logo_url=body.publisher_logo_url,
+            image_url=draft.get("image_url"),
+            language="fr",
+            article_body=article_body_text,
+            word_count=int(draft.get("word_count") or 0),
+            keywords=str(draft.get("target_keyword") or "").strip(),
+            about=about_product,
+        )
+        return html + "\n" + render_jsonld_blocks(article_ld, faq_ld, howto_ld)
+
+    # The Shopify article URL is /blogs/{blog-handle}/{article-handle}. We can only
+    # know the exact handles after the write, so build with a predicted URL, then
+    # correct the JSON-LD @id with the real handles if they differ.
+    predicted_blog_handle = str(draft.get("shopify_blog_handle") or "").strip() or "blog"
+    predicted_url = (
+        f"https://{ctx.shop}/blogs/{predicted_blog_handle}/{_slugify_handle(draft.get('blog_title', ''))}"
+    )
+    body_html = _render_body(predicted_url)
 
     existing_article_id = str(draft.get("shopify_article_id") or "")
     try:
@@ -944,6 +1000,27 @@ def publish_blog_draft(
                     raise
         else:
             created, blog_id = _create()
+
+        # Correct the JSON-LD canonical @id with the real handles now that the
+        # article exists (predicted handle/slug may differ from Shopify's).
+        real_blog_handle = str((created.get("blog") or {}).get("handle") or "").strip() or predicted_blog_handle
+        real_article_handle = str(created.get("handle") or "").strip()
+        draft["shopify_blog_handle"] = real_blog_handle
+        if real_article_handle:
+            real_url = f"https://{ctx.shop}/blogs/{real_blog_handle}/{real_article_handle}"
+            if real_url != predicted_url:
+                publisher.update_article(
+                    article_id=str(created.get("id")),
+                    title=draft.get("blog_title", ""),
+                    body_html=_render_body(real_url),
+                    summary=meta_description or draft.get("summary", ""),
+                    tags=draft.get("tags") or [],
+                    author_name=draft.get("author_name", ""),
+                    image_url=None,
+                    image_alt=None,
+                    meta_description=meta_description,
+                    published=body.published,
+                )
     except ShopifyWriteError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

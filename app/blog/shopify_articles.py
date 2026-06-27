@@ -32,7 +32,7 @@ query ListBlogs($n: Int!) {
 _CREATE_ARTICLE_MUTATION = """
 mutation CreateArticle($article: ArticleCreateInput!) {
   articleCreate(article: $article) {
-    article { id handle title isPublished }
+    article { id handle title isPublished blog { handle } }
     userErrors { field message }
   }
 }
@@ -41,7 +41,7 @@ mutation CreateArticle($article: ArticleCreateInput!) {
 _UPDATE_ARTICLE_MUTATION = """
 mutation UpdateArticle($id: ID!, $article: ArticleUpdateInput!) {
   articleUpdate(id: $id, article: $article) {
-    article { id handle title isPublished }
+    article { id handle title isPublished blog { handle } }
     userErrors { field message }
   }
 }

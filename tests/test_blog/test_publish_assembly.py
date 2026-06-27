@@ -180,6 +180,63 @@ def test_cover_image_html_applies_style() -> None:
     assert "max-height:420px" in hero
 
 
+def test_slugify_handle_matches_shopify_style() -> None:
+    from app.api.blog import _slugify_handle
+
+    assert _slugify_handle("Bien choisir une fontaine à chat !") == "bien-choisir-une-fontaine-a-chat"
+    assert _slugify_handle("  Été 2026 : guide  ") == "ete-2026-guide"
+    assert _slugify_handle("") == "article"
+
+
+def test_article_plain_text_strips_markup() -> None:
+    from app.api.blog import _article_plain_text
+
+    sections = [BlogSection(h2="Pourquoi ?", direct_answer="**Parce que.**", body="Texte\n- item")]
+    text = _article_plain_text("Intro", sections, [{"q": "Q1", "a": "A1"}])
+    assert "**" not in text and "-" not in text.split()
+    assert "Parce que." in text
+    assert "Q1 A1" in text
+
+
+def test_publish_corrects_canonical_url_with_real_handles() -> None:
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from app.api.blog import DraftPublishRequest, publish_blog_draft
+
+    draft = {
+        "id": "d1",
+        "blog_title": "Mon Article",
+        "intro": "Intro",
+        "sections": [{"h2": "Q1", "direct_answer": "R1", "body": "B"}],
+        "product_title": "La Fontaine Smart",
+        "cta_url": "/products/fontaine-smart",
+    }
+    publisher = MagicMock()
+    # Real blog handle "news" differs from the predicted "blog" → triggers a correction.
+    publisher.ensure_default_blog.return_value = "gid://shopify/Blog/1"
+    publisher.create_draft_article.return_value = {
+        "id": "gid://shopify/Article/1", "handle": "mon-article", "isPublished": True,
+        "blog": {"handle": "news"},
+    }
+    ctx = SimpleNamespace(shop="shop.myshopify.com", access_token="t")
+    with (
+        patch("app.api.blog.get_draft", return_value=draft),
+        patch("app.api.blog.save_draft", side_effect=lambda shop, d: d),
+        patch("app.api.blog.record_applied_change"),
+        patch("app.api.blog.BlogPublisher", return_value=publisher),
+    ):
+        publish_blog_draft("d1", DraftPublishRequest(published=True), ctx)  # type: ignore[arg-type]
+
+    # A corrective update_article call carries the real /blogs/news/mon-article URL.
+    publisher.update_article.assert_called_once()
+    corrected_body = publisher.update_article.call_args.kwargs["body_html"]
+    assert "/blogs/news/mon-article" in corrected_body
+    assert '"articleBody"' in corrected_body
+    assert '"inLanguage":"fr"' in corrected_body
+    assert draft["shopify_blog_handle"] == "news"
+
+
 def test_publish_falls_back_to_create_when_article_deleted() -> None:
     """If the merchant deleted the article on Shopify, re-publishing recreates it."""
     from types import SimpleNamespace
