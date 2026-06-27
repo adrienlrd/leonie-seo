@@ -25,7 +25,6 @@ import {
   Button,
   Card,
   Checkbox,
-  ChoiceList,
   Divider,
   EmptyState,
   Icon,
@@ -240,6 +239,13 @@ interface DynamicSuggestion {
   reason: string;
 }
 
+interface BlogAuthor {
+  id: string;
+  name: string;
+  bio: string;
+  url: string;
+}
+
 interface ActionResult {
   type: string;
   ok: boolean;
@@ -248,6 +254,7 @@ interface ActionResult {
   blogs?: Array<{ id: string; handle: string; title: string }>;
   articles?: LinkableArticle[];
   suggestions?: DynamicSuggestion[];
+  authors?: BlogAuthor[];
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -343,6 +350,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!res.ok) return respond(false, null, `${res.status}`);
       const draft = (await res.json()) as Draft;
       return redirect(`/app/blog?draft=${draft.id}`);
+    }
+
+    if (intent === "listAuthors" || intent === "createAuthor" || intent === "deleteAuthor") {
+      let res: Response;
+      if (intent === "createAuthor") {
+        res = await proxy("/blog/authors", {
+          method: "POST",
+          body: JSON.stringify({
+            id: String(form.get("id") ?? ""),
+            name: String(form.get("name") ?? ""),
+            bio: String(form.get("bio") ?? ""),
+            url: String(form.get("url") ?? ""),
+          }),
+        });
+      } else if (intent === "deleteAuthor") {
+        res = await proxy(`/blog/authors/${String(form.get("id") ?? "")}`, { method: "DELETE" });
+      } else {
+        res = await proxy("/blog/authors");
+      }
+      const data = res.ok ? ((await res.json()) as { authors?: BlogAuthor[] }) : null;
+      return json<ActionResult>({
+        type: intent,
+        ok: res.ok,
+        error: res.ok ? null : `${res.status}`,
+        draft: null,
+        authors: data?.authors ?? [],
+      });
     }
 
     if (intent === "listBlogs") {
@@ -650,6 +684,11 @@ export default function BlogIndexPage() {
   const blogsFetcher = useFetcher<{ ok?: boolean; blogs?: Array<{ id: string; handle: string; title: string }> }>();
   const articlesFetcher = useFetcher<ActionResult>();
   const suggestionsFetcher = useFetcher<ActionResult>();
+  const authorsFetcher = useFetcher<ActionResult>();
+  const authors = authorsFetcher.data?.authors ?? [];
+  const [selectedAuthorId, setSelectedAuthorId] = useState("");
+  const [newAuthorOpen, setNewAuthorOpen] = useState(false);
+  const [newAuthor, setNewAuthor] = useState({ name: "", bio: "", url: "" });
   const isBusy = fetcher.state !== "idle";
   const isGeneratingArticle = navigation.state !== "idle" && navigation.formData?.get("intent") === "createFromProduct";
   const [showArticlePicker, setShowArticlePicker] = useState(false);
@@ -842,7 +881,41 @@ export default function BlogIndexPage() {
   const onOpenPublish = () => {
     setPublishOpen(true);
     blogsFetcher.submit({ intent: "listBlogs" }, { method: "post" });
+    authorsFetcher.submit({ intent: "listAuthors" }, { method: "post" });
   };
+
+  // Apply a saved author to the draft (its name/bio/url feed the published HTML + JSON-LD).
+  const applyAuthor = (a: BlogAuthor | null) => {
+    setSelectedAuthorId(a?.id ?? "");
+    setDraft((p) => p ? {
+      ...p,
+      author_type: a ? "Person" : "Organization",
+      author_name: a?.name ?? "",
+      author_bio: a?.bio ?? "",
+      author_url: a?.url ?? null,
+    } : p);
+  };
+
+  const onCreateAuthor = () => {
+    if (!newAuthor.name.trim()) return;
+    authorsFetcher.submit(
+      { intent: "createAuthor", name: newAuthor.name, bio: newAuthor.bio, url: newAuthor.url },
+      { method: "post" },
+    );
+  };
+
+  // After creating an author, auto-select the newest one and apply it.
+  useEffect(() => {
+    if (authorsFetcher.data?.type === "createAuthor" && authorsFetcher.data.ok) {
+      const created = (authorsFetcher.data.authors ?? [])[0];
+      if (created) {
+        applyAuthor(created);
+        setNewAuthorOpen(false);
+        setNewAuthor({ name: "", bio: "", url: "" });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authorsFetcher.data]);
 
   function doPublish() {
     if (!draft) return;
@@ -1400,18 +1473,6 @@ export default function BlogIndexPage() {
                       </BlockStack>
                     </Box>
 
-                    {/* Author bio — E-E-A-T signal, rendered at the end of the article */}
-                    <TextField
-                      label={fr ? "Bio de l'auteur (E-E-A-T)" : "Author bio (E-E-A-T)"}
-                      value={draft.author_bio ?? ""}
-                      onChange={(v) => setDraft((p) => p ? { ...p, author_bio: v } : p)}
-                      multiline={3}
-                      autoComplete="off"
-                      helpText={fr
-                        ? "2-3 phrases sur l'expertise de l'auteur. Renforce la crédibilité aux yeux de Google."
-                        : "2-3 sentences on the author's expertise. Strengthens credibility for Google."}
-                    />
-
                     {/* CTA conversion block — drives blog traffic to the source product */}
                     <Box padding="400" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
                       <BlockStack gap="300">
@@ -1823,28 +1884,74 @@ export default function BlogIndexPage() {
                 onChange={setSelectedBlog}
               />
             )}
-            <ChoiceList
-              title={fr ? "Auteur" : "Author"}
-              choices={[
-                { label: fr ? "Organisation (par défaut)" : "Organization (default)", value: "Organization" },
-                { label: fr ? "Personne réelle (E-E-A-T)" : "Real person (E-E-A-T)", value: "Person" },
+            <Divider />
+            <Select
+              label={fr ? "Auteur" : "Author"}
+              options={[
+                { label: fr ? "Marque (par défaut)" : "Brand (default)", value: "" },
+                ...authors.map((a) => ({ label: a.name, value: a.id })),
               ]}
-              selected={[draft?.author_type ?? "Organization"]}
-              onChange={(s) => setDraft((p) => p ? { ...p, author_type: (s[0] as "Organization" | "Person") } : p)}
+              value={selectedAuthorId}
+              onChange={(id) => applyAuthor(authors.find((a) => a.id === id) ?? null)}
+              helpText={fr
+                ? "Sélectionne un auteur déjà créé. Sa bio renforce l'E-E-A-T (crédibilité Google)."
+                : "Pick an author you already created. Their bio strengthens E-E-A-T."}
             />
-            <TextField
-              label={fr ? "Nom de l'auteur" : "Author name"}
-              value={draft?.author_name ?? ""}
-              onChange={(v) => setDraft((p) => p ? { ...p, author_name: v } : p)}
-              autoComplete="off"
-            />
-            {draft?.author_type === "Person" && (
-              <TextField
-                label={fr ? "URL profil auteur (optionnel)" : "Author URL (optional)"}
-                value={draft?.author_url ?? ""}
-                onChange={(v) => setDraft((p) => p ? { ...p, author_url: v } : p)}
-                autoComplete="off"
-              />
+            {selectedAuthorId && (() => {
+              const a = authors.find((x) => x.id === selectedAuthorId);
+              return a?.bio ? (
+                <Text as="p" variant="bodySm" tone="subdued">{a.bio}</Text>
+              ) : null;
+            })()}
+            {!newAuthorOpen ? (
+              <InlineStack gap="200">
+                <Button variant="plain" onClick={() => setNewAuthorOpen(true)}>
+                  {fr ? "＋ Nouvel auteur" : "＋ New author"}
+                </Button>
+                {selectedAuthorId && (
+                  <Button
+                    variant="plain"
+                    tone="critical"
+                    onClick={() => authorsFetcher.submit({ intent: "deleteAuthor", id: selectedAuthorId }, { method: "post" })}
+                  >
+                    {fr ? "Supprimer cet auteur" : "Delete this author"}
+                  </Button>
+                )}
+              </InlineStack>
+            ) : (
+              <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodySm" fontWeight="semibold">{fr ? "Nouvel auteur" : "New author"}</Text>
+                  <TextField
+                    label={fr ? "Nom" : "Name"}
+                    value={newAuthor.name}
+                    onChange={(v) => setNewAuthor((p) => ({ ...p, name: v }))}
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label={fr ? "Bio (E-E-A-T)" : "Bio (E-E-A-T)"}
+                    value={newAuthor.bio}
+                    onChange={(v) => setNewAuthor((p) => ({ ...p, bio: v }))}
+                    multiline={3}
+                    autoComplete="off"
+                    helpText={fr ? "2-3 phrases sur l'expertise de l'auteur." : "2-3 sentences on the author's expertise."}
+                  />
+                  <TextField
+                    label={fr ? "URL profil (optionnel)" : "Profile URL (optional)"}
+                    value={newAuthor.url}
+                    onChange={(v) => setNewAuthor((p) => ({ ...p, url: v }))}
+                    autoComplete="off"
+                  />
+                  <InlineStack gap="200">
+                    <Button onClick={onCreateAuthor} loading={authorsFetcher.state !== "idle"} disabled={!newAuthor.name.trim()}>
+                      {fr ? "Créer" : "Create"}
+                    </Button>
+                    <Button variant="plain" onClick={() => setNewAuthorOpen(false)}>
+                      {fr ? "Annuler" : "Cancel"}
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </Box>
             )}
           </BlockStack>
         </Modal.Section>

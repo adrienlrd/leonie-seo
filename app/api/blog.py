@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_writer import ShopifyWriteError
+from app.blog.authors import delete_author, load_authors, save_author
 from app.blog.clusters import build_blog_idea_clusters
 from app.blog.internal_links import (
     build_source_product_link,
@@ -329,6 +330,42 @@ def _draft_from_product(
 @router.get("/shops/{shop}/blog/drafts")
 def list_blog_drafts(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict[str, Any]:
     return {"shop": ctx.shop, "drafts": list_drafts(ctx.shop)}
+
+
+class AuthorUpsertRequest(BaseModel):
+    id: str = ""
+    name: str
+    bio: str = ""
+    url: str = ""
+
+
+@router.get("/shops/{shop}/blog/authors")
+def list_blog_authors(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict[str, Any]:
+    """Return the shop's reusable blog authors."""
+    return {"authors": load_authors(ctx.shop)}
+
+
+@router.post("/shops/{shop}/blog/authors")
+def upsert_blog_author(
+    body: AuthorUpsertRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Create or update one reusable author."""
+    try:
+        author = save_author(ctx.shop, body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"author": author, "authors": load_authors(ctx.shop)}
+
+
+@router.delete("/shops/{shop}/blog/authors/{author_id}")
+def delete_blog_author(
+    author_id: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Delete a reusable author by id."""
+    deleted = delete_author(ctx.shop, author_id)
+    return {"deleted": deleted, "authors": load_authors(ctx.shop)}
 
 
 @router.get("/shops/{shop}/blog/drafts/{draft_id}")
