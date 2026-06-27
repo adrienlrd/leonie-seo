@@ -180,6 +180,43 @@ def test_cover_image_html_applies_style() -> None:
     assert "max-height:420px" in hero
 
 
+def test_publish_falls_back_to_create_when_article_deleted() -> None:
+    """If the merchant deleted the article on Shopify, re-publishing recreates it."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from app.api.blog import DraftPublishRequest, publish_blog_draft
+    from app.apply.shopify_writer import ShopifyWriteError
+
+    draft = {
+        "id": "d1",
+        "blog_title": "Mon article",
+        "intro": "Intro",
+        "sections": [{"h2": "Q1", "direct_answer": "R1", "body": "B"}],
+        "shopify_article_id": "gid://shopify/Article/999",
+        "shopify_blog_id": "gid://shopify/Blog/1",
+    }
+    publisher = MagicMock()
+    publisher.update_article.side_effect = ShopifyWriteError(
+        "articleUpdate userErrors → ['id']: Article does not exist"
+    )
+    publisher.create_draft_article.return_value = {"id": "gid://shopify/Article/1000", "handle": "mon-article", "isPublished": True}
+    ctx = SimpleNamespace(shop="shop.myshopify.com", access_token="t")
+
+    with (
+        patch("app.api.blog.get_draft", return_value=draft),
+        patch("app.api.blog.save_draft", side_effect=lambda shop, d: d),
+        patch("app.api.blog.record_applied_change"),
+        patch("app.api.blog.BlogPublisher", return_value=publisher),
+    ):
+        result = publish_blog_draft("d1", DraftPublishRequest(published=True), ctx)  # type: ignore[arg-type]
+
+    publisher.update_article.assert_called_once()
+    publisher.create_draft_article.assert_called_once()
+    assert result["article"]["id"] == "gid://shopify/Article/1000"
+    assert draft["shopify_article_id"] == "gid://shopify/Article/1000"
+
+
 def test_update_article_uses_articleupdate_mutation() -> None:
     from app.blog.shopify_articles import BlogPublisher
 

@@ -825,38 +825,52 @@ def publish_blog_draft(
     existing_article_id = str(draft.get("shopify_article_id") or "")
     try:
         publisher = BlogPublisher(ctx.shop, ctx.access_token)
+
+        def _create() -> tuple[dict[str, Any], str]:
+            new_blog_id = str(draft.get("shopify_blog_id") or body.blog_id or "") or publisher.ensure_default_blog()
+            return (
+                publisher.create_draft_article(
+                    blog_id=new_blog_id,
+                    title=draft.get("blog_title", ""),
+                    body_html=body_html,
+                    summary=meta_description or draft.get("summary", ""),
+                    tags=draft.get("tags") or [],
+                    author_name=draft.get("author_name", ""),
+                    # Featured image intentionally omitted — the cover lives in the body
+                    # only, so it is not duplicated in Shopify's native article image box.
+                    image_url=None,
+                    image_alt=None,
+                    meta_description=meta_description,
+                    published=body.published,
+                ),
+                new_blog_id,
+            )
+
         if existing_article_id:
-            # Re-publishing an already-pushed draft edits the SAME Shopify article
-            # in place instead of creating a duplicate.
+            # Re-publishing edits the SAME Shopify article in place (no duplicate).
             blog_id = str(draft.get("shopify_blog_id") or body.blog_id or "")
-            created = publisher.update_article(
-                article_id=existing_article_id,
-                title=draft.get("blog_title", ""),
-                body_html=body_html,
-                summary=meta_description or draft.get("summary", ""),
-                tags=draft.get("tags") or [],
-                author_name=draft.get("author_name", ""),
-                # Featured image intentionally omitted — the cover lives in the body
-                # only, so it is not duplicated in Shopify's native article image box.
-                image_url=None,
-                image_alt=None,
-                meta_description=meta_description,
-                published=body.published,
-            )
+            try:
+                created = publisher.update_article(
+                    article_id=existing_article_id,
+                    title=draft.get("blog_title", ""),
+                    body_html=body_html,
+                    summary=meta_description or draft.get("summary", ""),
+                    tags=draft.get("tags") or [],
+                    author_name=draft.get("author_name", ""),
+                    image_url=None,
+                    image_alt=None,
+                    meta_description=meta_description,
+                    published=body.published,
+                )
+            except ShopifyWriteError as exc:
+                # The merchant deleted the article (or its blog) on Shopify → the
+                # stored id is stale. Recreate it instead of failing.
+                if "does not exist" in str(exc).lower() or "not found" in str(exc).lower():
+                    created, blog_id = _create()
+                else:
+                    raise
         else:
-            blog_id = body.blog_id or publisher.ensure_default_blog()
-            created = publisher.create_draft_article(
-                blog_id=blog_id,
-                title=draft.get("blog_title", ""),
-                body_html=body_html,
-                summary=meta_description or draft.get("summary", ""),
-                tags=draft.get("tags") or [],
-                author_name=draft.get("author_name", ""),
-                image_url=None,
-                image_alt=None,
-                meta_description=meta_description,
-                published=body.published,
-            )
+            created, blog_id = _create()
     except ShopifyWriteError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
