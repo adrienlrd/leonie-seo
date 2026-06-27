@@ -713,6 +713,13 @@ export default function BlogIndexPage() {
   // to édition so every editable field (incl. cover image) is reachable.
   const [tabIndex, setTabIndex] = useState(0);
   const [selectedIdea, setSelectedIdea] = useState<BlogIdeaFlat | null>(null);
+  // Selecting an idea swaps in the right-hand "generate" panel at the top — scroll
+  // back up so the merchant sees it instead of staying at the bottom of the list.
+  const selectIdea = (idea: BlogIdeaFlat) => {
+    setSelectedIdea(idea);
+    setDraft(null);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   useEffect(() => {
     setDraft(selected);
     setTabIndex(0);
@@ -1117,8 +1124,8 @@ export default function BlogIndexPage() {
                                   key={`${pid}-${idea.idea_index}`}
                                   role="button"
                                   tabIndex={0}
-                                  onClick={() => { setSelectedIdea(idea); setDraft(null); }}
-                                  onKeyDown={(e) => { if (e.key === "Enter") { setSelectedIdea(idea); setDraft(null); } }}
+                                  onClick={() => selectIdea(idea)}
+                                  onKeyDown={(e) => { if (e.key === "Enter") selectIdea(idea); }}
                                   style={{
                                     padding: "6px 12px",
                                     borderRadius: 6,
@@ -1171,8 +1178,8 @@ export default function BlogIndexPage() {
                           key={`sugg-${i}`}
                           role="button"
                           tabIndex={0}
-                          onClick={() => { setSelectedIdea(idea); setDraft(null); }}
-                          onKeyDown={(e) => { if (e.key === "Enter") { setSelectedIdea(idea); setDraft(null); } }}
+                          onClick={() => selectIdea(idea)}
+                          onKeyDown={(e) => { if (e.key === "Enter") selectIdea(idea); }}
                           style={{
                             padding: "8px 12px",
                             borderRadius: 6,
