@@ -385,6 +385,18 @@ async def get_geo_analysis_overview(
     }
 
 
+@router.get("/shops/{shop}/geo/theme-extension-status")
+async def get_theme_extension_status_endpoint(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Whether the Giulio Geo theme app embed is enabled on the published theme."""
+    from app.apply.theme_extension_status import get_theme_extension_status  # noqa: PLC0415
+
+    status = await asyncio.to_thread(get_theme_extension_status, ctx.shop, ctx.access_token)
+    return {"shop": ctx.shop, **status}
+
+
 @router.get("/shops/{shop}/geo/progress-curve")
 async def get_geo_progress_curve(
     shop: str,

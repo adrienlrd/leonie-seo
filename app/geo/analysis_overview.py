@@ -169,6 +169,21 @@ def build_analysis_overview(
     gsc_file = _find_gsc_file(shop)
     gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
 
+    # Blog articles the merchant has since deleted (no matching draft) must drop
+    # off the analysis page. Valid blog ids = current drafts' Shopify article id
+    # (plus the draft id, used as a fallback resource id at publish time).
+    valid_blog_ids: set[str] = set()
+    try:
+        from app.blog.store import list_drafts  # noqa: PLC0415
+
+        for draft in list_drafts(shop):
+            for key in ("shopify_article_id", "id"):
+                value = str(draft.get(key) or "").strip()
+                if value:
+                    valid_blog_ids.add(value)
+    except Exception:  # pragma: no cover - blog store optional/empty
+        valid_blog_ids = set()
+
     # Group events by product, then by date
     products_map: dict[str, dict[str, Any]] = {}
 
@@ -250,6 +265,9 @@ def build_analysis_overview(
     product_list: list[dict[str, Any]] = []
 
     for product in products_map.values():
+        # Hide blog articles the merchant deleted (no matching draft remains).
+        if product["resource_type"] == "blog_post" and product["resource_id"] not in valid_blog_ids:
+            continue
         dates_map = product.pop("dates_map")
         baseline = product.pop("_baseline", None)
         latest_after = product.pop("_latest_after", None)
@@ -304,6 +322,6 @@ def build_analysis_overview(
         "products": product_list,
         "summary": {
             "total_products": len(product_list),
-            "total_actions": len(events),
+            "total_actions": sum(p["total_actions"] for p in product_list),
         },
     }

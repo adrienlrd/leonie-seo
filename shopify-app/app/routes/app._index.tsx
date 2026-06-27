@@ -602,7 +602,6 @@ function Zone1({
     <Card>
       <BlockStack gap="300">
         <SectionTitle source={GaugeIcon}>{t(locale, "dashboardZone1Title")}</SectionTitle>
-        <Text as="p" tone="subdued" variant="bodySm">{t(locale, "dashboardZone1Explain")}</Text>
         {data.global_score !== null ? (
           <BlockStack gap="200">
             <InlineStack gap="300" blockAlign="center">
@@ -615,7 +614,6 @@ function Zone1({
                 </span>
               </Tooltip>
             </InlineStack>
-            <Text as="p" tone="subdued" variant="bodySm">{t(locale, "globalScoreHelp")}</Text>
             {data.sub_scores && (
               <InlineGrid columns={4} gap="200">
                 {SUB_SCORE_KEYS.map(({ key, i18n, help }) => (
@@ -1089,7 +1087,8 @@ function PublishModeCard({
                   <Icon source={AutomationIcon} />
                 </span>
                 <Text as="p" variant="bodyMd" fontWeight="semibold">
-                  {t(locale, "publishModeAutoTitle")} 🚀
+                  {t(locale, "publishModeAutoTitle")}{" "}
+                  <span style={{ color: "#4285F4" }} aria-hidden="true">✦</span>
                 </Text>
               </div>
               <Text as="p" variant="bodySm" tone="subdued">
@@ -1822,6 +1821,9 @@ export default function IndexPage() {
         <Zone5 data={zone5} locale={locale} />
 
         {/* Zone 6 — AI Visibility hidden until V2 */}
+
+        {/* Bottom breathing room so the last panel isn't glued to the page edge. */}
+        <Box paddingBlockEnd="800" />
       </BlockStack>
     </Page>
   );

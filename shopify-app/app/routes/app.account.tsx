@@ -38,11 +38,12 @@ interface LlmsTxtStatus {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const locale = getLocale(request);
-  const [gscResp, ga4Resp, learningResp, llmsResp] = await Promise.allSettled([
+  const [gscResp, ga4Resp, learningResp, llmsResp, themeExtResp] = await Promise.allSettled([
     callBackendForShop(session.shop, `/api/shops/${session.shop}/gsc/status`, { accessToken: session.accessToken }),
     callBackendForShop(session.shop, `/api/shops/${session.shop}/ga4/status`, { accessToken: session.accessToken }),
     callBackendForShop(session.shop, `/api/shops/${session.shop}/learning/settings`, { accessToken: session.accessToken }),
     callBackendForShop(session.shop, `/api/shops/${session.shop}/llms-txt/status`, { accessToken: session.accessToken }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/geo/theme-extension-status`, { accessToken: session.accessToken }),
   ]);
   const gsc = gscResp.status === "fulfilled" && gscResp.value.ok
     ? ((await gscResp.value.json().catch(() => null)) as GSCStatus | null)
@@ -55,6 +56,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     : null;
   const llmsTxt = llmsResp.status === "fulfilled" && llmsResp.value.ok
     ? ((await llmsResp.value.json().catch(() => null)) as LlmsTxtStatus | null)
+    : null;
+  const themeExt = themeExtResp.status === "fulfilled" && themeExtResp.value.ok
+    ? ((await themeExtResp.value.json().catch(() => null)) as { available?: boolean; enabled?: boolean | null } | null)
     : null;
 
   // When GA4 is authorized but no property is selected yet, fetch the property
@@ -73,7 +77,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     } catch { /* ignore */ }
   }
 
-  return json({ locale, gsc, ga4, ga4Properties, learningSettings, llmsTxt });
+  return json({ locale, gsc, ga4, ga4Properties, learningSettings, llmsTxt, themeExt });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -122,13 +126,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function AccountHub() {
-  const { locale, gsc, ga4, ga4Properties, learningSettings, llmsTxt } = useLoaderData<typeof loader>() as {
+  const { locale, gsc, ga4, ga4Properties, learningSettings, llmsTxt, themeExt } = useLoaderData<typeof loader>() as {
     locale: Locale;
     gsc: GSCStatus | null;
     ga4: GA4Status | null;
     ga4Properties: GA4Property[];
     learningSettings: LearningSettings | null;
     llmsTxt: LlmsTxtStatus | null;
+    themeExt: { available?: boolean; enabled?: boolean | null } | null;
   };
   const fr = locale === "fr";
   const gscConnected = Boolean(gsc?.connected);
@@ -358,7 +363,22 @@ export default function AccountHub() {
                         : (fr ? "À connecter" : "Not connected")}
                   </Badge>
                 </InlineStack>
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" variant="bodySm">{fr ? "Extension de thème (FAQ, données structurées, fil d'Ariane)" : "Theme extension (FAQ, structured data, breadcrumb)"}</Text>
+                  {themeExt?.available
+                    ? (themeExt.enabled
+                        ? <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
+                        : <Badge tone="attention">{fr ? "Non activée" : "Not enabled"}</Badge>)
+                    : <Badge tone="info">{fr ? "Indéterminé" : "Unknown"}</Badge>}
+                </InlineStack>
               </InlineStack>
+              {themeExt?.available && !themeExt.enabled && (
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {fr
+                    ? "Activez « Giulio Geo » dans Boutique en ligne → Personnaliser → Intégrations d'app pour publier la FAQ, les données structurées et le fil d'Ariane sur votre boutique."
+                    : "Enable “Giulio Geo” in Online Store → Customize → App embeds to publish the FAQ, structured data and breadcrumb on your storefront."}
+                </Text>
+              )}
             </BlockStack>
           }
         />

@@ -1,0 +1,94 @@
+"""Detect whether the Giulio Geo theme app embed is enabled on the published theme.
+
+Reads ``config/settings_data.json`` of the MAIN theme (read_themes scope) and looks
+for our app embed block (matched by extension handle/uid) and whether it is enabled.
+Best-effort and fail-open: returns ``available=False`` when it cannot be determined.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any
+
+import requests
+
+logger = logging.getLogger(__name__)
+
+_GRAPHQL_PATH = "/admin/api/2025-01/graphql.json"
+_TIMEOUT = 20
+
+# Markers identifying our theme app extension inside settings_data.json app embeds.
+_EXTENSION_MARKERS = ("leonie-seo-jsonld", "41c38ef1-2770-74ac-364b-b4cff7f918b20d1602f9", "faq_embed")
+
+_MAIN_THEME_QUERY = """
+query MainTheme { themes(roles: [MAIN], first: 1) { edges { node { id } } } }
+""".strip()
+
+_SETTINGS_QUERY = """
+query ThemeSettings($id: ID!) {
+  theme(id: $id) {
+    files(filenames: ["config/settings_data.json"], first: 1) {
+      nodes { body { ... on OnlineStoreThemeFileBodyText { content } } }
+    }
+  }
+}
+""".strip()
+
+
+def _post(shop: str, access_token: str, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+    resp = requests.post(
+        f"https://{shop}{_GRAPHQL_PATH}",
+        headers={"X-Shopify-Access-Token": access_token, "Content-Type": "application/json"},
+        json={"query": query, "variables": variables},
+        timeout=_TIMEOUT,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _app_embed_enabled(settings_json: str) -> bool | None:
+    """Return True/False if our app embed is found, else None when undetermined."""
+    try:
+        data = json.loads(settings_json)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    blocks = (data.get("current") or {}).get("blocks")
+    if not isinstance(blocks, dict):
+        # Some themes store settings under a named preset rather than "current".
+        return None
+    for block in blocks.values():
+        if not isinstance(block, dict):
+            continue
+        block_type = str(block.get("type") or "")
+        if any(marker in block_type for marker in _EXTENSION_MARKERS):
+            # disabled defaults to False (i.e. enabled) when the key is absent.
+            if not bool(block.get("disabled", False)):
+                return True
+    # No matching enabled app embed → not enabled (whether absent or disabled).
+    return False
+
+
+def get_theme_extension_status(shop: str, access_token: str) -> dict[str, Any]:
+    """Return {available, enabled, detail} for the Giulio Geo theme app embed.
+
+    available=False means we could not read the theme (treat enabled as unknown).
+    """
+    try:
+        theme_data = _post(shop, access_token, _MAIN_THEME_QUERY, {})
+        edges = (((theme_data.get("data") or {}).get("themes") or {}).get("edges")) or []
+        if not edges:
+            return {"available": False, "enabled": None, "detail": "no published theme"}
+        theme_id = edges[0]["node"]["id"]
+        settings_data = _post(shop, access_token, _SETTINGS_QUERY, {"id": theme_id})
+        nodes = (
+            (((settings_data.get("data") or {}).get("theme") or {}).get("files") or {}).get("nodes")
+        ) or []
+        if not nodes:
+            return {"available": False, "enabled": None, "detail": "settings_data.json not found"}
+        content = ((nodes[0] or {}).get("body") or {}).get("content") or ""
+        enabled = _app_embed_enabled(content)
+        return {"available": True, "enabled": enabled, "detail": "ok"}
+    except requests.RequestException as exc:
+        logger.warning("Theme extension status check failed for %s: %s", shop, exc)
+        return {"available": False, "enabled": None, "detail": str(exc)}
