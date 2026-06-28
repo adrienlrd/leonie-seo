@@ -1258,10 +1258,12 @@ export default function BlogIndexPage() {
                       <Badge tone="info">{selectedIdea.source_label}</Badge>
                     )}
                     {selectedIdea.target_keyword && (
-                      <InlineStack gap="100" blockAlign="center">
+                      <BlockStack gap="100">
                         <Text as="span" variant="bodySm" tone="subdued">{fr ? "Mot-clé cible :" : "Target keyword:"}</Text>
-                        <Badge tone="attention">{selectedIdea.target_keyword}</Badge>
-                      </InlineStack>
+                        <InlineStack>
+                          <Badge tone="attention">{selectedIdea.target_keyword}</Badge>
+                        </InlineStack>
+                      </BlockStack>
                     )}
                   </BlockStack>
                   <Button variant="plain" onClick={() => setSelectedIdea(null)}>
@@ -1372,6 +1374,11 @@ export default function BlogIndexPage() {
                     </Button>
                     <Button tone="critical" variant="plain" onClick={onDelete}>
                       {fr ? "Supprimer" : "Delete"}
+                    </Button>
+                    {/* Close the editor and return to the inspiration grid. Edits are
+                        already auto-saved, so navigating away loses nothing. */}
+                    <Button variant="plain" onClick={() => navigate("/app/blog")}>
+                      {fr ? "Fermer" : "Close"}
                     </Button>
                   </InlineStack>
                 </InlineStack>
