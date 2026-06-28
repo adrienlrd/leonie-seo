@@ -1255,7 +1255,9 @@ export default function BlogIndexPage() {
                     <Text as="h2" variant="headingLg">{selectedIdea.title || (fr ? "(sans titre)" : "(untitled)")}</Text>
                     <Text as="p" variant="bodySm" tone="subdued">{selectedIdea.product_title}</Text>
                     {selectedIdea.source_label && (
-                      <Badge tone="info">{selectedIdea.source_label}</Badge>
+                      <InlineStack>
+                        <Badge tone="info">{selectedIdea.source_label}</Badge>
+                      </InlineStack>
                     )}
                     {selectedIdea.target_keyword && (
                       <BlockStack gap="100">
