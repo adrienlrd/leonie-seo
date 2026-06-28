@@ -1287,57 +1287,59 @@ export default function BlogIndexPage() {
           {selectedIdea ? (
             <Card>
               <BlockStack gap="400">
-                <InlineStack align="space-between" blockAlign="start" wrap>
-                  <BlockStack gap="100">
+                <InlineStack align="space-between" blockAlign="center" wrap={false}>
+                  <BlockStack gap="050">
                     <Text as="h2" variant="headingLg">{selectedIdea.title || (fr ? "(sans titre)" : "(untitled)")}</Text>
                     <Text as="p" variant="bodySm" tone="subdued">{selectedIdea.product_title}</Text>
-                    {selectedIdea.source_label && (
-                      <InlineStack>
-                        <Badge tone="info">{selectedIdea.source_label}</Badge>
-                      </InlineStack>
-                    )}
-                    <BlockStack gap="100">
-                      <InlineStack gap="150" blockAlign="center">
-                        <Text as="span" variant="bodySm" tone="subdued">{fr ? "Mot-clé cible :" : "Target keyword:"}</Text>
-                        <Button variant="plain" icon={EditIcon} accessibilityLabel={fr ? "Modifier le mot-clé" : "Edit keyword"} onClick={() => setEditingKeyword((e) => !e)} />
-                      </InlineStack>
-                      {editingKeyword ? (
-                        <TextField label="" labelHidden value={ideaKeyword} onChange={setIdeaKeyword} autoComplete="off" />
-                      ) : (
-                        <InlineStack>
-                          <Badge tone="attention">{ideaKeyword || (fr ? "(non défini)" : "(none)")}</Badge>
-                        </InlineStack>
-                      )}
-                      {ideaSecondary.length > 0 && (
-                        <InlineStack gap="100" wrap>
-                          {ideaSecondary.map((kw) => (
-                            <Tag key={kw} onRemove={() => setIdeaSecondary((s) => s.filter((k) => k !== kw))}>{kw}</Tag>
-                          ))}
-                        </InlineStack>
-                      )}
-                      {keywordSuggestions.length > 0 && (
-                        <BlockStack gap="100">
-                          <Text as="p" variant="bodySm" tone="subdued">
-                            {fr ? "Suggestions (de vos analyses) — cliquez pour ajouter :" : "Suggestions (from your analyses) — click to add:"}
-                          </Text>
-                          <InlineStack gap="100" wrap>
-                            {keywordSuggestions
-                              .filter((kw) => kw !== ideaKeyword && !ideaSecondary.includes(kw))
-                              .slice(0, 15)
-                              .map((kw) => (
-                                <Button key={kw} size="slim" variant="tertiary" onClick={() => addIdeaKeyword(kw)}>
-                                  {`+ ${kw}`}
-                                </Button>
-                              ))}
-                          </InlineStack>
-                        </BlockStack>
-                      )}
-                    </BlockStack>
                   </BlockStack>
                   <Button variant="plain" onClick={() => setSelectedIdea(null)}>
                     {fr ? "Fermer" : "Close"}
                   </Button>
                 </InlineStack>
+
+                {selectedIdea.source_label && (
+                  <InlineStack>
+                    <Badge tone="info">{selectedIdea.source_label}</Badge>
+                  </InlineStack>
+                )}
+
+                <BlockStack gap="100">
+                  <Text as="span" variant="bodySm" tone="subdued">{fr ? "Mot-clé cible :" : "Target keyword:"}</Text>
+                  <InlineStack gap="150" blockAlign="center">
+                    {editingKeyword ? (
+                      <div style={{ minWidth: 240 }}>
+                        <TextField label="" labelHidden value={ideaKeyword} onChange={setIdeaKeyword} autoComplete="off" />
+                      </div>
+                    ) : (
+                      <Badge tone="attention">{ideaKeyword || (fr ? "(non défini)" : "(none)")}</Badge>
+                    )}
+                    <Button variant="plain" icon={EditIcon} accessibilityLabel={fr ? "Modifier le mot-clé" : "Edit keyword"} onClick={() => setEditingKeyword((e) => !e)} />
+                  </InlineStack>
+                  {ideaSecondary.length > 0 && (
+                    <InlineStack gap="100" wrap>
+                      {ideaSecondary.map((kw) => (
+                        <Tag key={kw} onRemove={() => setIdeaSecondary((s) => s.filter((k) => k !== kw))}>{kw}</Tag>
+                      ))}
+                    </InlineStack>
+                  )}
+                  {keywordSuggestions.length > 0 && (
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {fr ? "Suggestions (de vos analyses) — cliquez pour ajouter :" : "Suggestions (from your analyses) — click to add:"}
+                      </Text>
+                      <InlineStack gap="100" wrap>
+                        {keywordSuggestions
+                          .filter((kw) => kw !== ideaKeyword && !ideaSecondary.includes(kw))
+                          .slice(0, 15)
+                          .map((kw) => (
+                            <Button key={kw} size="slim" variant="tertiary" onClick={() => addIdeaKeyword(kw)}>
+                              {`+ ${kw}`}
+                            </Button>
+                          ))}
+                      </InlineStack>
+                    </BlockStack>
+                  )}
+                </BlockStack>
 
                 {selectedIdea.intro && (
                   <BlockStack gap="100">

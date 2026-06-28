@@ -163,6 +163,7 @@ interface LoaderData {
   excludedDomains: string[];
   auditJobId: string | null;
   businessProfile: BusinessProfile | null;
+  inspirationIdeas: Array<{ title: string; product_title: string }>;
   gscStatus: GscStatus | null;
   learningMode: "semi_auto" | "auto_apply";
   error: string | null;
@@ -200,6 +201,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let excludedDomains: string[] = [];
   let auditJobId: string | null = null;
   let businessProfile: BusinessProfile | null = null;
+  let inspirationIdeas: Array<{ title: string; product_title: string }> = [];
   let gscStatus: GscStatus | null = null;
   let learningMode: "semi_auto" | "auto_apply" = "semi_auto";
 
@@ -265,13 +267,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (marketResp.status === "fulfilled" && marketResp.value.ok) {
       try {
         const job = (await marketResp.value.json()) as {
-          products?: ProductResult[];
+          products?: Array<ProductResult & { product_title?: string; content_test_pack?: { proposed_blog_ideas?: Array<{ title?: string }> } }>;
           competitor_signals?: { domain?: string }[];
         };
         for (const result of job.products ?? []) {
           if (result.product_id) productResults[result.product_id] = result;
           if (result.product_handle) productResults[result.product_handle] = result;
         }
+        // Two blog-idea teasers for the dashboard "Inspiration" panel.
+        inspirationIdeas = (job.products ?? [])
+          .flatMap((p) => (p.content_test_pack?.proposed_blog_ideas ?? []).map((idea) => ({
+            title: idea.title ?? "",
+            product_title: p.product_title ?? "",
+          })))
+          .filter((i) => i.title)
+          .slice(0, 2);
         competitorSignals = [
           ...new Set(
             (job.competitor_signals ?? [])
@@ -301,6 +311,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         excludedDomains,
         auditJobId: null,
         businessProfile,
+        inspirationIdeas,
         gscStatus,
         learningMode,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
@@ -313,7 +324,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirectToOnboarding();
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, learningMode, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, learningMode, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -325,6 +336,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       excludedDomains,
       auditJobId,
       businessProfile,
+      inspirationIdeas,
       gscStatus,
       learningMode,
       error: err instanceof Error ? err.message : "Network error",
@@ -1661,7 +1673,7 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, gscStatus, learningMode, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, learningMode, error } = useLoaderData<typeof loader>() as LoaderData;
   // OAuth status is authoritative; fall back to the per-product flag (GSC data
   // file present) only when the status call itself failed.
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
@@ -1981,6 +1993,33 @@ export default function IndexPage() {
           isAnalyzingSingle={isAnalyzingSingle}
         />
 
+        {/* Inspiration — 2 blog idea teasers linking to the Blog page. */}
+        {inspirationIdeas.length > 0 && (
+          <Card>
+            <BlockStack gap="300">
+              <SectionTitle source={BookOpenIcon}>
+                {locale === "fr" ? "Inspiration pour améliorer son référencement organique" : "Inspiration to improve your organic ranking"}
+              </SectionTitle>
+              <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
+                {inspirationIdeas.map((idea, i) => (
+                  <Box key={`insp-${i}`} padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">{idea.title}</Text>
+                      {idea.product_title && (
+                        <Text as="p" variant="bodySm" tone="subdued">{idea.product_title}</Text>
+                      )}
+                      <InlineStack>
+                        <Button url={localizedPath("/app/blog", locale)} variant="primary" size="slim">
+                          {locale === "fr" ? "Voir les idées" : "See the ideas"}
+                        </Button>
+                      </InlineStack>
+                    </BlockStack>
+                  </Box>
+                ))}
+              </InlineGrid>
+            </BlockStack>
+          </Card>
+        )}
 
         {/* Zone 5 — Alerts (conditional) */}
         <Zone5 data={zone5} locale={locale} />
