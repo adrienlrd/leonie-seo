@@ -36,6 +36,7 @@ import {
   Select,
   Spinner,
   Tabs,
+  Tag,
   Text,
   TextField,
 } from "@shopify/polaris";
@@ -71,6 +72,7 @@ interface Draft {
   product_title: string;
   blog_title: string;
   target_keyword?: string;
+  secondary_keywords?: string[];
   keyword_check?: KeywordCheck;
   intro: string;
   summary?: string;
@@ -129,6 +131,7 @@ interface LoaderData {
   prefillCluster: string | null;
   blogIdeas: BlogIdeaFlat[];
   ideaSuggestions: BlogIdeaFlat[];
+  keywordSuggestions: string[];
   pillarIdeaKeys: string[];
 }
 
@@ -169,12 +172,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (oneRes.ok) selected = (await oneRes.json()) as Draft;
   }
 
-  // Load blog ideas from the latest market analysis
+  // Load blog ideas + keyword suggestions from the latest market analysis
   let blogIdeas: BlogIdeaFlat[] = [];
+  let keywordSuggestions: string[] = [];
   try {
     if (analysisRes && analysisRes.ok) {
       const analysis = (await analysisRes.json()) as { products?: Array<{
         product_id: string; product_title: string;
+        seo_keywords?: Array<{ query?: string }>;
         content_test_pack?: { proposed_blog_ideas?: Array<{ title?: string; target_keyword?: string; intro?: string; outline?: string[] }> };
       }> };
       blogIdeas = (analysis.products ?? []).flatMap((p) =>
@@ -188,6 +193,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           idea_index: idx,
         })),
       );
+      // De-duplicated keyword queries across all analysed products.
+      const seen = new Set<string>();
+      for (const p of analysis.products ?? []) {
+        for (const k of p.seo_keywords ?? []) {
+          const q = (k.query ?? "").trim();
+          if (q && !seen.has(q.toLowerCase())) { seen.add(q.toLowerCase()); keywordSuggestions.push(q); }
+        }
+      }
+      keywordSuggestions = keywordSuggestions.slice(0, 40);
     }
   } catch { /* analysis not available yet */ }
 
@@ -254,6 +268,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     prefillCluster,
     blogIdeas,
     ideaSuggestions,
+    keywordSuggestions,
     pillarIdeaKeys,
   });
 };
@@ -678,6 +693,8 @@ function buildSavePayload(d: Draft): Record<string, unknown> {
     blog_title: d.blog_title,
     intro: d.intro,
     summary: d.summary,
+    target_keyword: d.target_keyword ?? "",
+    secondary_keywords: d.secondary_keywords ?? [],
     meta_description: d.meta_description ?? "",
     sections: d.sections,
     internal_links: d.internal_links ?? [],
@@ -701,7 +718,7 @@ function buildSavePayload(d: Draft): Record<string, unknown> {
 }
 
 export default function BlogIndexPage() {
-  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas, ideaSuggestions, pillarIdeaKeys } = useLoaderData<typeof loader>();
+  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas, ideaSuggestions, keywordSuggestions, pillarIdeaKeys } = useLoaderData<typeof loader>();
   const pillarIdeaKeySet = useMemo(() => new Set(pillarIdeaKeys), [pillarIdeaKeys]);
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
@@ -754,6 +771,17 @@ export default function BlogIndexPage() {
   // Up to 6 ideas (suggested first, then analysis blog ideas) for the landing grid.
   const inspirationIdeas = [...ideaSuggestions, ...blogIdeas].slice(0, 6);
   const [coverOpen, setCoverOpen] = useState(false);
+  const [newKeyword, setNewKeyword] = useState("");
+  const addKeywordValue = (kw: string) => {
+    const v = kw.trim();
+    if (!v) return;
+    setDraft((p) => {
+      if (!p) return p;
+      if (v === p.target_keyword || (p.secondary_keywords ?? []).includes(v)) return p;
+      return { ...p, secondary_keywords: [...(p.secondary_keywords ?? []), v] };
+    });
+  };
+  const addKeyword = () => { addKeywordValue(newKeyword); setNewKeyword(""); };
 
   // Localized format options for the cover-image popup (shared with the preview).
   const coverStyleOptions = [
@@ -1489,6 +1517,67 @@ export default function BlogIndexPage() {
                         return fr ? "Longueur idéale ✓" : "Ideal length ✓";
                       })()}
                     />
+
+                    {/* Target keyword (editable) + secondary keywords with suggestions
+                        sourced from previous market analyses. */}
+                    <Box padding="400" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                      <BlockStack gap="300">
+                        <TextField
+                          label={fr ? "Mot-clé cible" : "Target keyword"}
+                          value={draft.target_keyword ?? ""}
+                          onChange={(v) => setDraft((p) => p ? { ...p, target_keyword: v } : p)}
+                          autoComplete="off"
+                          helpText={fr ? "Le mot-clé principal de l'article." : "The article's primary keyword."}
+                        />
+                        <BlockStack gap="100">
+                          <Text as="p" variant="bodySm" fontWeight="semibold">
+                            {fr ? "Mots-clés secondaires" : "Secondary keywords"}
+                          </Text>
+                          {(draft.secondary_keywords ?? []).length > 0 ? (
+                            <InlineStack gap="100" wrap>
+                              {(draft.secondary_keywords ?? []).map((kw) => (
+                                <Tag key={kw} onRemove={() => setDraft((p) => p ? { ...p, secondary_keywords: (p.secondary_keywords ?? []).filter((k) => k !== kw) } : p)}>
+                                  {kw}
+                                </Tag>
+                              ))}
+                            </InlineStack>
+                          ) : (
+                            <Text as="p" variant="bodySm" tone="subdued">{fr ? "Aucun mot-clé secondaire." : "No secondary keywords."}</Text>
+                          )}
+                          <InlineStack gap="200" blockAlign="end">
+                            <div style={{ flex: 1 }}>
+                              <TextField
+                                label={fr ? "Ajouter un mot-clé" : "Add a keyword"}
+                                labelHidden
+                                placeholder={fr ? "Tape un mot-clé puis Entrée" : "Type a keyword then Enter"}
+                                value={newKeyword}
+                                onChange={setNewKeyword}
+                                autoComplete="off"
+                                onBlur={addKeyword}
+                              />
+                            </div>
+                            <Button onClick={addKeyword} disabled={!newKeyword.trim()}>{fr ? "Ajouter" : "Add"}</Button>
+                          </InlineStack>
+                        </BlockStack>
+                        {keywordSuggestions.length > 0 && (
+                          <BlockStack gap="100">
+                            <Text as="p" variant="bodySm" tone="subdued">
+                              {fr ? "Suggestions (de vos analyses) — cliquez pour ajouter :" : "Suggestions (from your analyses) — click to add:"}
+                            </Text>
+                            <InlineStack gap="100" wrap>
+                              {keywordSuggestions
+                                .filter((kw) => kw !== draft.target_keyword && !(draft.secondary_keywords ?? []).includes(kw))
+                                .slice(0, 20)
+                                .map((kw) => (
+                                  <Button key={kw} size="slim" variant="tertiary" onClick={() => addKeywordValue(kw)}>
+                                    {`+ ${kw}`}
+                                  </Button>
+                                ))}
+                            </InlineStack>
+                          </BlockStack>
+                        )}
+                      </BlockStack>
+                    </Box>
 
                     <ShopifyImagePicker
                       locale={locale}

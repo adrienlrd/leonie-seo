@@ -126,6 +126,8 @@ class DraftUpdateRequest(BaseModel):
     intro: str | None = None
     summary: str | None = None
     meta_description: str | None = None
+    target_keyword: str | None = None
+    secondary_keywords: list[str] | None = None
     sections: list[BlogSection] | None = None
     internal_links: list[BlogInternalLink] | None = None
     faq: list[BlogFaqItem] | None = None
@@ -320,6 +322,7 @@ def _draft_from_product(
         "target_customer": product.get("target_customer", ""),
         "blog_title": blog_title,
         "target_keyword": target_keyword,
+        "secondary_keywords": [],
         "intro": intro,
         "summary": _truncate_clean(intro, 300),
         "meta_description": _truncate_clean(intro, 155),
@@ -550,7 +553,7 @@ def update_blog_draft(
             item.model_dump() if hasattr(item, "model_dump") else item for item in patch["faq"]
         ]
     draft.update(patch)
-    if {"blog_title", "intro", "sections"} & set(patch):
+    if {"blog_title", "intro", "sections", "target_keyword"} & set(patch):
         _apply_keyword_check(draft)
     if "image_url" in patch:
         _apply_image_alt(draft)
@@ -937,7 +940,14 @@ def publish_blog_draft(
             language="fr",
             article_body=article_body_text,
             word_count=int(draft.get("word_count") or 0),
-            keywords=str(draft.get("target_keyword") or "").strip(),
+            keywords=", ".join(
+                kw
+                for kw in [
+                    str(draft.get("target_keyword") or "").strip(),
+                    *[str(k).strip() for k in (draft.get("secondary_keywords") or [])],
+                ]
+                if kw
+            ),
             about=about_product,
         )
         return html + "\n" + render_jsonld_blocks(article_ld, faq_ld, howto_ld)
