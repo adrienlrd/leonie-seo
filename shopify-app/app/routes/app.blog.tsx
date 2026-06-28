@@ -772,8 +772,17 @@ export default function BlogIndexPage() {
   const [showDrafts, setShowDrafts] = useState(false);
   const [showIdeas, setShowIdeas] = useState(false);
   const [showSuggested, setShowSuggested] = useState(false);
+  // Ideas already turned into a draft (generated or published) live in the
+  // Brouillons/Publiés lists, so hide them from the idea lists — each item in one place.
+  const draftTitleSet = useMemo(
+    () => new Set(drafts.map((d) => (d.blog_title || "").trim().toLowerCase()).filter(Boolean)),
+    [drafts],
+  );
+  const isRealised = (idea: BlogIdeaFlat) => draftTitleSet.has((idea.title || "").trim().toLowerCase());
+  const visibleBlogIdeas = useMemo(() => blogIdeas.filter((i) => !isRealised(i)), [blogIdeas, draftTitleSet]);
+  const visibleSuggestions = useMemo(() => ideaSuggestions.filter((i) => !isRealised(i)), [ideaSuggestions, draftTitleSet]);
   // Up to 6 ideas (suggested first, then analysis blog ideas) for the landing grid.
-  const inspirationIdeas = [...ideaSuggestions, ...blogIdeas].slice(0, 6);
+  const inspirationIdeas = [...visibleSuggestions, ...visibleBlogIdeas].slice(0, 6);
   const [coverOpen, setCoverOpen] = useState(false);
   // Keyword editing for the idea panel (pre-generation): primary keyword + extras
   // chosen from past-analysis suggestions, all fed into the article generation.
@@ -1153,7 +1162,7 @@ export default function BlogIndexPage() {
               })()}
 
               {/* ── Idées de blog ────────────────────────────────────── */}
-              {blogIdeas.length > 0 && (
+              {visibleBlogIdeas.length > 0 && (
                 <>
                   <Divider />
                   <InlineStack gap="150" blockAlign="center" wrap={false}>
@@ -1166,7 +1175,7 @@ export default function BlogIndexPage() {
                         disclosure={showIdeas ? "up" : "down"}
                         variant="tertiary"
                       >
-                        {fr ? `Idées de blog (${blogIdeas.length})` : `Blog ideas (${blogIdeas.length})`}
+                        {fr ? `Idées de blog (${visibleBlogIdeas.length})` : `Blog ideas (${visibleBlogIdeas.length})`}
                       </Button>
                     </div>
                   </InlineStack>
@@ -1174,7 +1183,7 @@ export default function BlogIndexPage() {
                     <BlockStack gap="100">
                       {(() => {
                         const byProduct = new Map<string, BlogIdeaFlat[]>();
-                        blogIdeas.forEach((idea) => {
+                        visibleBlogIdeas.forEach((idea) => {
                           const arr = byProduct.get(idea.product_id) ?? [];
                           arr.push(idea);
                           byProduct.set(idea.product_id, arr);
@@ -1224,7 +1233,7 @@ export default function BlogIndexPage() {
               )}
 
               {/* ── Idées suggérées (tendances, concurrents, avantages) ─── */}
-              {ideaSuggestions.length > 0 && (
+              {visibleSuggestions.length > 0 && (
                 <>
                   <Divider />
                   <InlineStack gap="150" blockAlign="center" wrap={false}>
@@ -1237,7 +1246,7 @@ export default function BlogIndexPage() {
                         disclosure={showSuggested ? "up" : "down"}
                         variant="tertiary"
                       >
-                        {fr ? `Idées suggérées (${ideaSuggestions.length})` : `Suggested ideas (${ideaSuggestions.length})`}
+                        {fr ? `Idées suggérées (${visibleSuggestions.length})` : `Suggested ideas (${visibleSuggestions.length})`}
                       </Button>
                     </div>
                   </InlineStack>
@@ -1249,7 +1258,7 @@ export default function BlogIndexPage() {
                           : "Seasonal trends, competitor alternatives and product advantages."}
                       </Text>
                       <BlockStack gap="050">
-                    {ideaSuggestions.map((idea, i) => {
+                    {visibleSuggestions.map((idea, i) => {
                       const isActive = selectedIdea?.title === idea.title && selectedIdea?.idea_index === -1;
                       const tone = idea.angle === "competitor" ? "warning"
                         : idea.angle === "seasonal" || idea.angle === "trend" ? "info"
