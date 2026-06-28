@@ -50,8 +50,14 @@ def _build_prompt(
     confirmed_facts: list[dict[str, Any]] | None,
     target_customer: str,
     brand_voice: str,
+    keywords: str = "",
 ) -> str:
     voice = f"TON DE MARQUE: {brand_voice}\n" if brand_voice else ""
+    kw = (
+        f"MOTS-CLÉS À INTÉGRER NATURELLEMENT (sans bourrage, priorité au 1er): {keywords}\n"
+        if keywords.strip()
+        else ""
+    )
     return (
         f"TITRE BLOG: {blog_title}\n"
         f"H2 SECTION: {h2_question}\n"
@@ -59,6 +65,7 @@ def _build_prompt(
         f"RÉSUMÉ PRODUIT: {product_summary}\n"
         f"CLIENT CIBLE: {target_customer}\n"
         f"{voice}"
+        f"{kw}"
         "FAITS PRODUIT CONFIRMÉS (seule source autorisée pour les affirmations) :\n"
         f"{_format_facts(confirmed_facts)}\n\n"
         "RÈGLES STRICTES :\n"
@@ -93,6 +100,7 @@ def generate_section(
     confirmed_facts: list[dict[str, Any]] | None,
     target_customer: str = "",
     brand_voice: str = "",
+    keywords: str = "",
     shop: str | None = None,
 ) -> dict[str, Any]:
     """Generate one blog section. Falls back to empty fields on any LLM/parse failure."""
@@ -110,6 +118,7 @@ def generate_section(
         confirmed_facts=confirmed_facts,
         target_customer=target_customer,
         brand_voice=brand_voice,
+        keywords=keywords,
     )
 
     try:
@@ -144,6 +153,7 @@ def generate_all_sections(
     confirmed_facts: list[dict[str, Any]] | None,
     target_customer: str = "",
     brand_voice: str = "",
+    keywords: str = "",
     shop: str | None = None,
 ) -> list[dict[str, Any]]:
     """Generate every section sequentially. One missing section never blocks the rest."""
@@ -159,6 +169,7 @@ def generate_all_sections(
             confirmed_facts=confirmed_facts,
             target_customer=target_customer,
             brand_voice=brand_voice,
+            keywords=keywords,
             shop=shop,
         )
         section["h2"] = question.strip()

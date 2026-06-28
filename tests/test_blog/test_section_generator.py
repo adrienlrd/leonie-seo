@@ -56,3 +56,20 @@ def test_generate_section_falls_back_on_parse_failure():
             confirmed_facts=[],
         )
     assert out == {"direct_answer": "", "body": "", "claims_used": []}
+
+
+def test_keywords_are_injected_into_the_prompt():
+    router = MagicMock()
+    router.complete.return_value = _completion({"direct_answer": "x", "body": "y", "claims_used": []})
+    with patch("app.blog.section_generator.get_router", return_value=router):
+        generate_section(
+            blog_title="Guide fontaine",
+            h2_question="Pourquoi une fontaine ?",
+            product_title="Fontaine Smart",
+            product_summary="",
+            confirmed_facts=[],
+            keywords="fontaine à eau pour chat, fontaine silencieuse",
+        )
+    prompt = router.complete.call_args.args[0]
+    assert "fontaine à eau pour chat" in prompt
+    assert "MOTS-CLÉS" in prompt

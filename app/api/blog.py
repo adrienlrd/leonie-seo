@@ -109,6 +109,7 @@ class PublishDraftRequest(BaseModel):
 class BlogIdeaOverride(BaseModel):
     title: str = ""
     target_keyword: str = ""
+    secondary_keywords: list[str] = Field(default_factory=list)
     intro: str = ""
     outline: list[str] = Field(default_factory=list)
 
@@ -322,7 +323,9 @@ def _draft_from_product(
         "target_customer": product.get("target_customer", ""),
         "blog_title": blog_title,
         "target_keyword": target_keyword,
-        "secondary_keywords": [],
+        "secondary_keywords": [
+            str(k).strip() for k in (selected_idea.get("secondary_keywords") or []) if str(k).strip()
+        ],
         "intro": intro,
         "summary": _truncate_clean(intro, 300),
         "meta_description": _truncate_clean(intro, 155),
@@ -429,6 +432,12 @@ def create_blog_draft(
             idea_override=body.idea.model_dump() if body.idea else None,
         )
         if body.auto_generate and draft["outline"]:
+            # Merchant-chosen keywords (primary + secondary) steer the generation.
+            keywords = ", ".join(
+                kw
+                for kw in [draft.get("target_keyword", ""), *(draft.get("secondary_keywords") or [])]
+                if str(kw).strip()
+            )
             draft["sections"] = generate_all_sections(
                 blog_title=draft["blog_title"],
                 h2_questions=draft["outline"],
@@ -436,6 +445,7 @@ def create_blog_draft(
                 product_summary=draft["product_summary"],
                 confirmed_facts=draft["confirmed_facts"],
                 target_customer=draft["target_customer"],
+                keywords=keywords,
                 shop=ctx.shop,
             )
             _apply_keyword_check(draft)

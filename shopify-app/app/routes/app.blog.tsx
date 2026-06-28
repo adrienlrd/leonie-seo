@@ -40,7 +40,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { CheckIcon, ImageIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
+import { CheckIcon, EditIcon, ImageIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { callBackendForShop } from "../lib/api.server";
@@ -329,7 +329,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         product_id: string;
         auto_generate: boolean;
         blog_idea_index?: number;
-        idea?: { title: string; target_keyword: string; intro: string; outline: string[] };
+        idea?: { title: string; target_keyword: string; secondary_keywords?: string[]; intro: string; outline: string[] };
       } = {
         product_id: productId,
         auto_generate: true,
@@ -738,6 +738,10 @@ export default function BlogIndexPage() {
   const selectIdea = (idea: BlogIdeaFlat) => {
     setSelectedIdea(idea);
     setDraft(null);
+    setIdeaKeyword(idea.target_keyword ?? "");
+    setIdeaSecondary([]);
+    setEditingKeyword(false);
+    setNewKeyword("");
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
   useEffect(() => {
@@ -771,17 +775,18 @@ export default function BlogIndexPage() {
   // Up to 6 ideas (suggested first, then analysis blog ideas) for the landing grid.
   const inspirationIdeas = [...ideaSuggestions, ...blogIdeas].slice(0, 6);
   const [coverOpen, setCoverOpen] = useState(false);
+  // Keyword editing for the idea panel (pre-generation): primary keyword + extras
+  // chosen from past-analysis suggestions, all fed into the article generation.
+  const [ideaKeyword, setIdeaKeyword] = useState("");
+  const [ideaSecondary, setIdeaSecondary] = useState<string[]>([]);
+  const [editingKeyword, setEditingKeyword] = useState(false);
   const [newKeyword, setNewKeyword] = useState("");
-  const addKeywordValue = (kw: string) => {
+  const addIdeaKeyword = (kw: string) => {
     const v = kw.trim();
     if (!v) return;
-    setDraft((p) => {
-      if (!p) return p;
-      if (v === p.target_keyword || (p.secondary_keywords ?? []).includes(v)) return p;
-      return { ...p, secondary_keywords: [...(p.secondary_keywords ?? []), v] };
-    });
+    setIdeaSecondary((s) => (v === ideaKeyword || s.includes(v) ? s : [...s, v]));
   };
-  const addKeyword = () => { addKeywordValue(newKeyword); setNewKeyword(""); };
+  const addNewKeyword = () => { addIdeaKeyword(newKeyword); setNewKeyword(""); };
 
   // Localized format options for the cover-image popup (shared with the preview).
   const coverStyleOptions = [
@@ -1291,14 +1296,43 @@ export default function BlogIndexPage() {
                         <Badge tone="info">{selectedIdea.source_label}</Badge>
                       </InlineStack>
                     )}
-                    {selectedIdea.target_keyword && (
-                      <BlockStack gap="100">
+                    <BlockStack gap="100">
+                      <InlineStack gap="150" blockAlign="center">
                         <Text as="span" variant="bodySm" tone="subdued">{fr ? "Mot-clé cible :" : "Target keyword:"}</Text>
+                        <Button variant="plain" icon={EditIcon} accessibilityLabel={fr ? "Modifier le mot-clé" : "Edit keyword"} onClick={() => setEditingKeyword((e) => !e)} />
+                      </InlineStack>
+                      {editingKeyword ? (
+                        <TextField label="" labelHidden value={ideaKeyword} onChange={setIdeaKeyword} autoComplete="off" />
+                      ) : (
                         <InlineStack>
-                          <Badge tone="attention">{selectedIdea.target_keyword}</Badge>
+                          <Badge tone="attention">{ideaKeyword || (fr ? "(non défini)" : "(none)")}</Badge>
                         </InlineStack>
-                      </BlockStack>
-                    )}
+                      )}
+                      {ideaSecondary.length > 0 && (
+                        <InlineStack gap="100" wrap>
+                          {ideaSecondary.map((kw) => (
+                            <Tag key={kw} onRemove={() => setIdeaSecondary((s) => s.filter((k) => k !== kw))}>{kw}</Tag>
+                          ))}
+                        </InlineStack>
+                      )}
+                      {keywordSuggestions.length > 0 && (
+                        <BlockStack gap="100">
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {fr ? "Suggestions (de vos analyses) — cliquez pour ajouter :" : "Suggestions (from your analyses) — click to add:"}
+                          </Text>
+                          <InlineStack gap="100" wrap>
+                            {keywordSuggestions
+                              .filter((kw) => kw !== ideaKeyword && !ideaSecondary.includes(kw))
+                              .slice(0, 15)
+                              .map((kw) => (
+                                <Button key={kw} size="slim" variant="tertiary" onClick={() => addIdeaKeyword(kw)}>
+                                  {`+ ${kw}`}
+                                </Button>
+                              ))}
+                          </InlineStack>
+                        </BlockStack>
+                      )}
+                    </BlockStack>
                   </BlockStack>
                   <Button variant="plain" onClick={() => setSelectedIdea(null)}>
                     {fr ? "Fermer" : "Close"}
@@ -1330,20 +1364,18 @@ export default function BlogIndexPage() {
                     <Form method="post">
                       <input type="hidden" name="intent" value="createFromProduct" />
                       <input type="hidden" name="productId" value={selectedIdea.product_id} />
-                      {selectedIdea.idea_index >= 0 ? (
-                        <input type="hidden" name="blogIdeaIndex" value={String(selectedIdea.idea_index)} />
-                      ) : (
-                        <input
-                          type="hidden"
-                          name="idea"
-                          value={JSON.stringify({
-                            title: selectedIdea.title,
-                            target_keyword: selectedIdea.target_keyword,
-                            intro: selectedIdea.intro,
-                            outline: selectedIdea.outline,
-                          })}
-                        />
-                      )}
+                      {/* Always send the (possibly edited) keywords so they steer generation. */}
+                      <input
+                        type="hidden"
+                        name="idea"
+                        value={JSON.stringify({
+                          title: selectedIdea.title,
+                          target_keyword: ideaKeyword,
+                          secondary_keywords: ideaSecondary,
+                          intro: selectedIdea.intro,
+                          outline: selectedIdea.outline,
+                        })}
+                      />
                       <Button
                         variant="primary"
                         submit
@@ -1517,67 +1549,6 @@ export default function BlogIndexPage() {
                         return fr ? "Longueur idéale ✓" : "Ideal length ✓";
                       })()}
                     />
-
-                    {/* Target keyword (editable) + secondary keywords with suggestions
-                        sourced from previous market analyses. */}
-                    <Box padding="400" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
-                      <BlockStack gap="300">
-                        <TextField
-                          label={fr ? "Mot-clé cible" : "Target keyword"}
-                          value={draft.target_keyword ?? ""}
-                          onChange={(v) => setDraft((p) => p ? { ...p, target_keyword: v } : p)}
-                          autoComplete="off"
-                          helpText={fr ? "Le mot-clé principal de l'article." : "The article's primary keyword."}
-                        />
-                        <BlockStack gap="100">
-                          <Text as="p" variant="bodySm" fontWeight="semibold">
-                            {fr ? "Mots-clés secondaires" : "Secondary keywords"}
-                          </Text>
-                          {(draft.secondary_keywords ?? []).length > 0 ? (
-                            <InlineStack gap="100" wrap>
-                              {(draft.secondary_keywords ?? []).map((kw) => (
-                                <Tag key={kw} onRemove={() => setDraft((p) => p ? { ...p, secondary_keywords: (p.secondary_keywords ?? []).filter((k) => k !== kw) } : p)}>
-                                  {kw}
-                                </Tag>
-                              ))}
-                            </InlineStack>
-                          ) : (
-                            <Text as="p" variant="bodySm" tone="subdued">{fr ? "Aucun mot-clé secondaire." : "No secondary keywords."}</Text>
-                          )}
-                          <InlineStack gap="200" blockAlign="end">
-                            <div style={{ flex: 1 }}>
-                              <TextField
-                                label={fr ? "Ajouter un mot-clé" : "Add a keyword"}
-                                labelHidden
-                                placeholder={fr ? "Tape un mot-clé puis Entrée" : "Type a keyword then Enter"}
-                                value={newKeyword}
-                                onChange={setNewKeyword}
-                                autoComplete="off"
-                                onBlur={addKeyword}
-                              />
-                            </div>
-                            <Button onClick={addKeyword} disabled={!newKeyword.trim()}>{fr ? "Ajouter" : "Add"}</Button>
-                          </InlineStack>
-                        </BlockStack>
-                        {keywordSuggestions.length > 0 && (
-                          <BlockStack gap="100">
-                            <Text as="p" variant="bodySm" tone="subdued">
-                              {fr ? "Suggestions (de vos analyses) — cliquez pour ajouter :" : "Suggestions (from your analyses) — click to add:"}
-                            </Text>
-                            <InlineStack gap="100" wrap>
-                              {keywordSuggestions
-                                .filter((kw) => kw !== draft.target_keyword && !(draft.secondary_keywords ?? []).includes(kw))
-                                .slice(0, 20)
-                                .map((kw) => (
-                                  <Button key={kw} size="slim" variant="tertiary" onClick={() => addKeywordValue(kw)}>
-                                    {`+ ${kw}`}
-                                  </Button>
-                                ))}
-                            </InlineStack>
-                          </BlockStack>
-                        )}
-                      </BlockStack>
-                    </Box>
 
                     <ShopifyImagePicker
                       locale={locale}
