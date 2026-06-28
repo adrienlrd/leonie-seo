@@ -1227,10 +1227,14 @@ export default function BlogIndexPage() {
                           }}
                         >
                           <BlockStack gap="050">
-                            {idea.source_label && <Badge tone={tone} size="small">{idea.source_label}</Badge>}
                             <Text as="span" variant="bodySm" fontWeight={isActive ? "semibold" : "regular"}>
                               {idea.title}
                             </Text>
+                            {idea.source_label && (
+                              <InlineStack>
+                                <Badge tone={tone} size="small">{idea.source_label}</Badge>
+                              </InlineStack>
+                            )}
                           </BlockStack>
                         </div>
                       );
