@@ -2037,7 +2037,7 @@ export default function BlogIndexPage() {
                     : "The best article ideas to create. Click \"Discover\" to see the outline and generate the article."}
                 </Text>
               </BlockStack>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, alignItems: "stretch", width: "100%" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 32, alignItems: "stretch", width: "100%" }}>
                 {inspirationIdeas.map((idea, i) => (
                   <div
                     key={`insp-${i}`}
