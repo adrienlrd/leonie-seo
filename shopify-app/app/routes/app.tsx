@@ -7,22 +7,32 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { authenticate } from "../shopify.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import { SupportChat } from "../components/SupportChat";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  return json({ apiKey: process.env.SHOPIFY_API_KEY || "", locale: getLocale(request) });
+  const { session } = await authenticate.admin(request);
+  return json({
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    locale: getLocale(request),
+    // Optional support-chat widget (e.g. a Tawk.to embed URL). Empty → no widget.
+    supportChatSrc: process.env.LEONIE_SUPPORT_CHAT_SRC || "",
+    shop: session.shop,
+  });
 };
 
 export default function App() {
-  const { apiKey, locale } = useLoaderData<typeof loader>() as {
+  const { apiKey, locale, supportChatSrc, shop } = useLoaderData<typeof loader>() as {
     apiKey: string;
     locale: Locale;
+    supportChatSrc: string;
+    shop: string;
   };
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
+      <SupportChat src={supportChatSrc} shop={shop} />
       <NavMenu>
         <a href={localizedPath("/app", locale)} rel="home">
           {t(locale, "dashboard")}
