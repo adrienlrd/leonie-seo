@@ -2030,9 +2030,20 @@ export default function BlogIndexPage() {
                     : "The best article ideas to create. Click \"Discover\" to see the outline and generate the article."}
                 </Text>
               </BlockStack>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16, alignItems: "stretch", width: "100%" }}>
                 {inspirationIdeas.map((idea, i) => (
-                  <Card key={`insp-${i}`}>
+                  <div
+                    key={`insp-${i}`}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      height: "100%",
+                      background: "var(--p-color-bg-surface)",
+                      border: "1px solid var(--p-color-border)",
+                      borderRadius: 12,
+                      padding: 16,
+                    }}
+                  >
                     <BlockStack gap="200">
                       {idea.source_label && (
                         <Badge tone={idea.angle === "competitor" ? "warning" : idea.angle === "seasonal" || idea.angle === "trend" ? "info" : "success"} size="small">
@@ -2043,25 +2054,20 @@ export default function BlogIndexPage() {
                       {idea.product_title && (
                         <Text as="p" variant="bodySm" tone="subdued">{idea.product_title}</Text>
                       )}
-                      {idea.target_keyword && (
-                        <InlineStack gap="100" blockAlign="center">
-                          <Text as="span" variant="bodySm" tone="subdued">{fr ? "Mot-clé cible :" : "Target keyword:"}</Text>
-                          <Badge tone="attention">{idea.target_keyword}</Badge>
-                        </InlineStack>
-                      )}
                       {idea.intro && (
                         <BlockStack gap="050">
                           <Text as="p" variant="headingXs" tone="subdued">{fr ? "Introduction" : "Introduction"}</Text>
                           <Text as="p" variant="bodySm">{idea.intro}</Text>
                         </BlockStack>
                       )}
-                      <Box paddingBlockStart="100">
-                        <Button variant="primary" onClick={() => selectIdea(idea)}>
-                          {fr ? "Découvrir" : "Discover"}
-                        </Button>
-                      </Box>
                     </BlockStack>
-                  </Card>
+                    {/* Push the button to the bottom so it lines up across all cards. */}
+                    <div style={{ marginTop: "auto", paddingTop: 16 }}>
+                      <Button variant="primary" fullWidth onClick={() => selectIdea(idea)}>
+                        {fr ? "Découvrir" : "Discover"}
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </div>
             </BlockStack>
