@@ -1873,7 +1873,7 @@ export default function BlogIndexPage() {
                           </Button>
                         </div>
                       )}
-                      {/* 5. Cover image with a pencil overlay (top-right) to edit it. */}
+                      {/* 5. Cover image with a pencil overlay (top-left) to edit it. */}
                       {draft.image_url && (() => {
                         const style = draft.image_style ?? "hero";
                         const wrapperStyle: React.CSSProperties =
@@ -1898,7 +1898,7 @@ export default function BlogIndexPage() {
                               onClick={() => setCoverOpen(true)}
                               aria-label={fr ? "Modifier l'image" : "Edit image"}
                               style={{
-                                position: "absolute", top: 8, right: 8, width: 32, height: 32,
+                                position: "absolute", top: 8, left: 8, width: 32, height: 32,
                                 borderRadius: "50%", border: "none", cursor: "pointer",
                                 background: "rgba(255,255,255,0.92)", boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
                                 display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15,

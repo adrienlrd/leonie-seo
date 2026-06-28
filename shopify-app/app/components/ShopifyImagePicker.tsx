@@ -159,7 +159,14 @@ export function CoverImageModal({
       open
       onClose={onClose}
       title={locale === "fr" ? "Image de couverture" : "Cover image"}
-      primaryAction={{ content: locale === "fr" ? "Terminé" : "Done", onAction: onClose }}
+      // "Terminé" applies the image picked in the Browse tab (if any) and closes.
+      primaryAction={{
+        content: locale === "fr" ? "Terminé" : "Done",
+        onAction: () => {
+          if (selected) onSelect(selected.url, selected.alt);
+          onClose();
+        },
+      }}
       secondaryActions={
         imageUrl ? [{ content: t(locale, "coverImageRemove"), destructive: true, onAction: onRemove }] : undefined
       }
@@ -169,11 +176,6 @@ export function CoverImageModal({
         <BlockStack gap="400">
           {imageUrl && (
             <BlockStack gap="300">
-              <img
-                src={imageUrl}
-                alt={imageAlt ?? ""}
-                style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 8, display: "block" }}
-              />
               <TextField
                 label={t(locale, "coverImageAlt")}
                 value={imageAlt ?? ""}
@@ -183,7 +185,7 @@ export function CoverImageModal({
               />
               {onStyleChange && styleOptions && styleOptions.length > 0 && (
                 <Select
-                  label={locale === "fr" ? "Format et emplacement de l'image" : "Image format & placement"}
+                  label={locale === "fr" ? "Emplacement de l'image" : "Image placement"}
                   options={styleOptions}
                   value={imageStyle ?? "hero"}
                   onChange={onStyleChange}
@@ -193,14 +195,7 @@ export function CoverImageModal({
           )}
           <Tabs tabs={tabs} selected={tab} onSelect={setTab}>
             {tab === 0 ? (
-              <BlockStack gap="300">
-                <BrowseTab locale={locale} selected={selected} onSelect={setSelected} />
-                {selected && (
-                  <Button onClick={() => { onSelect(selected.url, selected.alt); setSelected(null); }}>
-                    {imageUrl ? (locale === "fr" ? "Remplacer par cette image" : "Replace with this image") : t(locale, "coverImageSelect")}
-                  </Button>
-                )}
-              </BlockStack>
+              <BrowseTab locale={locale} selected={selected} onSelect={setSelected} />
             ) : (
               <UploadTab locale={locale} onUploaded={onSelect} />
             )}
@@ -306,25 +301,42 @@ function BrowseTab({
             padding: "4px 0",
           }}
         >
-          {files.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => onSelect(f)}
-              style={{
-                cursor: "pointer",
-                border: selected?.id === f.id ? "2px solid var(--p-color-border-interactive)" : "2px solid transparent",
-                borderRadius: 8,
-                padding: 2,
-                background: "none",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Thumbnail source={f.url} alt={f.alt} size="large" />
-            </button>
-          ))}
+          {files.map((f) => {
+            const isSelected = selected?.id === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => onSelect(f)}
+                style={{
+                  position: "relative",
+                  cursor: "pointer",
+                  border: isSelected ? "2px solid var(--p-color-border-interactive)" : "2px solid transparent",
+                  borderRadius: 8,
+                  padding: 2,
+                  background: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Thumbnail source={f.url} alt={f.alt} size="large" />
+                {isSelected && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute", top: 4, right: 4, width: 20, height: 20,
+                      borderRadius: "50%", background: "var(--p-color-bg-fill-success, #008060)",
+                      color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 13, lineHeight: 1, boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                    }}
+                  >
+                    ✓
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
