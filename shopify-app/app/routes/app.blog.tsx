@@ -709,10 +709,10 @@ export default function BlogIndexPage() {
 
   // Editable copy of the selected draft.
   const [draft, setDraft] = useState<Draft | null>(selected);
-  // 0 = édition, 1 = aperçu — saving auto-switches to preview so the merchant
-  // immediately sees the cleanly-rendered article; switching drafts goes back
-  // to édition so every editable field (incl. cover image) is reachable.
-  const [tabIndex, setTabIndex] = useState(0);
+  // 0 = édition, 1 = aperçu. Opening/generating an article lands on the preview
+  // (the cover image + format can be edited from there too); the Édition tab keeps
+  // the full field-by-field editor.
+  const [tabIndex, setTabIndex] = useState(1);
   const [selectedIdea, setSelectedIdea] = useState<BlogIdeaFlat | null>(null);
   // Selecting an idea swaps in the right-hand "generate" panel at the top — scroll
   // back up so the merchant sees it instead of staying at the bottom of the list.
@@ -723,7 +723,8 @@ export default function BlogIndexPage() {
   };
   useEffect(() => {
     setDraft(selected);
-    setTabIndex(0);
+    // Land on the preview (tab 1) when an article is opened or freshly generated.
+    setTabIndex(1);
     // Generating from an idea redirects to ?draft={newId} — switch the panel
     // over to the freshly generated draft instead of staying stuck on the idea card.
     setSelectedIdea(null);
@@ -1817,6 +1818,36 @@ export default function BlogIndexPage() {
                     borderColor="border"
                     borderWidth="025"
                   >
+                    {/* Cover image controls available straight from the preview:
+                        add/change/remove + format, without switching to Édition. */}
+                    <Box paddingBlockEnd="400">
+                      <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                        <BlockStack gap="300">
+                          <ShopifyImagePicker
+                            locale={locale}
+                            imageUrl={draft.image_url ?? null}
+                            imageAlt={draft.image_alt ?? null}
+                            onSelect={(url, alt) => setDraft((p) => p ? { ...p, image_url: url, image_alt: alt || p.image_alt } : p)}
+                            onAltChange={(alt) => setDraft((p) => p ? { ...p, image_alt: alt } : p)}
+                            onRemove={() => setDraft((p) => p ? { ...p, image_url: "", image_alt: "" } : p)}
+                          />
+                          {draft.image_url && (
+                            <Select
+                              label={fr ? "Format et emplacement de l'image" : "Image format & placement"}
+                              options={[
+                                { label: fr ? "Couverture pleine largeur" : "Full-width cover", value: "hero" },
+                                { label: fr ? "Bandeau cinématique (plus court)" : "Cinematic banner (shorter)", value: "banner" },
+                                { label: fr ? "Image centrée" : "Centered image", value: "centered" },
+                                { label: fr ? "Flottant à gauche (texte à droite)" : "Float left (text wraps right)", value: "float-left" },
+                                { label: fr ? "Flottant à droite (texte à gauche)" : "Float right (text wraps left)", value: "float-right" },
+                              ]}
+                              value={draft.image_style ?? "hero"}
+                              onChange={(v) => setDraft((p) => p ? { ...p, image_style: v as Draft["image_style"] } : p)}
+                            />
+                          )}
+                        </BlockStack>
+                      </Box>
+                    </Box>
                     <article style={{ maxWidth: 720, margin: "0 auto", lineHeight: 1.65, overflow: "hidden" }}>
                       {/* 1. Title */}
                       <h1 style={{ marginBottom: 8, fontSize: 28 }}>
