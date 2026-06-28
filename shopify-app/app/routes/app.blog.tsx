@@ -39,14 +39,14 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { CheckIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
+import { CheckIcon, ImageIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { callBackendForShop } from "../lib/api.server";
 import { handleShopifyFilesIntent } from "../lib/shopifyFiles.server";
 import { getLocale, loaderPhrases, type Locale } from "../lib/i18n";
 import { AnalysisLoader } from "../components/AnalysisLoader";
-import { ShopifyImagePicker } from "../components/ShopifyImagePicker";
+import { CoverImageModal, ShopifyImagePicker } from "../components/ShopifyImagePicker";
 import { scoreTone } from "../lib/marketAnalysisShared";
 import { authenticate } from "../shopify.server";
 
@@ -749,6 +749,16 @@ export default function BlogIndexPage() {
   const [showDrafts, setShowDrafts] = useState(true);
   const [showIdeas, setShowIdeas] = useState(true);
   const [showSuggested, setShowSuggested] = useState(true);
+  const [coverOpen, setCoverOpen] = useState(false);
+
+  // Localized format options for the cover-image popup (shared with the preview).
+  const coverStyleOptions = [
+    { label: fr ? "Couverture pleine largeur" : "Full-width cover", value: "hero" },
+    { label: fr ? "Bandeau cinématique (plus court)" : "Cinematic banner (shorter)", value: "banner" },
+    { label: fr ? "Image centrée" : "Centered image", value: "centered" },
+    { label: fr ? "Flottant à gauche (texte à droite)" : "Float left (text wraps right)", value: "float-left" },
+    { label: fr ? "Flottant à droite (texte à gauche)" : "Float right (text wraps left)", value: "float-right" },
+  ];
   const [geoHelpOpen, setGeoHelpOpen] = useState(false);
 
   const wordCount = useMemo(() => (draft ? countDraftWords(draft) : 0), [draft]);
@@ -1818,36 +1828,6 @@ export default function BlogIndexPage() {
                     borderColor="border"
                     borderWidth="025"
                   >
-                    {/* Cover image controls available straight from the preview:
-                        add/change/remove + format, without switching to Édition. */}
-                    <Box paddingBlockEnd="400">
-                      <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
-                        <BlockStack gap="300">
-                          <ShopifyImagePicker
-                            locale={locale}
-                            imageUrl={draft.image_url ?? null}
-                            imageAlt={draft.image_alt ?? null}
-                            onSelect={(url, alt) => setDraft((p) => p ? { ...p, image_url: url, image_alt: alt || p.image_alt } : p)}
-                            onAltChange={(alt) => setDraft((p) => p ? { ...p, image_alt: alt } : p)}
-                            onRemove={() => setDraft((p) => p ? { ...p, image_url: "", image_alt: "" } : p)}
-                          />
-                          {draft.image_url && (
-                            <Select
-                              label={fr ? "Format et emplacement de l'image" : "Image format & placement"}
-                              options={[
-                                { label: fr ? "Couverture pleine largeur" : "Full-width cover", value: "hero" },
-                                { label: fr ? "Bandeau cinématique (plus court)" : "Cinematic banner (shorter)", value: "banner" },
-                                { label: fr ? "Image centrée" : "Centered image", value: "centered" },
-                                { label: fr ? "Flottant à gauche (texte à droite)" : "Float left (text wraps right)", value: "float-left" },
-                                { label: fr ? "Flottant à droite (texte à gauche)" : "Float right (text wraps left)", value: "float-right" },
-                              ]}
-                              value={draft.image_style ?? "hero"}
-                              onChange={(v) => setDraft((p) => p ? { ...p, image_style: v as Draft["image_style"] } : p)}
-                            />
-                          )}
-                        </BlockStack>
-                      </Box>
-                    </Box>
                     <article style={{ maxWidth: 720, margin: "0 auto", lineHeight: 1.65, overflow: "hidden" }}>
                       {/* 1. Title */}
                       <h1 style={{ marginBottom: 8, fontSize: 28 }}>
@@ -1885,25 +1865,48 @@ export default function BlogIndexPage() {
                           </ol>
                         </nav>
                       )}
-                      {/* 5. Cover image — separated from the TOC, opens the content area */}
+                      {/* No image → a full-width "Add an image" button under the TOC. */}
+                      {!draft.image_url && (
+                        <div style={{ marginBottom: 24 }}>
+                          <Button fullWidth icon={ImageIcon} onClick={() => setCoverOpen(true)}>
+                            {fr ? "Ajouter une image" : "Add an image"}
+                          </Button>
+                        </div>
+                      )}
+                      {/* 5. Cover image with a pencil overlay (top-right) to edit it. */}
                       {draft.image_url && (() => {
                         const style = draft.image_style ?? "hero";
+                        const wrapperStyle: React.CSSProperties =
+                          style === "centered"
+                            ? { position: "relative", display: "block", margin: "0 auto 24px", maxWidth: 480, width: "100%" }
+                            : style === "float-left"
+                            ? { position: "relative", float: "left", width: "40%", maxWidth: 280, margin: "0 20px 8px 0" }
+                            : style === "float-right"
+                            ? { position: "relative", float: "right", width: "40%", maxWidth: 280, margin: "0 0 8px 20px" }
+                            : { position: "relative", width: "100%", marginBottom: 24 };
                         const imgStyle: React.CSSProperties =
                           style === "banner"
-                            ? { width: "100%", height: 220, objectFit: "cover", borderRadius: 0, marginBottom: 24, display: "block" }
-                            : style === "centered"
-                            ? { display: "block", margin: "0 auto 24px", maxWidth: 480, width: "100%", borderRadius: 8 }
-                            : style === "float-left"
-                            ? { float: "left", width: "40%", maxWidth: 280, marginRight: 20, marginBottom: 8, borderRadius: 8 }
-                            : style === "float-right"
-                            ? { float: "right", width: "40%", maxWidth: 280, marginLeft: 20, marginBottom: 8, borderRadius: 8 }
-                            : /* hero default */ { width: "100%", maxHeight: 400, objectFit: "cover", borderRadius: 8, marginBottom: 24, display: "block" };
+                            ? { width: "100%", height: 220, objectFit: "cover", borderRadius: 0, display: "block" }
+                            : style === "centered" || style === "float-left" || style === "float-right"
+                            ? { width: "100%", borderRadius: 8, display: "block" }
+                            : { width: "100%", maxHeight: 400, objectFit: "cover", borderRadius: 8, display: "block" };
                         return (
-                          <img
-                            src={draft.image_url}
-                            alt={draft.image_alt || draft.blog_title || ""}
-                            style={imgStyle}
-                          />
+                          <div style={wrapperStyle}>
+                            <img src={draft.image_url} alt={draft.image_alt || draft.blog_title || ""} style={imgStyle} />
+                            <button
+                              type="button"
+                              onClick={() => setCoverOpen(true)}
+                              aria-label={fr ? "Modifier l'image" : "Edit image"}
+                              style={{
+                                position: "absolute", top: 8, right: 8, width: 32, height: 32,
+                                borderRadius: "50%", border: "none", cursor: "pointer",
+                                background: "rgba(255,255,255,0.92)", boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15,
+                              }}
+                            >
+                              ✎
+                            </button>
+                          </div>
                         );
                       })()}
                       {/* 6. Sections */}
@@ -1994,6 +1997,19 @@ export default function BlogIndexPage() {
                         </aside>
                       )}
                     </article>
+                    <CoverImageModal
+                      locale={locale}
+                      open={coverOpen}
+                      imageUrl={draft.image_url ?? null}
+                      imageAlt={draft.image_alt ?? null}
+                      imageStyle={draft.image_style ?? "hero"}
+                      styleOptions={coverStyleOptions}
+                      onClose={() => setCoverOpen(false)}
+                      onSelect={(url, alt) => setDraft((p) => p ? { ...p, image_url: url, image_alt: alt || p.image_alt } : p)}
+                      onAltChange={(alt) => setDraft((p) => p ? { ...p, image_alt: alt } : p)}
+                      onStyleChange={(v) => setDraft((p) => p ? { ...p, image_style: v as Draft["image_style"] } : p)}
+                      onRemove={() => { setDraft((p) => p ? { ...p, image_url: "", image_alt: "" } : p); setCoverOpen(false); }}
+                    />
                   </Box>
                 )}
               </BlockStack>

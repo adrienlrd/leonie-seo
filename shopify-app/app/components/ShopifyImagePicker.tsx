@@ -8,6 +8,7 @@ import {
   InlineStack,
   Modal,
   ProgressBar,
+  Select,
   Spinner,
   Tabs,
   Text,
@@ -114,6 +115,97 @@ function ImagePickerModal({
             <UploadTab locale={locale} onUploaded={onSelect} />
           )}
         </Tabs>
+      </Modal.Section>
+    </Modal>
+  );
+}
+
+/** Combined cover-image popup: browse/upload + alt text + format/placement, all in
+ *  one modal. Stays open after picking so the merchant can adjust alt and format. */
+export function CoverImageModal({
+  locale,
+  open,
+  imageUrl,
+  imageAlt,
+  imageStyle,
+  styleOptions,
+  onClose,
+  onSelect,
+  onAltChange,
+  onStyleChange,
+  onRemove,
+}: {
+  locale: Locale;
+  open: boolean;
+  imageUrl: string | null;
+  imageAlt: string | null;
+  imageStyle?: string;
+  styleOptions?: { label: string; value: string }[];
+  onClose: () => void;
+  onSelect: (url: string, alt: string) => void;
+  onAltChange: (alt: string) => void;
+  onStyleChange?: (style: string) => void;
+  onRemove: () => void;
+}) {
+  const [tab, setTab] = useState(0);
+  const [selected, setSelected] = useState<ShopifyFile | null>(null);
+  if (!open) return null;
+  const tabs = [
+    { id: "browse", content: t(locale, "coverImageBrowse") },
+    { id: "upload", content: t(locale, "coverImageUpload") },
+  ];
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={locale === "fr" ? "Image de couverture" : "Cover image"}
+      primaryAction={{ content: locale === "fr" ? "Terminé" : "Done", onAction: onClose }}
+      secondaryActions={
+        imageUrl ? [{ content: t(locale, "coverImageRemove"), destructive: true, onAction: onRemove }] : undefined
+      }
+      size="large"
+    >
+      <Modal.Section>
+        <BlockStack gap="400">
+          {imageUrl && (
+            <BlockStack gap="300">
+              <img
+                src={imageUrl}
+                alt={imageAlt ?? ""}
+                style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 8, display: "block" }}
+              />
+              <TextField
+                label={t(locale, "coverImageAlt")}
+                value={imageAlt ?? ""}
+                onChange={onAltChange}
+                autoComplete="off"
+                helpText={t(locale, "coverImageAltHelp")}
+              />
+              {onStyleChange && styleOptions && styleOptions.length > 0 && (
+                <Select
+                  label={locale === "fr" ? "Format et emplacement de l'image" : "Image format & placement"}
+                  options={styleOptions}
+                  value={imageStyle ?? "hero"}
+                  onChange={onStyleChange}
+                />
+              )}
+            </BlockStack>
+          )}
+          <Tabs tabs={tabs} selected={tab} onSelect={setTab}>
+            {tab === 0 ? (
+              <BlockStack gap="300">
+                <BrowseTab locale={locale} selected={selected} onSelect={setSelected} />
+                {selected && (
+                  <Button onClick={() => { onSelect(selected.url, selected.alt); setSelected(null); }}>
+                    {imageUrl ? (locale === "fr" ? "Remplacer par cette image" : "Replace with this image") : t(locale, "coverImageSelect")}
+                  </Button>
+                )}
+              </BlockStack>
+            ) : (
+              <UploadTab locale={locale} onUploaded={onSelect} />
+            )}
+          </Tabs>
+        </BlockStack>
       </Modal.Section>
     </Modal>
   );
