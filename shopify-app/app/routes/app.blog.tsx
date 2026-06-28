@@ -157,7 +157,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const drafts = listData.drafts ?? [];
 
   let selected: Draft | null = null;
-  const targetId = draftId ?? drafts[0]?.id ?? null;
+  // Only open a draft when one is explicitly requested in the URL — landing on
+  // /app/blog shows the inspiration grid, not a pre-opened article.
+  const targetId = draftId ?? null;
   if (targetId) {
     const oneRes = await callBackendForShop(
       session.shop,
@@ -746,9 +748,11 @@ export default function BlogIndexPage() {
   const [publishOpen, setPublishOpen] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
   const [showPublished, setShowPublished] = useState(false);
-  const [showDrafts, setShowDrafts] = useState(true);
-  const [showIdeas, setShowIdeas] = useState(true);
-  const [showSuggested, setShowSuggested] = useState(true);
+  const [showDrafts, setShowDrafts] = useState(false);
+  const [showIdeas, setShowIdeas] = useState(false);
+  const [showSuggested, setShowSuggested] = useState(false);
+  // Up to 6 ideas (suggested first, then analysis blog ideas) for the landing grid.
+  const inspirationIdeas = [...ideaSuggestions, ...blogIdeas].slice(0, 6);
   const [coverOpen, setCoverOpen] = useState(false);
 
   // Localized format options for the cover-image popup (shared with the preview).
@@ -2014,6 +2018,53 @@ export default function BlogIndexPage() {
                 )}
               </BlockStack>
             </Card>
+          ) : inspirationIdeas.length > 0 ? (
+            <BlockStack gap="400">
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingLg">
+                  {fr ? "Inspiration pour améliorer son référencement organique" : "Inspiration to improve your organic ranking"}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {fr
+                    ? "Les meilleures idées d'articles à réaliser. Clique sur « Découvrir » pour voir le plan et générer l'article."
+                    : "The best article ideas to create. Click \"Discover\" to see the outline and generate the article."}
+                </Text>
+              </BlockStack>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+                {inspirationIdeas.map((idea, i) => (
+                  <Card key={`insp-${i}`}>
+                    <BlockStack gap="200">
+                      {idea.source_label && (
+                        <Badge tone={idea.angle === "competitor" ? "warning" : idea.angle === "seasonal" || idea.angle === "trend" ? "info" : "success"} size="small">
+                          {idea.source_label}
+                        </Badge>
+                      )}
+                      <Text as="h3" variant="headingMd">{idea.title || (fr ? "(sans titre)" : "(untitled)")}</Text>
+                      {idea.product_title && (
+                        <Text as="p" variant="bodySm" tone="subdued">{idea.product_title}</Text>
+                      )}
+                      {idea.target_keyword && (
+                        <InlineStack gap="100" blockAlign="center">
+                          <Text as="span" variant="bodySm" tone="subdued">{fr ? "Mot-clé cible :" : "Target keyword:"}</Text>
+                          <Badge tone="attention">{idea.target_keyword}</Badge>
+                        </InlineStack>
+                      )}
+                      {idea.intro && (
+                        <BlockStack gap="050">
+                          <Text as="p" variant="headingXs" tone="subdued">{fr ? "Introduction" : "Introduction"}</Text>
+                          <Text as="p" variant="bodySm">{idea.intro}</Text>
+                        </BlockStack>
+                      )}
+                      <Box paddingBlockStart="100">
+                        <Button variant="primary" onClick={() => selectIdea(idea)}>
+                          {fr ? "Découvrir" : "Discover"}
+                        </Button>
+                      </Box>
+                    </BlockStack>
+                  </Card>
+                ))}
+              </div>
+            </BlockStack>
           ) : (
             <Card>
               <EmptyState
