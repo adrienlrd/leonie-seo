@@ -202,6 +202,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let auditJobId: string | null = null;
   let businessProfile: BusinessProfile | null = null;
   let inspirationIdeas: Array<{ title: string; product_title: string }> = [];
+  let blogIdeaTeasers: Array<{ title: string; product_title: string }> = [];
   let gscStatus: GscStatus | null = null;
   let learningMode: "semi_auto" | "auto_apply" = "semi_auto";
 
@@ -212,7 +213,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // degrade to their default empty values on timeout via Promise.allSettled.
     const DASHBOARD_TIMEOUT_MS = 12_000;
     const SECONDARY_TIMEOUT_MS = 8_000;
-    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken, signal: AbortSignal.timeout(DASHBOARD_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
@@ -220,6 +221,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       callBackendForShop(shop, `/api/shops/${shop}/market-analysis/competitors`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/gsc/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/learning/settings`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/blog/idea-suggestions`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
     ]);
 
     if (gscStatusResp.status === "fulfilled" && gscStatusResp.value.ok) {
@@ -274,14 +276,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           if (result.product_id) productResults[result.product_id] = result;
           if (result.product_handle) productResults[result.product_handle] = result;
         }
-        // Two blog-idea teasers for the dashboard "Inspiration" panel.
-        inspirationIdeas = (job.products ?? [])
+        // Blog ideas from the analysis (combined later with suggested ideas).
+        blogIdeaTeasers = (job.products ?? [])
           .flatMap((p) => (p.content_test_pack?.proposed_blog_ideas ?? []).map((idea) => ({
             title: idea.title ?? "",
             product_title: p.product_title ?? "",
           })))
-          .filter((i) => i.title)
-          .slice(0, 2);
+          .filter((i) => i.title);
         competitorSignals = [
           ...new Set(
             (job.competitor_signals ?? [])
@@ -291,6 +292,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ];
       } catch (_parseErr) { /* ignore */ }
     }
+
+    // Same source as the Blog page "Inspiration" grid: suggested ideas (seasonal/
+    // competitor/advantages) first, then analysis blog ideas — capped at 4.
+    let suggestionTeasers: Array<{ title: string; product_title: string }> = [];
+    if (suggResp.status === "fulfilled" && suggResp.value.ok) {
+      try {
+        const data = (await suggResp.value.json()) as { suggestions?: Array<{ title?: string; product_title?: string }> };
+        suggestionTeasers = (data.suggestions ?? [])
+          .map((s) => ({ title: s.title ?? "", product_title: s.product_title ?? "" }))
+          .filter((i) => i.title);
+      } catch (_parseErr) { /* ignore */ }
+    }
+    inspirationIdeas = [...suggestionTeasers, ...blogIdeaTeasers].slice(0, 4);
 
     if (dashResp.status !== "fulfilled" || !dashResp.value.ok) {
       const errStatus = dashResp.status === "fulfilled" ? dashResp.value.status : 0;
@@ -1380,7 +1394,7 @@ function CompetitorsCard({
 
 type ProfileSection = null | "niche" | "voice" | "personas" | "style" | "seasonal";
 
-function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale, afterRow1 }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale; afterRow1?: React.ReactNode }) {
+function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale, afterRow1, variant = "all" }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale; afterRow1?: React.ReactNode; variant?: "all" | "top" | "bottom" }) {
   const fr = locale === "fr";
   const intensityTone = (i: string): "success" | "warning" | "info" =>
     i === "high" ? "success" : i === "medium" ? "warning" : "info";
@@ -1426,8 +1440,12 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
     seasonal: fr ? "Saisonnalité & Opportunités" : "Seasonality & Gaps",
   };
 
+  const showTop = variant !== "bottom";
+  const showBottom = variant !== "top";
   return (
     <BlockStack gap="400">
+      {showTop && (
+      <>
       {/* Row 1 — Niche + Voix */}
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
@@ -1465,7 +1483,11 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
       </InlineGrid>
 
       {afterRow1}
+      </>
+      )}
 
+      {showBottom && (
+      <>
       {/* Row 2 — Personas + Style contenu */}
       <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
         <Card>
@@ -1543,6 +1565,8 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
           </BlockStack>
         </Card>
       </InlineGrid>
+      </>
+      )}
 
       {/* ── Edit modal (one per section) ───────────────────────────────────── */}
       <Modal
@@ -1648,6 +1672,7 @@ function BusinessProfileSummary({
   excludedDomains,
   locale,
   afterRow1,
+  variant = "all",
 }: {
   profile: BusinessProfile | null;
   competitorSignals: string[];
@@ -1655,6 +1680,7 @@ function BusinessProfileSummary({
   excludedDomains: string[];
   locale: Locale;
   afterRow1?: React.ReactNode;
+  variant?: "all" | "top" | "bottom";
 }) {
   if (!profile || profile.status !== "validated") return null;
 
@@ -1666,6 +1692,7 @@ function BusinessProfileSummary({
       excludedDomains={excludedDomains}
       locale={locale}
       afterRow1={afterRow1}
+      variant={variant}
     />
   );
 }
@@ -1961,6 +1988,7 @@ export default function IndexPage() {
             manualCompetitors={manualCompetitors}
             excludedDomains={excludedDomains}
             locale={locale}
+            variant="top"
             afterRow1={
               <Zone1
                 data={zone1}
@@ -1993,7 +2021,7 @@ export default function IndexPage() {
           isAnalyzingSingle={isAnalyzingSingle}
         />
 
-        {/* Inspiration — 2 blog idea teasers linking to the Blog page. */}
+        {/* Inspiration — 4 blog/suggested idea teasers + a single link to the Blog page. */}
         {inspirationIdeas.length > 0 && (
           <Card>
             <BlockStack gap="300">
@@ -2003,22 +2031,32 @@ export default function IndexPage() {
               <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
                 {inspirationIdeas.map((idea, i) => (
                   <Box key={`insp-${i}`} padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
-                    <BlockStack gap="200">
+                    <BlockStack gap="100">
                       <Text as="h3" variant="headingSm">{idea.title}</Text>
                       {idea.product_title && (
                         <Text as="p" variant="bodySm" tone="subdued">{idea.product_title}</Text>
                       )}
-                      <InlineStack>
-                        <Button url={localizedPath("/app/blog", locale)} variant="primary" size="slim">
-                          {locale === "fr" ? "Voir les idées" : "See the ideas"}
-                        </Button>
-                      </InlineStack>
                     </BlockStack>
                   </Box>
                 ))}
               </InlineGrid>
+              <Button url={localizedPath("/app/blog", locale)} variant="primary" fullWidth>
+                {locale === "fr" ? "Voir toutes les idées sur le Blog" : "See all ideas on the Blog"}
+              </Button>
             </BlockStack>
           </Card>
+        )}
+
+        {/* Personas / Style de contenu / Concurrents / Saisonnalité — under Inspiration */}
+        {businessProfile?.status === "validated" && (
+          <BusinessProfileSummary
+            profile={businessProfile}
+            competitorSignals={competitorSignals}
+            manualCompetitors={manualCompetitors}
+            excludedDomains={excludedDomains}
+            locale={locale}
+            variant="bottom"
+          />
         )}
 
         {/* Zone 5 — Alerts (conditional) */}

@@ -1156,15 +1156,20 @@ export default function BlogIndexPage() {
               {blogIdeas.length > 0 && (
                 <>
                   <Divider />
-                  <Button
-                    onClick={() => setShowIdeas((p) => !p)}
-                    fullWidth
-                    textAlign="left"
-                    disclosure={showIdeas ? "up" : "down"}
-                    variant="tertiary"
-                  >
-                    {fr ? `Idées de blog (${blogIdeas.length})` : `Blog ideas (${blogIdeas.length})`}
-                  </Button>
+                  <InlineStack gap="150" blockAlign="center" wrap={false}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#D72C0D", flex: "0 0 auto" }} />
+                    <div style={{ flex: 1 }}>
+                      <Button
+                        onClick={() => setShowIdeas((p) => !p)}
+                        fullWidth
+                        textAlign="left"
+                        disclosure={showIdeas ? "up" : "down"}
+                        variant="tertiary"
+                      >
+                        {fr ? `Idées de blog (${blogIdeas.length})` : `Blog ideas (${blogIdeas.length})`}
+                      </Button>
+                    </div>
+                  </InlineStack>
                   <Collapsible open={showIdeas} id="blog-ideas">
                     <BlockStack gap="100">
                       {(() => {
@@ -1222,15 +1227,20 @@ export default function BlogIndexPage() {
               {ideaSuggestions.length > 0 && (
                 <>
                   <Divider />
-                  <Button
-                    onClick={() => setShowSuggested((p) => !p)}
-                    fullWidth
-                    textAlign="left"
-                    disclosure={showSuggested ? "up" : "down"}
-                    variant="tertiary"
-                  >
-                    {fr ? `Idées suggérées (${ideaSuggestions.length})` : `Suggested ideas (${ideaSuggestions.length})`}
-                  </Button>
+                  <InlineStack gap="150" blockAlign="center" wrap={false}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#D72C0D", flex: "0 0 auto" }} />
+                    <div style={{ flex: 1 }}>
+                      <Button
+                        onClick={() => setShowSuggested((p) => !p)}
+                        fullWidth
+                        textAlign="left"
+                        disclosure={showSuggested ? "up" : "down"}
+                        variant="tertiary"
+                      >
+                        {fr ? `Idées suggérées (${ideaSuggestions.length})` : `Suggested ideas (${ideaSuggestions.length})`}
+                      </Button>
+                    </div>
+                  </InlineStack>
                   <Collapsible open={showSuggested} id="blog-suggested">
                     <BlockStack gap="100">
                       <Text as="p" variant="bodySm" tone="subdued">
