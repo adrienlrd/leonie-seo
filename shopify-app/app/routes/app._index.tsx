@@ -1220,15 +1220,26 @@ function PublishModeCard({
           <div
             style={{
               background: "#000",
+              color: "#fff",
               borderRadius: "var(--p-border-radius-200)",
-              padding: "var(--p-space-300)",
+              overflow: "hidden",
+              display: "flex",
+              alignItems: "stretch",
               ["--p-color-text"]: "#fff",
               ["--p-color-text-secondary"]: "#fff",
               ["--p-color-icon"]: "#fff",
             } as React.CSSProperties}
           >
+            <div style={{ flex: "0 0 30%", minWidth: 88, maxWidth: 160 }}>
+              <img
+                src="/Logo.png"
+                alt="GEO by Organically"
+                style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", display: "block" }}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 0, padding: "var(--p-space-300)" }}>
             <BlockStack gap="200">
-              <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-start" }}>
                 <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
                   <Icon source={AutomationIcon} />
                 </span>
@@ -1270,6 +1281,7 @@ function PublishModeCard({
                 </span>
               )}
             </BlockStack>
+            </div>
           </div>
         </InlineGrid>
         {isAuto && (
