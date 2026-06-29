@@ -275,8 +275,8 @@ export default function AnalysePage() {
   const { locale, products, summary } = useLoaderData<typeof loader>() as LoaderData;
   const blogs = products.filter((p) => p.resource_type === "blog_post");
   const prods = products.filter((p) => p.resource_type !== "blog_post");
-  const [showBlogs, setShowBlogs] = useState(true);
-  const [showProducts, setShowProducts] = useState(true);
+  const [showBlogs, setShowBlogs] = useState(false);
+  const [showProducts, setShowProducts] = useState(false);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const toggleId = (id: string) =>
     setOpenIds((prev) => {
@@ -314,37 +314,6 @@ export default function AnalysePage() {
           </Card>
         ) : (
           <>
-            {/* ── Blogs dropdown ─────────────────────────────────────── */}
-            {blogs.length > 0 && (
-              <Card>
-                <BlockStack gap="300">
-                  <DropdownHeader
-                    open={showBlogs}
-                    onToggle={() => setShowBlogs((o) => !o)}
-                    title={locale === "fr" ? "Blogs" : "Blogs"}
-                    count={blogs.length}
-                    countLabel={locale === "fr" ? "articles" : "articles"}
-                  />
-                  <Collapsible open={showBlogs} id="analyse-blogs">
-                    <BlockStack gap="300">
-                      {blogs.map((blog, i) => (
-                        <BlockStack key={blog.resource_id} gap="300">
-                          {i > 0 && <Divider />}
-                          <InlineStack gap="200" blockAlign="center" wrap>
-                            <Text as="h2" variant="headingMd">{blog.resource_title}</Text>
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              {blog.total_actions} {t(locale, "analyseActionsCount")}
-                            </Text>
-                          </InlineStack>
-                          <EntryContent product={blog} locale={locale} />
-                        </BlockStack>
-                      ))}
-                    </BlockStack>
-                  </Collapsible>
-                </BlockStack>
-              </Card>
-            )}
-
             {/* ── Produits dropdown, with a sub-dropdown per product ──── */}
             {prods.length > 0 && (
               <Card>
@@ -384,6 +353,37 @@ export default function AnalysePage() {
                           </Box>
                         );
                       })}
+                    </BlockStack>
+                  </Collapsible>
+                </BlockStack>
+              </Card>
+            )}
+
+            {/* ── Blogs dropdown ─────────────────────────────────────── */}
+            {blogs.length > 0 && (
+              <Card>
+                <BlockStack gap="300">
+                  <DropdownHeader
+                    open={showBlogs}
+                    onToggle={() => setShowBlogs((o) => !o)}
+                    title={locale === "fr" ? "Blogs" : "Blogs"}
+                    count={blogs.length}
+                    countLabel={locale === "fr" ? "articles" : "articles"}
+                  />
+                  <Collapsible open={showBlogs} id="analyse-blogs">
+                    <BlockStack gap="300">
+                      {blogs.map((blog, i) => (
+                        <BlockStack key={blog.resource_id} gap="300">
+                          {i > 0 && <Divider />}
+                          <InlineStack gap="200" blockAlign="center" wrap>
+                            <Text as="h2" variant="headingMd">{blog.resource_title}</Text>
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {blog.total_actions} {t(locale, "analyseActionsCount")}
+                            </Text>
+                          </InlineStack>
+                          <EntryContent product={blog} locale={locale} />
+                        </BlockStack>
+                      ))}
                     </BlockStack>
                   </Collapsible>
                 </BlockStack>

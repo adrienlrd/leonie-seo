@@ -10,7 +10,6 @@ import {
   Button,
   Card,
   Checkbox,
-  DatePicker,
   Divider,
   Icon,
   FormLayout,
@@ -35,6 +34,8 @@ import {
   CameraIcon,
   ChartHistogramGrowthIcon,
   CheckCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CompassIcon,
   ContentIcon,
   EyeDropperIcon,
@@ -2200,6 +2201,91 @@ function hasProposalFor(pack: ProductResult["content_test_pack"], field: Validat
   }
 }
 
+// Apple-calendar-style mini month: a red dot marks the next-result day, and
+// hovering it shows what the analysis will produce. Polaris DatePicker can't
+// render per-day markers, so we build a lightweight Monday-first grid instead.
+function MiniCalendar({
+  month,
+  year,
+  markedDate,
+  markedTooltip,
+  onPrev,
+  onNext,
+  locale,
+}: {
+  month: number;
+  year: number;
+  markedDate: Date | null;
+  markedTooltip: string;
+  onPrev: () => void;
+  onNext: () => void;
+  locale: Locale;
+}) {
+  const intl = locale === "fr" ? "fr-FR" : "en-US";
+  const monthLabel = new Date(year, month, 1).toLocaleDateString(intl, {
+    month: "long",
+    year: "numeric",
+  });
+  const weekdays =
+    locale === "fr"
+      ? ["L", "M", "M", "J", "V", "S", "D"]
+      : ["M", "T", "W", "T", "F", "S", "S"];
+  const offset = (new Date(year, month, 1).getDay() + 6) % 7; // Monday-first
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < offset; i += 1) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  const isMarked = (d: number) =>
+    markedDate != null &&
+    markedDate.getDate() === d &&
+    markedDate.getMonth() === month &&
+    markedDate.getFullYear() === year;
+
+  return (
+    <BlockStack gap="200">
+      <InlineStack align="space-between" blockAlign="center">
+        <Button variant="tertiary" icon={ChevronLeftIcon} onClick={onPrev} accessibilityLabel="<" />
+        <Text as="span" variant="headingSm">{monthLabel}</Text>
+        <Button variant="tertiary" icon={ChevronRightIcon} onClick={onNext} accessibilityLabel=">" />
+      </InlineStack>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", textAlign: "center" }}>
+        {weekdays.map((w, i) => (
+          <Text key={`wd-${i}`} as="span" variant="bodySm" tone="subdued">{w}</Text>
+        ))}
+        {cells.map((d, i) => {
+          if (d == null) return <div key={`e-${i}`} />;
+          const marked = isMarked(d);
+          const cell = (
+            <div style={{ position: "relative", padding: "6px 0", minHeight: "28px" }}>
+              <Text as="span" variant="bodySm" fontWeight={marked ? "bold" : "regular"}>{d}</Text>
+              {marked && (
+                <span
+                  style={{
+                    position: "absolute",
+                    bottom: "3px",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    width: "6px",
+                    height: "6px",
+                    borderRadius: "50%",
+                    background: "var(--p-color-bg-fill-critical)",
+                  }}
+                />
+              )}
+            </div>
+          );
+          return marked ? (
+            <Tooltip key={`d-${i}`} content={markedTooltip} active={undefined}>{cell}</Tooltip>
+          ) : (
+            <div key={`d-${i}`}>{cell}</div>
+          );
+        })}
+      </div>
+    </BlockStack>
+  );
+}
+
 function AnalysisSchedulePanels({
   scheduleStatus,
   locale,
@@ -2614,7 +2700,7 @@ function AnalysisSchedulePanels({
                         helpText={proposedValueFor(pack, f) || undefined}
                       />
                     ))}
-                    <InlineStack>
+                    <InlineStack gap="200">
                       <Button
                         variant="primary"
                         loading={applyingId === p.product_id}
@@ -2622,6 +2708,11 @@ function AnalysisSchedulePanels({
                         onClick={() => validateProduct(p.product_id)}
                       >
                         {t(locale, "validateApplyCta")}
+                      </Button>
+                      <Button
+                        url={`${localizedPath("/app/products", locale)}&product=${encodeURIComponent(p.product_id)}`}
+                      >
+                        {t(locale, "validateMoreDetails")}
                       </Button>
                     </InlineStack>
                     <Divider />
@@ -2644,6 +2735,10 @@ function AnalysisSchedulePanels({
         open={appliedOpen}
         onClose={() => setAppliedOpen(false)}
         title={t(locale, "appliedChangesTitle")}
+        primaryAction={{
+          content: t(locale, "appliedViewInAnalyse"),
+          url: localizedPath("/app/analyse", locale),
+        }}
         secondaryActions={[{ content: t(locale, "runReanalysisCancel"), onAction: () => setAppliedOpen(false) }]}
       >
         <Modal.Section>
@@ -2685,13 +2780,24 @@ function AnalysisSchedulePanels({
       <Card>
         <BlockStack gap="300">
           <Text as="h3" variant="headingSm">{t(locale, "analysisCalendarTitle")}</Text>
-          <DatePicker
+          <MiniCalendar
             month={month}
             year={year}
-            onChange={() => {}}
-            onMonthChange={(m, y) => setCalendar({ month: m, year: y })}
-            selected={nextFull ?? undefined}
-            disableDatesBefore={undefined}
+            markedDate={nextFull}
+            markedTooltip={
+              nextFull
+                ? `${t(locale, "calendarDotTooltip")} · ${fmt(nextFull.toISOString())}`
+                : t(locale, "calendarDotTooltip")
+            }
+            onPrev={() => {
+              const d = new Date(year, month - 1, 1);
+              setCalendar({ month: d.getMonth(), year: d.getFullYear() });
+            }}
+            onNext={() => {
+              const d = new Date(year, month + 1, 1);
+              setCalendar({ month: d.getMonth(), year: d.getFullYear() });
+            }}
+            locale={locale}
           />
         </BlockStack>
       </Card>

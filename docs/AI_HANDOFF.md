@@ -12,6 +12,22 @@
 
 - **Date:** 2026-06-29
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Affinages UX — boutons de navigation dans les modals de validation/appliqué, réordonnancement page Analyse, calendrier style Apple (pastille rouge + tooltip).
+- **Summary:**
+  - **Dashboard `app._index.tsx`** : (1) bouton **« Plus de détail »** à côté de « Valider » dans le Modal de validation → ouvre la fiche produit (`/app/products?locale=…&product=<gid>`). (2) **primaryAction « Voir dans Analyse »** dans le Modal « Ce qui a été appliqué » → `/app/analyse`. (3) **Calendrier refondu** : `DatePicker` Polaris remplacé par un composant maison `MiniCalendar` (grille mensuelle Monday-first, nav ‹/› via `ChevronLeftIcon`/`ChevronRightIcon`) affichant une **pastille rouge** (`var(--p-color-bg-fill-critical)`) sous le jour du prochain résultat, avec un `Tooltip` au survol (« Prochains résultats d'analyse complète · <date> »). `DatePicker` retiré des imports.
+  - **Page Analyse `app.analyse.tsx`** : section **Produits déplacée en premier** (avant Blogs) et les deux dropdowns **fermés par défaut** (`showProducts`/`showBlogs` → `useState(false)`).
+  - **i18n** : `validateMoreDetails`, `appliedViewInAnalyse`, `calendarDotTooltip` (FR + EN).
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.analyse.tsx`, `shopify-app/app/lib/i18n.ts`.
+- **Decisions made:** Calendrier custom car Polaris `DatePicker` n'expose pas de rendu par jour (impossible d'y poser une pastille). Deep-link produit réutilise le pattern existant (`localizedPath + &product=`).
+- **Validations run:** `cd shopify-app && npm run typecheck` ✅ ; `npm run build` ✅.
+- **Validations skipped:** Tests Python non lancés (aucun fichier backend modifié). Test manuel pilote à faire.
+- **Open issues:** Le deep-link `&product=` mène à la page Produits mais le scroll/ouverture ciblée n'est pas (encore) câblé côté `app.products.tsx`.
+- **Next recommended action:** Test manuel pilote (boutons des modals, ordre/état fermé page Analyse, pastille rouge + tooltip calendrier).
+
+## Previous completed task
+
+- **Date:** 2026-06-29
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** Dashboard `app._index.tsx` — (1) fix calendrier des analyses qui ne surlignait pas / ne se positionnait pas sur le mois du prochain résultat (J+cadence) ; (2) validation des résultats de ré-analyse conditionnée au mode d'apprentissage.
 - **Summary:**
   - **Fix calendrier** : dans `AnalysisSchedulePanels`, le mois/année affichés étaient figés à l'init `useState` et jamais resynchronisés après revalidation du loader. Ajout `useEffect([nextFull?.getTime()])` → `setCalendar({ month, year })` sur `nextFull`, donc le `DatePicker` se positionne et surligne la date projetée du prochain résultat.
@@ -46,7 +62,7 @@
 - **Open issues:** L'analyse fraîche déclenchée par le clic est synchrone (timeout 120 s côté Remix) — si l'analyse dépasse, le job backend continue mais la réponse front peut expirer. Le calendrier est en lecture seule (navigation de mois autorisée, sélection no-op).
 - **Next recommended action:** Test manuel pilote : régler « Tous les jours », vérifier J+1 surligné ; cliquer publication auto → analyse fraîche + publication ; « Tester dans 1h » → ré-analyse + auto-publish visibles dans l'historique après ~1h.
 
-## Earlier completed task
+## Previous completed task
 
 - **Date:** 2026-06-27
 - **Agent:** Claude (Opus 4.8)
@@ -58,7 +74,7 @@
 - **Open issues:** `inLanguage` codé "fr" (pas encore dérivé de la locale réelle). `_slugify_handle` ne prédit pas le suffixe de dédup Shopify (-1/-2) → corrigé par l'update post-publication. `articleBody` tronqué à 8000 car. pour les très longs articles.
 - **Next recommended action:** Publier un article, vérifier dans le source de la page (ou Rich Results Test) que le JSON-LD Article contient la bonne URL `/blogs/{blog}/{handle}`, `inLanguage`, `articleBody`, `wordCount`, `about` Produit.
 
-## Older completed task
+## Previous completed task
 
 - **Date:** 2026-06-27
 - **Agent:** Claude (Opus 4.8)
