@@ -763,9 +763,13 @@ function DataSourcesPanel({
   const fr = locale === "fr";
   const onboardingUrl = localizedPath("/app/onboarding", locale);
   const themeEnabled = themeExt?.available ? themeExt.enabled === true : null;
+  const themeWhat = fr
+    ? "Publie sur votre boutique la FAQ, les données structurées et le fil d'Ariane."
+    : "Publishes the FAQ, structured data and breadcrumb on your storefront.";
   const themeHowTo = fr
-    ? "Activez « GEO by Organically » dans Boutique en ligne → Personnaliser → Intégrations d'app pour publier la FAQ, les données structurées et le fil d'Ariane sur votre boutique."
-    : "Enable “GEO by Organically” in Online Store → Customize → App embeds to publish the FAQ, structured data and breadcrumb on your storefront.";
+    ? "Activez « GEO by Organically » dans Boutique en ligne → Personnaliser → Intégrations d'app."
+    : "Enable “GEO by Organically” in Online Store → Customize → App embeds.";
+  const themeTooltip = themeEnabled === false ? `${themeWhat} ${themeHowTo}` : themeWhat;
 
   return (
     <Box background="bg-surface-secondary" padding="200" borderRadius="200">
@@ -793,21 +797,17 @@ function DataSourcesPanel({
           )}
         </InlineStack>
 
-        <InlineStack gap="200" blockAlign="center">
-          <Text as="span" variant="bodySm">
-            {fr ? "Extension de thème (FAQ, données structurées, fil d'Ariane)" : "Theme extension (FAQ, structured data, breadcrumb)"}
-          </Text>
+        <InlineStack gap="100" blockAlign="center" wrap={false}>
+          <Text as="span" variant="bodySm">{fr ? "Extension de thème" : "Theme extension"}</Text>
+          <Tooltip content={themeTooltip}>
+            <span style={{ display: "inline-flex", cursor: "help" }}>
+              <Icon source={QuestionCircleIcon} tone="subdued" />
+            </span>
+          </Tooltip>
           {themeEnabled === true ? (
             <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
           ) : themeEnabled === false ? (
-            <InlineStack gap="100" blockAlign="center" wrap={false}>
-              <Badge tone="critical">{fr ? "Non activée" : "Not enabled"}</Badge>
-              <Tooltip content={themeHowTo}>
-                <span style={{ display: "inline-flex", cursor: "help" }}>
-                  <Icon source={QuestionCircleIcon} tone="subdued" />
-                </span>
-              </Tooltip>
-            </InlineStack>
+            <Badge tone="critical">{fr ? "Non activée" : "Not enabled"}</Badge>
           ) : (
             <Badge tone="info">{fr ? "Indéterminé" : "Unknown"}</Badge>
           )}
