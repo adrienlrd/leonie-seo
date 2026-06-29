@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -25,6 +26,7 @@ from app.agent_schedule.scheduler import (
     schedule_test_in_1h,
     schedule_test_in_5_min,
 )
+from app.agent_schedule.store import upsert_schedule
 from app.api.deps import ShopContext, get_shop_context, require_internal_secret
 from app.db_adapter import DB_PATH
 from app.market_analysis.jobs import create_job, get_job, update_job
@@ -119,6 +121,12 @@ def _run_reanalysis_job(job_id: str, shop: str, access_token: str) -> None:
     """
     try:
         outcome = run_scheduled_reanalysis(shop, access_token=access_token, db_path=DB_PATH)
+        # Record the completion so the dashboard history + calendar reflect it
+        # (mirrors the scheduled path in scheduler._maybe_run_reanalysis).
+        if outcome.get("status") == "completed":
+            upsert_schedule(
+                shop, {"last_reanalysis_at": datetime.now(UTC).isoformat()}, db_path=DB_PATH
+            )
         update_job(
             job_id,
             status="completed",

@@ -2172,17 +2172,18 @@ function AnalysisSchedulePanels({
       : d.toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" });
   };
 
-  // Next full analysis = last re-analysis + frequency, or the next agent run when
-  // it has never run yet. Drives both the "upcoming" line and the calendar.
+  // Next full analysis = last re-analysis + frequency (shown even when the daily
+  // agent is off, so the merchant sees the projected result date), falling back to
+  // the next agent run. Drives both the "upcoming" line and the calendar highlight.
   const nextFull = useMemo<Date | null>(() => {
-    if (!scheduleStatus?.enabled) return null;
+    if (!scheduleStatus) return null;
     if (scheduleStatus.last_reanalysis_at) {
       const last = new Date(scheduleStatus.last_reanalysis_at);
       if (!Number.isNaN(last.getTime())) {
         return new Date(last.getTime() + scheduleStatus.reanalysis_frequency_days * 86_400_000);
       }
     }
-    if (scheduleStatus.next_run_at) {
+    if (scheduleStatus.enabled && scheduleStatus.next_run_at) {
       const next = new Date(scheduleStatus.next_run_at);
       if (!Number.isNaN(next.getTime())) return next;
     }

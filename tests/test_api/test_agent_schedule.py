@@ -194,6 +194,10 @@ def test_run_and_publish_starts_job_and_poll_reflects_completion(
     assert poll.status_code == 200
     assert poll.json()["status"] == "completed"
 
+    # A completed re-analysis must be recorded so the dashboard history/calendar
+    # reflect it (drives "Dernière analyse complète" + the next-result date).
+    assert get_schedule(SHOP, db_path=db).last_reanalysis_at is not None
+
 
 def test_run_and_publish_job_reports_error_on_failure(client: TestClient) -> None:
     with patch(
