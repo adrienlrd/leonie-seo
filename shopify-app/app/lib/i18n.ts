@@ -622,6 +622,8 @@ const FR: Dictionary = {
   businessProfileInsights: "Observations concurrents",
   businessProfileValidated: "Profil validé",
   llmsTxtTitle: "Fichiers IA (llms.txt)",
+  llmsTxtHelp:
+    "Le fichier llms.txt est un résumé de votre boutique placé à sa racine, conçu pour les IA (ChatGPT, Gemini, Perplexity…). Il leur indique vos produits, votre marque et vos pages clés dans un format qu'elles lisent facilement. C'est central pour le GEO (référencement sur les moteurs IA) : un llms.txt publié augmente vos chances d'être cité et recommandé dans les réponses générées par l'IA.",
   llmsTxtIntro:
     "Publiez automatiquement les fichiers llms.txt et llms-full.txt qui aident ChatGPT, Claude, Perplexity et Gemini à comprendre et citer votre boutique. Aucune action technique requise.",
   llmsTxtStatusPublished: "Publié",
@@ -1438,6 +1440,8 @@ const EN: Dictionary = {
   businessProfileInsights: "Competitor insights",
   businessProfileValidated: "Profile validated",
   llmsTxtTitle: "AI files (llms.txt)",
+  llmsTxtHelp:
+    "The llms.txt file is a summary of your store placed at its root, designed for AIs (ChatGPT, Gemini, Perplexity…). It tells them your products, brand and key pages in a format they read easily. It is central to GEO (ranking on AI engines): a published llms.txt increases your chances of being cited and recommended in AI-generated answers.",
   llmsTxtIntro:
     "Automatically publish the llms.txt and llms-full.txt files that help ChatGPT, Claude, Perplexity and Gemini understand and cite your store. No technical work required.",
   llmsTxtStatusPublished: "Published",

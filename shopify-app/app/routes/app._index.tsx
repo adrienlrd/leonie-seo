@@ -881,8 +881,13 @@ function Zone1({
         )}
         <Box background="bg-surface-secondary" padding="200" borderRadius="200">
           <InlineStack align="space-between" blockAlign="center">
-            <InlineStack gap="200" blockAlign="center">
+            <InlineStack gap="100" blockAlign="center">
               <Text as="p" variant="bodySm">{t(locale, "llmsTxtTitle")}</Text>
+              <Tooltip content={t(locale, "llmsTxtHelp")}>
+                <span style={{ display: "inline-flex", cursor: "help" }}>
+                  <Icon source={QuestionCircleIcon} tone="subdued" />
+                </span>
+              </Tooltip>
               <Badge tone={llmsPublished ? "success" : "critical"}>
                 {t(locale, llmsPublished ? "llmsTxtStatusPublished" : "llmsTxtStatusNotPublished")}
               </Badge>
