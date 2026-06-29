@@ -510,6 +510,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  if (intent === "runReanalysisNow") {
+    // Manual trigger of the scheduled re-analysis pipeline (fresh full analysis →
+    // persist → auto-publish checked proposals). Same endpoint as the auto-publish
+    // button, but standalone: does not change the schedule settings.
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/agent-schedule/run-and-publish`,
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(120_000) },
+      );
+      const summary = resp.ok ? await resp.json() : null;
+      return json({
+        type: "runReanalysisNow",
+        ok: resp.ok,
+        error: resp.ok ? null : `HTTP ${resp.status}`,
+        summary,
+      });
+    } catch (err) {
+      return json({ type: "runReanalysisNow", ok: false, error: String(err), summary: null });
+    }
+  }
+
   if (intent === "saveCompetitors") {
     const payload = formData.get("competitorsJson") as string;
     try {
@@ -2147,6 +2169,20 @@ function AnalysisSchedulePanels({
   const statusTone = (status?: string): "success" | "critical" | "attention" =>
     status === "completed" ? "success" : status === "error" ? "critical" : "attention";
 
+  const fetcher = useFetcher<{ type?: string; ok?: boolean }>();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const running = fetcher.state !== "idle";
+  const result = fetcher.data;
+
+  // Warn when re-running before the configured cadence has elapsed (1/14/28 days).
+  const tooSoon = useMemo<boolean>(() => {
+    if (!scheduleStatus?.last_reanalysis_at) return false;
+    const last = new Date(scheduleStatus.last_reanalysis_at);
+    if (Number.isNaN(last.getTime())) return false;
+    const elapsedDays = (Date.now() - last.getTime()) / 86_400_000;
+    return elapsedDays < scheduleStatus.reanalysis_frequency_days;
+  }, [scheduleStatus]);
+
   return (
     <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
       <Card>
@@ -2191,9 +2227,49 @@ function AnalysisSchedulePanels({
                 <Text as="p" tone="subdued">{t(locale, "analysisHistoryEmpty")}</Text>
               )
             )}
+
+            {result?.type === "runReanalysisNow" && (
+              <Banner tone={result.ok ? "success" : "critical"}>
+                {t(locale, result.ok ? "runReanalysisSuccess" : "runReanalysisError")}
+              </Banner>
+            )}
+            <Box paddingBlockStart="200">
+              <Button onClick={() => setConfirmOpen(true)} loading={running} icon={RefreshIcon}>
+                {t(locale, "runReanalysisNowButton")}
+              </Button>
+            </Box>
           </BlockStack>
         </BlockStack>
       </Card>
+
+      <Modal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        title={t(locale, "runReanalysisConfirmTitle")}
+        primaryAction={{
+          content: t(locale, "runReanalysisConfirmCta"),
+          loading: running,
+          onAction: () => {
+            fetcher.submit({ intent: "runReanalysisNow" }, { method: "post" });
+            setConfirmOpen(false);
+          },
+        }}
+        secondaryActions={[{ content: t(locale, "runReanalysisCancel"), onAction: () => setConfirmOpen(false) }]}
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            {tooSoon && (
+              <Banner tone="warning">
+                {t(locale, "runReanalysisTooSoonWarning").replace(
+                  "{days}",
+                  String(scheduleStatus?.reanalysis_frequency_days ?? ""),
+                )}
+              </Banner>
+            )}
+            <Text as="p">{t(locale, "runReanalysisConfirmBody")}</Text>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
 
       <Card>
         <BlockStack gap="300">
