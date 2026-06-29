@@ -51,6 +51,7 @@ import {
   NatureIcon,
   PersonIcon,
   InfoIcon,
+  QuestionCircleIcon,
   PhoneIcon,
   ProductIcon,
   RefreshIcon,
@@ -773,13 +774,13 @@ function DataSourcesPanel({
         <BlockStack gap="100">
           <InlineStack align="space-between" blockAlign="center">
             <Text as="span" variant="bodySm">Shopify</Text>
-            <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+            <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
           </InlineStack>
 
           <InlineStack align="space-between" blockAlign="center">
             <Text as="span" variant="bodySm">Google Search Console</Text>
             {gscConnected ? (
-              <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+              <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
             ) : (
               <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
             )}
@@ -788,24 +789,27 @@ function DataSourcesPanel({
           <InlineStack align="space-between" blockAlign="center">
             <Text as="span" variant="bodySm">Google Analytics 4</Text>
             {ga4Connected ? (
-              <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+              <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
             ) : (
               <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
             )}
           </InlineStack>
 
           <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
-            <Tooltip content={themeHowTo}>
-              <span style={{ cursor: "help", textDecoration: "underline dotted", textUnderlineOffset: "2px" }}>
-                <Text as="span" variant="bodySm">
-                  {fr ? "Extension de thème (FAQ, données structurées, fil d'Ariane)" : "Theme extension (FAQ, structured data, breadcrumb)"}
-                </Text>
-              </span>
-            </Tooltip>
+            <Text as="span" variant="bodySm">
+              {fr ? "Extension de thème (FAQ, données structurées, fil d'Ariane)" : "Theme extension (FAQ, structured data, breadcrumb)"}
+            </Text>
             {themeEnabled === true ? (
               <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
             ) : themeEnabled === false ? (
-              <Badge tone="attention">{fr ? "Non activée" : "Not enabled"}</Badge>
+              <InlineStack gap="100" blockAlign="center" wrap={false}>
+                <Badge tone="critical">{fr ? "Non activée" : "Not enabled"}</Badge>
+                <Tooltip content={themeHowTo}>
+                  <span style={{ display: "inline-flex", cursor: "help" }}>
+                    <Icon source={QuestionCircleIcon} tone="subdued" />
+                  </span>
+                </Tooltip>
+              </InlineStack>
             ) : (
               <Badge tone="info">{fr ? "Indéterminé" : "Unknown"}</Badge>
             )}
@@ -880,7 +884,7 @@ function Zone1({
           <InlineStack align="space-between" blockAlign="center">
             <InlineStack gap="200" blockAlign="center">
               <Text as="p" variant="bodySm">{t(locale, "llmsTxtTitle")}</Text>
-              <Badge tone={llmsPublished ? "success" : undefined}>
+              <Badge tone={llmsPublished ? "success" : "critical"}>
                 {t(locale, llmsPublished ? "llmsTxtStatusPublished" : "llmsTxtStatusNotPublished")}
               </Badge>
             </InlineStack>
