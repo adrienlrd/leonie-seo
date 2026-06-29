@@ -837,10 +837,10 @@ function Zone1({
   return (
     <Card>
       <BlockStack gap="300">
-        <SectionTitle source={GaugeIcon}>{t(locale, "dashboardZone1Title")}</SectionTitle>
-        {data.global_score !== null ? (
-          <BlockStack gap="200">
-            <InlineStack gap="300" blockAlign="center">
+        <InlineStack align="space-between" blockAlign="center" gap="300" wrap={false}>
+          <SectionTitle source={GaugeIcon}>{t(locale, "dashboardZone1Title")}</SectionTitle>
+          {data.global_score !== null && (
+            <InlineStack gap="200" blockAlign="center" wrap={false}>
               <Text as="p" variant="headingXl" fontWeight="bold">
                 {data.global_score}/100
               </Text>
@@ -850,28 +850,30 @@ function Zone1({
                 </span>
               </Tooltip>
             </InlineStack>
-            {data.sub_scores && (
-              <InlineGrid columns={4} gap="200">
-                {SUB_SCORE_KEYS.map(({ key, i18n, help }) => (
-                  <Box key={key} background="bg-surface-secondary" padding="200" borderRadius="200">
-                    <BlockStack gap="050">
-                      <InlineStack gap="100" blockAlign="center" wrap={false}>
-                        <Text as="p" variant="bodySm" tone="subdued">{t(locale, i18n)}</Text>
-                        <Tooltip content={t(locale, help)}>
-                          <span style={{ display: "inline-flex", cursor: "help" }}>
-                            <Icon source={InfoIcon} tone="subdued" />
-                          </span>
-                        </Tooltip>
-                      </InlineStack>
-                      <Text as="p" variant="bodyMd" fontWeight="semibold">
-                        {data.sub_scores![key]}/100
-                      </Text>
-                    </BlockStack>
-                  </Box>
-                ))}
-              </InlineGrid>
-            )}
-          </BlockStack>
+          )}
+        </InlineStack>
+        {data.global_score !== null ? (
+          data.sub_scores && (
+            <InlineGrid columns={4} gap="200">
+              {SUB_SCORE_KEYS.map(({ key, i18n, help }) => (
+                <Box key={key} background="bg-surface-secondary" padding="200" borderRadius="200">
+                  <BlockStack gap="050">
+                    <InlineStack gap="100" blockAlign="center" wrap={false}>
+                      <Text as="p" variant="bodySm" tone="subdued">{t(locale, i18n)}</Text>
+                      <Tooltip content={t(locale, help)}>
+                        <span style={{ display: "inline-flex", cursor: "help" }}>
+                          <Icon source={InfoIcon} tone="subdued" />
+                        </span>
+                      </Tooltip>
+                    </InlineStack>
+                    <Text as="p" variant="bodyMd" fontWeight="semibold">
+                      {data.sub_scores![key]}/100
+                    </Text>
+                  </BlockStack>
+                </Box>
+              ))}
+            </InlineGrid>
+          )
         ) : (
           <Text as="p" tone="subdued">
             {locale === "fr" ? "Importation Shopify en cours…" : "Shopify import in progress…"}
