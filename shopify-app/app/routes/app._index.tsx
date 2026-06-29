@@ -168,6 +168,8 @@ interface LoaderData {
   businessProfile: BusinessProfile | null;
   inspirationIdeas: Array<{ title: string; product_title: string }>;
   gscStatus: GscStatus | null;
+  ga4Connected: boolean;
+  themeExt: ThemeExtStatus | null;
   learningMode: "semi_auto" | "auto_apply";
   scheduleStatus: ScheduleStatus | null;
   error: string | null;
@@ -176,6 +178,11 @@ interface LoaderData {
 interface GscStatus {
   connected: boolean;
   reauth_required: boolean;
+}
+
+interface ThemeExtStatus {
+  available?: boolean;
+  enabled?: boolean | null;
 }
 
 interface ScheduleStatus {
@@ -217,6 +224,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let inspirationIdeas: Array<{ title: string; product_title: string }> = [];
   let blogIdeaTeasers: Array<{ title: string; product_title: string }> = [];
   let gscStatus: GscStatus | null = null;
+  let ga4Connected = false;
+  let themeExt: ThemeExtStatus | null = null;
   let learningMode: "semi_auto" | "auto_apply" = "semi_auto";
   let scheduleStatus: ScheduleStatus | null = null;
 
@@ -227,7 +236,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // degrade to their default empty values on timeout via Promise.allSettled.
     const DASHBOARD_TIMEOUT_MS = 12_000;
     const SECONDARY_TIMEOUT_MS = 8_000;
-    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp, scheduleResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp, scheduleResp, ga4StatusResp, themeExtResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken, signal: AbortSignal.timeout(DASHBOARD_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
@@ -237,12 +246,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       callBackendForShop(shop, `/api/shops/${shop}/learning/settings`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/blog/idea-suggestions`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/agent-schedule/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/ga4/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/geo/theme-extension-status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
     ]);
 
     if (gscStatusResp.status === "fulfilled" && gscStatusResp.value.ok) {
       try {
         const data = (await gscStatusResp.value.json()) as { connected?: boolean; reauth_required?: boolean };
         gscStatus = { connected: data.connected === true, reauth_required: data.reauth_required === true };
+      } catch (_parseErr) { /* ignore */ }
+    }
+
+    if (ga4StatusResp.status === "fulfilled" && ga4StatusResp.value.ok) {
+      try {
+        const data = (await ga4StatusResp.value.json()) as { ready?: boolean };
+        ga4Connected = data.ready === true;
+      } catch (_parseErr) { /* ignore */ }
+    }
+
+    if (themeExtResp.status === "fulfilled" && themeExtResp.value.ok) {
+      try {
+        themeExt = (await themeExtResp.value.json()) as ThemeExtStatus;
       } catch (_parseErr) { /* ignore */ }
     }
 
@@ -356,6 +380,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         businessProfile,
         inspirationIdeas,
         gscStatus,
+        ga4Connected,
+        themeExt,
         learningMode,
         scheduleStatus,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
@@ -368,7 +394,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirectToOnboarding();
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, learningMode, scheduleStatus, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, scheduleStatus, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -382,6 +408,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       businessProfile,
       inspirationIdeas,
       gscStatus,
+      ga4Connected,
+      themeExt,
       learningMode,
       scheduleStatus,
       error: err instanceof Error ? err.message : "Network error",
@@ -720,16 +748,86 @@ const SUB_SCORE_KEYS: Array<{ key: keyof NonNullable<DashboardData["zone1"]["sub
   { key: "technical", i18n: "technicalSubScore", help: "technicalSubScoreHelp" },
 ];
 
+function DataSourcesPanel({
+  locale,
+  gscConnected,
+  ga4Connected,
+  themeExt,
+}: {
+  locale: Locale;
+  gscConnected: boolean;
+  ga4Connected: boolean;
+  themeExt: ThemeExtStatus | null;
+}) {
+  const fr = locale === "fr";
+  const onboardingUrl = localizedPath("/app/onboarding", locale);
+  const themeEnabled = themeExt?.available ? themeExt.enabled === true : null;
+  const themeHowTo = fr
+    ? "Activez « GEO by Organically » dans Boutique en ligne → Personnaliser → Intégrations d'app pour publier la FAQ, les données structurées et le fil d'Ariane sur votre boutique."
+    : "Enable “GEO by Organically” in Online Store → Customize → App embeds to publish the FAQ, structured data and breadcrumb on your storefront.";
+
+  return (
+    <Box background="bg-surface-secondary" padding="200" borderRadius="200">
+      <BlockStack gap="200">
+        <Text as="p" variant="bodySm" fontWeight="semibold">{fr ? "Sources de données" : "Data sources"}</Text>
+        <BlockStack gap="100">
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="span" variant="bodySm">Shopify</Text>
+            <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+          </InlineStack>
+
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="span" variant="bodySm">Google Search Console</Text>
+            {gscConnected ? (
+              <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+            ) : (
+              <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
+            )}
+          </InlineStack>
+
+          <InlineStack align="space-between" blockAlign="center">
+            <Text as="span" variant="bodySm">Google Analytics 4</Text>
+            {ga4Connected ? (
+              <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+            ) : (
+              <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
+            )}
+          </InlineStack>
+
+          <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
+            <Tooltip content={themeHowTo}>
+              <span style={{ cursor: "help", textDecoration: "underline dotted", textUnderlineOffset: "2px" }}>
+                <Text as="span" variant="bodySm">
+                  {fr ? "Extension de thème (FAQ, données structurées, fil d'Ariane)" : "Theme extension (FAQ, structured data, breadcrumb)"}
+                </Text>
+              </span>
+            </Tooltip>
+            {themeEnabled === true ? (
+              <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
+            ) : themeEnabled === false ? (
+              <Badge tone="attention">{fr ? "Non activée" : "Not enabled"}</Badge>
+            ) : (
+              <Badge tone="info">{fr ? "Indéterminé" : "Unknown"}</Badge>
+            )}
+          </InlineStack>
+        </BlockStack>
+      </BlockStack>
+    </Box>
+  );
+}
+
 function Zone1({
   data,
   locale,
   llmsPublished,
+  dataSources,
   analysisPanels,
   publishMode,
 }: {
   data: DashboardData["zone1"];
   locale: Locale;
   llmsPublished: boolean;
+  dataSources?: React.ReactNode;
   analysisPanels?: React.ReactNode;
   publishMode?: React.ReactNode;
 }) {
@@ -791,6 +889,7 @@ function Zone1({
             </Button>
           </InlineStack>
         </Box>
+        {dataSources}
         {analysisPanels && (
           <>
             <Divider />
@@ -1192,7 +1291,7 @@ function PublishModeCard({
             padding="300"
             borderWidth="025"
             borderRadius="200"
-            borderColor={!isAuto ? "border-emphasis" : "border"}
+            borderColor="border"
             background={!isAuto ? "bg-surface-secondary" : "bg-surface"}
           >
             <BlockStack gap="200">
@@ -1237,8 +1336,7 @@ function PublishModeCard({
                 style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", display: "block" }}
               />
             </div>
-            <div style={{ flex: 1, minWidth: 0, padding: "var(--p-space-300)" }}>
-            <BlockStack gap="200">
+            <div style={{ flex: 1, minWidth: 0, padding: "var(--p-space-300)", display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)" }}>
               <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-start" }}>
                 <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
                   <Icon source={AutomationIcon} />
@@ -1251,6 +1349,7 @@ function PublishModeCard({
               <Text as="p" variant="bodySm" tone="subdued">
                 {t(locale, "publishModeAutoDesc")}
               </Text>
+              <div style={{ flex: "1 1 auto" }} />
               {activating ? (
                 <BlockStack gap="100">
                   <Text as="p" variant="bodySm">{t(locale, "publishModeActivating")}</Text>
@@ -1269,18 +1368,18 @@ function PublishModeCard({
               ) : (
                 <span
                   style={{
+                    display: "block",
                     ["--p-color-bg-fill-brand"]: "#fff",
                     ["--p-color-bg-fill-brand-hover"]: "#f0f0f0",
                     ["--p-color-bg-fill-brand-active"]: "#e0e0e0",
                     ["--p-color-text-brand-on-bg-fill"]: "#000",
                   } as React.CSSProperties}
                 >
-                  <Button size="slim" variant="primary" onClick={handleActivateAuto}>
+                  <Button fullWidth variant="primary" onClick={handleActivateAuto}>
                     {locale === "fr" ? "Activer" : "Activate"}
                   </Button>
                 </span>
               )}
-            </BlockStack>
             </div>
           </div>
         </InlineGrid>
@@ -1816,7 +1915,7 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, learningMode, scheduleStatus, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, scheduleStatus, error } = useLoaderData<typeof loader>() as LoaderData;
   // OAuth status is authoritative; fall back to the per-product flag (GSC data
   // file present) only when the status call itself failed.
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
@@ -2110,6 +2209,14 @@ export default function IndexPage() {
                 data={zone1}
                 locale={locale}
                 llmsPublished={llmsPublished}
+                dataSources={
+                  <DataSourcesPanel
+                    locale={locale}
+                    gscConnected={gscConnected}
+                    ga4Connected={ga4Connected}
+                    themeExt={themeExt}
+                  />
+                }
                 analysisPanels={
                   <AnalysisSchedulePanels
                     scheduleStatus={scheduleStatus}
@@ -2130,6 +2237,14 @@ export default function IndexPage() {
             data={zone1}
             locale={locale}
             llmsPublished={llmsPublished}
+            dataSources={
+              <DataSourcesPanel
+                locale={locale}
+                gscConnected={gscConnected}
+                ga4Connected={ga4Connected}
+                themeExt={themeExt}
+              />
+            }
             analysisPanels={
               <AnalysisSchedulePanels
                 scheduleStatus={scheduleStatus}
@@ -2615,8 +2730,8 @@ function AnalysisSchedulePanels({
 
   return (
     <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
-      <Box background="bg-surface-secondary" padding="300" borderRadius="200">
-        <BlockStack gap="400">
+      <Box background="bg-surface-secondary" padding="300" borderRadius="200" minHeight="100%">
+        <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-400)" }}>
           <Text as="h3" variant="headingSm">{t(locale, "analysisPanelTitle")}</Text>
 
           <BlockStack gap="200">
@@ -2682,6 +2797,8 @@ function AnalysisSchedulePanels({
             <Banner tone="critical">{t(locale, "exportReanalysisError")}</Banner>
           )}
 
+          <div style={{ flex: "1 1 auto" }} />
+
           <BlockStack gap="200">
             <Button
               variant="primary"
@@ -2707,7 +2824,7 @@ function AnalysisSchedulePanels({
               {t(locale, "exportReanalysisButton")}
             </Button>
           </BlockStack>
-        </BlockStack>
+        </div>
       </Box>
 
       <Modal

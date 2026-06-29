@@ -12,6 +12,23 @@
 
 - **Date:** 2026-06-29
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Dashboard `app._index.tsx` — logo carte auto, layout cartes Analyse/Publication, bloc « Sources de données » dans GEO Score.
+- **Summary:**
+  - **Carte « Publication automatique »** : `Logo.png` (copié dans `shopify-app/public/`) ajouté à gauche (1:1, `objectFit:cover`, collé à gauche, coupé à droite). Titre forcé blanc (`color:#fff` sur le wrapper noir). Bouton « Activer » → `fullWidth`, poussé en bas via flex-column + spacer.
+  - **Carte « Publication manuelle »** : contour bleu retiré (`borderColor` figé à `"border"` au lieu de `border-emphasis`).
+  - **Carte « Analyse »** (`AnalysisSchedulePanels`) : `Box minHeight="100%"` + contenu en flex-column avec spacer → boutons collés en bas, hauteur alignée sur le calendrier.
+  - **Bloc « Sources de données »** (`DataSourcesPanel`) sous le bloc llms.txt dans `Zone1` : Shopify (Réel), Google Search Console, Google Analytics 4 (bouton **« Connecter »** → `/app/onboarding` si non connecté), Extension de thème (badge Activée/Non activée + `Tooltip` how-to au survol). Loader enrichi : nouveaux fetchs `/ga4/status` (→ `ga4Connected`) et `/geo/theme-extension-status` (→ `themeExt`), ajoutés à `LoaderData` + 3 retours `json()`.
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`, `shopify-app/public/Logo.png` (nouveau).
+- **Decisions made:** Statuts GA4/theme repris des mêmes endpoints que `app.account.tsx`. Connexion GSC/GA4 pointée vers `/app/onboarding` (même cible que les liens existants). Theme-ext how-to en `Tooltip` (texte identique à account.tsx).
+- **Validations run:** `npm run typecheck` ✅ ; `npm run build` ✅.
+- **Validations skipped:** Tests Python non lancés (aucun backend modifié). Test manuel pilote à faire.
+- **Open issues:** Aucune nouvelle.
+- **Next recommended action:** Test manuel pilote (logo, hauteurs de cartes, bloc sources + connect/tooltip).
+
+## Previous completed task
+
+- **Date:** 2026-06-29
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** Rebrand **« GEO by Organically »** (ex-« Giulio Geo ») + positionnement **GEO** (ex-SEO) + 4 remaniements dashboard.
 - **Summary:**
   - **Rebrand** : toutes les occurrences user-facing « Giulio Geo » → « GEO by Organically » (`i18n.ts`, `app._index.tsx` `<Page title>`, `app.account.tsx` instructions app-embed, `api.server.ts` commentaire, `shopify.app.toml` l.1). Identifiants techniques `leonie-*` (IDs DOM, env, source postMessage OAuth, noms de fichiers d'export) **non touchés** (contrats fonctionnels).
