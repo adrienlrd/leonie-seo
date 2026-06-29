@@ -11,6 +11,24 @@
 ## Last completed task
 
 - **Date:** 2026-06-29
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Dashboard `app._index.tsx` — (1) fix calendrier des analyses qui ne surlignait pas / ne se positionnait pas sur le mois du prochain résultat (J+cadence) ; (2) validation des résultats de ré-analyse conditionnée au mode d'apprentissage.
+- **Summary:**
+  - **Fix calendrier** : dans `AnalysisSchedulePanels`, le mois/année affichés étaient figés à l'init `useState` et jamais resynchronisés après revalidation du loader. Ajout `useEffect([nextFull?.getTime()])` → `setCalendar({ month, year })` sur `nextFull`, donc le `DatePicker` se positionne et surligne la date projetée du prochain résultat.
+  - **Validation conditionnelle au mode** : nouvelles props `productResults` / `learningMode` / `llmsPublished` passées à `AnalysisSchedulePanels`. En **semi-auto/manuel** (`learningMode !== "auto_apply"`) et s'il reste des champs proposés non appliqués → bouton **« Valider les résultats »** sous le bouton noir, ouvrant un **Modal liste légère** : par produit, une `Checkbox` par champ proposé non appliqué (meta_title/meta_description/description/image_alts), **persistée côté serveur** via l'intent `setAutoPublishFields` (mêmes cases que la page Produits, partage via `content_test_pack.auto_publish_fields`). Bouton « Valider » par produit → intents `applyToShopify` (4 champs) **+** `syncSchemaFacts` (JSON-LD `leonie.schema_facts`). En pied de Modal : « Republier llms.txt » (submit `generate` puis `publish&confirm=true` vers `/app/geo-llms-txt`) seulement si llms.txt déjà publié, sinon `llmsTxtSetupHint`. État optimiste (`optimisticApplied`) pour replier la liste et afficher l'icône sans attendre la revalidation.
+  - **Icône « appliqué »** à côté de « Dernière analyse complète » (`Button variant="plain" icon={CheckCircleIcon}` + `Tooltip`), visible dès qu'au moins un champ est appliqué, ouvrant un **Modal lecture seule** listant champs + dates appliqués. En **auto** (`auto_apply`) : **pas** de bouton Valider, l'icône s'affiche directement avec une note `autoAppliedNote`.
+  - **Réutilisation pure (zéro nouveau backend / nouvelle action Remix)** : `handleProductCardIntent` (`setAutoPublishFields`/`applyToShopify`/`syncSchemaFacts`) + route existante `/app/geo-llms-txt`.
+  - **i18n** : clés FR+EN ajoutées dans `i18n.ts` (`validateResultsButton/Title/Empty`, `validateApplyCta`, `appliedChangesTitle/Empty`, `appliedIconTooltip`, `autoAppliedNote`, `republishLlmsButton`, `llmsTxtSetupHint`).
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/lib/i18n.ts`.
+- **Decisions made:** Modal = liste légère dédiée (pas la `ProductCard` complète) mais cases adossées au même backend pour persistance partagée ; périmètre « Valider » = 4 champs + JSON-LD par produit + republication llms.txt (gardée derrière `llmsPublished` pour ne pas publier chez un marchand non configuré) ; le JSON-LD reste aussi auto-synchronisé pendant le run (`_auto_sync_schema_facts` inchangé).
+- **Validations run:** `cd shopify-app && npm run typecheck` ✅ (tsc clean) ; `npm run build` ✅ (SSR + client bundles construits).
+- **Validations skipped:** Tests Python non lancés — aucun fichier backend modifié. Test manuel pilote (calendrier surligné, flux Valider/icône en semi-auto vs auto, persistance des cases avec la page Produits) à faire côté marchand.
+- **Open issues:** Calendrier toujours en lecture seule (navigation de mois OK, sélection no-op). Republier llms.txt en fire-and-forget (pas de feedback de complétion au-delà du `loading`).
+- **Next recommended action:** Test manuel pilote du flux complet ; puis commit si validé.
+
+## Previous completed task
+
+- **Date:** 2026-06-29
 - **Agent:** Claude (Sonnet 4.6)
 - **Goal:** Dashboard — 2 panneaux bas (historique + à venir / calendrier surlignant la prochaine analyse) ; réglage de fréquence de ré-analyse + « Tous les jours » (1 j) ; test one-shot « 1h » ; clic publication auto lance une analyse fraîche.
 - **Summary:** Backend — `app/learning/models.py` : `ALLOWED_REANALYSIS_FREQUENCY_DAYS = (1, 14, 28)`. `app/agent_schedule/scheduler.py` : `_maybe_run_reanalysis(..., force=False)` bypasse `is_reanalysis_due` quand forcé ; `run_due_agent_schedules` passe `force=is_test_due` ; nouveau `schedule_test_in_1h` (miroir de `schedule_test_in_5_min`, `test_run_at = now + 1h`) ; `schedule_status` expose `reanalysis_frequency_days` + `last_reanalysis_at`. `app/api/agent_schedule.py` : routes `POST .../test-in-1h` et `POST .../run-and-publish` (réutilise `run_scheduled_reanalysis` : analyse fraîche → persist → auto-publish ; placée ici pour éviter l'import circulaire avec `market_analysis`). Frontend — `app._index.tsx` : 9e appel `allSettled` vers `agent-schedule/status`, `ScheduleStatus` ajouté à `LoaderData` ; action `activateAutoPublish` appelle désormais `run-and-publish` (timeout 120 s) au lieu de publier la dernière analyse stockée ; composant `AnalysisSchedulePanels` (InlineGrid 2 colonnes : Card historique+à venir avec `Badge` par statut, Card `DatePicker` surlignant la prochaine analyse complète). `app.account.tsx` : option Select « Tous les jours » (value "1"), bouton « Tester la ré-analyse (~1h) » → fetcher POST `test-in-1h`, bannière succès. `i18n.ts` : clés FR+EN ajoutées.
@@ -28,7 +46,7 @@
 - **Open issues:** L'analyse fraîche déclenchée par le clic est synchrone (timeout 120 s côté Remix) — si l'analyse dépasse, le job backend continue mais la réponse front peut expirer. Le calendrier est en lecture seule (navigation de mois autorisée, sélection no-op).
 - **Next recommended action:** Test manuel pilote : régler « Tous les jours », vérifier J+1 surligné ; cliquer publication auto → analyse fraîche + publication ; « Tester dans 1h » → ré-analyse + auto-publish visibles dans l'historique après ~1h.
 
-## Previous completed task
+## Earlier completed task
 
 - **Date:** 2026-06-27
 - **Agent:** Claude (Opus 4.8)
@@ -40,7 +58,7 @@
 - **Open issues:** `inLanguage` codé "fr" (pas encore dérivé de la locale réelle). `_slugify_handle` ne prédit pas le suffixe de dédup Shopify (-1/-2) → corrigé par l'update post-publication. `articleBody` tronqué à 8000 car. pour les très longs articles.
 - **Next recommended action:** Publier un article, vérifier dans le source de la page (ou Rich Results Test) que le JSON-LD Article contient la bonne URL `/blogs/{blog}/{handle}`, `inLanguage`, `articleBody`, `wordCount`, `about` Produit.
 
-## Earlier completed task
+## Older completed task
 
 - **Date:** 2026-06-27
 - **Agent:** Claude (Opus 4.8)

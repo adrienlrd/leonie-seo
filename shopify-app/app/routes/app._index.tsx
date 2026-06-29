@@ -9,6 +9,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   DatePicker,
   Divider,
   Icon,
@@ -2147,7 +2148,13 @@ export default function IndexPage() {
         {/* Zone 6 — AI Visibility hidden until V2 */}
 
         {/* Analysis history + upcoming, and calendar — bottom of the dashboard. */}
-        <AnalysisSchedulePanels scheduleStatus={scheduleStatus} locale={locale} />
+        <AnalysisSchedulePanels
+          scheduleStatus={scheduleStatus}
+          locale={locale}
+          productResults={productPacks}
+          learningMode={learningMode}
+          llmsPublished={llmsPublished}
+        />
 
         {/* Bottom breathing room so the last panel isn't glued to the page edge. */}
         <Box paddingBlockEnd="800" />
@@ -2156,12 +2163,55 @@ export default function IndexPage() {
   );
 }
 
+// Applyable proposal fields, using the backend field names stored in
+// `auto_publish_fields` / `applied_fields` (alt_text is "image_alts" there).
+const VALIDATE_FIELDS = ["meta_title", "meta_description", "description", "image_alts"] as const;
+type ValidateField = (typeof VALIDATE_FIELDS)[number];
+const VALIDATE_FIELD_LABELS: Record<ValidateField, Parameters<typeof t>[1]> = {
+  meta_title: "proposalFieldMetaTitle",
+  meta_description: "proposalFieldMetaDescription",
+  description: "proposalFieldDescription",
+  image_alts: "proposalFieldAltText",
+};
+
+function proposedValueFor(pack: ProductResult["content_test_pack"], field: ValidateField): string {
+  switch (field) {
+    case "meta_title":
+      return pack.proposed_meta_title || "";
+    case "meta_description":
+      return pack.proposed_meta_description || "";
+    case "description":
+      return pack.proposed_product_description || "";
+    case "image_alts":
+      return (pack.proposed_image_alts ?? []).map((a) => a.proposed_alt).filter(Boolean).join(" · ");
+  }
+}
+
+function hasProposalFor(pack: ProductResult["content_test_pack"], field: ValidateField): boolean {
+  switch (field) {
+    case "meta_title":
+      return Boolean(pack.proposed_meta_title) && pack.proposed_meta_title !== pack.current_meta_title;
+    case "meta_description":
+      return Boolean(pack.proposed_meta_description) && pack.proposed_meta_description !== pack.current_meta_description;
+    case "description":
+      return Boolean(pack.proposed_product_description);
+    case "image_alts":
+      return (pack.proposed_image_alts ?? []).some((a) => Boolean(a.proposed_alt));
+  }
+}
+
 function AnalysisSchedulePanels({
   scheduleStatus,
   locale,
+  productResults,
+  learningMode,
+  llmsPublished,
 }: {
   scheduleStatus: ScheduleStatus | null;
   locale: Locale;
+  productResults: Record<string, ProductResult>;
+  learningMode: "semi_auto" | "auto_apply";
+  llmsPublished: boolean;
 }) {
   const dateLocale = locale === "fr" ? "fr-FR" : "en-US";
   const fmt = (iso: string | null | undefined): string | null => {
@@ -2195,6 +2245,13 @@ function AnalysisSchedulePanels({
     month: calendarTarget.getMonth(),
     year: calendarTarget.getFullYear(),
   });
+
+  // Jump the calendar to the month of the next result whenever it changes (e.g.
+  // after a re-analysis completes and the loader revalidates), so the highlighted
+  // date is actually visible instead of staying on the initial month.
+  useEffect(() => {
+    if (nextFull) setCalendar({ month: nextFull.getMonth(), year: nextFull.getFullYear() });
+  }, [nextFull?.getTime()]);
 
   const runs = (scheduleStatus?.recent_runs ?? []).slice(0, 5);
   const statusTone = (status?: string): "success" | "critical" | "attention" =>
@@ -2269,6 +2326,138 @@ function AnalysisSchedulePanels({
     return elapsedDays < scheduleStatus.reanalysis_frequency_days;
   }, [scheduleStatus]);
 
+  // ── Validation des résultats ────────────────────────────────────────────────
+  const isAuto = learningMode === "auto_apply";
+
+  // Dedup the analysis products (productResults is keyed by both id and handle).
+  const analyzed = useMemo<ProductResult[]>(() => {
+    const seen = new Set<string>();
+    const out: ProductResult[] = [];
+    for (const p of Object.values(productResults)) {
+      if (!p?.product_id || seen.has(p.product_id)) continue;
+      seen.add(p.product_id);
+      out.push(p);
+    }
+    return out;
+  }, [productResults]);
+
+  const appliedFor = (pack: ProductResult["content_test_pack"], field: ValidateField): string | null =>
+    (pack.applied_fields ?? {})[field] ?? null;
+
+  // A product has something to validate when it carries an applyable proposal
+  // that is not yet applied.
+  const validatable = useMemo(
+    () =>
+      analyzed.filter((p) =>
+        VALIDATE_FIELDS.some((f) => hasProposalFor(p.content_test_pack, f) && !appliedFor(p.content_test_pack, f)),
+      ),
+    [analyzed],
+  );
+  const hasUnapplied = validatable.length > 0;
+  const hasApplied = useMemo(
+    () => analyzed.some((p) => Object.keys(p.content_test_pack.applied_fields ?? {}).length > 0),
+    [analyzed],
+  );
+
+  const [validateOpen, setValidateOpen] = useState(false);
+  const [appliedOpen, setAppliedOpen] = useState(false);
+
+  // Per-product checked set (backend field names), seeded from auto_publish_fields
+  // (or, absent any saved selection, every unapplied field that has a proposal).
+  const seedChecked = (): Record<string, Set<ValidateField>> => {
+    const map: Record<string, Set<ValidateField>> = {};
+    for (const p of analyzed) {
+      const pack = p.content_test_pack;
+      const persisted = pack.auto_publish_fields;
+      const set = new Set<ValidateField>(
+        persisted
+          ? VALIDATE_FIELDS.filter((f) => persisted.includes(f))
+          : VALIDATE_FIELDS.filter((f) => hasProposalFor(pack, f) && !appliedFor(pack, f)),
+      );
+      map[p.product_id] = set;
+    }
+    return map;
+  };
+  const [checked, setChecked] = useState<Record<string, Set<ValidateField>>>(seedChecked);
+  const analyzedSig = useMemo(
+    () => analyzed.map((p) => `${p.product_id}:${(p.content_test_pack.auto_publish_fields ?? []).join(",")}`).join("|"),
+    [analyzed],
+  );
+  useEffect(() => {
+    setChecked(seedChecked());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyzedSig]);
+
+  // Optimistically mark fields applied after a successful per-product apply, so
+  // the validate list collapses and the "applied" icon appears without a reload.
+  const [optimisticApplied, setOptimisticApplied] = useState<Record<string, Set<ValidateField>>>({});
+
+  const autoPublishFetcher = useFetcher();
+  const applyFetcher = useFetcher<{ type?: string; applied_fields?: Record<string, string> }>();
+  const schemaFetcher = useFetcher();
+  const llmsGenerateFetcher = useFetcher();
+  const llmsPublishFetcher = useFetcher();
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+
+  const toggleField = (productId: string, field: ValidateField) => {
+    setChecked((prev) => {
+      const next = { ...prev };
+      const set = new Set(next[productId] ?? []);
+      if (set.has(field)) set.delete(field);
+      else set.add(field);
+      next[productId] = set;
+      autoPublishFetcher.submit(
+        { intent: "setAutoPublishFields", productId, autoPublishFields: JSON.stringify([...set]) },
+        { method: "post" },
+      );
+      return next;
+    });
+  };
+
+  const validateProduct = (productId: string) => {
+    const fields = [...(checked[productId] ?? [])];
+    if (fields.length === 0) return;
+    setApplyingId(productId);
+    applyFetcher.submit(
+      { intent: "applyToShopify", productId, fields: JSON.stringify(fields) },
+      { method: "post" },
+    );
+    // Push the JSON-LD (schema facts) for this product alongside the text fields.
+    schemaFetcher.submit({ intent: "syncSchemaFacts", productId }, { method: "post" });
+  };
+
+  // When an apply returns, record the applied fields optimistically.
+  useEffect(() => {
+    if (applyFetcher.data?.type !== "applyToShopify" || !applyingId) return;
+    const appliedKeys = Object.keys(applyFetcher.data.applied_fields ?? {}) as ValidateField[];
+    if (appliedKeys.length > 0) {
+      setOptimisticApplied((prev) => ({
+        ...prev,
+        [applyingId]: new Set([...(prev[applyingId] ?? []), ...appliedKeys]),
+      }));
+    }
+    setApplyingId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyFetcher.data]);
+
+  const isApplied = (productId: string, pack: ProductResult["content_test_pack"], field: ValidateField): boolean =>
+    Boolean(appliedFor(pack, field)) || (optimisticApplied[productId]?.has(field) ?? false);
+
+  const republishLlms = () => {
+    llmsGenerateFetcher.submit({ intent: "generate" }, { method: "post", action: "/app/geo-llms-txt" });
+    llmsPublishFetcher.submit(
+      { intent: "publish", confirm: "true" },
+      { method: "post", action: "/app/geo-llms-txt" },
+    );
+  };
+  const llmsBusy = llmsGenerateFetcher.state !== "idle" || llmsPublishFetcher.state !== "idle";
+
+  // Show the validate-results CTA only in non-auto mode when something is pending.
+  const showValidateButton = !isAuto && hasUnapplied;
+  // The "applied" icon shows once anything is applied (immediate in auto mode).
+  const hasAnyApplied =
+    hasApplied || Object.values(optimisticApplied).some((s) => s.size > 0);
+
   return (
     <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
       <Card>
@@ -2277,9 +2466,21 @@ function AnalysisSchedulePanels({
 
           <BlockStack gap="200">
             {scheduleStatus?.last_reanalysis_at && (
-              <InlineStack align="space-between">
+              <InlineStack align="space-between" blockAlign="center">
                 <Text as="span" tone="subdued">{t(locale, "lastFullAnalysis")}</Text>
-                <Text as="span">{fmt(scheduleStatus.last_reanalysis_at)}</Text>
+                <InlineStack gap="100" blockAlign="center">
+                  <Text as="span">{fmt(scheduleStatus.last_reanalysis_at)}</Text>
+                  {hasAnyApplied && (
+                    <Tooltip content={t(locale, "appliedIconTooltip")}>
+                      <Button
+                        variant="plain"
+                        icon={CheckCircleIcon}
+                        accessibilityLabel={t(locale, "appliedIconTooltip")}
+                        onClick={() => setAppliedOpen(true)}
+                      />
+                    </Tooltip>
+                  )}
+                </InlineStack>
               </InlineStack>
             )}
             {runs.length > 0 ? (
@@ -2337,6 +2538,11 @@ function AnalysisSchedulePanels({
             >
               {t(locale, "runReanalysisNowButton")}
             </Button>
+            {showValidateButton && (
+              <Button fullWidth disabled={running} onClick={() => setValidateOpen(true)}>
+                {t(locale, "validateResultsButton")}
+              </Button>
+            )}
             <Button
               fullWidth
               loading={exporting}
@@ -2375,6 +2581,104 @@ function AnalysisSchedulePanels({
             )}
             <Text as="p">{t(locale, "runReanalysisConfirmBody")}</Text>
           </BlockStack>
+        </Modal.Section>
+      </Modal>
+
+      <Modal
+        open={validateOpen}
+        onClose={() => setValidateOpen(false)}
+        title={t(locale, "validateResultsTitle")}
+        secondaryActions={[{ content: t(locale, "runReanalysisCancel"), onAction: () => setValidateOpen(false) }]}
+      >
+        <Modal.Section>
+          {validatable.length === 0 ? (
+            <Text as="p" tone="subdued">{t(locale, "validateResultsEmpty")}</Text>
+          ) : (
+            <BlockStack gap="400">
+              {validatable.map((p) => {
+                const pack = p.content_test_pack;
+                const fields = VALIDATE_FIELDS.filter(
+                  (f) => hasProposalFor(pack, f) && !isApplied(p.product_id, pack, f),
+                );
+                if (fields.length === 0) return null;
+                const set = checked[p.product_id] ?? new Set<ValidateField>();
+                return (
+                  <BlockStack key={p.product_id} gap="200">
+                    <Text as="h4" variant="headingSm">{p.product_title}</Text>
+                    {fields.map((f) => (
+                      <Checkbox
+                        key={f}
+                        checked={set.has(f)}
+                        onChange={() => toggleField(p.product_id, f)}
+                        label={t(locale, VALIDATE_FIELD_LABELS[f])}
+                        helpText={proposedValueFor(pack, f) || undefined}
+                      />
+                    ))}
+                    <InlineStack>
+                      <Button
+                        variant="primary"
+                        loading={applyingId === p.product_id}
+                        disabled={set.size === 0 || applyingId !== null}
+                        onClick={() => validateProduct(p.product_id)}
+                      >
+                        {t(locale, "validateApplyCta")}
+                      </Button>
+                    </InlineStack>
+                    <Divider />
+                  </BlockStack>
+                );
+              })}
+              {llmsPublished ? (
+                <Button fullWidth loading={llmsBusy} onClick={republishLlms}>
+                  {t(locale, "republishLlmsButton")}
+                </Button>
+              ) : (
+                <Text as="p" tone="subdued" variant="bodySm">{t(locale, "llmsTxtSetupHint")}</Text>
+              )}
+            </BlockStack>
+          )}
+        </Modal.Section>
+      </Modal>
+
+      <Modal
+        open={appliedOpen}
+        onClose={() => setAppliedOpen(false)}
+        title={t(locale, "appliedChangesTitle")}
+        secondaryActions={[{ content: t(locale, "runReanalysisCancel"), onAction: () => setAppliedOpen(false) }]}
+      >
+        <Modal.Section>
+          {(() => {
+            const rows = analyzed
+              .map((p) => {
+                const pack = p.content_test_pack;
+                const fields = VALIDATE_FIELDS.filter((f) => isApplied(p.product_id, pack, f));
+                return { product: p, pack, fields };
+              })
+              .filter((r) => r.fields.length > 0);
+            if (rows.length === 0) {
+              return <Text as="p" tone="subdued">{t(locale, "appliedChangesEmpty")}</Text>;
+            }
+            return (
+              <BlockStack gap="400">
+                {isAuto && <Banner tone="info">{t(locale, "autoAppliedNote")}</Banner>}
+                {rows.map(({ product, pack, fields }) => (
+                  <BlockStack key={product.product_id} gap="100">
+                    <Text as="h4" variant="headingSm">{product.product_title}</Text>
+                    {fields.map((f) => {
+                      const at = appliedFor(pack, f);
+                      return (
+                        <InlineStack key={f} align="space-between" blockAlign="center">
+                          <Text as="span" tone="subdued">{t(locale, VALIDATE_FIELD_LABELS[f])}</Text>
+                          <Text as="span">{at ? fmt(at) : "✓"}</Text>
+                        </InlineStack>
+                      );
+                    })}
+                    <Divider />
+                  </BlockStack>
+                ))}
+              </BlockStack>
+            );
+          })()}
         </Modal.Section>
       </Modal>
 
