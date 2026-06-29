@@ -122,6 +122,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
+  if (intent === "testReanalysis1h") {
+    const resp = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/agent-schedule/test-in-1h`,
+      { accessToken: session.accessToken, method: "POST" },
+    );
+    return json({ type: "testReanalysis1h", ok: resp.ok, error: resp.ok ? null : `Backend ${resp.status}` });
+  }
+
   return json({ type: "unknown", ok: false, reset: 0 });
 };
 
@@ -140,6 +149,7 @@ export default function AccountHub() {
   const ga4Connected = Boolean(ga4?.ready);
   const resetFetcher = useFetcher<{ type: string; ok: boolean; reset: number }>();
   const automationFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
+  const testReanalysisFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const onboardingFetcher = useFetcher<OnboardingActionData>();
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -283,6 +293,7 @@ export default function AccountHub() {
               <Select
                 label={t(locale, "automationFrequencyLabel")}
                 options={[
+                  { label: t(locale, "automationFrequency1"), value: "1" },
                   { label: t(locale, "automationFrequency14"), value: "14" },
                   { label: t(locale, "automationFrequency28"), value: "28" },
                 ]}
@@ -296,12 +307,21 @@ export default function AccountHub() {
             </Text>
 
             <InlineStack align="space-between" blockAlign="center" wrap>
-              <Button
-                url={localizedPath("/app/continuous-improvement", locale)}
-                variant="plain"
-              >
-                {t(locale, "automationScheduleLink")}
-              </Button>
+              <InlineStack gap="300" blockAlign="center" wrap>
+                <Button
+                  url={localizedPath("/app/continuous-improvement", locale)}
+                  variant="plain"
+                >
+                  {t(locale, "automationScheduleLink")}
+                </Button>
+                <Button
+                  variant="plain"
+                  loading={testReanalysisFetcher.state !== "idle"}
+                  onClick={() => testReanalysisFetcher.submit({ intent: "testReanalysis1h" }, { method: "post" })}
+                >
+                  {t(locale, "testReanalysisLabel")}
+                </Button>
+              </InlineStack>
               <Button
                 variant="primary"
                 loading={automationFetcher.state !== "idle"}
@@ -310,6 +330,12 @@ export default function AccountHub() {
                 {t(locale, "automationSave")}
               </Button>
             </InlineStack>
+
+            {testReanalysisFetcher.data?.ok && (
+              <Banner tone="success">
+                <Text as="p">{t(locale, "testReanalysisQueued")}</Text>
+              </Banner>
+            )}
 
             {automationFetcher.data?.ok && (
               <Banner tone="success">

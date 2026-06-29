@@ -9,6 +9,7 @@ import {
   Box,
   Button,
   Card,
+  DatePicker,
   Divider,
   Icon,
   FormLayout,
@@ -166,12 +167,22 @@ interface LoaderData {
   inspirationIdeas: Array<{ title: string; product_title: string }>;
   gscStatus: GscStatus | null;
   learningMode: "semi_auto" | "auto_apply";
+  scheduleStatus: ScheduleStatus | null;
   error: string | null;
 }
 
 interface GscStatus {
   connected: boolean;
   reauth_required: boolean;
+}
+
+interface ScheduleStatus {
+  enabled: boolean;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  last_reanalysis_at: string | null;
+  reanalysis_frequency_days: number;
+  recent_runs: Array<{ created_at?: string; status?: string }>;
 }
 
 // ── Loader ────────────────────────────────────────────────────────────────────
@@ -205,6 +216,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let blogIdeaTeasers: Array<{ title: string; product_title: string }> = [];
   let gscStatus: GscStatus | null = null;
   let learningMode: "semi_auto" | "auto_apply" = "semi_auto";
+  let scheduleStatus: ScheduleStatus | null = null;
 
   try {
     // Bound every backend call so a cold/slow backend cannot hang the page
@@ -213,7 +225,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // degrade to their default empty values on timeout via Promise.allSettled.
     const DASHBOARD_TIMEOUT_MS = 12_000;
     const SECONDARY_TIMEOUT_MS = 8_000;
-    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp, scheduleResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken, signal: AbortSignal.timeout(DASHBOARD_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
@@ -222,6 +234,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       callBackendForShop(shop, `/api/shops/${shop}/gsc/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/learning/settings`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/blog/idea-suggestions`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/agent-schedule/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
     ]);
 
     if (gscStatusResp.status === "fulfilled" && gscStatusResp.value.ok) {
@@ -235,6 +248,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       try {
         const data = (await learningResp.value.json()) as { settings?: { mode?: string } };
         if (data.settings?.mode === "auto_apply") learningMode = "auto_apply";
+      } catch (_parseErr) { /* ignore */ }
+    }
+
+    if (scheduleResp.status === "fulfilled" && scheduleResp.value.ok) {
+      try {
+        const data = (await scheduleResp.value.json()) as Partial<ScheduleStatus>;
+        scheduleStatus = {
+          enabled: data.enabled === true,
+          next_run_at: data.next_run_at ?? null,
+          last_run_at: data.last_run_at ?? null,
+          last_reanalysis_at: data.last_reanalysis_at ?? null,
+          reanalysis_frequency_days: data.reanalysis_frequency_days ?? 28,
+          recent_runs: data.recent_runs ?? [],
+        };
       } catch (_parseErr) { /* ignore */ }
     }
 
@@ -328,6 +355,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         inspirationIdeas,
         gscStatus,
         learningMode,
+        scheduleStatus,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
       });
     }
@@ -338,7 +366,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirectToOnboarding();
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, learningMode, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, learningMode, scheduleStatus, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -353,6 +381,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       inspirationIdeas,
       gscStatus,
       learningMode,
+      scheduleStatus,
       error: err instanceof Error ? err.message : "Network error",
     });
   }
@@ -467,11 +496,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!setResp.ok) {
         return json({ type: "activateAutoPublish", ok: false, error: `HTTP ${setResp.status}`, summary: null });
       }
-      // 2. Publish the latest analysis's checked proposals immediately.
+      // 2. Run a fresh full re-analysis now, then auto-publish the checked
+      // proposals against up-to-date data (not the last stored analysis).
       const pubResp = await callBackendForShop(
         session.shop,
-        `/api/shops/${session.shop}/market-analysis/auto-publish`,
-        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(60_000) },
+        `/api/shops/${session.shop}/agent-schedule/run-and-publish`,
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(120_000) },
       );
       const summary = pubResp.ok ? await pubResp.json() : null;
       return json({ type: "activateAutoPublish", ok: true, error: null, summary });
@@ -1700,7 +1730,7 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, learningMode, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, learningMode, scheduleStatus, error } = useLoaderData<typeof loader>() as LoaderData;
   // OAuth status is authoritative; fall back to the per-product flag (GSC data
   // file present) only when the status call itself failed.
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
@@ -2064,9 +2094,120 @@ export default function IndexPage() {
 
         {/* Zone 6 — AI Visibility hidden until V2 */}
 
+        {/* Analysis history + upcoming, and calendar — bottom of the dashboard. */}
+        <AnalysisSchedulePanels scheduleStatus={scheduleStatus} locale={locale} />
+
         {/* Bottom breathing room so the last panel isn't glued to the page edge. */}
         <Box paddingBlockEnd="800" />
       </BlockStack>
     </Page>
+  );
+}
+
+function AnalysisSchedulePanels({
+  scheduleStatus,
+  locale,
+}: {
+  scheduleStatus: ScheduleStatus | null;
+  locale: Locale;
+}) {
+  const dateLocale = locale === "fr" ? "fr-FR" : "en-US";
+  const fmt = (iso: string | null | undefined): string | null => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime())
+      ? null
+      : d.toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" });
+  };
+
+  // Next full analysis = last re-analysis + frequency, or the next agent run when
+  // it has never run yet. Drives both the "upcoming" line and the calendar.
+  const nextFull = useMemo<Date | null>(() => {
+    if (!scheduleStatus?.enabled) return null;
+    if (scheduleStatus.last_reanalysis_at) {
+      const last = new Date(scheduleStatus.last_reanalysis_at);
+      if (!Number.isNaN(last.getTime())) {
+        return new Date(last.getTime() + scheduleStatus.reanalysis_frequency_days * 86_400_000);
+      }
+    }
+    if (scheduleStatus.next_run_at) {
+      const next = new Date(scheduleStatus.next_run_at);
+      if (!Number.isNaN(next.getTime())) return next;
+    }
+    return null;
+  }, [scheduleStatus]);
+
+  const calendarTarget = nextFull ?? new Date();
+  const [{ month, year }, setCalendar] = useState({
+    month: calendarTarget.getMonth(),
+    year: calendarTarget.getFullYear(),
+  });
+
+  const runs = (scheduleStatus?.recent_runs ?? []).slice(0, 5);
+  const statusTone = (status?: string): "success" | "critical" | "attention" =>
+    status === "completed" ? "success" : status === "error" ? "critical" : "attention";
+
+  return (
+    <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
+      <Card>
+        <BlockStack gap="400">
+          <BlockStack gap="200">
+            <Text as="h3" variant="headingSm">{t(locale, "analysisUpcomingTitle")}</Text>
+            {scheduleStatus?.enabled ? (
+              <BlockStack gap="100">
+                <InlineStack align="space-between">
+                  <Text as="span" tone="subdued">{t(locale, "nextDailyRun")}</Text>
+                  <Text as="span">{fmt(scheduleStatus.next_run_at) ?? "—"}</Text>
+                </InlineStack>
+                <InlineStack align="space-between">
+                  <Text as="span" tone="subdued">{t(locale, "nextFullAnalysis")}</Text>
+                  <Text as="span">{nextFull ? fmt(nextFull.toISOString()) : "—"}</Text>
+                </InlineStack>
+              </BlockStack>
+            ) : (
+              <Text as="p" tone="subdued">{t(locale, "noUpcomingAnalysis")}</Text>
+            )}
+          </BlockStack>
+
+          <Divider />
+
+          <BlockStack gap="200">
+            <Text as="h3" variant="headingSm">{t(locale, "analysisHistoryTitle")}</Text>
+            {scheduleStatus?.last_reanalysis_at && (
+              <InlineStack align="space-between">
+                <Text as="span" tone="subdued">{t(locale, "lastFullAnalysis")}</Text>
+                <Text as="span">{fmt(scheduleStatus.last_reanalysis_at)}</Text>
+              </InlineStack>
+            )}
+            {runs.length > 0 ? (
+              runs.map((run, i) => (
+                <InlineStack key={i} align="space-between" blockAlign="center">
+                  <Text as="span">{fmt(run.created_at) ?? "—"}</Text>
+                  <Badge tone={statusTone(run.status)}>{run.status ?? "—"}</Badge>
+                </InlineStack>
+              ))
+            ) : (
+              !scheduleStatus?.last_reanalysis_at && (
+                <Text as="p" tone="subdued">{t(locale, "analysisHistoryEmpty")}</Text>
+              )
+            )}
+          </BlockStack>
+        </BlockStack>
+      </Card>
+
+      <Card>
+        <BlockStack gap="300">
+          <Text as="h3" variant="headingSm">{t(locale, "analysisCalendarTitle")}</Text>
+          <DatePicker
+            month={month}
+            year={year}
+            onChange={() => {}}
+            onMonthChange={(m, y) => setCalendar({ month: m, year: y })}
+            selected={nextFull ?? undefined}
+            disableDatesBefore={undefined}
+          />
+        </BlockStack>
+      </Card>
+    </InlineGrid>
   );
 }

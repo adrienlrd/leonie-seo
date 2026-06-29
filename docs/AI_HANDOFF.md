@@ -10,6 +10,19 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-29
+- **Agent:** Claude (Sonnet 4.6)
+- **Goal:** Dashboard — 2 panneaux bas (historique + à venir / calendrier surlignant la prochaine analyse) ; réglage de fréquence de ré-analyse + « Tous les jours » (1 j) ; test one-shot « 1h » ; clic publication auto lance une analyse fraîche.
+- **Summary:** Backend — `app/learning/models.py` : `ALLOWED_REANALYSIS_FREQUENCY_DAYS = (1, 14, 28)`. `app/agent_schedule/scheduler.py` : `_maybe_run_reanalysis(..., force=False)` bypasse `is_reanalysis_due` quand forcé ; `run_due_agent_schedules` passe `force=is_test_due` ; nouveau `schedule_test_in_1h` (miroir de `schedule_test_in_5_min`, `test_run_at = now + 1h`) ; `schedule_status` expose `reanalysis_frequency_days` + `last_reanalysis_at`. `app/api/agent_schedule.py` : routes `POST .../test-in-1h` et `POST .../run-and-publish` (réutilise `run_scheduled_reanalysis` : analyse fraîche → persist → auto-publish ; placée ici pour éviter l'import circulaire avec `market_analysis`). Frontend — `app._index.tsx` : 9e appel `allSettled` vers `agent-schedule/status`, `ScheduleStatus` ajouté à `LoaderData` ; action `activateAutoPublish` appelle désormais `run-and-publish` (timeout 120 s) au lieu de publier la dernière analyse stockée ; composant `AnalysisSchedulePanels` (InlineGrid 2 colonnes : Card historique+à venir avec `Badge` par statut, Card `DatePicker` surlignant la prochaine analyse complète). `app.account.tsx` : option Select « Tous les jours » (value "1"), bouton « Tester la ré-analyse (~1h) » → fetcher POST `test-in-1h`, bannière succès. `i18n.ts` : clés FR+EN ajoutées.
+- **Files modified:** `app/learning/models.py`, `app/agent_schedule/scheduler.py`, `app/api/agent_schedule.py`, `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.account.tsx`, `shopify-app/app/lib/i18n.ts`, `tests/test_agent_schedule/test_scheduler.py`, `tests/test_agent_schedule/test_reanalysis.py`.
+- **Decisions made:** « 1h » = test one-shot uniquement (pas de cadence récurrente — coût LLM) ; « 1 jour » = vraie cadence récurrente déclenchée par le passage quotidien (aucune plomberie de scheduling ajoutée) ; clic publication auto lance une analyse fraîche via le pipeline `run_scheduled_reanalysis` existant ; endpoint `run-and-publish` placé dans `agent_schedule.py` pour éviter l'import circulaire.
+- **Validations run:** `pytest tests/test_agent_schedule tests/test_api/test_learning.py` ✅ 43 passed ; `pytest tests/test_api -k "agent_schedule or schedule"` ✅ 11 passed ; `ruff check` ✅ ; `cd shopify-app && npm run typecheck` ✅ ; `npm run build` ✅.
+- **Validations skipped:** `ruff format --check .` non relancé globalement — drift pré-existant sur `app/agent_schedule/evaluation.py` (non modifié par cette tâche, laissé intact pour ne pas reformater hors périmètre).
+- **Open issues:** L'analyse fraîche déclenchée par le clic est synchrone (timeout 120 s côté Remix) — si l'analyse dépasse, le job backend continue mais la réponse front peut expirer. Le calendrier est en lecture seule (navigation de mois autorisée, sélection no-op).
+- **Next recommended action:** Test manuel pilote : régler « Tous les jours », vérifier J+1 surligné ; cliquer publication auto → analyse fraîche + publication ; « Tester dans 1h » → ré-analyse + auto-publish visibles dans l'historique après ~1h.
+
+## Previous completed task
+
 - **Date:** 2026-06-27
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Améliorer la lisibilité IA des articles publiés (4 points) : URL canonique JSON-LD correcte, `inLanguage`, `articleBody`+`wordCount`, et lien `about`/`mentions` vers le produit.
@@ -20,7 +33,7 @@
 - **Open issues:** `inLanguage` codé "fr" (pas encore dérivé de la locale réelle). `_slugify_handle` ne prédit pas le suffixe de dédup Shopify (-1/-2) → corrigé par l'update post-publication. `articleBody` tronqué à 8000 car. pour les très longs articles.
 - **Next recommended action:** Publier un article, vérifier dans le source de la page (ou Rich Results Test) que le JSON-LD Article contient la bonne URL `/blogs/{blog}/{handle}`, `inLanguage`, `articleBody`, `wordCount`, `about` Produit.
 
-## Previous completed task
+## Earlier completed task
 
 - **Date:** 2026-06-27
 - **Agent:** Claude (Opus 4.8)

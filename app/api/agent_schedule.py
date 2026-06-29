@@ -15,11 +15,13 @@ from pydantic import BaseModel, Field
 
 from app.agent_schedule.evaluation import evaluate_agent_effectiveness
 from app.agent_schedule.export import build_export
+from app.agent_schedule.reanalysis import run_scheduled_reanalysis
 from app.agent_schedule.scheduler import (
     disable,
     enable_daily,
     run_due_agent_schedules,
     schedule_status,
+    schedule_test_in_1h,
     schedule_test_in_5_min,
 )
 from app.api.deps import ShopContext, get_shop_context, require_internal_secret
@@ -88,6 +90,41 @@ async def test_agent_in_5_min(
     """Queue a single test run ~5 minutes out. Does not enable the daily agent."""
     settings = schedule_test_in_5_min(ctx.shop, db_path=DB_PATH)
     return {"shop": ctx.shop, "schedule": settings.to_dict()}
+
+
+@router.post("/shops/{shop}/agent-schedule/test-in-1h")
+async def test_agent_in_1h(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Queue a single test run ~1 hour out, forcing a full re-analysis + auto-publish.
+
+    Lets the merchant verify the whole automation loop without waiting for the
+    recurring cadence. Does not enable the daily agent.
+    """
+    settings = schedule_test_in_1h(ctx.shop, db_path=DB_PATH)
+    return {"shop": ctx.shop, "schedule": settings.to_dict()}
+
+
+@router.post("/shops/{shop}/agent-schedule/run-and-publish")
+async def run_and_publish_now(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Run a fresh full re-analysis now and auto-publish the checked proposals.
+
+    Reuses the scheduled re-analysis pipeline (fresh analysis → persist →
+    auto-publish), respecting the LLM budget. Triggered from the dashboard
+    "auto publish" button so the merchant publishes against up-to-date data
+    instead of the last stored analysis.
+    """
+    outcome = await asyncio.to_thread(
+        run_scheduled_reanalysis,
+        ctx.shop,
+        access_token=ctx.access_token,
+        db_path=DB_PATH,
+    )
+    return {"shop": ctx.shop, **outcome}
 
 
 @router.get("/shops/{shop}/agent-schedule/effectiveness")

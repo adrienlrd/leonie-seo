@@ -43,6 +43,18 @@ def test_is_reanalysis_due_true_after_14_day_window() -> None:
     assert is_reanalysis_due(last, 14, now=now) is True
 
 
+def test_is_reanalysis_due_true_after_1_day_window() -> None:
+    now = datetime.now(UTC)
+    last = (now - timedelta(days=1, minutes=1)).isoformat()
+    assert is_reanalysis_due(last, 1, now=now) is True
+
+
+def test_is_reanalysis_due_false_within_1_day_window() -> None:
+    now = datetime.now(UTC)
+    last = (now - timedelta(hours=2)).isoformat()
+    assert is_reanalysis_due(last, 1, now=now) is False
+
+
 def test_is_reanalysis_due_false_within_28_day_window() -> None:
     now = datetime.now(UTC)
     last = (now - timedelta(days=20)).isoformat()
@@ -187,6 +199,37 @@ def test_run_due_does_not_trigger_reanalysis_when_not_due(tmp_path: Path) -> Non
     assert result["ran"][0]["reanalysis"] is None
     schedule = get_schedule(SHOP, db_path=db)
     assert schedule.last_reanalysis_at == recent_reanalysis
+
+
+def test_test_run_forces_reanalysis_even_when_not_due(tmp_path: Path) -> None:
+    db = _db(tmp_path)
+    past_test = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
+    recent_reanalysis = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+    upsert_schedule(
+        SHOP,
+        {"test_run_at": past_test, "last_reanalysis_at": recent_reanalysis},
+        db_path=db,
+    )
+    update_settings(SHOP, {"reanalysis_frequency_days": 28}, db_path=db)
+
+    with (
+        patch.object(scheduler, "load_latest_result", return_value={"products": []}),
+        patch.object(
+            scheduler, "run_learning_cycle", return_value={"run_id": 9, "status": "completed"}
+        ),
+        patch.object(scheduler, "get_token", return_value={"access_token": "shpat_test"}),
+        patch.object(
+            scheduler,
+            "run_scheduled_reanalysis",
+            return_value={"status": "completed", "analyzed_at": "2026-06-10T00:00:00+00:00"},
+        ) as run_reanalysis,
+    ):
+        result = run_due_agent_schedules(db_path=db)
+
+    # Forced by the one-shot test even though the 28-day window has not elapsed.
+    run_reanalysis.assert_called_once()
+    assert result["ran"][0]["kind"] == "test"
+    assert result["ran"][0]["reanalysis"]["status"] == "completed"
 
 
 def test_run_due_skips_reanalysis_without_access_token_but_runs_learning_cycle(

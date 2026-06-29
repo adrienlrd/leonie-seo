@@ -13,11 +13,13 @@ from app.agent_schedule.scheduler import (
     disable,
     enable_daily,
     run_due_agent_schedules,
+    schedule_status,
+    schedule_test_in_1h,
     schedule_test_in_5_min,
 )
 from app.agent_schedule.store import get_schedule, upsert_schedule
 from app.db import init_db
-from app.learning.store import get_settings
+from app.learning.store import get_settings, update_settings
 
 SHOP = "store.myshopify.com"
 
@@ -96,6 +98,33 @@ def test_schedule_test_in_5_min_sets_test_run_at_without_enabling(tmp_path: Path
     assert settings.test_run_at is not None
     delta = datetime.fromisoformat(settings.test_run_at) - now
     assert timedelta(minutes=4) <= delta <= timedelta(minutes=6)
+
+
+def test_schedule_test_in_1h_sets_test_run_at_without_enabling(tmp_path: Path) -> None:
+    db = _db(tmp_path)
+    now = datetime.now(UTC)
+
+    settings = schedule_test_in_1h(SHOP, now=now, db_path=db)
+
+    assert settings.enabled is False
+    assert settings.test_run_at is not None
+    delta = datetime.fromisoformat(settings.test_run_at) - now
+    assert timedelta(minutes=55) <= delta <= timedelta(minutes=65)
+
+
+# ── schedule_status ──────────────────────────────────────────────────────────
+
+
+def test_schedule_status_exposes_reanalysis_frequency_and_last_reanalysis(tmp_path: Path) -> None:
+    db = _db(tmp_path)
+    last = datetime.now(UTC).isoformat()
+    upsert_schedule(SHOP, {"enabled": True, "last_reanalysis_at": last}, db_path=db)
+    update_settings(SHOP, {"reanalysis_frequency_days": 1}, db_path=db)
+
+    status = schedule_status(SHOP, db_path=db)
+
+    assert status["reanalysis_frequency_days"] == 1
+    assert status["last_reanalysis_at"] == last
 
 
 # ── run_due_agent_schedules ──────────────────────────────────────────────────

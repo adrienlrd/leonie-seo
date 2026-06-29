@@ -114,15 +114,19 @@ def _maybe_run_reanalysis(
     schedule: AgentScheduleSettings,
     now: datetime,
     *,
+    force: bool = False,
     db_path: Path | None,
 ) -> dict[str, Any] | None:
-    """Run the heavy 14/28-day re-analysis pipeline for `shop` if it is due.
+    """Run the heavy re-analysis pipeline for `shop` if it is due (or forced).
+
+    ``force`` bypasses the cadence window: a one-shot test run must show a full
+    re-analysis regardless of when the last one happened.
 
     Returns None when not due, a status dict otherwise. Errors are reported but
     never raised — a failed re-analysis must not block the daily learning cycle.
     """
     settings = get_settings(shop, db_path=db_path)
-    if not is_reanalysis_due(
+    if not force and not is_reanalysis_due(
         schedule.last_reanalysis_at, settings.reanalysis_frequency_days, now=now
     ):
         return None
@@ -186,7 +190,9 @@ def run_due_agent_schedules(
 
         _RUNNING.add(shop)
         try:
-            reanalysis_outcome = _maybe_run_reanalysis(shop, schedule, current, db_path=db_path)
+            reanalysis_outcome = _maybe_run_reanalysis(
+                shop, schedule, current, force=is_test_due, db_path=db_path
+            )
             result = run_learning_cycle(shop, db_path=db_path)
             run_id = result.get("run_id")
             ran_at = datetime.now(UTC).isoformat()
@@ -264,6 +270,22 @@ def schedule_test_in_5_min(
     return upsert_schedule(shop, {"test_run_at": test_run_at}, db_path=db_path)
 
 
+def schedule_test_in_1h(
+    shop: str,
+    *,
+    now: datetime | None = None,
+    db_path: Path | None = None,
+) -> AgentScheduleSettings:
+    """Queue a single test run ~1 hour out. Does NOT enable the daily agent.
+
+    The test run forces a full re-analysis (see ``run_due_agent_schedules``), so
+    the merchant can verify the whole re-analysis + auto-publish loop end-to-end.
+    """
+    current = now or datetime.now(UTC)
+    test_run_at = (current + timedelta(hours=1)).isoformat()
+    return upsert_schedule(shop, {"test_run_at": test_run_at}, db_path=db_path)
+
+
 def schedule_status(shop: str, *, db_path: Path | None = None) -> dict[str, Any]:
     """Return the schedule plus a summary of recent learning runs for the UI."""
     schedule = get_schedule(shop, db_path=db_path)
@@ -279,5 +301,7 @@ def schedule_status(shop: str, *, db_path: Path | None = None) -> dict[str, Any]
         "test_run_at": schedule.test_run_at,
         "schedule": schedule.to_dict(),
         "learning_enabled": learning.enabled,
+        "reanalysis_frequency_days": learning.reanalysis_frequency_days,
+        "last_reanalysis_at": schedule.last_reanalysis_at,
         "recent_runs": runs,
     }
