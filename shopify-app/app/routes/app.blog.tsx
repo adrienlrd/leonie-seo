@@ -547,7 +547,7 @@ function linkReasonBadge(reason: string, fr: boolean): { tone: "info" | "success
   }
 }
 
-/** Per-pillar breakdown of the blog GEO/SEO score — mirrors the product page
+/** Per-pillar breakdown of the blog GEO score — mirrors the product page
  *  GeoScoreBreakdown: ✓ (done, ≥70) / ✗ (to improve) with weight per pillar. */
 function BlogGeoScoreBreakdown({
   components,
@@ -1534,7 +1534,7 @@ export default function BlogIndexPage() {
                       autoComplete="off"
                     />
 
-                    {/* SEO bar: live word count vs target + reading time */}
+                    {/* GEO bar: live word count vs target + reading time */}
                     <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
                       <InlineStack gap="300" blockAlign="center" wrap>
                         <Badge tone={wordCount >= 1000 ? "success" : wordCount >= 600 ? "warning" : "critical"}>
@@ -1553,7 +1553,7 @@ export default function BlogIndexPage() {
                       </InlineStack>
                     </Box>
 
-                    {/* Meta description — what shows in Google + sent as Shopify SEO description */}
+                    {/* Meta description — what shows in Google + sent as Shopify GEO description */}
                     <TextField
                       label={fr ? "Meta description (Google)" : "Meta description (Google)"}
                       value={draft.meta_description ?? ""}

@@ -1,5 +1,5 @@
 /**
- * HTTP client for the Python backend (Giulio Geo engine).
+ * HTTP client for the Python backend (GEO by Organically engine).
  *
  * Two functions:
  * - callBackend()        — unauthenticated call (health checks, public endpoints)

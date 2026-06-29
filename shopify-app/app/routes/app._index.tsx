@@ -724,11 +724,13 @@ function Zone1({
   data,
   locale,
   llmsPublished,
+  analysisPanels,
   publishMode,
 }: {
   data: DashboardData["zone1"];
   locale: Locale;
   llmsPublished: boolean;
+  analysisPanels?: React.ReactNode;
   publishMode?: React.ReactNode;
 }) {
   const level = data.global_level ?? "faible";
@@ -789,6 +791,12 @@ function Zone1({
             </Button>
           </InlineStack>
         </Box>
+        {analysisPanels && (
+          <>
+            <Divider />
+            {analysisPanels}
+          </>
+        )}
         {publishMode && (
           <>
             <Divider />
@@ -1209,12 +1217,15 @@ function PublishModeCard({
             </BlockStack>
           </Box>
 
-          <Box
-            padding="300"
-            borderWidth="025"
-            borderRadius="200"
-            borderColor={isAuto ? "border-emphasis" : "border"}
-            background={isAuto ? "bg-surface-secondary" : "bg-surface"}
+          <div
+            style={{
+              background: "#000",
+              borderRadius: "var(--p-border-radius-200)",
+              padding: "var(--p-space-300)",
+              ["--p-color-text"]: "#fff",
+              ["--p-color-text-secondary"]: "#fff",
+              ["--p-color-icon"]: "#fff",
+            } as React.CSSProperties}
           >
             <BlockStack gap="200">
               <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-end" }}>
@@ -1245,12 +1256,21 @@ function PublishModeCard({
                   )}
                 </BlockStack>
               ) : (
-                <Button size="slim" variant="primary" onClick={handleActivateAuto}>
-                  {locale === "fr" ? "Activer" : "Activate"}
-                </Button>
+                <span
+                  style={{
+                    ["--p-color-bg-fill-brand"]: "#fff",
+                    ["--p-color-bg-fill-brand-hover"]: "#f0f0f0",
+                    ["--p-color-bg-fill-brand-active"]: "#e0e0e0",
+                    ["--p-color-text-brand-on-bg-fill"]: "#000",
+                  } as React.CSSProperties}
+                >
+                  <Button size="slim" variant="primary" onClick={handleActivateAuto}>
+                    {locale === "fr" ? "Activer" : "Activate"}
+                  </Button>
+                </span>
               )}
             </BlockStack>
-          </Box>
+          </div>
         </InlineGrid>
         {isAuto && (
           <Banner tone="info">
@@ -1966,7 +1986,7 @@ export default function IndexPage() {
 
   if (error || !dashboard) {
     return (
-      <Page title="Giulio Geo">
+      <Page title="GEO by Organically">
         <Banner tone="critical" title={t(locale, "systemStatus")}>
           <p>{error ?? t(locale, "systemUnavailable")}</p>
         </Banner>
@@ -1977,7 +1997,7 @@ export default function IndexPage() {
   const { banners, zone1, zone3, zone4, zone5 } = dashboard;
 
   return (
-    <Page title="Giulio Geo">
+    <Page title="GEO by Organically">
       <BlockStack gap="400">
         {/* Banners */}
         {auditRunning && (
@@ -2078,6 +2098,17 @@ export default function IndexPage() {
                 data={zone1}
                 locale={locale}
                 llmsPublished={llmsPublished}
+                analysisPanels={
+                  <AnalysisSchedulePanels
+                    scheduleStatus={scheduleStatus}
+                    locale={locale}
+                    productResults={productPacks}
+                    learningMode={learningMode}
+                    llmsPublished={llmsPublished}
+                    geoScore={zone1.global_score}
+                    geoLevel={zone1.global_level}
+                  />
+                }
                 publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare />}
               />
             }
@@ -2087,6 +2118,17 @@ export default function IndexPage() {
             data={zone1}
             locale={locale}
             llmsPublished={llmsPublished}
+            analysisPanels={
+              <AnalysisSchedulePanels
+                scheduleStatus={scheduleStatus}
+                locale={locale}
+                productResults={productPacks}
+                learningMode={learningMode}
+                llmsPublished={llmsPublished}
+                geoScore={zone1.global_score}
+                geoLevel={zone1.global_level}
+              />
+            }
             publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare />}
           />
         )}
@@ -2147,15 +2189,6 @@ export default function IndexPage() {
         <Zone5 data={zone5} locale={locale} />
 
         {/* Zone 6 — AI Visibility hidden until V2 */}
-
-        {/* Analysis history + upcoming, and calendar — bottom of the dashboard. */}
-        <AnalysisSchedulePanels
-          scheduleStatus={scheduleStatus}
-          locale={locale}
-          productResults={productPacks}
-          learningMode={learningMode}
-          llmsPublished={llmsPublished}
-        />
 
         {/* Bottom breathing room so the last panel isn't glued to the page edge. */}
         <Box paddingBlockEnd="800" />
@@ -2304,13 +2337,18 @@ function AnalysisSchedulePanels({
   productResults,
   learningMode,
   llmsPublished,
+  geoScore,
+  geoLevel,
 }: {
   scheduleStatus: ScheduleStatus | null;
   locale: Locale;
   productResults: Record<string, ProductResult>;
   learningMode: "semi_auto" | "auto_apply";
   llmsPublished: boolean;
+  geoScore: number | null;
+  geoLevel: string | null;
 }) {
+  const isGreen = geoLevel ? LEVEL_TONES[geoLevel] === "success" : false;
   const dateLocale = locale === "fr" ? "fr-FR" : "en-US";
   const fmt = (iso: string | null | undefined): string | null => {
     if (!iso) return null;
@@ -2565,7 +2603,7 @@ function AnalysisSchedulePanels({
 
   return (
     <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
-      <Card>
+      <Box background="bg-surface-secondary" padding="300" borderRadius="200">
         <BlockStack gap="400">
           <Text as="h3" variant="headingSm">{t(locale, "analysisPanelTitle")}</Text>
 
@@ -2658,7 +2696,7 @@ function AnalysisSchedulePanels({
             </Button>
           </BlockStack>
         </BlockStack>
-      </Card>
+      </Box>
 
       <Modal
         open={confirmOpen}
@@ -2700,6 +2738,30 @@ function AnalysisSchedulePanels({
             <Text as="p" tone="subdued">{t(locale, "validateResultsEmpty")}</Text>
           ) : (
             <BlockStack gap="400">
+              {geoScore !== null && (
+                <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text as="span" variant="bodyMd" fontWeight="semibold">{t(locale, "impactScoreCard")}</Text>
+                    <InlineStack gap="200" blockAlign="center">
+                      <Text as="span" variant="headingMd" fontWeight="bold">{geoScore}/100</Text>
+                      {geoLevel && LEVEL_I18N_KEYS[geoLevel] && (
+                        <Badge tone={LEVEL_TONES[geoLevel] ?? "info"}>{t(locale, LEVEL_I18N_KEYS[geoLevel])}</Badge>
+                      )}
+                    </InlineStack>
+                  </InlineStack>
+                </Box>
+              )}
+              {geoScore !== null && !isGreen && (
+                <Banner
+                  tone="warning"
+                  action={{
+                    content: t(locale, "validateImproveCta"),
+                    url: localizedPath("/app/analyse", locale),
+                  }}
+                >
+                  {t(locale, "validateImproveBanner")}
+                </Banner>
+              )}
               {validatable.map((p) => {
                 const pack = p.content_test_pack;
                 const fields = VALIDATE_FIELDS.filter(
@@ -2728,11 +2790,17 @@ function AnalysisSchedulePanels({
                       >
                         {t(locale, "validateApplyCta")}
                       </Button>
-                      <Button
-                        url={`${localizedPath("/app/products", locale)}&product=${encodeURIComponent(p.product_id)}`}
-                      >
-                        {t(locale, "validateMoreDetails")}
-                      </Button>
+                      {isGreen ? (
+                        <Button
+                          url={`${localizedPath("/app/products", locale)}&product=${encodeURIComponent(p.product_id)}`}
+                        >
+                          {t(locale, "validateMoreDetails")}
+                        </Button>
+                      ) : (
+                        <Button url={localizedPath("/app/analyse", locale)}>
+                          {t(locale, "validateImproveCta")}
+                        </Button>
+                      )}
                     </InlineStack>
                     <Divider />
                   </BlockStack>
@@ -2796,7 +2864,7 @@ function AnalysisSchedulePanels({
         </Modal.Section>
       </Modal>
 
-      <Card>
+      <Box background="bg-surface-secondary" padding="300" borderRadius="200">
         <BlockStack gap="300">
           <Text as="h3" variant="headingSm">{t(locale, "analysisCalendarTitle")}</Text>
           <MiniCalendar
@@ -2829,7 +2897,7 @@ function AnalysisSchedulePanels({
             locale={locale}
           />
         </BlockStack>
-      </Card>
+      </Box>
     </InlineGrid>
   );
 }

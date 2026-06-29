@@ -991,12 +991,12 @@ export default function ContinuousImprovement() {
                 <InlineStack align="space-between" blockAlign="center" wrap>
                   <Text as="h3" variant="headingSm">
                     {locale === "fr"
-                      ? "L'agent améliore-t-il le SEO et le GEO ?"
-                      : "Is the agent improving SEO and GEO?"}
+                      ? "L'agent améliore-t-il le référencement Google et le GEO ?"
+                      : "Is the agent improving Google ranking and GEO?"}
                   </Text>
                   <InlineStack gap="100">
                     <Badge tone={verdictTone(effectiveness?.seo.verdict ?? "inconclusive")}>
-                      {`SEO: ${verdictLabel(effectiveness?.seo.verdict ?? "inconclusive", locale)}`}
+                      {`Google: ${verdictLabel(effectiveness?.seo.verdict ?? "inconclusive", locale)}`}
                     </Badge>
                     <Badge tone={verdictTone(effectiveness?.geo.verdict ?? "inconclusive")}>
                       {`GEO: ${verdictLabel(effectiveness?.geo.verdict ?? "inconclusive", locale)}`}

@@ -360,7 +360,7 @@ export default function AccountHub() {
             <BlockStack gap="300">
               <BlockStack gap="100">
                 <Text as="h3" variant="headingSm">
-                  {fr ? "Analyse SEO — sources de données" : "SEO Analysis — data sources"}
+                  {fr ? "Analyse GEO — sources de données" : "GEO Analysis — data sources"}
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
                   {fr
@@ -401,8 +401,8 @@ export default function AccountHub() {
               {themeExt?.available && !themeExt.enabled && (
                 <Text as="p" variant="bodySm" tone="subdued">
                   {fr
-                    ? "Activez « Giulio Geo » dans Boutique en ligne → Personnaliser → Intégrations d'app pour publier la FAQ, les données structurées et le fil d'Ariane sur votre boutique."
-                    : "Enable “Giulio Geo” in Online Store → Customize → App embeds to publish the FAQ, structured data and breadcrumb on your storefront."}
+                    ? "Activez « GEO by Organically » dans Boutique en ligne → Personnaliser → Intégrations d'app pour publier la FAQ, les données structurées et le fil d'Ariane sur votre boutique."
+                    : "Enable “GEO by Organically” in Online Store → Customize → App embeds to publish the FAQ, structured data and breadcrumb on your storefront."}
                 </Text>
               )}
             </BlockStack>

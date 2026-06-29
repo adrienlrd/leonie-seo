@@ -154,7 +154,7 @@ export default function Billing() {
         {plans.length === 0 && (
           <Card>
             <Text as="p" tone="subdued">
-              Impossible de charger les plans. Vérifiez que le moteur SEO est
+              Impossible de charger les plans. Vérifiez que le moteur GEO est
               démarré.
             </Text>
           </Card>

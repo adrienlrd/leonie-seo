@@ -284,7 +284,7 @@ function TechnicalDetail({ page, locale }: { page: CompetitorCrawlTopUrl; locale
       <Text as="p" variant="bodySm" tone="subdued">{page.final_url || page.url}</Text>
 
       <BlockStack gap="200">
-        <SectionHeading>SEO</SectionHeading>
+        <SectionHeading>GEO</SectionHeading>
         <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
           <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
             <BlockStack gap="150">
@@ -552,8 +552,8 @@ export default function CompetitorCrawlPage() {
       title={locale === "fr" ? "Concurrents" : "Competitors"}
       subtitle={
         locale === "fr"
-          ? "Ce que font tes concurrents et comment t'en inspirer pour ton SEO."
-          : "What your competitors do and how to take inspiration for your SEO."
+          ? "Ce que font tes concurrents et comment t'en inspirer pour ton GEO."
+          : "What your competitors do and how to take inspiration for your GEO."
       }
       backAction={{ content: locale === "fr" ? "Accueil" : "Dashboard", url: localizedPath("/app", locale) }}
       primaryAction={

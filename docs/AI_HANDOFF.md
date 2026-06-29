@@ -1,14 +1,31 @@
-# AI_HANDOFF.md — Giulio Geo
+# AI_HANDOFF.md — GEO by Organically
 
 ## Current project state
 
-- **Summary:** Giulio Geo est une app Shopify embedded + moteur Python/FastAPI/CLI pour audit SEO, recommandations supervisées, contenus, données structurées, jobs async, intégrations Shopify/Google/LLM et garde-fous dry-run.
+- **Summary:** GEO by Organically est une app Shopify embedded + moteur Python/FastAPI/CLI pour audit SEO, recommandations supervisées, contenus, données structurées, jobs async, intégrations Shopify/Google/LLM et garde-fous dry-run.
 - **Main stack:** Python 3.11+, FastAPI, Click, pytest, ruff, Remix, React, TypeScript, Shopify App Bridge, Shopify Polaris, npm.
 - **Main working areas:** `app/`, `scripts/`, `shopify-app/`, `config/`, `docs/`, `tests/`.
 - **Current roadmap:** Phase 10 clôturée. Phase 11 terminée. Phase 11.5-11.8 complètes. **Phase 11.9 complète (12/12 tâches 152-163 ✅, terminée 2026-05-21).** **Phase 11.11 complète (9/9 tâches du plan "Merchant Journey Alignment" ✅, terminée 2026-06-10).** **Phase 12 (tâches 150-151) démarre seulement après test 3 marchands pilotes (critère humain — `docs/pilot-merchant-test-script.md`).**
 - **Known limitations:** Les workflows GEO restent majoritairement read-only. La mesure pilote garde des lacunes historiques sur IDs/durées de jobs, compteurs exacts, coût LLM et suivi fin de certains jobs. Les snapshots V1 ne capturent pas encore GA4 ni JSON-LD détaillé. Crawl L3 existe côté backend/API, mais les plafonds Free/Pro/Agency ne sont pas encore appliqués par plan. Niche Understanding est disponible — les modules aval consomment l'hypothèse via gate UX (app._index.tsx + app.priorities.tsx) mais pas encore via appel backend automatique.
 
 ## Last completed task
+
+- **Date:** 2026-06-29
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Rebrand **« GEO by Organically »** (ex-« Giulio Geo ») + positionnement **GEO** (ex-SEO) + 4 remaniements dashboard.
+- **Summary:**
+  - **Rebrand** : toutes les occurrences user-facing « Giulio Geo » → « GEO by Organically » (`i18n.ts`, `app._index.tsx` `<Page title>`, `app.account.tsx` instructions app-embed, `api.server.ts` commentaire, `shopify.app.toml` l.1). Identifiants techniques `leonie-*` (IDs DOM, env, source postMessage OAuth, noms de fichiers d'export) **non touchés** (contrats fonctionnels).
+  - **SEO → GEO (UI, intelligent)** : ~66 occ. i18n FR+EN + ~17 dans `*.tsx`/composants. Noms propres préservés (DataForSEO, Google Search Console/GSC). « SEO/GEO »→« GEO », « & SEO » résiduel retiré. Noms de clés i18n inchangés, seules les valeurs changent. Page `continuous-improvement` : badge verdict SEO relabellé « Google: » pour éviter deux badges « GEO: ». Backend Python hors périmètre.
+  - **Dashboard `app._index.tsx`** : (1) **Analyse + Calendrier déplacés dans la carte GEO Score** (`AnalysisSchedulePanels` rendu via nouvelle prop `analysisPanels` de `Zone1`, juste au-dessus des panneaux de publication ; rendu standalone supprimé ; ses 2 `Card` externes → `Box bg-surface-secondary`). (2) **Panneau « Publication automatique » inversé** : fond noir, texte blanc (override tokens `--p-color-text`/`-secondary`/`--p-color-icon`), bouton « Activer » blanc (override `--p-color-bg-fill-brand` + `--p-color-text-brand-on-bg-fill`). (3) **Modal « Publier les résultats »** affiche le **GEO Score** (`global_score`/`global_level` via nouvelles props `geoScore`/`geoLevel`) ; si non vert (`LEVEL_TONES[level] !== "success"`) → `Banner tone="warning"` + bouton **« Améliorer »** → `/app/analyse`, et le bouton par produit « Plus de détail » devient **« Améliorer »** → `/app/analyse` (vert : reste « Plus de détail » → fiche produit).
+  - **CTA « Valider » → « Publier »** : `validateResultsButton/Title/Empty`, `validateApplyCta`, `publishModeManualDesc` (FR+EN). Nouvelles clés `validateImproveCta`, `validateImproveBanner`. Validation de profil/niche et « Validation GEO réussie » **non** renommées (sémantique différente).
+- **Files modified:** `shopify-app/app/lib/i18n.ts`, `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.account.tsx`, `shopify-app/app/lib/api.server.ts`, `shopify-app/app/routes/{app.billing,app.continuous-improvement,app.blog,app.competitor-crawl,app.jobs}.tsx`, `shopify-app/app/components/{ProductCard,ProductContentProposals}.tsx`, `shopify-app/shopify.app.toml`.
+- **Decisions made:** Token CSS override (wrapper `<div style>`) pour l'inversion de couleurs car Polaris ne propose pas de variante « dark box ». SEO→GEO via perl avec lookbehind pour préserver DataForSEO.
+- **Validations run:** `cd shopify-app && npm run typecheck` ✅ ; `npm run build` ✅ ; `grep -rni "giulio" app` → vide.
+- **Validations skipped:** Tests Python non lancés (aucun fichier backend modifié). Test manuel pilote à faire.
+- **Open issues:** `shopify.app.toml` `name` ne se propage à l'admin Shopify qu'après **`shopify app deploy`** (à lancer par le marchand, **non lancé** ici).
+- **Next recommended action:** `shopify app deploy` (marchand) pour propager le nom ; puis test manuel pilote du dashboard remanié.
+
+## Previous completed task
 
 - **Date:** 2026-06-29
 - **Agent:** Claude (Opus 4.8)

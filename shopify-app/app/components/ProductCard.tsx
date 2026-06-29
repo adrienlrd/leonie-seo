@@ -163,7 +163,7 @@ function GeoScoreBreakdown({
     { key: "schema", label: fr ? "Données structurées" : "Structured data" },
     { key: "answerability", label: fr ? "Répondabilité IA" : "AI answerability" },
     { key: "trust", label: fr ? "Confiance" : "Trust" },
-    { key: "seo", label: fr ? "SEO (méta)" : "SEO (meta)" },
+    { key: "seo", label: fr ? "GEO (méta)" : "GEO (meta)" },
     { key: "commerce", label: fr ? "Commerce" : "Commerce" },
   ];
   const has = components && Object.keys(components).length > 0;

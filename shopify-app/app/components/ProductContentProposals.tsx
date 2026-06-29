@@ -34,7 +34,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { loaderPhrases, t, type Locale } from "../lib/i18n";
 import { AnalysisLoader } from "./AnalysisLoader";
 
-// Days before SEO results are measurable after applying a field — matches the
+// Days before GEO results are measurable after applying a field — matches the
 // J+28 milestone on the Measure page. Each applied field counts down from its
 // own applied_at, and re-applying a field restarts its countdown.
 const MEASURE_CYCLE_DAYS = 28;
@@ -595,8 +595,8 @@ export function ProductContentProposals({
       <BlockStack gap="050">
         <Text as="p" variant="bodySm">
           {locale === "fr"
-            ? "Validation SEO/GEO réussie : cette proposition est éligible à une publication automatisée."
-            : "SEO/GEO validation passed: this proposal is eligible for automated publishing."}
+            ? "Validation GEO réussie : cette proposition est éligible à une publication automatisée."
+            : "GEO validation passed: this proposal is eligible for automated publishing."}
         </Text>
         {(editedPack.content_quality.evidence_ledger?.length ?? 0) > 0 && (
           <Text as="p" variant="bodySm">
