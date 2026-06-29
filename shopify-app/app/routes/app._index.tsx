@@ -769,53 +769,50 @@ function DataSourcesPanel({
 
   return (
     <Box background="bg-surface-secondary" padding="200" borderRadius="200">
-      <BlockStack gap="200">
-        <Text as="p" variant="bodySm" fontWeight="semibold">{fr ? "Sources de données" : "Data sources"}</Text>
-        <BlockStack gap="100">
-          <InlineStack align="space-between" blockAlign="center">
-            <Text as="span" variant="bodySm">Shopify</Text>
+      <InlineStack gap="400" wrap>
+        <InlineStack gap="200" blockAlign="center">
+          <Text as="span" variant="bodySm">Shopify</Text>
+          <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
+        </InlineStack>
+
+        <InlineStack gap="200" blockAlign="center">
+          <Text as="span" variant="bodySm">Google Search Console</Text>
+          {gscConnected ? (
             <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
-          </InlineStack>
+          ) : (
+            <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
+          )}
+        </InlineStack>
 
-          <InlineStack align="space-between" blockAlign="center">
-            <Text as="span" variant="bodySm">Google Search Console</Text>
-            {gscConnected ? (
-              <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
-            ) : (
-              <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
-            )}
-          </InlineStack>
+        <InlineStack gap="200" blockAlign="center">
+          <Text as="span" variant="bodySm">Google Analytics 4</Text>
+          {ga4Connected ? (
+            <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
+          ) : (
+            <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
+          )}
+        </InlineStack>
 
-          <InlineStack align="space-between" blockAlign="center">
-            <Text as="span" variant="bodySm">Google Analytics 4</Text>
-            {ga4Connected ? (
-              <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
-            ) : (
-              <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
-            )}
-          </InlineStack>
-
-          <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
-            <Text as="span" variant="bodySm">
-              {fr ? "Extension de thème (FAQ, données structurées, fil d'Ariane)" : "Theme extension (FAQ, structured data, breadcrumb)"}
-            </Text>
-            {themeEnabled === true ? (
-              <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
-            ) : themeEnabled === false ? (
-              <InlineStack gap="100" blockAlign="center" wrap={false}>
-                <Badge tone="critical">{fr ? "Non activée" : "Not enabled"}</Badge>
-                <Tooltip content={themeHowTo}>
-                  <span style={{ display: "inline-flex", cursor: "help" }}>
-                    <Icon source={QuestionCircleIcon} tone="subdued" />
-                  </span>
-                </Tooltip>
-              </InlineStack>
-            ) : (
-              <Badge tone="info">{fr ? "Indéterminé" : "Unknown"}</Badge>
-            )}
-          </InlineStack>
-        </BlockStack>
-      </BlockStack>
+        <InlineStack gap="200" blockAlign="center">
+          <Text as="span" variant="bodySm">
+            {fr ? "Extension de thème (FAQ, données structurées, fil d'Ariane)" : "Theme extension (FAQ, structured data, breadcrumb)"}
+          </Text>
+          {themeEnabled === true ? (
+            <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
+          ) : themeEnabled === false ? (
+            <InlineStack gap="100" blockAlign="center" wrap={false}>
+              <Badge tone="critical">{fr ? "Non activée" : "Not enabled"}</Badge>
+              <Tooltip content={themeHowTo}>
+                <span style={{ display: "inline-flex", cursor: "help" }}>
+                  <Icon source={QuestionCircleIcon} tone="subdued" />
+                </span>
+              </Tooltip>
+            </InlineStack>
+          ) : (
+            <Badge tone="info">{fr ? "Indéterminé" : "Unknown"}</Badge>
+          )}
+        </InlineStack>
+      </InlineStack>
     </Box>
   );
 }
