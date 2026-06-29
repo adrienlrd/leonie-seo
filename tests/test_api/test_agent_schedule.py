@@ -171,6 +171,48 @@ def test_export_includes_effectiveness(client: TestClient) -> None:
     assert response.json()["effectiveness"] is not None
 
 
+def test_run_and_publish_starts_job_and_poll_reflects_completion(
+    client: TestClient, db: Path
+) -> None:
+    with patch(
+        "app.api.agent_schedule.run_scheduled_reanalysis",
+        return_value={
+            "status": "completed",
+            "analyzed_at": "2026-06-29T00:00:00+00:00",
+            "analyzed_product_count": 3,
+        },
+    ) as run_reanalysis:
+        start = client.post(f"/api/shops/{SHOP}/agent-schedule/run-and-publish")
+
+    assert start.status_code == 200
+    job_id = start.json()["job_id"]
+    assert job_id
+    run_reanalysis.assert_called_once()
+
+    # TestClient runs the BackgroundTask before returning, so the job is done.
+    poll = client.get(f"/api/shops/{SHOP}/agent-schedule/run-and-publish/{job_id}")
+    assert poll.status_code == 200
+    assert poll.json()["status"] == "completed"
+
+
+def test_run_and_publish_job_reports_error_on_failure(client: TestClient) -> None:
+    with patch(
+        "app.api.agent_schedule.run_scheduled_reanalysis",
+        side_effect=RuntimeError("boom"),
+    ):
+        start = client.post(f"/api/shops/{SHOP}/agent-schedule/run-and-publish")
+
+    job_id = start.json()["job_id"]
+    poll = client.get(f"/api/shops/{SHOP}/agent-schedule/run-and-publish/{job_id}")
+    assert poll.json()["status"] == "error"
+    assert "boom" in poll.json()["error"]
+
+
+def test_run_and_publish_poll_unknown_job_returns_404(client: TestClient) -> None:
+    response = client.get(f"/api/shops/{SHOP}/agent-schedule/run-and-publish/nope")
+    assert response.status_code == 404
+
+
 def test_internal_run_due_requires_secret(client: TestClient) -> None:
     unauth = client.post("/api/internal/agent-schedule/run-due")
     assert unauth.status_code == 403

@@ -163,7 +163,7 @@ def list_schedules(*, db_path: Path | None = None) -> list[AgentScheduleSettings
         rows = conn.execute(
             """
             SELECT * FROM agent_schedule_settings
-            WHERE enabled = 1 OR enabled = TRUE OR test_run_at IS NOT NULL
+            WHERE enabled OR test_run_at IS NOT NULL
             """,
         ).fetchall()
     return [_from_row(str(row["shop"]), row) for row in rows]

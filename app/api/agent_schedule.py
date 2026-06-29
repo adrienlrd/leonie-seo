@@ -8,9 +8,10 @@ DB work, DB_PATH injection for tests).
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.agent_schedule.evaluation import evaluate_agent_effectiveness
@@ -26,6 +27,9 @@ from app.agent_schedule.scheduler import (
 )
 from app.api.deps import ShopContext, get_shop_context, require_internal_secret
 from app.db_adapter import DB_PATH
+from app.market_analysis.jobs import create_job, get_job, update_job
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["agent-schedule"])
 
@@ -106,25 +110,60 @@ async def test_agent_in_1h(
     return {"shop": ctx.shop, "schedule": settings.to_dict()}
 
 
+def _run_reanalysis_job(job_id: str, shop: str, access_token: str) -> None:
+    """Background worker: run the scheduled re-analysis and record the job outcome.
+
+    A full catalog re-analysis takes minutes, so it must run as a background job
+    (started via `run-and-publish`, polled via `run-and-publish/{job_id}`) to
+    avoid the request timing out while the analysis is still running.
+    """
+    try:
+        outcome = run_scheduled_reanalysis(shop, access_token=access_token, db_path=DB_PATH)
+        update_job(
+            job_id,
+            status="completed",
+            analyzed_at=outcome.get("analyzed_at"),
+            analyzed_product_count=outcome.get("analyzed_product_count") or 0,
+            reanalysis_status=outcome.get("status"),
+            reanalysis_reason=outcome.get("reason"),
+        )
+    except Exception as exc:  # noqa: BLE001 — surface the failure to the poller
+        logger.exception("Scheduled re-analysis job %s failed for %s", job_id, shop)
+        update_job(job_id, status="error", error=str(exc))
+
+
 @router.post("/shops/{shop}/agent-schedule/run-and-publish")
 async def run_and_publish_now(
     shop: str,
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
-    """Run a fresh full re-analysis now and auto-publish the checked proposals.
+    """Start a fresh full re-analysis + auto-publish as a background job.
 
     Reuses the scheduled re-analysis pipeline (fresh analysis → persist →
-    auto-publish), respecting the LLM budget. Triggered from the dashboard
-    "auto publish" button so the merchant publishes against up-to-date data
-    instead of the last stored analysis.
+    auto-publish), respecting the LLM budget. Returns a ``job_id`` to poll via
+    ``GET run-and-publish/{job_id}``; the analysis keeps running server-side even
+    if the merchant navigates away.
     """
-    outcome = await asyncio.to_thread(
-        run_scheduled_reanalysis,
-        ctx.shop,
-        access_token=ctx.access_token,
-        db_path=DB_PATH,
-    )
-    return {"shop": ctx.shop, **outcome}
+    if not ctx.access_token:
+        raise HTTPException(status_code=401, detail="Missing Shopify access token")
+    job_id = create_job(ctx.shop)
+    update_job(job_id, status="running")
+    background_tasks.add_task(_run_reanalysis_job, job_id, ctx.shop, ctx.access_token)
+    return {"shop": ctx.shop, "job_id": job_id}
+
+
+@router.get("/shops/{shop}/agent-schedule/run-and-publish/{job_id}")
+async def get_run_and_publish_job(
+    shop: str,
+    job_id: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Return the status of a re-analysis job started via ``run-and-publish``."""
+    job = get_job(job_id)
+    if job is None or job.get("shop") != ctx.shop:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 
 @router.get("/shops/{shop}/agent-schedule/effectiveness")

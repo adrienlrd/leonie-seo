@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useFetcher, useLoaderData } from "@remix-run/react";
+import { useFetcher, useLoaderData, useRevalidator } from "@remix-run/react";
 import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
   Badge,
@@ -496,39 +496,66 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!setResp.ok) {
         return json({ type: "activateAutoPublish", ok: false, error: `HTTP ${setResp.status}`, summary: null });
       }
-      // 2. Run a fresh full re-analysis now, then auto-publish the checked
-      // proposals against up-to-date data (not the last stored analysis).
+      // 2. Start a fresh full re-analysis (async job). It persists + auto-publishes
+      // the checked proposals server-side; we don't block on it (it takes minutes).
       const pubResp = await callBackendForShop(
         session.shop,
         `/api/shops/${session.shop}/agent-schedule/run-and-publish`,
-        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(120_000) },
+        { accessToken: session.accessToken, method: "POST" },
       );
-      const summary = pubResp.ok ? await pubResp.json() : null;
-      return json({ type: "activateAutoPublish", ok: true, error: null, summary });
+      const data = pubResp.ok ? ((await pubResp.json()) as { job_id?: string }) : null;
+      return json({ type: "activateAutoPublish", ok: true, error: null, jobId: data?.job_id ?? null });
     } catch (err) {
-      return json({ type: "activateAutoPublish", ok: false, error: String(err), summary: null });
+      return json({ type: "activateAutoPublish", ok: false, error: String(err), jobId: null });
     }
   }
 
-  if (intent === "runReanalysisNow") {
-    // Manual trigger of the scheduled re-analysis pipeline (fresh full analysis →
-    // persist → auto-publish checked proposals). Same endpoint as the auto-publish
-    // button, but standalone: does not change the schedule settings.
+  // ── Manual scheduled re-analysis (async job + polling) ──────────────
+  if (intent === "startReanalysis") {
     try {
       const resp = await callBackendForShop(
         session.shop,
         `/api/shops/${session.shop}/agent-schedule/run-and-publish`,
-        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(120_000) },
+        { accessToken: session.accessToken, method: "POST" },
       );
-      const summary = resp.ok ? await resp.json() : null;
-      return json({
-        type: "runReanalysisNow",
-        ok: resp.ok,
-        error: resp.ok ? null : `HTTP ${resp.status}`,
-        summary,
-      });
+      if (!resp.ok) {
+        return json({ type: "startReanalysis", jobId: null, error: `HTTP ${resp.status}` });
+      }
+      const data = (await resp.json()) as { job_id: string };
+      return json({ type: "startReanalysis", jobId: data.job_id, error: null });
     } catch (err) {
-      return json({ type: "runReanalysisNow", ok: false, error: String(err), summary: null });
+      return json({ type: "startReanalysis", jobId: null, error: String(err) });
+    }
+  }
+
+  if (intent === "pollReanalysis") {
+    const reJobId = formData.get("jobId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/agent-schedule/run-and-publish/${reJobId}`,
+        { accessToken: session.accessToken },
+      );
+      if (!resp.ok) return json({ type: "pollReanalysis", job: null, error: `HTTP ${resp.status}` });
+      const job = (await resp.json()) as { status?: string; error?: string | null };
+      return json({ type: "pollReanalysis", job, error: null });
+    } catch (err) {
+      return json({ type: "pollReanalysis", job: null, error: String(err) });
+    }
+  }
+
+  if (intent === "exportReanalysis") {
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/agent-schedule/export`,
+        { accessToken: session.accessToken },
+      );
+      if (!resp.ok) return json({ type: "exportReanalysis", payload: null, error: `HTTP ${resp.status}` });
+      const payload = await resp.json();
+      return json({ type: "exportReanalysis", payload, error: null });
+    } catch (err) {
+      return json({ type: "exportReanalysis", payload: null, error: String(err) });
     }
   }
 
@@ -645,6 +672,9 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (intent === "startSingle") return false;
   if (intent === "saveFactsAndStartSingle") return false;
   if (intent === "pollSingle") return false;
+  if (intent === "startReanalysis") return false;
+  if (intent === "pollReanalysis") return false;
+  if (intent === "exportReanalysis") return false;
   if (typeof intent === "string" && PRODUCT_CARD_MUTATION_INTENTS.has(intent)) return false;
   return true;
 };
@@ -2169,10 +2199,65 @@ function AnalysisSchedulePanels({
   const statusTone = (status?: string): "success" | "critical" | "attention" =>
     status === "completed" ? "success" : status === "error" ? "critical" : "attention";
 
-  const fetcher = useFetcher<{ type?: string; ok?: boolean }>();
+  const startFetcher = useFetcher<{ type?: string; jobId?: string | null; error?: string | null }>();
+  const pollFetcher = useFetcher<{ type?: string; job?: { status?: string } | null }>();
+  const exportFetcher = useFetcher<{ type?: string; payload?: unknown; error?: string | null }>();
+  const revalidator = useRevalidator();
+
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const running = fetcher.state !== "idle";
-  const result = fetcher.data;
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [finished, setFinished] = useState<null | "completed" | "error">(null);
+
+  // Capture the job_id returned by the start action and begin polling.
+  useEffect(() => {
+    if (startFetcher.data?.type !== "startReanalysis") return;
+    if (startFetcher.data.jobId) {
+      setJobId(startFetcher.data.jobId);
+      setFinished(null);
+    } else if (startFetcher.data.error) {
+      setFinished("error");
+    }
+  }, [startFetcher.data]);
+
+  // Poll the job every 5 s until it completes (analysis runs server-side).
+  useEffect(() => {
+    if (!jobId) return;
+    const tick = () => pollFetcher.submit({ intent: "pollReanalysis", jobId }, { method: "post" });
+    tick();
+    const id = setInterval(tick, 5_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId]);
+
+  // On completion, stop polling and refresh the loader data (history/next dates).
+  useEffect(() => {
+    const status = pollFetcher.data?.job?.status;
+    if (jobId && (status === "completed" || status === "error")) {
+      setJobId(null);
+      setFinished(status);
+      revalidator.revalidate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pollFetcher.data]);
+
+  // Download the export JSON client-side once the action returns the payload.
+  useEffect(() => {
+    if (exportFetcher.data?.type !== "exportReanalysis" || !exportFetcher.data.payload) return;
+    const blob = new Blob([JSON.stringify(exportFetcher.data.payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `reanalysis-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, [exportFetcher.data]);
+
+  const running = jobId !== null || startFetcher.state !== "idle";
+  const exporting = exportFetcher.state !== "idle";
 
   // Warn when re-running before the configured cadence has elapsed (1/14/28 days).
   const tooSoon = useMemo<boolean>(() => {
@@ -2187,28 +2272,9 @@ function AnalysisSchedulePanels({
     <InlineGrid columns={{ xs: 1, md: 2 }} gap="400">
       <Card>
         <BlockStack gap="400">
-          <BlockStack gap="200">
-            <Text as="h3" variant="headingSm">{t(locale, "analysisUpcomingTitle")}</Text>
-            {scheduleStatus?.enabled ? (
-              <BlockStack gap="100">
-                <InlineStack align="space-between">
-                  <Text as="span" tone="subdued">{t(locale, "nextDailyRun")}</Text>
-                  <Text as="span">{fmt(scheduleStatus.next_run_at) ?? "—"}</Text>
-                </InlineStack>
-                <InlineStack align="space-between">
-                  <Text as="span" tone="subdued">{t(locale, "nextFullAnalysis")}</Text>
-                  <Text as="span">{nextFull ? fmt(nextFull.toISOString()) : "—"}</Text>
-                </InlineStack>
-              </BlockStack>
-            ) : (
-              <Text as="p" tone="subdued">{t(locale, "noUpcomingAnalysis")}</Text>
-            )}
-          </BlockStack>
-
-          <Divider />
+          <Text as="h3" variant="headingSm">{t(locale, "analysisPanelTitle")}</Text>
 
           <BlockStack gap="200">
-            <Text as="h3" variant="headingSm">{t(locale, "analysisHistoryTitle")}</Text>
             {scheduleStatus?.last_reanalysis_at && (
               <InlineStack align="space-between">
                 <Text as="span" tone="subdued">{t(locale, "lastFullAnalysis")}</Text>
@@ -2227,17 +2293,57 @@ function AnalysisSchedulePanels({
                 <Text as="p" tone="subdued">{t(locale, "analysisHistoryEmpty")}</Text>
               )
             )}
+          </BlockStack>
 
-            {result?.type === "runReanalysisNow" && (
-              <Banner tone={result.ok ? "success" : "critical"}>
-                {t(locale, result.ok ? "runReanalysisSuccess" : "runReanalysisError")}
-              </Banner>
-            )}
-            <Box paddingBlockStart="200">
-              <Button onClick={() => setConfirmOpen(true)} loading={running} icon={RefreshIcon}>
-                {t(locale, "runReanalysisNowButton")}
-              </Button>
-            </Box>
+          <Divider />
+
+          {scheduleStatus?.enabled ? (
+            <BlockStack gap="100">
+              <InlineStack align="space-between">
+                <Text as="span" tone="subdued">{t(locale, "nextDailyRun")}</Text>
+                <Text as="span">{fmt(scheduleStatus.next_run_at) ?? "—"}</Text>
+              </InlineStack>
+              <InlineStack align="space-between">
+                <Text as="span" tone="subdued">{t(locale, "nextFullAnalysis")}</Text>
+                <Text as="span">{nextFull ? fmt(nextFull.toISOString()) : "—"}</Text>
+              </InlineStack>
+            </BlockStack>
+          ) : (
+            <Text as="p" tone="subdued">{t(locale, "noUpcomingAnalysis")}</Text>
+          )}
+
+          {running && (
+            <AnalysisLoader phrases={loaderPhrases(locale, "analysis")} estimateMs={150_000} />
+          )}
+          {!running && finished === "completed" && (
+            <Banner tone="success">{t(locale, "runReanalysisSuccess")}</Banner>
+          )}
+          {!running && finished === "error" && (
+            <Banner tone="critical">{t(locale, "runReanalysisError")}</Banner>
+          )}
+          {exportFetcher.data?.type === "exportReanalysis" && exportFetcher.data.error && (
+            <Banner tone="critical">{t(locale, "exportReanalysisError")}</Banner>
+          )}
+
+          <BlockStack gap="200">
+            <Button
+              variant="primary"
+              fullWidth
+              icon={RefreshIcon}
+              loading={running}
+              disabled={running}
+              onClick={() => setConfirmOpen(true)}
+            >
+              {t(locale, "runReanalysisNowButton")}
+            </Button>
+            <Button
+              fullWidth
+              loading={exporting}
+              disabled={running}
+              onClick={() => exportFetcher.submit({ intent: "exportReanalysis" }, { method: "post" })}
+            >
+              {t(locale, "exportReanalysisButton")}
+            </Button>
           </BlockStack>
         </BlockStack>
       </Card>
@@ -2250,7 +2356,7 @@ function AnalysisSchedulePanels({
           content: t(locale, "runReanalysisConfirmCta"),
           loading: running,
           onAction: () => {
-            fetcher.submit({ intent: "runReanalysisNow" }, { method: "post" });
+            startFetcher.submit({ intent: "startReanalysis" }, { method: "post" });
             setConfirmOpen(false);
           },
         }}
