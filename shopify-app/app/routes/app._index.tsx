@@ -2204,19 +2204,19 @@ function hasProposalFor(pack: ProductResult["content_test_pack"], field: Validat
 // Apple-calendar-style mini month: a red dot marks the next-result day, and
 // hovering it shows what the analysis will produce. Polaris DatePicker can't
 // render per-day markers, so we build a lightweight Monday-first grid instead.
+type CalendarMarker = { date: Date; color: string; tooltip: string };
+
 function MiniCalendar({
   month,
   year,
-  markedDate,
-  markedTooltip,
+  markers,
   onPrev,
   onNext,
   locale,
 }: {
   month: number;
   year: number;
-  markedDate: Date | null;
-  markedTooltip: string;
+  markers: CalendarMarker[];
   onPrev: () => void;
   onNext: () => void;
   locale: Locale;
@@ -2236,11 +2236,13 @@ function MiniCalendar({
   for (let i = 0; i < offset; i += 1) cells.push(null);
   for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
-  const isMarked = (d: number) =>
-    markedDate != null &&
-    markedDate.getDate() === d &&
-    markedDate.getMonth() === month &&
-    markedDate.getFullYear() === year;
+  const markersFor = (d: number) =>
+    markers.filter(
+      (m) =>
+        m.date.getDate() === d &&
+        m.date.getMonth() === month &&
+        m.date.getFullYear() === year,
+    );
 
   return (
     <BlockStack gap="200">
@@ -2255,28 +2257,38 @@ function MiniCalendar({
         ))}
         {cells.map((d, i) => {
           if (d == null) return <div key={`e-${i}`} />;
-          const marked = isMarked(d);
+          const dayMarkers = markersFor(d);
           const cell = (
             <div style={{ position: "relative", padding: "6px 0", minHeight: "28px" }}>
-              <Text as="span" variant="bodySm" fontWeight={marked ? "bold" : "regular"}>{d}</Text>
-              {marked && (
+              <Text as="span" variant="bodySm" fontWeight={dayMarkers.length > 0 ? "bold" : "regular"}>{d}</Text>
+              {dayMarkers.length > 0 && (
                 <span
                   style={{
                     position: "absolute",
                     bottom: "3px",
                     left: "50%",
                     transform: "translateX(-50%)",
-                    width: "6px",
-                    height: "6px",
-                    borderRadius: "50%",
-                    background: "var(--p-color-bg-fill-critical)",
+                    display: "flex",
+                    gap: "2px",
                   }}
-                />
+                >
+                  {dayMarkers.map((m, j) => (
+                    <span
+                      key={j}
+                      style={{
+                        width: "6px",
+                        height: "6px",
+                        borderRadius: "50%",
+                        background: m.color,
+                      }}
+                    />
+                  ))}
+                </span>
               )}
             </div>
           );
-          return marked ? (
-            <Tooltip key={`d-${i}`} content={markedTooltip} active={undefined}>{cell}</Tooltip>
+          return dayMarkers.length > 0 ? (
+            <Tooltip key={`d-${i}`} content={dayMarkers.map((m) => m.tooltip).join(" · ")}>{cell}</Tooltip>
           ) : (
             <div key={`d-${i}`}>{cell}</div>
           );
@@ -2324,6 +2336,13 @@ function AnalysisSchedulePanels({
       if (!Number.isNaN(next.getTime())) return next;
     }
     return null;
+  }, [scheduleStatus]);
+
+  const lastAnalysis = useMemo<Date | null>(() => {
+    const iso = scheduleStatus?.last_reanalysis_at;
+    if (!iso) return null;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d;
   }, [scheduleStatus]);
 
   const calendarTarget = nextFull ?? new Date();
@@ -2783,12 +2802,22 @@ function AnalysisSchedulePanels({
           <MiniCalendar
             month={month}
             year={year}
-            markedDate={nextFull}
-            markedTooltip={
-              nextFull
-                ? `${t(locale, "calendarDotTooltip")} · ${fmt(nextFull.toISOString())}`
-                : t(locale, "calendarDotTooltip")
-            }
+            markers={[
+              ...(lastAnalysis
+                ? [{
+                    date: lastAnalysis,
+                    color: "#e8800c",
+                    tooltip: `${t(locale, "calendarLastDotTooltip")} · ${fmt(lastAnalysis.toISOString())}`,
+                  }]
+                : []),
+              ...(nextFull
+                ? [{
+                    date: nextFull,
+                    color: "var(--p-color-bg-fill-critical)",
+                    tooltip: `${t(locale, "calendarDotTooltip")} · ${fmt(nextFull.toISOString())}`,
+                  }]
+                : []),
+            ]}
             onPrev={() => {
               const d = new Date(year, month - 1, 1);
               setCalendar({ month: d.getMonth(), year: d.getFullYear() });
