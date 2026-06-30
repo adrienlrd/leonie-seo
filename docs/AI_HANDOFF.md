@@ -10,6 +10,16 @@
 
 ## Last completed task
 
+- **Date:** 2026-06-30
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Bandeau « données catalogue datent de plus de 7 jours » → ajout d'un bouton de refresh manuel.
+- **Summary:**
+  - Dans `app._index.tsx`, le bandeau `banners.stale_snapshot` (tone `info`) embarque désormais un `<Button>` « Rafraîchir le catalogue » (`RefreshIcon`, `variant="primary"`) câblé sur le `handleRefresh`/`isRefreshing` existants (intent `refresh`). Aucun nouvel endpoint ni état : réutilise le `refreshFetcher` déjà présent.
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`.
+- **Validations:** `npm run typecheck` ✅, `npm run build` ✅.
+
+## Previous completed task
+
 - **Date:** 2026-06-29
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Dashboard `app._index.tsx` — logo carte auto, layout cartes Analyse/Publication, bloc « Sources de données » dans GEO Score.

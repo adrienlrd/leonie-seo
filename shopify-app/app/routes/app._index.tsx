@@ -2144,7 +2144,20 @@ export default function IndexPage() {
         )}
         {!auditRunning && auditStatus !== "completed" && banners.stale_snapshot && (
           <Banner tone="info">
-            <p>{t(locale, "dashboardStaleSnapshot")}</p>
+            <BlockStack gap="200">
+              <p>{t(locale, "dashboardStaleSnapshot")}</p>
+              <InlineStack>
+                <Button
+                  icon={RefreshIcon}
+                  onClick={handleRefresh}
+                  loading={isRefreshing}
+                  disabled={isRefreshing}
+                  variant="primary"
+                >
+                  {t(locale, "dashboardRefresh")}
+                </Button>
+              </InlineStack>
+            </BlockStack>
           </Banner>
         )}
         {banners.bulk_apply_in_progress.running && (
