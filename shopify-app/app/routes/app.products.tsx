@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useLoaderData, useFetcher, useRevalidator } from "@remix-run/react";
 import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
   Badge,
@@ -19,7 +19,7 @@ import {
   TextField,
   Tooltip,
 } from "@shopify/polaris";
-import { AlertTriangleIcon, CheckIcon } from "@shopify/polaris-icons";
+import { AlertTriangleIcon, CheckIcon, RefreshIcon } from "@shopify/polaris-icons";
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
@@ -1184,6 +1184,8 @@ export default function ProductsPage() {
   const { locale, shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds } =
     useLoaderData<LoaderData>();
 
+  const revalidator = useRevalidator();
+
   // ── UI step: "identification" (step 1) or "analysis" (step 2) ────────────
   const [step, setStep] = useState<"identification" | "analysis">(
     latestJob || activeJob ? "analysis" : "identification",
@@ -1939,6 +1941,16 @@ export default function ProductsPage() {
                   <Button onClick={handleExportFull}>
                     {t(locale, "marketAnalysisExportFull")}
                   </Button>
+                  <Tooltip content={t(locale, "dashboardRefresh")}>
+                    <Button
+                      icon={RefreshIcon}
+                      onClick={() => revalidator.revalidate()}
+                      loading={revalidator.state !== "idle"}
+                      disabled={revalidator.state !== "idle"}
+                      variant="tertiary"
+                      accessibilityLabel={t(locale, "dashboardRefresh")}
+                    />
+                  </Tooltip>
                 </InlineStack>
                 <SummaryCard
                   job={job}
