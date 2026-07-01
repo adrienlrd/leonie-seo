@@ -325,11 +325,6 @@ function ClicksLine({ entry, locale }: { entry: ClickEntry | undefined; locale: 
           {`👁 ${entry.total.toLocaleString(locale === "fr" ? "fr-FR" : "en-US")} ${t(locale, "analyseClicksLabel")} ${t(locale, "analyseClicksSince")} ${since}`}
         </Text>
       </Tooltip>
-      {entry.source === "ga4" && (
-        <Text as="span" variant="bodySm" tone="subdued">
-          {`(Google ${entry.google.toLocaleString(locale === "fr" ? "fr-FR" : "en-US")} · IA ${(entry.ai ?? 0).toLocaleString(locale === "fr" ? "fr-FR" : "en-US")})`}
-        </Text>
-      )}
     </InlineStack>
   );
 }
