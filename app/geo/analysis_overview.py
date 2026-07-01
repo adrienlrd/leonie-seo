@@ -148,6 +148,38 @@ def _window_status_for_date(
     }
 
 
+def _product_meta_index(shop: str, db_path: Path | None) -> dict[str, dict[str, Any]]:
+    """Map product gid -> {image_url, meta_title, meta_description} from the latest snapshot.
+
+    The analysis overview only knows validation events; the product card on the
+    Analyse page also needs the current image and SEO meta, which live in the snapshot.
+    """
+    from app.api.snapshot_store import load_latest_snapshot_from_db  # noqa: PLC0415
+
+    data = load_latest_snapshot_from_db(shop, db_path=db_path)
+    if not data:
+        return {}
+
+    index: dict[str, dict[str, Any]] = {}
+    for product in data.get("products", []):
+        gid = str(product.get("id") or "")
+        if not gid:
+            continue
+        image_url: str | None = None
+        images = product.get("images") or {}
+        edges = images.get("edges", []) if isinstance(images, dict) else []
+        if edges and isinstance(edges[0], dict):
+            node = edges[0].get("node", {})
+            image_url = node.get("url") or node.get("src")
+        seo = product.get("seo") or {}
+        index[gid] = {
+            "image_url": image_url,
+            "meta_title": seo.get("title"),
+            "meta_description": seo.get("description"),
+        }
+    return index
+
+
 def build_analysis_overview(
     shop: str,
     *,
@@ -168,6 +200,8 @@ def build_analysis_overview(
 
     gsc_file = _find_gsc_file(shop)
     gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
+
+    meta_index = _product_meta_index(shop, path)
 
     # Blog articles the merchant has since deleted (no matching draft) must drop
     # off the analysis page. Valid blog ids = current drafts' Shopify article id
@@ -302,6 +336,7 @@ def build_analysis_overview(
             baseline, latest_after
         )
 
+        meta = meta_index.get(product["resource_id"], {})
         product_list.append({
             "resource_id": product["resource_id"],
             "resource_type": product["resource_type"],
@@ -313,6 +348,9 @@ def build_analysis_overview(
             "traffic_confidence": traffic_confidence,
             "validation_dates": validation_dates,
             "total_actions": sum(len(d["actions"]) for d in validation_dates),
+            "image_url": meta.get("image_url"),
+            "meta_title": meta.get("meta_title"),
+            "meta_description": meta.get("meta_description"),
         })
 
     # Most recently optimized product first

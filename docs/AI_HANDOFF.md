@@ -12,6 +12,19 @@
 
 - **Date:** 2026-07-01
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Page Analyse — **carte produit** (image + méta-titre + méta-description) avec **graphique 28 j** des clics organiques Google+IA cumulés/jour et **dropdown « Plus de détail »** fermé enveloppant le détail par date de validation.
+- **Summary:**
+  - **Backend** : `app/geo/clicks_since_validation.py` → chaque `ClickEntry` GA4 porte désormais `series` = 28 points `{day, date, total, future}` depuis `latest_applied_at` (jours passés = somme organic+IA du jour ; jours futurs `total=null, future=true`) ; fallback GSC → `series: []` (helpers `_merged_daily_for_path`, `_build_series`). `app/geo/analysis_overview.py` → nouveau `_product_meta_index(shop, db_path)` (snapshot DB) attache `image_url` / `meta_title` / `meta_description` à chaque entrée **produit**.
+  - **Frontend** : nouveau composant SVG `shopify-app/app/components/ValidationClicksChart.tsx` (courbe pleine jours passés + **droite horizontale pointillée** pour les jours futurs, message si `series` vide). `app.analyse.tsx` → produits rendus en `Card` (Thumbnail à gauche ; titre/méta-titre/méta-desc à droite ; `ClicksLine` ; graphique ; bouton « Plus de détail » + `Collapsible` fermé autour de `EntryContent`). Blogs : `EntryContent` aussi enveloppé dans un « Plus de détail » fermé. Le graphe s'auto-rafraîchit via le poll `clicks-since-validation` déjà en place (60 s). Clés i18n `analyseMoreDetails` / `analyseChartTitle` / `analyseChartNeedsGa4` (FR+EN).
+  - **Choix** : une **seule courbe** (Google+IA cumulés) ; carte réservée aux **produits** (blogs sans image/méta produit dans le snapshot).
+- **Files created:** `shopify-app/app/components/ValidationClicksChart.tsx`, `tests/test_geo/test_analysis_overview_meta.py`.
+- **Files modified:** `app/geo/clicks_since_validation.py`, `app/geo/analysis_overview.py`, `shopify-app/app/routes/app.analyse.tsx`, `shopify-app/app/lib/i18n.ts`, `tests/test_geo/test_clicks_since_validation.py`.
+- **Validations:** `ruff check app/ tests/` ✅ ; `pytest tests/test_ga4 tests/test_geo` → **189 passed** ✅ ; `npm run typecheck` ✅ ; `npm run build` ✅.
+
+## Previous completed task
+
+- **Date:** 2026-07-01
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** Page Analyse — afficher sous chaque titre de produit/blog validé les clics **Google + IA** depuis la dernière validation, avec **auto-rafraîchissement** du compteur.
 - **Summary:**
   - **Backend** : `app/ga4/queries.py` → 2 requêtes quotidiennes `get_organic_by_page_daily` (canal Organic Search) + `get_ai_referrals_by_page_daily` (referrals `sessionSource` ∈ `AI_SOURCE_DOMAINS`), retour `{path: {date: sessions}}`. Nouveau module `app/geo/clicks_since_validation.py` : `compute_clicks_since_validation(shop)` — index des ressources validées via ledger (`latest_applied_at` + `resource_path`), somme GA4 des clics `date >= since` par page (matching path normalisé, query/slash ignorés), **fallback GSC** (Google seul, agrégé) si GA4 non connecté, **cache disque TTL 300 s**. Endpoint léger `GET /api/shops/{shop}/geo/clicks-since-validation` dans `app/api/geo.py`.

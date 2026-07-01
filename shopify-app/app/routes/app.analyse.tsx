@@ -16,11 +16,16 @@ import {
   Page,
   ProgressBar,
   Text,
+  Thumbnail,
   Tooltip,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import {
+  ValidationClicksChart,
+  type ClicksSeriesPoint,
+} from "../components/ValidationClicksChart";
 
 interface GscMetrics {
   clicks: number;
@@ -67,6 +72,9 @@ interface ProductEntry {
   traffic_confidence: "strong" | "to_confirm" | "insufficient";
   validation_dates: ValidationDate[];
   total_actions: number;
+  image_url?: string | null;
+  meta_title?: string | null;
+  meta_description?: string | null;
 }
 
 interface ClickEntry {
@@ -75,6 +83,7 @@ interface ClickEntry {
   total: number;
   since: string;
   source: "ga4" | "gsc";
+  series?: ClicksSeriesPoint[];
 }
 
 type ClicksMap = Record<string, ClickEntry>;
@@ -427,29 +436,60 @@ export default function AnalysePage() {
                     <BlockStack gap="200">
                       {prods.map((product) => {
                         const isOpen = openIds.has(product.resource_id);
+                        const entry = clicks[product.resource_id];
                         return (
-                          <Box
-                            key={product.resource_id}
-                            padding="200"
-                            background="bg-surface-secondary"
-                            borderRadius="200"
-                          >
-                            <BlockStack gap="200">
+                          <Card key={product.resource_id}>
+                            <BlockStack gap="300">
+                              <InlineStack gap="300" blockAlign="start" wrap={false}>
+                                {product.image_url ? (
+                                  <Thumbnail
+                                    source={product.image_url}
+                                    alt={product.resource_title}
+                                    size="large"
+                                  />
+                                ) : (
+                                  <Box
+                                    background="bg-surface-secondary"
+                                    borderRadius="200"
+                                    minWidth="80px"
+                                    minHeight="80px"
+                                  />
+                                )}
+                                <BlockStack gap="100">
+                                  <Text as="h3" variant="headingMd">{product.resource_title}</Text>
+                                  {product.meta_title ? (
+                                    <Text as="p" variant="bodyMd">{product.meta_title}</Text>
+                                  ) : null}
+                                  {product.meta_description ? (
+                                    <Text as="p" variant="bodySm" tone="subdued">
+                                      {product.meta_description}
+                                    </Text>
+                                  ) : null}
+                                </BlockStack>
+                              </InlineStack>
+
+                              <ClicksLine entry={entry} locale={locale} />
+
+                              <ValidationClicksChart
+                                series={entry?.series ?? []}
+                                label={t(locale, "analyseChartTitle")}
+                                emptyLabel={t(locale, "analyseChartNeedsGa4")}
+                                locale={locale}
+                              />
+
                               <Button
                                 onClick={() => toggleId(product.resource_id)}
-                                fullWidth
                                 textAlign="left"
                                 disclosure={isOpen ? "up" : "down"}
                                 variant="tertiary"
                               >
-                                {`${product.resource_title} — ${product.total_actions} ${t(locale, "analyseActionsCount")}`}
+                                {`${t(locale, "analyseMoreDetails")} (${product.total_actions} ${t(locale, "analyseActionsCount")})`}
                               </Button>
-                              <ClicksLine entry={clicks[product.resource_id]} locale={locale} />
                               <Collapsible open={isOpen} id={`analyse-product-${product.resource_id}`}>
                                 <EntryContent product={product} locale={locale} />
                               </Collapsible>
                             </BlockStack>
-                          </Box>
+                          </Card>
                         );
                       })}
                     </BlockStack>
@@ -471,19 +511,32 @@ export default function AnalysePage() {
                   />
                   <Collapsible open={showBlogs} id="analyse-blogs">
                     <BlockStack gap="300">
-                      {blogs.map((blog, i) => (
-                        <BlockStack key={blog.resource_id} gap="300">
-                          {i > 0 && <Divider />}
-                          <InlineStack gap="200" blockAlign="center" wrap>
-                            <Text as="h2" variant="headingMd">{blog.resource_title}</Text>
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              {blog.total_actions} {t(locale, "analyseActionsCount")}
-                            </Text>
-                          </InlineStack>
-                          <ClicksLine entry={clicks[blog.resource_id]} locale={locale} />
-                          <EntryContent product={blog} locale={locale} />
-                        </BlockStack>
-                      ))}
+                      {blogs.map((blog, i) => {
+                        const isOpen = openIds.has(blog.resource_id);
+                        return (
+                          <BlockStack key={blog.resource_id} gap="300">
+                            {i > 0 && <Divider />}
+                            <InlineStack gap="200" blockAlign="center" wrap>
+                              <Text as="h2" variant="headingMd">{blog.resource_title}</Text>
+                              <Text as="span" variant="bodySm" tone="subdued">
+                                {blog.total_actions} {t(locale, "analyseActionsCount")}
+                              </Text>
+                            </InlineStack>
+                            <ClicksLine entry={clicks[blog.resource_id]} locale={locale} />
+                            <Button
+                              onClick={() => toggleId(blog.resource_id)}
+                              textAlign="left"
+                              disclosure={isOpen ? "up" : "down"}
+                              variant="tertiary"
+                            >
+                              {t(locale, "analyseMoreDetails")}
+                            </Button>
+                            <Collapsible open={isOpen} id={`analyse-blog-${blog.resource_id}`}>
+                              <EntryContent product={blog} locale={locale} />
+                            </Collapsible>
+                          </BlockStack>
+                        );
+                      })}
                     </BlockStack>
                   </Collapsible>
                 </BlockStack>

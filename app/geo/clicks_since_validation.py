@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,7 @@ from app.impact.report import _find_gsc_file, _parse_gsc_csv
 logger = logging.getLogger(__name__)
 
 _CACHE_TTL_SECONDS = 300
+_WINDOW_DAYS = 28
 
 
 def _cache_path(shop: str) -> Path:
@@ -80,6 +81,51 @@ def _sum_since(daily_by_path: dict[str, dict[str, int]], resource_path: str, sin
             continue
         total += sum(v for d, v in by_date.items() if d >= since)
     return total
+
+
+def _merged_daily_for_path(
+    organic: dict[str, dict[str, int]],
+    ai: dict[str, dict[str, int]],
+    resource_path: str,
+) -> dict[str, int]:
+    """Merge organic + AI daily maps into a single {date: total} for one resource path."""
+    target = _normalise_path(resource_path)
+    merged: dict[str, int] = {}
+    if not target:
+        return merged
+    for source in (organic, ai):
+        for path, by_date in source.items():
+            if _normalise_path(path) != target:
+                continue
+            for d, v in by_date.items():
+                merged[d] = merged.get(d, 0) + v
+    return merged
+
+
+def _build_series(
+    organic: dict[str, dict[str, int]],
+    ai: dict[str, dict[str, int]],
+    resource_path: str,
+    since: str,
+    today: date,
+) -> list[dict[str, Any]]:
+    """28-day daily Google+AI series from ``since``; future days carry total=None."""
+    merged = _merged_daily_for_path(organic, ai, resource_path)
+    start = date.fromisoformat(since)
+    series: list[dict[str, Any]] = []
+    for i in range(_WINDOW_DAYS):
+        day_date = start + timedelta(days=i)
+        iso = day_date.isoformat()
+        future = day_date > today
+        series.append(
+            {
+                "day": i + 1,
+                "date": iso,
+                "total": None if future else merged.get(iso, 0),
+                "future": future,
+            }
+        )
+    return series
 
 
 def _build_ga4_client(shop: str):
@@ -163,6 +209,7 @@ def compute_clicks_since_validation(
                     "total": g + a,
                     "since": since,
                     "source": "ga4",
+                    "series": _build_series(organic, ai, e["resource_path"], since, now.date()),
                 }
             return _finalize(
                 shop,
@@ -180,6 +227,7 @@ def compute_clicks_since_validation(
             "total": g,
             "since": e["latest_applied_at"],
             "source": "gsc",
+            "series": [],
         }
     return _finalize(
         shop,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from app.geo import clicks_since_validation as mod
@@ -95,6 +96,36 @@ def test_gsc_fallback_when_ga4_absent(tmp_path) -> None:
     assert entry["google"] == 12
     assert entry["ai"] is None
     assert entry["source"] == "gsc"
+
+
+def test_series_28_days_with_future_dashed(tmp_path) -> None:
+    events = [_event("gid://Product/1", "/products/harnais", "2026-06-25")]
+    organic = {"/products/harnais": {"2026-06-25": 4, "2026-06-26": 2}}
+    ai = {"/products/harnais": {"2026-06-26": 1}}
+    now = datetime(2026, 6, 27, 12, 0, tzinfo=UTC)
+
+    with _ledger(events), _no_cache(tmp_path), \
+        patch.object(mod, "_build_ga4_client", return_value=object()), \
+        patch.object(mod, "get_organic_by_page_daily", return_value=organic), \
+        patch.object(mod, "get_ai_referrals_by_page_daily", return_value=ai):
+        result = mod.compute_clicks_since_validation("shop.myshopify.com", now=now)
+
+    series = result["resources"]["gid://Product/1"]["series"]
+    assert len(series) == 28
+    assert series[0] == {"day": 1, "date": "2026-06-25", "total": 4, "future": False}
+    assert series[1] == {"day": 2, "date": "2026-06-26", "total": 3, "future": False}
+    assert series[2] == {"day": 3, "date": "2026-06-27", "total": 0, "future": False}
+    assert series[3]["future"] is True and series[3]["total"] is None
+    assert series[-1] == {"day": 28, "date": "2026-07-22", "total": None, "future": True}
+
+
+def test_gsc_fallback_has_empty_series(tmp_path) -> None:
+    events = [_event("gid://Product/1", "/products/harnais", "2026-06-01")]
+    with _ledger(events), _no_cache(tmp_path), \
+        patch.object(mod, "_build_ga4_client", return_value=None), \
+        patch.object(mod, "_gsc_clicks_by_url", return_value={}):
+        result = mod.compute_clicks_since_validation("shop.myshopify.com")
+    assert result["resources"]["gid://Product/1"]["series"] == []
 
 
 def test_empty_when_no_validated_resources(tmp_path) -> None:
