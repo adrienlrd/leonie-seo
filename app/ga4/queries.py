@@ -4,6 +4,106 @@ from __future__ import annotations
 
 from app.ga4.client import GA4Client, parse_report
 
+# Referral hostnames GA4 reports as `sessionSource` for AI assistants. Used to
+# split "AI clicks" out of the Referral channel. Curated, extend as new
+# assistants send traffic. Matched case-insensitively as an exact host list.
+AI_SOURCE_DOMAINS: tuple[str, ...] = (
+    "chatgpt.com",
+    "chat.openai.com",
+    "openai.com",
+    "perplexity.ai",
+    "gemini.google.com",
+    "bard.google.com",
+    "copilot.microsoft.com",
+    "claude.ai",
+    "you.com",
+    "poe.com",
+)
+
+
+def _parse_daily_by_path(rows: list[dict], metric: str = "sessions") -> dict[str, dict[str, int]]:
+    """Fold GA4 rows carrying `date` + `pagePath` into {path: {iso_date: value}}."""
+    result: dict[str, dict[str, int]] = {}
+    for row in rows:
+        path = row.get("pagePath", "")
+        raw_date = row.get("date", "")
+        if not path or len(raw_date) != 8 or not raw_date.isdigit():
+            continue
+        iso_date = f"{raw_date[0:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
+        bucket = result.setdefault(path, {})
+        bucket[iso_date] = bucket.get(iso_date, 0) + int(row.get(metric, 0))
+    return result
+
+
+def get_organic_by_page_daily(
+    client: GA4Client,
+    *,
+    start_date: str,
+    end_date: str = "today",
+) -> dict[str, dict[str, int]]:
+    """Organic-search sessions grouped by page path AND day, over [start,end].
+
+    Filters to sessionDefaultChannelGroup = "Organic Search" (Google/Bing).
+
+    Args:
+        client: Authenticated GA4Client.
+        start_date: ISO ``YYYY-MM-DD`` (or GA4 relative like ``28daysAgo``).
+        end_date: ISO date or GA4 keyword (default ``today``).
+
+    Returns:
+        ``{page_path: {iso_date: sessions}}``.
+    """
+    body = {
+        "dimensions": [{"name": "date"}, {"name": "pagePath"}],
+        "metrics": [{"name": "sessions"}],
+        "dateRanges": [{"startDate": start_date, "endDate": end_date}],
+        "dimensionFilter": {
+            "filter": {
+                "fieldName": "sessionDefaultChannelGroup",
+                "stringFilter": {
+                    "matchType": "EXACT",
+                    "value": "Organic Search",
+                    "caseSensitive": False,
+                },
+            }
+        },
+        "limit": 100000,
+    }
+    return _parse_daily_by_path(parse_report(client.run_report(body)))
+
+
+def get_ai_referrals_by_page_daily(
+    client: GA4Client,
+    *,
+    start_date: str,
+    end_date: str = "today",
+) -> dict[str, dict[str, int]]:
+    """AI-assistant referral sessions grouped by page path AND day.
+
+    Filters `sessionSource` to :data:`AI_SOURCE_DOMAINS`. Undercounts because
+    many AI assistants send no referrer (those land in Direct), but captures
+    the click-throughs that do carry an AI host.
+
+    Returns:
+        ``{page_path: {iso_date: sessions}}``.
+    """
+    body = {
+        "dimensions": [{"name": "date"}, {"name": "pagePath"}],
+        "metrics": [{"name": "sessions"}],
+        "dateRanges": [{"startDate": start_date, "endDate": end_date}],
+        "dimensionFilter": {
+            "filter": {
+                "fieldName": "sessionSource",
+                "inListFilter": {
+                    "values": list(AI_SOURCE_DOMAINS),
+                    "caseSensitive": False,
+                },
+            }
+        },
+        "limit": 100000,
+    }
+    return _parse_daily_by_path(parse_report(client.run_report(body)))
+
 
 def get_organic_by_page(
     client: GA4Client,

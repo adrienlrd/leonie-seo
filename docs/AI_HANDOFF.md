@@ -10,6 +10,19 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-01
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Page Analyse — afficher sous chaque titre de produit/blog validé les clics **Google + IA** depuis la dernière validation, avec **auto-rafraîchissement** du compteur.
+- **Summary:**
+  - **Backend** : `app/ga4/queries.py` → 2 requêtes quotidiennes `get_organic_by_page_daily` (canal Organic Search) + `get_ai_referrals_by_page_daily` (referrals `sessionSource` ∈ `AI_SOURCE_DOMAINS`), retour `{path: {date: sessions}}`. Nouveau module `app/geo/clicks_since_validation.py` : `compute_clicks_since_validation(shop)` — index des ressources validées via ledger (`latest_applied_at` + `resource_path`), somme GA4 des clics `date >= since` par page (matching path normalisé, query/slash ignorés), **fallback GSC** (Google seul, agrégé) si GA4 non connecté, **cache disque TTL 300 s**. Endpoint léger `GET /api/shops/{shop}/geo/clicks-since-validation` dans `app/api/geo.py`.
+  - **Frontend** : `app.analyse.tsx` — loader seed `clicks`+`ga4Ready` ; nouvelle route ressource `app.clicks-since-validation.tsx` pollée via `useFetcher` (60 s + au retour de focus) sans relancer l'overview lourd ; composant `ClicksLine` (« 👁 X clics depuis le … (Google · IA) » + `Tooltip` source/fraîcheur) sous le titre produit et blog ; bandeau « Connecter GA4 » quand non connecté. Clés i18n `analyseClicks*` (FR+EN).
+  - **Limites assumées** : GSC différé (~2 j) donc non temps réel — seul GA4 rend le compteur vivant ; trafic IA sous-estimé (referrals « Direct » manquants) ; GA4 « sessions » = proxy de clics.
+- **Files created:** `app/geo/clicks_since_validation.py`, `shopify-app/app/routes/app.clicks-since-validation.tsx`, `tests/test_geo/test_clicks_since_validation.py`.
+- **Files modified:** `app/ga4/queries.py`, `app/api/geo.py`, `shopify-app/app/routes/app.analyse.tsx`, `shopify-app/app/lib/i18n.ts`.
+- **Validations:** `ruff check app/ tests/...` ✅ ; `pytest tests/test_ga4 tests/test_geo` → **185 passed** ✅ ; `npm run typecheck` ✅ ; `npm run build` ✅.
+
+## Previous completed task
+
 - **Date:** 2026-06-30
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Bandeau « données catalogue datent de plus de 7 jours » → ajout d'un bouton de refresh manuel.

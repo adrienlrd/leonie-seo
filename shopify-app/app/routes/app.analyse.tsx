@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
-import { useState } from "react";
+import { useFetcher, useLoaderData } from "@remix-run/react";
+import { useEffect, useState } from "react";
 import {
   Badge,
   Banner,
@@ -12,9 +12,11 @@ import {
   Collapsible,
   Divider,
   InlineStack,
+  Link,
   Page,
   ProgressBar,
   Text,
+  Tooltip,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
@@ -67,10 +69,28 @@ interface ProductEntry {
   total_actions: number;
 }
 
+interface ClickEntry {
+  google: number;
+  ai: number | null;
+  total: number;
+  since: string;
+  source: "ga4" | "gsc";
+}
+
+type ClicksMap = Record<string, ClickEntry>;
+
+interface ClicksResponse {
+  ga4_ready: boolean;
+  computed_at: string;
+  resources: ClicksMap;
+}
+
 interface LoaderData {
   locale: Locale;
   products: ProductEntry[];
   summary: { total_products: number; total_actions: number };
+  clicks: ClicksMap;
+  ga4Ready: boolean;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -80,6 +100,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let products: ProductEntry[] = [];
   let summary = { total_products: 0, total_actions: 0 };
+  let clicks: ClicksMap = {};
+  let ga4Ready = false;
 
   try {
     const resp = await callBackendForShop(
@@ -96,7 +118,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // fail-open
   }
 
-  return json<LoaderData>({ locale, products, summary });
+  try {
+    const resp = await callBackendForShop(
+      shop,
+      `/api/shops/${shop}/geo/clicks-since-validation`,
+      { accessToken: session.accessToken },
+    );
+    if (resp.ok) {
+      const data = (await resp.json()) as ClicksResponse;
+      clicks = data.resources ?? {};
+      ga4Ready = data.ga4_ready ?? false;
+    }
+  } catch {
+    // fail-open — counters just stay hidden
+  }
+
+  return json<LoaderData>({ locale, products, summary, clicks, ga4Ready });
 };
 
 function fieldLabel(field: string): string {
@@ -271,13 +308,68 @@ function DropdownHeader({
   );
 }
 
+/** Live "X clics depuis le … (Google · IA)" line shown under a validated title. */
+function ClicksLine({ entry, locale }: { entry: ClickEntry | undefined; locale: Locale }) {
+  if (!entry) return null;
+  const since = new Date(`${entry.since}T00:00:00`).toLocaleDateString(
+    locale === "fr" ? "fr-FR" : "en-US",
+    { day: "2-digit", month: "short", year: "numeric" },
+  );
+  const tooltip = entry.source === "ga4"
+    ? t(locale, "analyseClicksTooltipGa4")
+    : t(locale, "analyseClicksTooltipGsc");
+  return (
+    <InlineStack gap="150" blockAlign="center" wrap>
+      <Tooltip content={tooltip}>
+        <Text as="span" variant="bodySm" tone="subdued">
+          {`👁 ${entry.total.toLocaleString(locale === "fr" ? "fr-FR" : "en-US")} ${t(locale, "analyseClicksLabel")} ${t(locale, "analyseClicksSince")} ${since}`}
+        </Text>
+      </Tooltip>
+      {entry.source === "ga4" && (
+        <Text as="span" variant="bodySm" tone="subdued">
+          {`(Google ${entry.google.toLocaleString(locale === "fr" ? "fr-FR" : "en-US")} · IA ${(entry.ai ?? 0).toLocaleString(locale === "fr" ? "fr-FR" : "en-US")})`}
+        </Text>
+      )}
+    </InlineStack>
+  );
+}
+
 export default function AnalysePage() {
-  const { locale, products, summary } = useLoaderData<typeof loader>() as LoaderData;
+  const { locale, products, summary, clicks: initialClicks, ga4Ready: initialGa4Ready } =
+    useLoaderData<typeof loader>() as LoaderData;
   const blogs = products.filter((p) => p.resource_type === "blog_post");
   const prods = products.filter((p) => p.resource_type !== "blog_post");
   const [showBlogs, setShowBlogs] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+
+  // Live click counters: seeded from the loader, then auto-refreshed by polling
+  // the lightweight resource route every 60 s (and when the tab regains focus).
+  const [clicks, setClicks] = useState<ClicksMap>(initialClicks);
+  const [ga4Ready, setGa4Ready] = useState(initialGa4Ready);
+  const clicksFetcher = useFetcher<ClicksResponse>();
+
+  useEffect(() => {
+    const reload = () => clicksFetcher.load("/app/clicks-since-validation");
+    const id = setInterval(reload, 60_000);
+    const onFocus = () => {
+      if (document.visibilityState === "visible") reload();
+    };
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (clicksFetcher.data?.resources) {
+      setClicks(clicksFetcher.data.resources);
+      setGa4Ready(clicksFetcher.data.ga4_ready ?? false);
+    }
+  }, [clicksFetcher.data]);
+
   const toggleId = (id: string) =>
     setOpenIds((prev) => {
       const next = new Set(prev);
@@ -307,6 +399,17 @@ export default function AnalysePage() {
             </BlockStack>
           </InlineStack>
         </Card>
+
+        {products.length > 0 && !ga4Ready && (
+          <Banner tone="info">
+            <InlineStack gap="100" wrap>
+              <Text as="span">{t(locale, "analyseClicksConnectGa4")}</Text>
+              <Link url={localizedPath("/app/account", locale)}>
+                {t(locale, "analyseClicksConnectGa4Cta")}
+              </Link>
+            </InlineStack>
+          </Banner>
+        )}
 
         {products.length === 0 ? (
           <Card>
@@ -346,6 +449,7 @@ export default function AnalysePage() {
                               >
                                 {`${product.resource_title} — ${product.total_actions} ${t(locale, "analyseActionsCount")}`}
                               </Button>
+                              <ClicksLine entry={clicks[product.resource_id]} locale={locale} />
                               <Collapsible open={isOpen} id={`analyse-product-${product.resource_id}`}>
                                 <EntryContent product={product} locale={locale} />
                               </Collapsible>
@@ -381,6 +485,7 @@ export default function AnalysePage() {
                               {blog.total_actions} {t(locale, "analyseActionsCount")}
                             </Text>
                           </InlineStack>
+                          <ClicksLine entry={clicks[blog.resource_id]} locale={locale} />
                           <EntryContent product={blog} locale={locale} />
                         </BlockStack>
                       ))}

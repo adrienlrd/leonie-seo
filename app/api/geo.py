@@ -385,6 +385,21 @@ async def get_geo_analysis_overview(
     }
 
 
+@router.get("/shops/{shop}/geo/clicks-since-validation")
+async def get_clicks_since_validation_endpoint(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Google + AI clicks per validated resource since its last validation.
+
+    Lightweight (decoupled from the heavy analysis-overview) so the Analyse page
+    can poll it to keep the counters live. Results are cached server-side.
+    """
+    from app.geo.clicks_since_validation import compute_clicks_since_validation  # noqa: PLC0415
+
+    return await asyncio.to_thread(compute_clicks_since_validation, ctx.shop, db_path=DB_PATH)
+
+
 @router.get("/shops/{shop}/geo/theme-extension-status")
 async def get_theme_extension_status_endpoint(
     shop: str,

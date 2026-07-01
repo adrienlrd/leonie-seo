@@ -681,6 +681,14 @@ const FR: Dictionary = {
   analyseActionsCount: "action(s)",
   analyseEmpty: "Aucune optimisation appliquée pour le moment.",
   analyseAppliedAt: "Validé le",
+  analyseClicksLabel: "clics",
+  analyseClicksSince: "depuis le",
+  analyseClicksTooltipGa4:
+    "Clics (visites) Google organique + IA depuis votre dernière validation, mesurés via Google Analytics 4 (quasi temps réel). Le trafic IA (ChatGPT, Perplexity, Gemini…) est sous-estimé : beaucoup d'assistants n'envoient pas de référent et sont comptés en « Direct ».",
+  analyseClicksTooltipGsc:
+    "Clics Google organique depuis Google Search Console (données différées d'environ 2 jours, fenêtre ~28 j). Connectez Google Analytics 4 pour ajouter le trafic IA et un suivi quasi temps réel.",
+  analyseClicksConnectGa4: "Connectez Google Analytics 4 pour voir aussi le trafic IA et un compteur quasi temps réel.",
+  analyseClicksConnectGa4Cta: "Connecter Google Analytics 4",
   analyseJ28Date: "J+28",
   analyseBefore: "Avant :",
   analyseAfter: "Après :",
@@ -1497,6 +1505,14 @@ const EN: Dictionary = {
   analyseActionsCount: "action(s)",
   analyseEmpty: "No optimizations applied yet.",
   analyseAppliedAt: "Applied on",
+  analyseClicksLabel: "clicks",
+  analyseClicksSince: "since",
+  analyseClicksTooltipGa4:
+    "Google organic + AI clicks (visits) since your last validation, measured via Google Analytics 4 (near real-time). AI traffic (ChatGPT, Perplexity, Gemini…) is undercounted: many assistants send no referrer and land in \"Direct\".",
+  analyseClicksTooltipGsc:
+    "Google organic clicks from Google Search Console (delayed by ~2 days, ~28-day window). Connect Google Analytics 4 to add AI traffic and near real-time tracking.",
+  analyseClicksConnectGa4: "Connect Google Analytics 4 to also see AI traffic and a near real-time counter.",
+  analyseClicksConnectGa4Cta: "Connect Google Analytics 4",
   analyseJ28Date: "J+28",
   analyseBefore: "Before:",
   analyseAfter: "After:",
