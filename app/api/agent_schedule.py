@@ -134,6 +134,7 @@ def _run_reanalysis_job(job_id: str, shop: str, access_token: str) -> None:
             analyzed_product_count=outcome.get("analyzed_product_count") or 0,
             reanalysis_status=outcome.get("status"),
             reanalysis_reason=outcome.get("reason"),
+            auto_publish=outcome.get("auto_publish"),
         )
     except Exception as exc:  # noqa: BLE001 — surface the failure to the poller
         logger.exception("Scheduled re-analysis job %s failed for %s", job_id, shop)

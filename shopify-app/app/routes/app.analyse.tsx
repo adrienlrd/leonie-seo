@@ -11,6 +11,7 @@ import {
   Card,
   Collapsible,
   Divider,
+  Icon,
   InlineStack,
   Link,
   Page,
@@ -19,6 +20,7 @@ import {
   Thumbnail,
   Tooltip,
 } from "@shopify/polaris";
+import { AlertTriangleIcon, LightbulbIcon, ViewIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
@@ -293,9 +295,14 @@ function EntryContent({ product, locale }: { product: ProductEntry; locale: Loca
                     </InlineStack>
                   ) : null}
                   {vd.window_status === "complete" && action.decomposition && action.decomposition.primary_metric ? (
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      💡 {locale === "fr" ? action.decomposition.cause_fr : action.decomposition.cause_en}
-                    </Text>
+                    <InlineStack gap="100" blockAlign="start" wrap={false}>
+                      <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1rem", height: "1rem", marginTop: "0.1rem" }}>
+                        <Icon source={LightbulbIcon} tone="subdued" />
+                      </span>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {locale === "fr" ? action.decomposition.cause_fr : action.decomposition.cause_en}
+                      </Text>
+                    </InlineStack>
                   ) : null}
                 </BlockStack>
               </Box>
@@ -331,9 +338,14 @@ function ClicksLine({ entry, locale }: { entry: ClickEntry | undefined; locale: 
   return (
     <InlineStack gap="150" blockAlign="center" wrap>
       <Tooltip content={tooltip}>
-        <Text as="span" variant="bodySm" tone="subdued">
-          {`👁 ${entry.total.toLocaleString(locale === "fr" ? "fr-FR" : "en-US")} ${t(locale, "analyseClicksLabel")} ${t(locale, "analyseClicksSince")} ${since}`}
-        </Text>
+        <InlineStack gap="100" blockAlign="center" wrap={false}>
+          <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1rem", height: "1rem" }}>
+            <Icon source={ViewIcon} tone="subdued" />
+          </span>
+          <Text as="span" variant="bodySm" tone="subdued">
+            {`${entry.total.toLocaleString(locale === "fr" ? "fr-FR" : "en-US")} ${t(locale, "analyseClicksLabel")} ${t(locale, "analyseClicksSince")} ${since}`}
+          </Text>
+        </InlineStack>
       </Tooltip>
     </InlineStack>
   );
@@ -349,8 +361,11 @@ function ZeroClicksHint({
   // embedded iframe (Google refuses framing). window.open breaks out to a real tab.
   return (
     <InlineStack gap="150" blockAlign="center" wrap>
+      <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1rem", height: "1rem" }}>
+        <Icon source={AlertTriangleIcon} tone="caution" />
+      </span>
       <Text as="span" variant="bodySm" tone="subdued">
-        ⚠️ {t(locale, "analyseZeroClicksHint")}
+        {t(locale, "analyseZeroClicksHint")}
       </Text>
       <Button
         variant="plain"
@@ -368,7 +383,7 @@ export default function AnalysePage() {
   const blogs = products.filter((p) => p.resource_type === "blog_post");
   const prods = products.filter((p) => p.resource_type !== "blog_post");
   const [showBlogs, setShowBlogs] = useState(false);
-  const [showProducts, setShowProducts] = useState(false);
+  const [showProducts, setShowProducts] = useState(true);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
 
   // Live click counters: seeded from the loader, then auto-refreshed by polling

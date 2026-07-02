@@ -12,6 +12,20 @@
 
 - **Date:** 2026-07-02
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Renommages UI (« ré-analyse »→« analyse », « valider »→« publier » en contexte publication), refonte du panneau de mode de publication, icônes flat sur la page Analyse, et **visibilité du résultat d'auto-publication** (le run « Lancer une analyse » publiait 0 champ sans jamais dire pourquoi).
+- **Summary:**
+  - **i18n** (`shopify-app/app/lib/i18n.ts`, FR+EN) : `runReanalysisNowButton` → « Lancer une analyse maintenant » ; contexte publication `acceptAction`/`marketAnalysisSaveLabels`/`statusNeedsReview`/`statusApproved`/`analyseAppliedAt` → « Publier / À publier / Publié / Publié le » (profil/niche/GA4 **non** touchés) ; `publishModeAutoTitle` → « Analyse automatique » ; nouvelle clé `publishModeBoostedActive` ; nouvelles clés `reanalysisResult*` (manual/published/held/noChange/budget/noSnapshot/noToken).
+  - **Panneau `PublishModeCard`** (`app._index.tsx`) : composant SVG inline `RocketIcon` (Polaris n'a pas de fusée). Badge « Actif » de la boîte auto remplacé par une pastille **noir-sur-blanc** « Mode référencement boosté activé » + fusée ; ligne « Publication automatique activée » masquée ; bloc disclaimer passé de `Banner tone="info"` à un encart **blanc-sur-noir** avec fusée à la place du « i ». Nettoyage du state mort (`activated`, `publishedCount`).
+  - **Bug auto-publication (rendu observable)** : le résumé de `auto_publish_checked_proposals` (mode/published/held/skipped_reason) était **jeté**. Il est désormais propagé — `run_market_reanalysis` → `completed_data["auto_publish"]`, `run_scheduled_reanalysis` → dict de statut, `_run_reanalysis_job` → `update_job(auto_publish=…)`. Le front (`pollReanalysis` + helper `reanalysisResultMessage`) affiche dans la bannière de fin **pourquoi** 0 champ a été publié (mode manuel / retenu par sécurité / déjà à jour / budget / pas de snapshot / pas de token).
+  - **Page Analyse** (`app.analyse.tsx`) : encart « Produits » **ouvert par défaut** (`showProducts=true`) ; émojis 💡/👁/⚠️ remplacés par icônes Polaris flat `LightbulbIcon`/`ViewIcon`/`AlertTriangleIcon`.
+- **Files modified:** `shopify-app/app/lib/i18n.ts`, `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.analyse.tsx`, `app/agent_schedule/reanalysis.py`, `app/api/agent_schedule.py`.
+- **Validations:** `ruff check` (fichiers modifiés) ✅ ; `pytest tests/test_agent_schedule tests/market_analysis` → **284 passed** ✅ ; `npm run typecheck` ✅ ; `npm run build` ✅.
+- **Open risk:** le correctif rend l'issue **observable** sans la reproduire (pas de données boutique en local). Si le prochain run affiche « mode manuel » ou « déjà à jour », la cause est côté état/persistance du mode, à traiter avec le message affiché comme diagnostic.
+
+## Previous completed task
+
+- **Date:** 2026-07-02
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** Rendre l'app **100% générique** — supprimer toute référence au domaine/marque marchand (`leoniedelacroix.com`, « Léonie Delacroix ») et dériver l'identité boutique depuis Shopify, pour que **toutes** les fonctionnalités marchent pour n'importe quelle boutique.
 - **Summary:**
   - **Fondation** — nouveau `app/shop_identity.py` : source unique de vérité. `storefront_host(shop)` (shop_config `storefront_host` → snapshot `shop.primaryDomain` → fallback `*.myshopify.com`), `storefront_base_url(shop)`, `brand_terms(shop)` (dérivés du host). Host persisté à chaque snapshot via `persist_storefront_host()` dans `app/jobs/audit_snapshot.py`.

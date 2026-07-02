@@ -568,7 +568,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         { accessToken: session.accessToken },
       );
       if (!resp.ok) return json({ type: "pollReanalysis", job: null, error: `HTTP ${resp.status}` });
-      const job = (await resp.json()) as { status?: string; error?: string | null };
+      const job = (await resp.json()) as {
+        status?: string;
+        error?: string | null;
+        reanalysis_status?: string | null;
+        reanalysis_reason?: string | null;
+        auto_publish?: { mode?: string; published?: number; held?: number; skipped_reason?: string } | null;
+      };
       return json({ type: "pollReanalysis", job, error: null });
     } catch (err) {
       return json({ type: "pollReanalysis", job: null, error: String(err) });
@@ -1230,6 +1236,28 @@ function Zone4({
   );
 }
 
+/** Flat rocket glyph (Polaris has no rocket icon). Inherits `color` via currentColor. */
+function RocketIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+      <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+      <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+      <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+    </svg>
+  );
+}
+
 function PublishModeCard({
   currentMode,
   locale,
@@ -1245,11 +1273,9 @@ function PublishModeCard({
   const [selected, setSelected] = useState<"semi_auto" | "auto_apply">(currentMode);
   const [activating, setActivating] = useState(false);
   const [activateProgress, setActivateProgress] = useState(0);
-  const [activated, setActivated] = useState(currentMode === "auto_apply");
 
   const handleToggle = (mode: "semi_auto" | "auto_apply") => {
     setSelected(mode);
-    if (mode === "semi_auto") setActivated(false);
     const fd = new FormData();
     fd.set("intent", "setPublishMode");
     fd.set("mode", mode);
@@ -1261,7 +1287,6 @@ function PublishModeCard({
   // currently checked now (the action chains both backend calls).
   const handleActivateAuto = () => {
     setSelected("auto_apply");
-    setActivated(false);
     setActivating(true);
     setActivateProgress(8);
     const fd = new FormData();
@@ -1282,7 +1307,6 @@ function PublishModeCard({
       setActivateProgress(100);
       const id = setTimeout(() => {
         setActivating(false);
-        setActivated(true);
       }, 450);
       return () => clearTimeout(id);
     }
@@ -1290,7 +1314,6 @@ function PublishModeCard({
 
   const busy = fetcher.state !== "idle";
   const isAuto = selected === "auto_apply";
-  const publishedCount = activateFetcher.data?.summary?.published ?? 0;
 
   const content = (
     <BlockStack gap="300">
@@ -1364,15 +1387,24 @@ function PublishModeCard({
                   <ProgressBar progress={activateProgress} size="small" tone="highlight" />
                 </BlockStack>
               ) : isAuto ? (
-                <BlockStack gap="100">
-                  <Badge tone="success">{locale === "fr" ? "Actif" : "Active"}</Badge>
-                  {activated && (
-                    <Text as="p" variant="bodySm" tone="success">
-                      {t(locale, "publishModeActivated")}
-                      {publishedCount > 0 ? ` — ${publishedCount} ${t(locale, "publishModeActivatedCount")}` : ""}
-                    </Text>
-                  )}
-                </BlockStack>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.375rem",
+                    alignSelf: "flex-start",
+                    background: "#fff",
+                    color: "#000",
+                    borderRadius: "999px",
+                    padding: "0.25rem 0.625rem",
+                    fontSize: "0.75rem",
+                    lineHeight: 1,
+                    fontWeight: 600,
+                  }}
+                >
+                  <RocketIcon size={14} />
+                  {t(locale, "publishModeBoostedActive")}
+                </span>
               ) : (
                 <span
                   style={{
@@ -1392,9 +1424,24 @@ function PublishModeCard({
           </div>
         </InlineGrid>
         {isAuto && (
-          <Banner tone="info">
-            <p>{t(locale, "publishModeAutoDisclaimer")}</p>
-          </Banner>
+          <div
+            style={{
+              background: "#000",
+              color: "#fff",
+              borderRadius: "var(--p-border-radius-200)",
+              padding: "var(--p-space-300)",
+              display: "flex",
+              gap: "var(--p-space-200)",
+              alignItems: "flex-start",
+            }}
+          >
+            <span style={{ flex: "0 0 auto", display: "inline-flex", marginTop: "0.1rem" }}>
+              <RocketIcon size={18} />
+            </span>
+            <p style={{ margin: 0, fontSize: "0.8125rem", lineHeight: 1.4 }}>
+              {t(locale, "publishModeAutoDisclaimer")}
+            </p>
+          </div>
         )}
     </BlockStack>
   );
@@ -2479,6 +2526,31 @@ function MiniCalendar({
   );
 }
 
+/** Human-readable outcome of a finished run-and-publish job (why it did/didn't publish). */
+function reanalysisResultMessage(
+  locale: Locale,
+  job: {
+    reanalysis_status?: string | null;
+    reanalysis_reason?: string | null;
+    auto_publish?: { mode?: string; published?: number; held?: number; skipped_reason?: string } | null;
+  },
+): string {
+  if (job.reanalysis_status === "skipped") {
+    if (job.reanalysis_reason === "budget_exceeded") return t(locale, "reanalysisResultBudget");
+    if (job.reanalysis_reason === "no_snapshot") return t(locale, "reanalysisResultNoSnapshot");
+  }
+  const ap = job.auto_publish;
+  if (!ap || ap.mode !== "auto") return t(locale, "reanalysisResultManual");
+  if (ap.skipped_reason === "no_token") return t(locale, "reanalysisResultNoToken");
+  if ((ap.published ?? 0) > 0) {
+    return t(locale, "reanalysisResultPublished").replace("{count}", String(ap.published));
+  }
+  if ((ap.held ?? 0) > 0) {
+    return t(locale, "reanalysisResultHeld").replace("{count}", String(ap.held));
+  }
+  return t(locale, "reanalysisResultNoChange");
+}
+
 function AnalysisSchedulePanels({
   scheduleStatus,
   locale,
@@ -2549,13 +2621,22 @@ function AnalysisSchedulePanels({
     status === "completed" ? "success" : status === "error" ? "critical" : "attention";
 
   const startFetcher = useFetcher<{ type?: string; jobId?: string | null; error?: string | null }>();
-  const pollFetcher = useFetcher<{ type?: string; job?: { status?: string } | null }>();
+  const pollFetcher = useFetcher<{
+    type?: string;
+    job?: {
+      status?: string;
+      reanalysis_status?: string | null;
+      reanalysis_reason?: string | null;
+      auto_publish?: { mode?: string; published?: number; held?: number; skipped_reason?: string } | null;
+    } | null;
+  }>();
   const exportFetcher = useFetcher<{ type?: string; payload?: unknown; error?: string | null }>();
   const revalidator = useRevalidator();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [finished, setFinished] = useState<null | "completed" | "error">(null);
+  const [resultMsg, setResultMsg] = useState<string | null>(null);
 
   // Capture the job_id returned by the start action and begin polling.
   useEffect(() => {
@@ -2580,10 +2661,16 @@ function AnalysisSchedulePanels({
 
   // On completion, stop polling and refresh the loader data (history/next dates).
   useEffect(() => {
-    const status = pollFetcher.data?.job?.status;
+    const job = pollFetcher.data?.job;
+    const status = job?.status;
     if (jobId && (status === "completed" || status === "error")) {
       setJobId(null);
       setFinished(status);
+      // Surface *why* the auto-publish did (or did not) apply anything, so a
+      // "success" banner never hides a manual-mode / held / no-change outcome.
+      if (status === "completed" && job) {
+        setResultMsg(reanalysisResultMessage(locale, job));
+      }
       revalidator.revalidate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2809,7 +2896,12 @@ function AnalysisSchedulePanels({
             <AnalysisLoader phrases={loaderPhrases(locale, "analysis")} estimateMs={150_000} />
           )}
           {!running && finished === "completed" && (
-            <Banner tone="success">{t(locale, "runReanalysisSuccess")}</Banner>
+            <Banner tone="success">
+              <BlockStack gap="100">
+                <Text as="p">{t(locale, "runReanalysisSuccess")}</Text>
+                {resultMsg && <Text as="p" fontWeight="medium">{resultMsg}</Text>}
+              </BlockStack>
+            </Banner>
           )}
           {!running && finished === "error" && (
             <Banner tone="critical">{t(locale, "runReanalysisError")}</Banner>

@@ -150,7 +150,9 @@ def run_market_reanalysis(
     save_latest_result(shop, completed_data)
     _auto_sync_schema_facts(shop, completed_data["products"])
     auto_create_orphan_drafts(shop, completed_data)
-    auto_publish_checked_proposals(shop, completed_data, niche_hypothesis, db_path=db_path)
+    completed_data["auto_publish"] = auto_publish_checked_proposals(
+        shop, completed_data, niche_hypothesis, db_path=db_path
+    )
     return completed_data
 
 
@@ -186,4 +188,5 @@ def run_scheduled_reanalysis(
         "status": "completed",
         "analyzed_at": result.get("analyzed_at"),
         "analyzed_product_count": result.get("analyzed_product_count"),
+        "auto_publish": result.get("auto_publish"),
     }
