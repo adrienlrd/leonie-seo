@@ -181,13 +181,10 @@ def _product_meta_index(shop: str, db_path: Path | None) -> dict[str, dict[str, 
 
 
 def _storefront_base_url(shop: str) -> str:
-    """Resolve the public storefront/GSC base URL (no trailing slash) for a shop."""
-    from app.gsc.client import default_site_url  # noqa: PLC0415
+    """Resolve the public storefront base URL (no trailing slash) for a shop."""
+    from app.shop_identity import storefront_base_url  # noqa: PLC0415
 
-    raw = default_site_url(shop)
-    if raw.startswith("sc-domain:"):
-        return "https://" + raw[len("sc-domain:") :]
-    return raw.rstrip("/")
+    return storefront_base_url(shop)
 
 
 def build_analysis_overview(

@@ -20,7 +20,7 @@ def search_brand_in_urls(
 
     Args:
         client: CCIndexClient instance.
-        brand_slug: URL-safe brand identifier (e.g. "leoniedelacroix").
+        brand_slug: URL-safe brand identifier (e.g. "mybrand").
         crawl: CC crawl index ID. Defaults to latest.
         limit: Max results to return.
 

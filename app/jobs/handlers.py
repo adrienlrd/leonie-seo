@@ -89,10 +89,10 @@ async def handle_meta_generation(payload: dict, shop: str | None) -> dict:
     """
     import asyncio
 
+    from app.business_profile.jobs import load_business_profile
     from app.llm import get_router
     from app.llm.batch import generate_meta_for_products
     from app.llm.meta_store import save_results
-    from app.tenant_config import find_tenant_by_shop_domain
 
     products = payload.get("products", [])
     job_id = payload.get("job_id", "unknown")
@@ -101,9 +101,9 @@ async def handle_meta_generation(payload: dict, shop: str | None) -> dict:
     if not products:
         return {"generated": 0, "errors": 0, "message": "no products provided"}
 
-    # Resolve merchant brand from tenant config (fallback: per-product vendor)
-    tenant = find_tenant_by_shop_domain(shop) if shop else None
-    brand = tenant.brand if tenant else None
+    # Resolve merchant brand from the shop's business profile (fallback: per-product vendor)
+    profile = load_business_profile(shop) if shop else None
+    brand = profile.get("brand_name") if profile else None
 
     # Run synchronous batch in a thread so we don't block the event loop.
     router = get_router(shop=shop)

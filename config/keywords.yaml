@@ -1,6 +1,5 @@
-# Mots-clés cibles — leoniedelacroix.com
+# Mots-clés cibles — exemple de seed CLI (à adapter à votre boutique)
 # Niche : accessoires premium pour chiens et chats, fabriqués en France
-# Mise à jour : 2026-05-06 (aligné sur le vrai catalogue produits)
 
 vetements_chien:
   - pardessus pour chien france
@@ -41,6 +40,4 @@ informational:
   - quelle taille harnais pour mon chien
 
 brand:
-  - leoniedelacroix
-  - léonie delacroix accessoires animaux
   - boutique accessoires animaux premium france

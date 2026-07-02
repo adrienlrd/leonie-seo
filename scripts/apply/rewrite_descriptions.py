@@ -15,6 +15,7 @@ import requests
 from dotenv import load_dotenv
 from rich.console import Console
 
+from scripts._config import get_config
 from scripts._paths import DB_PATH as _DB_PATH
 
 load_dotenv()
@@ -57,7 +58,7 @@ _TEMPLATES: dict[str, dict[str, str]] = {
             "comme pour les sorties en ville."
         ),
         "eeat": (
-            "Chez Léonie Delacroix, chaque accessoire pour chien est pensé avec la même exigence qu'une pièce "
+            "Chez {brand}, chaque accessoire pour chien est pensé avec la même exigence qu'une pièce "
             "de mode haut de gamme. Nos modèles sont testés sur des chiens de différentes morphologies pour "
             "garantir un ajustement parfait et un confort durable."
         ),
@@ -78,7 +79,7 @@ _TEMPLATES: dict[str, dict[str, str]] = {
             "déplacements, les sauts ni le toilettage. La coupe est étudiée pour éviter tout stress."
         ),
         "eeat": (
-            "Léonie Delacroix travaille avec des comportementalistes félins pour s'assurer que chaque "
+            "{brand} travaille avec des comportementalistes félins pour s'assurer que chaque "
             "modèle respecte les besoins sensoriels du chat. Résultat : des vêtements que votre chat "
             "peut vraiment porter confortablement."
         ),
@@ -117,7 +118,7 @@ _TEMPLATES: dict[str, dict[str, str]] = {
             "Chaque filtre combine charbon actif, mousse filtrante et résine échangeuse d'ions pour "
             "retenir les impuretés, éliminer les odeurs et réduire le calcaire. À changer toutes les "
             "2 à 4 semaines selon la dureté de votre eau et le nombre d'animaux. Compatible avec "
-            "l'ensemble des fontaines Léonie Delacroix."
+            "l'ensemble des fontaines {brand}."
         ),
         "eeat": (
             "Un filtre propre, c'est une eau saine — et un chat qui boit davantage. "
@@ -132,7 +133,7 @@ _TEMPLATES: dict[str, dict[str, str]] = {
         "intro": (
             "{title} allie design contemporain et fonctionnalité pensée pour le bien-être de votre animal. "
             "Conçu pour s'intégrer harmonieusement à votre intérieur, il reflète l'exigence de la marque "
-            "Léonie Delacroix : des accessoires premium pour animaux qui ont du style."
+            "{brand} : des accessoires premium pour animaux qui ont du style."
         ),
         "features": (
             "Fabriqué à partir de matériaux durables et sûrs — céramique de qualité, inox alimentaire, "
@@ -141,7 +142,7 @@ _TEMPLATES: dict[str, dict[str, str]] = {
             "pour un confort optimal à chaque utilisation."
         ),
         "eeat": (
-            "Chaque accessoire Léonie Delacroix est sélectionné ou conçu en collaboration avec des "
+            "Chaque accessoire {brand} est sélectionné ou conçu en collaboration avec des "
             "spécialistes du comportement animal. Parce que le bien-être de votre compagnon "
             "passe aussi par son environnement quotidien."
         ),
@@ -170,14 +171,14 @@ def strip_html(html: str) -> str:
     return re.sub(r"<[^>]+>", "", html or "").strip()
 
 
-def build_description(title: str, category: str) -> str:
+def build_description(title: str, category: str, brand: str) -> str:
     """Build a rich 150-250 word SEO description for a product."""
     tpl = _TEMPLATES.get(category, _TEMPLATES["accessoires"])
     parts = [
-        tpl["intro"].format(title=title),
-        tpl["features"],
-        tpl["eeat"],
-        tpl["cta"],
+        tpl["intro"].format(title=title, brand=brand),
+        tpl["features"].format(brand=brand),
+        tpl["eeat"].format(brand=brand),
+        tpl["cta"].format(brand=brand),
     ]
     return "\n\n".join(parts)
 
@@ -251,6 +252,7 @@ def main(snapshot: str, output: str, dry_run: bool) -> None:
     """Generate and optionally push long-tail SEO descriptions for all products."""
     console.print("[bold cyan]► Rewriting product descriptions[/bold cyan]")
 
+    brand = get_config().brand
     products = load_products(snapshot)
     # Exclude accessory-only products with non-French titles
     products = [
@@ -264,7 +266,7 @@ def main(snapshot: str, output: str, dry_run: bool) -> None:
         title = p["title"]
         existing = strip_html(p.get("description") or "")
         category = classify_product(title, existing)
-        new_desc = build_description(title, category)
+        new_desc = build_description(title, category, brand)
         word_count = len(new_desc.split())
         suggestions.append(
             {

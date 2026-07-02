@@ -148,16 +148,35 @@ def test_update_env_appends_if_missing(tmp_path):
 # ── list_tenants / list_niches ────────────────────────────────────────────
 
 
-def test_list_tenants_includes_leoniedelacroix():
+@pytest.fixture
+def synthetic_tenant(tmp_path, monkeypatch):
+    """Write a throwaway tenant so setup tests never depend on a real merchant."""
+    tenants_dir = tmp_path / "tenants"
+    tenants_dir.mkdir()
+    content = generate_yaml(
+        tenant_id="acme",
+        brand="Acme Pets",
+        base_url="https://www.acme-pets.example",
+        shopify_store_domain="acme-pets.myshopify.com",
+        niche="pet_accessories_fr",
+    )
+    (tenants_dir / "acme.yaml").write_text(content)
+    monkeypatch.setattr("scripts.setup._TENANTS_DIR", tenants_dir)
+    monkeypatch.setattr("scripts._config._CONFIG_DIR", tenants_dir)
+    reset_config_cache()
+    return tenants_dir
+
+
+def test_list_tenants_includes_declared_tenant(synthetic_tenant):
     tenants = list_tenants()
     ids = [t["tenant_id"] for t in tenants]
-    assert "leoniedelacroix" in ids
+    assert "acme" in ids
 
 
-def test_list_tenants_returns_domain():
+def test_list_tenants_returns_domain(synthetic_tenant):
     tenants = list_tenants()
-    ld = next(t for t in tenants if t["tenant_id"] == "leoniedelacroix")
-    assert "leoniedelacroix.com" in ld["domain"]
+    ld = next(t for t in tenants if t["tenant_id"] == "acme")
+    assert "acme-pets.example" in ld["domain"]
 
 
 def test_list_niches_includes_pet_accessories():
@@ -168,18 +187,18 @@ def test_list_niches_includes_pet_accessories():
 # ── CLI commands ──────────────────────────────────────────────────────────
 
 
-def test_cmd_list_shows_leoniedelacroix():
+def test_cmd_list_shows_declared_tenant(synthetic_tenant):
     runner = CliRunner()
     result = runner.invoke(cli, ["list"])
     assert result.exit_code == 0
-    assert "leoniedelacroix" in result.output
+    assert "acme" in result.output
 
 
-def test_cmd_check_loads_default_tenant():
+def test_cmd_check_loads_named_tenant(synthetic_tenant):
     runner = CliRunner()
-    result = runner.invoke(cli, ["check", "--tenant", "leoniedelacroix"])
+    result = runner.invoke(cli, ["check", "--tenant", "acme"])
     assert result.exit_code == 0
-    assert "leoniedelacroix" in result.output
+    assert "acme" in result.output
 
 
 def test_cmd_check_unknown_tenant_exits_cleanly():

@@ -18,6 +18,7 @@ from app.gsc.client import (
     exchange_code_for_token,
     google_oauth_configured,
     latest_import_status,
+    resolve_gsc_property,
     save_credentials,
 )
 from app.gsc.oauth_state import GoogleOAuthStateError, create_state, verify_state
@@ -150,6 +151,8 @@ async def gsc_callback(
         code_verifier = get_shop_config(shop, _PKCE_CONFIG_KEY)
         credentials = exchange_code_for_token(code, code_verifier=code_verifier)
         save_credentials(shop, credentials)
+        # Resolve and cache the shop's verified GSC property now that we have a token.
+        resolve_gsc_property(shop)
         if code_verifier:
             delete_shop_config(shop, _PKCE_CONFIG_KEY)
     except (GoogleOAuthStateError, GSCConfigurationError) as exc:

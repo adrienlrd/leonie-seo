@@ -40,8 +40,9 @@ from app.market_analysis.providers.google_ads_provider import GoogleAdsKeywordPr
 from app.market_analysis.providers.types import KeywordSignal
 from app.niche.signals.google_suggest import fetch_suggestions_bulk
 from app.observability.metrics import check_budget
+from app.shop_identity import brand_terms as shop_brand_terms
+from app.shop_identity import storefront_host
 from app.snapshot.scope import filter_products_by_scope
-from app.tenant_config import find_tenant_by_shop_domain
 
 logger = logging.getLogger(__name__)
 
@@ -1593,11 +1594,7 @@ def _merchant_public_domains(
             seen.add(domain)
 
     add(shop)
-    tenant = find_tenant_by_shop_domain(shop)
-    if tenant:
-        add(tenant.shopify_store_domain)
-        add(tenant.base_url or "")
-        add(tenant.gsc_property or "")
+    add(storefront_host(shop))
     for value in os.getenv("COMPETITOR_CRAWL_MERCHANT_DOMAINS", "").split(","):
         add(value)
     for key in gsc_page_rows or {}:
@@ -1619,11 +1616,8 @@ def _merchant_brand_terms(
         _domain_to_keyword_marker(shop),
     ):
         terms.update(_content_words(_coerce_str(value)))
-    tenant = find_tenant_by_shop_domain(shop)
-    if tenant:
-        terms.update(_content_words(tenant.brand))
-        terms.update(_content_words(_domain_to_keyword_marker(tenant.base_url or "")))
-        terms.update(_content_words(tenant.tenant_id.replace("-", " ")))
+    terms.update(shop_brand_terms(shop))
+    terms.update(_content_words(_domain_to_keyword_marker(storefront_host(shop))))
     return frozenset(terms)
 
 

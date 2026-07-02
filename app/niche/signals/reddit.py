@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 
 import requests
@@ -14,8 +15,10 @@ logger = logging.getLogger(__name__)
 _SEARCH_URL = "https://www.reddit.com/search.json"
 _SUBREDDIT_URL = "https://www.reddit.com/r/{subreddit}/search.json"
 _TIMEOUT = 15
-# Reddit requires a descriptive User-Agent (bot-like generic agents return 429)
-_USER_AGENT = "leonie-seo/0.1 (research; contact: contact@leoniedelacroix.com)"
+# Reddit requires a descriptive User-Agent (bot-like generic agents return 429).
+# Contact is configurable so the crawler carries no hardcoded merchant identity.
+_CONTACT = os.getenv("CRAWL_CONTACT_EMAIL", "contact@example.com")
+_USER_AGENT = f"leonie-seo/0.1 (research; contact: {_CONTACT})"
 
 # French and international pet subreddits
 _DEFAULT_SUBREDDITS = ["chiens", "chat_fr", "dogs", "cats", "petadvice"]

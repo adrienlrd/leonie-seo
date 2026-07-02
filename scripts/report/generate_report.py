@@ -126,7 +126,7 @@ def generate_markdown_report(
     """Render the full SEO audit report as a Markdown string.
 
     Args:
-        site: Site domain to display in the header (e.g. www.leoniedelacroix.com).
+        site: Site domain to display in the header (e.g. www.example.com).
               Falls back to the active tenant config if omitted.
     """
     from scripts._config import get_config

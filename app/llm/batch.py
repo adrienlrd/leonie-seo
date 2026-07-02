@@ -17,8 +17,8 @@ def _brand_pattern(brand: str | None) -> re.Pattern[str] | None:
 
     Returns None when the brand is empty or unset — callers then skip the
     brand-stripping step. Splits on whitespace AND non-alphanumeric so
-    "Léonie Delacroix" yields a pattern that strips both "léonie" and
-    "delacroix" (and similar variants typed by merchants).
+    "Acme Pets" yields a pattern that strips both "acme" and "pets"
+    (and similar variants typed by merchants).
     """
     if not brand:
         return None

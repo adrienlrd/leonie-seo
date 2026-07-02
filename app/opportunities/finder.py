@@ -13,6 +13,7 @@ from app.geo.readiness import score_product_readiness
 from app.niche.clustering import cluster_products
 from app.niche.gaps import analyze_keyword_gaps
 from app.niche.intent import cluster_gsc_queries
+from app.shop_identity import brand_terms
 from app.snapshot.scope import filter_products_by_scope, summarize_product_scopes
 from scripts.audit.detect_gsc_opportunities import classify_url
 from scripts.audit.detect_issues import detect_duplicate_content
@@ -310,7 +311,11 @@ def find_opportunities_for_catalog(
 
     clusters = cluster_products(titled)
     gaps = analyze_keyword_gaps(gsc_query_rows, clusters) if gsc_query_rows else []
-    intent_clusters = cluster_gsc_queries(gsc_query_rows) if gsc_query_rows else []
+    intent_clusters = (
+        cluster_gsc_queries(gsc_query_rows, brand_terms=brand_terms(shop_domain))
+        if gsc_query_rows
+        else []
+    )
     competitor_report = build_competitor_monitor(titled, gsc_query_rows or None)
     duplicate_issues = detect_duplicate_content(titled)
 

@@ -62,7 +62,7 @@ def build_hreflang_entries(
 
     Args:
         pages: List of page dicts with path, page_type, title.
-        base_url: Canonical base URL (e.g. https://www.leoniedelacroix.com).
+        base_url: Canonical base URL (e.g. https://www.example.com).
         locales: List of (hreflang, url_prefix) tuples.
 
     Returns:

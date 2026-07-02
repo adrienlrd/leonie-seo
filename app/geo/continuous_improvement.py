@@ -366,7 +366,7 @@ def reset_all_shop_tags(shop: str, db_path: Path | None = None) -> int:
 
 
 def _published_linked_handles(shop: str) -> set[str]:
-    """Return product handles linked from any published Léonie blog article."""
+    """Return product handles linked from any published blog article."""
     try:
         from app.blog.store import list_drafts  # noqa: PLC0415
 

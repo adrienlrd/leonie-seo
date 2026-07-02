@@ -9,7 +9,7 @@ from typing import Any
 
 from app.api.snapshot_store import load_latest_snapshot_from_db
 from app.paths import data_dir
-from app.tenant_config import find_tenant_by_shop_domain
+from app.shop_identity import storefront_base_url
 from scripts.audit.fetch_pagespeed import fetch_scores_for_urls
 
 _DATA_DIR = data_dir()
@@ -48,10 +48,7 @@ def _float(value: Any) -> float | None:
 def _base_url_for_shop(shop: str, site_url: str | None = None) -> str:
     if site_url:
         return site_url.rstrip("/")
-    tenant = find_tenant_by_shop_domain(shop)
-    if tenant and tenant.base_url:
-        return tenant.base_url.rstrip("/")
-    return f"https://{shop}".rstrip("/")
+    return storefront_base_url(shop)
 
 
 def _resource_url(base_url: str, prefix: str, resource: dict[str, Any]) -> str | None:
@@ -65,11 +62,7 @@ def _resource_url(base_url: str, prefix: str, resource: dict[str, Any]) -> str |
 
 def priority_urls_for_shop(shop: str, max_urls: int = 5, site_url: str | None = None) -> list[str]:
     """Return PageSpeed target URLs ordered by expected SEO impact."""
-    tenant = find_tenant_by_shop_domain(shop)
     urls: list[str] = []
-    if tenant and tenant.pagespeed_urls:
-        urls.extend(tenant.pagespeed_urls)
-
     base_url = _base_url_for_shop(shop, site_url)
     urls.append(base_url)
 

@@ -1,5 +1,5 @@
-# Tenant config — Léonie Delacroix
-# Used by all scripts via scripts._config.get_config()
+# Test-only tenant fixture — sample data used by CLI (scripts/) test suites.
+# The embedded app never loads this: it resolves shop identity from Shopify.
 
 tenant_id: leoniedelacroix
 name: "Léonie Delacroix"

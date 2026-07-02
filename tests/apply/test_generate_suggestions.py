@@ -1,6 +1,9 @@
 """Tests for scripts.apply.generate_suggestions."""
 
-from scripts._config import get_config
+import pytest
+
+from scripts._config import TenantConfig
+from scripts.apply import generate_suggestions
 from scripts.apply.generate_suggestions import (
     build_alt_suggestions,
     build_meta_suggestions,
@@ -9,35 +12,43 @@ from scripts.apply.generate_suggestions import (
     suggest_meta_title,
 )
 
-_cfg = get_config()
-BRAND = _cfg.brand
-TITLE_MIN = _cfg.seo_rules.title_min_chars
-TITLE_MAX = _cfg.seo_rules.title_max_chars
-DESC_MIN = _cfg.seo_rules.description_min_chars
-DESC_MAX = _cfg.seo_rules.description_max_chars
+_CFG = TenantConfig.model_validate(
+    {
+        "tenant_id": "acme",
+        "name": "Acme Pets",
+        "brand": "Acme Pets",
+        "niche": "pet_accessories_fr",
+        "base_url": "https://www.acme-pets.example",
+        "shopify_store_domain": "acme-pets.myshopify.com",
+    }
+)
+BRAND = _CFG.brand
+TITLE_MIN = _CFG.seo_rules.title_min_chars
+TITLE_MAX = _CFG.seo_rules.title_max_chars
+DESC_MIN = _CFG.seo_rules.description_min_chars
+DESC_MAX = _CFG.seo_rules.description_max_chars
+
+
+@pytest.fixture(autouse=True)
+def _use_synthetic_tenant(monkeypatch):
+    """Inject a synthetic tenant so no real merchant config is required."""
+    monkeypatch.setattr(generate_suggestions, "get_config", lambda *a, **k: _CFG)
 
 # ── Meta title ────────────────────────────────────────────────────────────────
 
 
 def test_suggest_meta_title_already_set_in_range():
-    existing = "Titre existant bien long pour le SEO | Léonie Delacroix"
+    existing = "Titre existant assez long pour le SEO ok | Acme Pets"
     result = suggest_meta_title("Autre", "chien", existing=existing)
     assert result["value"] == existing
     assert not result["is_review_needed"]
 
 
 def test_suggest_meta_title_already_set_too_short():
-    existing = "Titre court | Léonie Delacroix"
+    existing = "Titre court | Acme Pets"
     result = suggest_meta_title("Autre", "chien", existing=existing)
     assert result["value"] == existing
     assert result["is_review_needed"]
-
-
-def test_suggest_meta_title_fixes_old_brand():
-    existing = "Harnais en Cuir pour Chien | Léonie de la Croix"
-    result = suggest_meta_title("Harnais en Cuir pour Chien", "chien", existing=existing)
-    assert "Léonie Delacroix" in result["value"]
-    assert "Léonie de la Croix" not in result["value"]
 
 
 def test_suggest_meta_title_english_flagged():
@@ -47,7 +58,7 @@ def test_suggest_meta_title_english_flagged():
 
 
 def test_suggest_meta_title_ideal_length():
-    # "Distributeur Automatique pour Chat | Léonie Delacroix" = 53 chars ✓
+    # "Distributeur Automatique pour Chat | Acme Pets" lands in the 50-65 range ✓
     result = suggest_meta_title("Distributeur Automatique pour Chat", "chat")
     assert result["value"] is not None
     assert BRAND in result["value"]

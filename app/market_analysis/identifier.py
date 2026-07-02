@@ -55,7 +55,7 @@ def _build_label_prompt(items: list[dict[str, str]], niche_summary: str) -> str:
         "NE PAS utiliser le titre tel quel. "
         "Décrire le produit comme un client le rechercherait sur Google.\n"
         "Exemples :\n"
-        "  Titre 'Le Léonie' → label 'pull en cachemire pour chat'\n"
+        "  Titre 'Le Cosy' → label 'pull en cachemire pour chat'\n"
         "  Titre 'Fontaine Premium' → label 'fontaine à eau filtrante pour chat'\n"
         "  Titre 'Bowl Set' → label 'bol en céramique pour chat'\n"
         "  Titre 'Couchette Royale' → label 'coussin orthopédique pour chat'\n"

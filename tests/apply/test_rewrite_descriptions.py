@@ -50,29 +50,29 @@ def test_classify_product_uses_description_fallback():
 
 
 def test_build_description_contains_title():
-    desc = build_description("Le Pardessus Pour Chien", "vetements_chien")
+    desc = build_description("Le Pardessus Pour Chien", "vetements_chien", "Acme Pets")
     assert "Le Pardessus Pour Chien" in desc
 
 
 def test_build_description_word_count_above_minimum():
     for category in ("vetements_chien", "vetements_chat", "fontaines", "filtres", "accessoires"):
-        desc = build_description("Produit test", category)
+        desc = build_description("Produit test", category, "Acme Pets")
         word_count = len(desc.split())
         assert word_count >= 100, f"{category}: only {word_count} words"
 
 
 def test_build_description_has_four_paragraphs():
-    desc = build_description("Test", "fontaines")
+    desc = build_description("Test", "fontaines", "Acme Pets")
     assert desc.count("\n\n") >= 3
 
 
 def test_build_description_fontaines_mentions_veterinaire():
-    desc = build_description("L'abreuvoir", "fontaines")
+    desc = build_description("L'abreuvoir", "fontaines", "Acme Pets")
     assert "vétérinaire" in desc.lower()
 
 
 def test_build_description_vetements_chien_mentions_france():
-    desc = build_description("Le Pardessus Pour Chien", "vetements_chien")
+    desc = build_description("Le Pardessus Pour Chien", "vetements_chien", "Acme Pets")
     assert "france" in desc.lower() or "France" in desc
 
 

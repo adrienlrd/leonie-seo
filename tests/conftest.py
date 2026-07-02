@@ -1,6 +1,31 @@
 """Fixtures partagées pour tous les tests du projet SEO."""
 
+from pathlib import Path
+
 import pytest
+
+# CLI script suites (scripts/) call get_config(), which now requires an explicit
+# tenant. Point them at a test-only sample tenant so they never depend on a real
+# merchant config. The embedded app never calls get_config().
+_FIXTURE_TENANTS = Path(__file__).parent / "fixtures" / "tenants"
+_CLI_TENANT_ID = "leoniedelacroix"
+_CLI_TEST_DIRS = ("tests/report/", "tests/audit/", "tests/apply/")
+
+
+@pytest.fixture(autouse=True)
+def _cli_tenant(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
+    """Provide a sample tenant to CLI-script tests that call get_config()."""
+    rel = request.node.path.relative_to(request.config.rootpath).as_posix()
+    if any(rel.startswith(d) for d in _CLI_TEST_DIRS):
+        from scripts._config import reset_config_cache
+
+        monkeypatch.setenv("TENANT_ID", _CLI_TENANT_ID)
+        monkeypatch.setattr("scripts._config._CONFIG_DIR", _FIXTURE_TENANTS)
+        reset_config_cache()
+        yield
+        reset_config_cache()
+    else:
+        yield
 
 _ARCHIVED_API_TESTS = {
     "tests/test_api/test_alerts.py",

@@ -137,8 +137,6 @@ _COMMERCIAL_SIGNALS = {
 }
 
 _NAVIGATIONAL_SIGNALS = {
-    "leonie",
-    "leoniedelacroix",
     "site",
     "officiel",
     "connexion",
@@ -235,13 +233,15 @@ def _tokenize(text: str) -> list[str]:
     return [t for t in tokens if len(t) >= _MIN_TERM_LEN and t not in _STOPWORDS]
 
 
-def _classify_intent(query: str) -> QueryIntent:
+def _classify_intent(query: str, brand_terms: frozenset[str] = frozenset()) -> QueryIntent:
     """Classify a query into an intent category using rule-based signals.
 
     Priority: NAVIGATIONAL > TRANSACTIONAL > COMMERCIAL > INFORMATIONAL > UNKNOWN.
 
     Args:
         query: Raw GSC query string.
+        brand_terms: Shop-specific brand tokens treated as navigational signals,
+            derived generically from the shop's own domain (never hardcoded).
 
     Returns:
         QueryIntent enum value.
@@ -249,7 +249,7 @@ def _classify_intent(query: str) -> QueryIntent:
     normalized = _normalize(query)
     words = set(normalized.split())
 
-    if words & _NAVIGATIONAL_SIGNALS:
+    if words & (_NAVIGATIONAL_SIGNALS | brand_terms):
         return QueryIntent.NAVIGATIONAL
 
     # Multi-word transactional signals (e.g. "pas cher", "bon marche")
@@ -268,16 +268,17 @@ def _classify_intent(query: str) -> QueryIntent:
     return QueryIntent.UNKNOWN
 
 
-def classify_intent(query: str) -> QueryIntent:
+def classify_intent(query: str, brand_terms: frozenset[str] = frozenset()) -> QueryIntent:
     """Classify a query into an intent category.
 
     Args:
         query: Raw search query.
+        brand_terms: Shop-specific brand tokens treated as navigational signals.
 
     Returns:
         QueryIntent enum value.
     """
-    return _classify_intent(query)
+    return _classify_intent(query, brand_terms)
 
 
 def _compute_tfidf(corpus: list[list[str]]) -> list[dict[str, float]]:
@@ -391,6 +392,7 @@ def cluster_gsc_queries(
     gsc_queries: list[dict],
     *,
     min_impressions: int = _MIN_IMPRESSIONS,
+    brand_terms: frozenset[str] = frozenset(),
 ) -> list[IntentCluster]:
     """Cluster GSC queries by intent and semantic similarity.
 
@@ -416,7 +418,7 @@ def cluster_gsc_queries(
     # Group by intent first
     by_intent: defaultdict[QueryIntent, list[dict]] = defaultdict(list)
     for row in filtered:
-        intent = _classify_intent(row["query"])
+        intent = _classify_intent(row["query"], brand_terms)
         by_intent[intent].append(row)
 
     all_clusters: list[IntentCluster] = []

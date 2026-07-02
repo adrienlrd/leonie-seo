@@ -41,7 +41,7 @@ def findings_from_mini_results(results: list[MiniCrawlResult]) -> list[dict[str,
                 "url": result.url,
                 "issue_type": "blocked_by_robots",
                 "severity": "info",
-                "detail": "robots.txt disallows this URL for the Léonie crawler.",
+                "detail": "robots.txt disallows this URL for the SEO crawler.",
                 "source": "crawl_l3",
             })
             continue

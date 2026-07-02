@@ -25,8 +25,8 @@ from app.gsc.token_store import (
     save_google_token,
 )
 from app.paths import data_dir
-from app.shop_config_store import set_shop_config
-from app.tenant_config import find_tenant_by_shop_domain
+from app.shop_config_store import get_shop_config, set_shop_config
+from app.shop_identity import storefront_host
 
 logger = logging.getLogger(__name__)
 
@@ -147,14 +147,58 @@ def build_gsc_service(shop: str) -> Any:
     )
 
 
+_GSC_PROPERTY_KEY = "gsc_property"
+
+
+def list_verified_sites(shop: str, *, service: Any | None = None) -> list[str]:
+    """Return the shop's verified Search Console properties (siteUrl strings)."""
+    gsc_service = service or build_gsc_service(shop)
+    response = gsc_service.sites().list().execute()
+    return [
+        str(entry.get("siteUrl", ""))
+        for entry in response.get("siteEntry", [])
+        if entry.get("permissionLevel") != "siteUnverifiedUser" and entry.get("siteUrl")
+    ]
+
+
+def _match_property(host: str, sites: list[str]) -> str | None:
+    """Pick the verified property matching ``host`` — prefer the domain property."""
+    bare = host.removeprefix("www.")
+    domain_forms = {f"sc-domain:{host}", f"sc-domain:{bare}"}
+    for site in sites:
+        if site in domain_forms:
+            return site
+    for site in sites:
+        site_host = site.replace("https://", "").replace("http://", "").strip("/")
+        if site_host in {host, bare, f"www.{bare}"}:
+            return site
+    return None
+
+
+def resolve_gsc_property(shop: str, *, service: Any | None = None) -> str | None:
+    """Discover the shop's GSC property from its verified sites and cache it."""
+    try:
+        sites = list_verified_sites(shop, service=service)
+    except Exception as exc:  # noqa: BLE001 — discovery is best-effort, never fatal
+        logger.warning("GSC sites().list failed for %s: %s", shop, exc)
+        return None
+    matched = _match_property(storefront_host(shop), sites)
+    if matched:
+        set_shop_config(shop, _GSC_PROPERTY_KEY, matched)
+    return matched
+
+
 def default_site_url(shop: str) -> str:
-    """Return the configured GSC property for a shop."""
-    if site_url := os.getenv("GSC_SITE_URL"):
-        return site_url
-    tenant = find_tenant_by_shop_domain(shop)
-    if tenant and tenant.gsc_property:
-        return tenant.gsc_property
-    return f"https://{shop}"
+    """Return the GSC property for a shop, resolved generically from the shop itself.
+
+    Order: cached resolved property → live auto-discovery via verified sites →
+    fallback to the domain property derived from the storefront host.
+    """
+    if cached := get_shop_config(shop, _GSC_PROPERTY_KEY):
+        return cached
+    if resolved := resolve_gsc_property(shop):
+        return resolved
+    return f"sc-domain:{storefront_host(shop)}"
 
 
 _ROW_LIMIT = 25_000  # GSC API maximum per request

@@ -12,6 +12,7 @@ from typing import Any
 
 from app.db import DB_PATH
 from app.db_adapter import get_conn
+from app.shop_identity import persist_storefront_host
 from scripts.audit.crawl_shopify import (
     fetch_articles,
     fetch_collections,
@@ -216,6 +217,9 @@ async def crawl_shopify_catalog_for_job(
     timestamped_path = shop_dir / f"snapshot_{timestamp}.json"
 
     _write_json(latest_path, payload)
+    # Cache the shop's real primary domain so every feature can resolve the
+    # storefront host generically (even when only the DB snapshot is available).
+    persist_storefront_host(shop, shop_metadata)
     # Skip timestamped history copy on the fast refresh path — only write for full audits.
     if include_content_pages:
         _write_json(timestamped_path, payload)

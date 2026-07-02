@@ -233,8 +233,8 @@ def _handle_from_url(url: str) -> str:
     return ""
 
 
-def _leonie_articles_as_snapshot(shop: str) -> list[dict[str, Any]]:
-    """Convert published Léonie blog drafts to the snapshot article format.
+def _published_articles_as_snapshot(shop: str) -> list[dict[str, Any]]:
+    """Convert the shop's published blog drafts to the snapshot article format.
 
     The returned dicts match the format expected by build_recommendations():
     { handle, title, keywords[], linked_product_handles[] }
@@ -245,7 +245,7 @@ def _leonie_articles_as_snapshot(shop: str) -> list[dict[str, Any]]:
     try:
         drafts = list_drafts(shop)
     except Exception as exc:
-        logger.warning("_leonie_articles_as_snapshot: could not load drafts for %s: %s", shop, exc)
+        logger.warning("_published_articles_as_snapshot: could not load drafts for %s: %s", shop, exc)
         return []
     articles = []
     for draft in drafts:
@@ -352,9 +352,9 @@ def _run_analysis_background(
         retired_labels = get_shop_retired_tags(shop_domain)
         retired_lower = {lbl.lower().strip() for lbl in retired_labels}
 
-        # Merge snapshot articles with Léonie-published blog articles so the
+        # Merge snapshot articles with the shop's published blog articles so the
         # internal-linking engine sees articles we've already published.
-        merged_articles = list(articles or []) + _leonie_articles_as_snapshot(shop_domain)
+        merged_articles = list(articles or []) + _published_articles_as_snapshot(shop_domain)
 
         result = run_market_analysis(
             products,

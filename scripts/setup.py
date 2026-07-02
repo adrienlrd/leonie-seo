@@ -22,7 +22,7 @@ _NICHES_DIR = Path(__file__).parent.parent / "config" / "niches"
 _ENV_PATH = Path(__file__).parent.parent / ".env"
 
 _REQUIRED_SECRETS: list[tuple[str, str]] = [
-    ("SHOPIFY_STORE_DOMAIN", "Domaine Shopify (ex: 287c4a-bb.myshopify.com)"),
+    ("SHOPIFY_STORE_DOMAIN", "Domaine Shopify (ex: your-store.myshopify.com)"),
     ("SHOPIFY_ACCESS_TOKEN", "Token Admin Shopify"),
     ("GOOGLE_OAUTH_CLIENT_PATH", "Chemin vers le fichier client OAuth Google"),
 ]
@@ -259,7 +259,7 @@ def cmd_init() -> None:
         break
 
     # brand
-    brand = click.prompt("  Nom de la marque (ex: Léonie Delacroix)")
+    brand = click.prompt("  Nom de la marque (ex: Acme Pets)")
 
     # base_url
     while True:

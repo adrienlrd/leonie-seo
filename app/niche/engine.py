@@ -17,6 +17,7 @@ from app.niche.gaps import analyze_keyword_gaps
 from app.niche.intent import cluster_gsc_queries
 from app.niche.models import NicheReport
 from app.niche.ner import extract_entities
+from app.shop_identity import brand_terms
 
 
 def _aggregate_entities(products: list[dict]) -> dict[str, dict[str, int]]:
@@ -66,7 +67,9 @@ def run_niche_analysis(
     """
     clusters = cluster_products(products)
     gaps = analyze_keyword_gaps(gsc_queries, clusters, min_impressions=min_impressions)
-    intent_clusters = cluster_gsc_queries(gsc_queries, min_impressions=min_impressions)
+    intent_clusters = cluster_gsc_queries(
+        gsc_queries, min_impressions=min_impressions, brand_terms=brand_terms(shop)
+    )
     entity_summary = _aggregate_entities(products)
 
     return NicheReport(

@@ -35,8 +35,17 @@ def test_classify_intent_commercial():
 
 
 def test_classify_intent_navigational():
-    assert classify_intent("leonie delacroix harnais") == QueryIntent.NAVIGATIONAL
-    assert classify_intent("site leoniedelacroix") == QueryIntent.NAVIGATIONAL
+    # Generic navigational signals (no hardcoded brand).
+    assert classify_intent("site officiel") == QueryIntent.NAVIGATIONAL
+    assert classify_intent("mon compte") == QueryIntent.NAVIGATIONAL
+
+
+def test_classify_intent_navigational_with_shop_brand_terms():
+    # Brand tokens are supplied per-shop (derived from the shop's own domain).
+    brand = frozenset({"acmepets"})
+    assert classify_intent("acmepets harnais", brand) == QueryIntent.NAVIGATIONAL
+    # Without the brand term provided, it is not treated as navigational.
+    assert classify_intent("acmepets harnais") != QueryIntent.NAVIGATIONAL
 
 
 def test_classify_intent_unknown():
@@ -50,8 +59,9 @@ def test_classify_intent_transactional_priority_over_commercial():
 
 
 def test_classify_intent_navigational_priority_over_transactional():
-    # navigational always wins
-    assert classify_intent("acheter leonie harnais") == QueryIntent.NAVIGATIONAL
+    # navigational always wins, even over transactional signals
+    brand = frozenset({"acmepets"})
+    assert classify_intent("acheter acmepets harnais", brand) == QueryIntent.NAVIGATIONAL
 
 
 # ---------------------------------------------------------------------------

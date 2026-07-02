@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 
 _CONFIG_DIR = Path(__file__).parent.parent / "config" / "tenants"
 _NICHES_DIR = Path(__file__).parent.parent / "config" / "niches"
-_DEFAULT_TENANT = "leoniedelacroix"
 
 
 class SeoRules(BaseModel):
@@ -63,7 +62,7 @@ class TenantConfig(BaseModel):
     locale: str = "fr-FR"
     currency: str = "EUR"
     ga4_property_id: str | None = None  # e.g. "properties/459014688"
-    gsc_property: str | None = None  # e.g. "sc-domain:leoniedelacroix.com"
+    gsc_property: str | None = None  # e.g. "sc-domain:example.com"
     product_categories: dict[str, str] = Field(default_factory=dict)
     categories: list[str] = Field(default_factory=list)
     category_labels: dict[str, str] = Field(default_factory=dict)
@@ -76,7 +75,7 @@ class TenantConfig(BaseModel):
 
     @property
     def domain(self) -> str:
-        """Bare domain without scheme (e.g. www.leoniedelacroix.com)."""
+        """Bare domain without scheme (e.g. www.example.com)."""
         return self.base_url.split("://", 1)[-1].rstrip("/")
 
     def hreflang_locales_as_tuples(self) -> list[tuple[str, str]]:
@@ -157,46 +156,23 @@ def load_tenant(tenant_id: str) -> TenantConfig:
 def get_config(tenant_id: str | None = None) -> TenantConfig:
     """Return the active tenant config (cached per tenant_id).
 
-    Resolves in order: explicit argument → TENANT_ID env var → default.
+    Resolves in order: explicit argument → TENANT_ID env var. No default tenant:
+    the CLI must be pointed at a tenant explicitly (the embedded app never uses
+    this — it resolves shop identity generically from Shopify).
 
     Args:
         tenant_id: Override tenant. If None, reads TENANT_ID env var.
 
     Returns:
         Cached TenantConfig for the resolved tenant.
+
+    Raises:
+        RuntimeError: If neither an argument nor TENANT_ID is provided.
     """
-    resolved = tenant_id or os.getenv("TENANT_ID", _DEFAULT_TENANT)
+    resolved = tenant_id or os.getenv("TENANT_ID")
+    if not resolved:
+        raise RuntimeError("No tenant specified: pass a tenant_id or set TENANT_ID.")
     return load_tenant(resolved)
-
-
-def find_tenant_by_shop_domain(shop_domain: str) -> TenantConfig | None:
-    """Scan config/tenants/*.yaml for the tenant whose shopify_store_domain matches.
-
-    Used by app/api/ routes to resolve the merchant brand (and other tenant
-    settings) from the OAuth-resolved shop domain without requiring TENANT_ID.
-
-    Args:
-        shop_domain: Shopify shop domain (e.g. "287c4a-bb.myshopify.com").
-
-    Returns:
-        The matching TenantConfig, or None if no tenant file declares it.
-    """
-    if not shop_domain:
-        return None
-    if not _CONFIG_DIR.exists():
-        return None
-    for path in _CONFIG_DIR.glob("*.yaml"):
-        try:
-            with open(path, encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-        except (yaml.YAMLError, OSError):
-            continue
-        if isinstance(data, dict) and data.get("shopify_store_domain") == shop_domain:
-            try:
-                return TenantConfig.model_validate(data)
-            except ValueError:
-                continue
-    return None
 
 
 @lru_cache(maxsize=8)

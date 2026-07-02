@@ -10,8 +10,6 @@ from rich.table import Table
 
 from scripts._config import get_config
 
-_OLD_BRAND = "Léonie de la Croix"
-
 _ENGLISH_SIGNALS = {
     "for",
     "and",
@@ -69,7 +67,7 @@ def suggest_meta_title(
     title_max = _cfg.seo_rules.title_max_chars
 
     if existing and existing.strip():
-        e = existing.strip().replace(_OLD_BRAND, brand)
+        e = existing.strip()
         in_range = title_min <= len(e) <= title_max
         return {
             "value": e,

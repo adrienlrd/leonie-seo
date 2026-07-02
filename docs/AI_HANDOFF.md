@@ -12,6 +12,22 @@
 
 - **Date:** 2026-07-02
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Rendre l'app **100% générique** — supprimer toute référence au domaine/marque marchand (`leoniedelacroix.com`, « Léonie Delacroix ») et dériver l'identité boutique depuis Shopify, pour que **toutes** les fonctionnalités marchent pour n'importe quelle boutique.
+- **Summary:**
+  - **Fondation** — nouveau `app/shop_identity.py` : source unique de vérité. `storefront_host(shop)` (shop_config `storefront_host` → snapshot `shop.primaryDomain` → fallback `*.myshopify.com`), `storefront_base_url(shop)`, `brand_terms(shop)` (dérivés du host). Host persisté à chaque snapshot via `persist_storefront_host()` dans `app/jobs/audit_snapshot.py`.
+  - **Bug lien indexation + PageSpeed** : `app/geo/analysis_overview.py` et `app/pagespeed/client.py` utilisent `storefront_base_url(shop)` (plus l'env/tenant). Corrige le lien « Vérifier l'indexation » qui affichait l'ancien domaine.
+  - **GSC auto-découverte** : `app/gsc/client.py` → `list_verified_sites` / `resolve_gsc_property` / `default_site_url` matchent les propriétés vérifiées (`sites().list()`) contre le host réel, cache `shop_config.gsc_property`. Déclenché dans `gsc_callback`. Suppression de `os.getenv("GSC_SITE_URL")` et de la branche tenant.
+  - **Marque générique** : `app/niche/intent.py` — retrait de « leonie » des signaux navigationnels + param `brand_terms`. Alimenté par `brand_terms(shop)` chez `finder.py` / `niche/engine.py` / `market_analysis/engine.py`.
+  - **Suppression config/CLI/env** : `config/tenants/leoniedelacroix.yaml` et `app/tenant_config.py` (orphelin) supprimés ; `scripts/_config.get_config` exige désormais un tenant explicite (plus de défaut) ; `find_tenant_by_shop_domain` retiré ; `.env.example` nettoyé. Email crawler Reddit → `CRAWL_CONTACT_EMAIL` configurable.
+  - **Scrub** : docstrings/exemples/templates (`app/llm/batch.py`, `app/api/market_analysis.py`, `app/crawl/findings.py`, `app/market_analysis/identifier.py`, `scripts/apply/*`, `config/keywords.yaml`, `config/niches/pet_accessories_fr.yaml`) → marque neutre. Templates de descriptions CLI paramétrés via `{brand}` (tenant).
+  - **Tests** : `tests/test_shop_identity.py` + `tests/test_gsc/test_property_resolution.py` (nouveaux) ; `tests/test_config.py` / `tests/test_setup.py` réécrits sur tenant synthétique ; les suites CLI (`tests/report|audit|apply`) reçoivent un tenant échantillon via autouse `_cli_tenant` dans `tests/conftest.py` (fixture `tests/fixtures/tenants/leoniedelacroix.yaml`, hors périmètre app).
+- **Vérif générique** : `grep -rniI "leoniedelacroix|léonie" app/ scripts/ config/ shopify-app/app` (hors `leonie-seo`/`LEONIE_*`/`LeonieSEOBot`) → **0 résultat**.
+- **Validations:** `ruff check .` ✅ ; `pytest` → **2018 passed, 182 skipped** ✅ ; `npm run typecheck` ✅ ; `npm run build` ✅.
+
+## Previous completed task
+
+- **Date:** 2026-07-02
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** Page Analyse — quand un produit/blog validé a **0 clic** sur la période, inviter à **vérifier l'indexation** avec un lien Google.
 - **Summary:**
   - **Constat** : l'app ne peut PAS vérifier l'indexation directement (GSC n'utilise que `searchanalytics().query()`, pas l'API URL Inspection). L'API URL Inspection est faisable (scope `webmasters.readonly` déjà accordé, même service `build_gsc_service`) mais bornée par un quota strict (2000/j) → à faire en mode « à la demande + cache » plus tard. Pour l'instant : message + lien manuel.
