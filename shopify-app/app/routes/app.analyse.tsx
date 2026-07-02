@@ -75,6 +75,7 @@ interface ProductEntry {
   image_url?: string | null;
   meta_title?: string | null;
   meta_description?: string | null;
+  page_url?: string;
 }
 
 interface ClickEntry {
@@ -338,6 +339,24 @@ function ClicksLine({ entry, locale }: { entry: ClickEntry | undefined; locale: 
   );
 }
 
+/** When a validated resource has 0 clicks, prompt to check indexing on Google. */
+function ZeroClicksHint({
+  entry, pageUrl, locale,
+}: { entry: ClickEntry | undefined; pageUrl?: string; locale: Locale }) {
+  if (!entry || entry.total !== 0 || !pageUrl) return null;
+  const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(`site:${pageUrl}`)}`;
+  return (
+    <InlineStack gap="150" blockAlign="center" wrap>
+      <Text as="span" variant="bodySm" tone="subdued">
+        ⚠️ {t(locale, "analyseZeroClicksHint")}
+      </Text>
+      <Link url={googleUrl} external>
+        {t(locale, "analyseZeroClicksCheck")}
+      </Link>
+    </InlineStack>
+  );
+}
+
 export default function AnalysePage() {
   const { locale, products, summary, clicks: initialClicks, ga4Ready: initialGa4Ready } =
     useLoaderData<typeof loader>() as LoaderData;
@@ -469,6 +488,7 @@ export default function AnalysePage() {
                               </InlineStack>
 
                               <ClicksLine entry={entry} locale={locale} />
+                              <ZeroClicksHint entry={entry} pageUrl={product.page_url} locale={locale} />
 
                               <ValidationClicksChart
                                 series={entry?.series ?? []}
@@ -523,6 +543,11 @@ export default function AnalysePage() {
                               </Text>
                             </InlineStack>
                             <ClicksLine entry={clicks[blog.resource_id]} locale={locale} />
+                            <ZeroClicksHint
+                              entry={clicks[blog.resource_id]}
+                              pageUrl={blog.page_url}
+                              locale={locale}
+                            />
                             <Button
                               onClick={() => toggleId(blog.resource_id)}
                               textAlign="left"

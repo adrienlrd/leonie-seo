@@ -10,6 +10,18 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-02
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Page Analyse — quand un produit/blog validé a **0 clic** sur la période, inviter à **vérifier l'indexation** avec un lien Google.
+- **Summary:**
+  - **Constat** : l'app ne peut PAS vérifier l'indexation directement (GSC n'utilise que `searchanalytics().query()`, pas l'API URL Inspection). L'API URL Inspection est faisable (scope `webmasters.readonly` déjà accordé, même service `build_gsc_service`) mais bornée par un quota strict (2000/j) → à faire en mode « à la demande + cache » plus tard. Pour l'instant : message + lien manuel.
+  - **Backend** : `app/geo/analysis_overview.py` → helper `_storefront_base_url(shop)` (via `default_site_url`, gère `sc-domain:`), et nouveau champ `page_url` (base + `resource_path`) sur chaque entrée.
+  - **Frontend** : `app.analyse.tsx` → composant `ZeroClicksHint` (rendu sous `ClicksLine` pour produits ET blogs) : si `entry.total === 0` et `page_url`, affiche « Aucun clic — vérifiez l'indexation » + lien externe vers une recherche Google `site:<page_url>`. Clés i18n `analyseZeroClicksHint` / `analyseZeroClicksCheck` (FR+EN).
+- **Files modified:** `app/geo/analysis_overview.py`, `shopify-app/app/routes/app.analyse.tsx`, `shopify-app/app/lib/i18n.ts`, `tests/test_geo/test_analysis_overview_meta.py`.
+- **Validations:** `ruff check app/ tests/` ✅ ; `pytest tests/test_geo` → **164 passed** ✅ ; `npm run typecheck` ✅ ; `npm run build` ✅.
+
+## Previous completed task
+
 - **Date:** 2026-07-01
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Page Analyse — **carte produit** (image + méta-titre + méta-description) avec **graphique 28 j** des clics organiques Google+IA cumulés/jour et **dropdown « Plus de détail »** fermé enveloppant le détail par date de validation.

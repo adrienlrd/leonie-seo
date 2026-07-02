@@ -41,6 +41,8 @@ def test_product_entry_carries_image_and_meta() -> None:
         side_effect=[{"events": [_product_event(gid)]}, {"events": []}],
     ), patch("app.geo.analysis_overview._find_gsc_file", return_value=None), patch(
         "app.api.snapshot_store.load_latest_snapshot_from_db", return_value=_snapshot(gid)
+    ), patch(
+        "app.geo.analysis_overview._storefront_base_url", return_value="https://leonie.example"
     ):
         result = build_analysis_overview("shop.myshopify.com")
 
@@ -48,6 +50,7 @@ def test_product_entry_carries_image_and_meta() -> None:
     assert entry["image_url"] == "https://cdn/harnais.jpg"
     assert entry["meta_title"] == "Harnais chien | Léonie"
     assert entry["meta_description"] == "Confort et sécurité."
+    assert entry["page_url"] == "https://leonie.example/products/harnais"
 
 
 def test_missing_snapshot_leaves_meta_null() -> None:

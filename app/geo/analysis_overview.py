@@ -180,6 +180,16 @@ def _product_meta_index(shop: str, db_path: Path | None) -> dict[str, dict[str, 
     return index
 
 
+def _storefront_base_url(shop: str) -> str:
+    """Resolve the public storefront/GSC base URL (no trailing slash) for a shop."""
+    from app.gsc.client import default_site_url  # noqa: PLC0415
+
+    raw = default_site_url(shop)
+    if raw.startswith("sc-domain:"):
+        return "https://" + raw[len("sc-domain:") :]
+    return raw.rstrip("/")
+
+
 def build_analysis_overview(
     shop: str,
     *,
@@ -202,6 +212,7 @@ def build_analysis_overview(
     gsc_rows = _parse_gsc_csv(gsc_file.read_text()) if gsc_file else {}
 
     meta_index = _product_meta_index(shop, path)
+    base_url = _storefront_base_url(shop)
 
     # Blog articles the merchant has since deleted (no matching draft) must drop
     # off the analysis page. Valid blog ids = current drafts' Shopify article id
@@ -351,6 +362,7 @@ def build_analysis_overview(
             "image_url": meta.get("image_url"),
             "meta_title": meta.get("meta_title"),
             "meta_description": meta.get("meta_description"),
+            "page_url": (base_url + product["resource_path"]) if product["resource_path"] else "",
         })
 
     # Most recently optimized product first
