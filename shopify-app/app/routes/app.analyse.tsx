@@ -345,14 +345,19 @@ function ZeroClicksHint({
 }: { entry: ClickEntry | undefined; pageUrl?: string; locale: Locale }) {
   if (!entry || entry.total !== 0 || !pageUrl) return null;
   const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(`site:${pageUrl}`)}`;
+  // App Bridge intercepts <a target="_blank"> and loads external URLs inside the
+  // embedded iframe (Google refuses framing). window.open breaks out to a real tab.
   return (
     <InlineStack gap="150" blockAlign="center" wrap>
       <Text as="span" variant="bodySm" tone="subdued">
         ⚠️ {t(locale, "analyseZeroClicksHint")}
       </Text>
-      <Link url={googleUrl} external>
+      <Button
+        variant="plain"
+        onClick={() => window.open(googleUrl, "_blank", "noopener,noreferrer")}
+      >
         {t(locale, "analyseZeroClicksCheck")}
-      </Link>
+      </Button>
     </InlineStack>
   );
 }
