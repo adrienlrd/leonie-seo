@@ -2954,7 +2954,7 @@ function AnalysisSchedulePanels({
           loading: running,
           onAction: () => {
             const selection = Object.fromEntries(
-              validatable.map((p) => [p.product_id, [...(checked[p.product_id] ?? [])]]),
+              analyzed.map((p) => [p.product_id, [...(checked[p.product_id] ?? [])]]),
             );
             startFetcher.submit(
               { intent: "startReanalysis", selection: JSON.stringify(selection) },
@@ -2976,20 +2976,15 @@ function AnalysisSchedulePanels({
               </Banner>
             )}
             <Text as="p">{t(locale, "runReanalysisConfirmBody")}</Text>
-            {validatable.length > 0 && (
+            {analyzed.length > 0 && (
               <BlockStack gap="300">
                 <Text as="h3" variant="headingSm">{t(locale, "runReanalysisSelectTitle")}</Text>
-                {validatable.map((p) => {
-                  const pack = p.content_test_pack;
-                  const fields = VALIDATE_FIELDS.filter(
-                    (f) => hasProposalFor(pack, f) && !isApplied(p.product_id, pack, f),
-                  );
-                  if (fields.length === 0) return null;
+                {analyzed.map((p) => {
                   const set = checked[p.product_id] ?? new Set<ValidateField>();
                   return (
                     <BlockStack key={p.product_id} gap="100">
                       <Text as="h4" variant="headingXs">{p.product_title}</Text>
-                      {fields.map((f) => (
+                      {VALIDATE_FIELDS.map((f) => (
                         <Checkbox
                           key={f}
                           checked={set.has(f)}
