@@ -544,10 +544,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // ── Manual scheduled re-analysis (async job + polling) ──────────────
   if (intent === "startReanalysis") {
     try {
+      const selectionRaw = formData.get("selection") as string | null;
       const resp = await callBackendForShop(
         session.shop,
         `/api/shops/${session.shop}/agent-schedule/run-and-publish`,
-        { accessToken: session.accessToken, method: "POST" },
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: selectionRaw ? JSON.stringify({ selection: JSON.parse(selectionRaw) }) : undefined,
+        },
       );
       if (!resp.ok) {
         return json({ type: "startReanalysis", jobId: null, error: `HTTP ${resp.status}` });
@@ -2948,7 +2953,13 @@ function AnalysisSchedulePanels({
           content: t(locale, "runReanalysisConfirmCta"),
           loading: running,
           onAction: () => {
-            startFetcher.submit({ intent: "startReanalysis" }, { method: "post" });
+            const selection = Object.fromEntries(
+              validatable.map((p) => [p.product_id, [...(checked[p.product_id] ?? [])]]),
+            );
+            startFetcher.submit(
+              { intent: "startReanalysis", selection: JSON.stringify(selection) },
+              { method: "post" },
+            );
             setConfirmOpen(false);
           },
         }}
@@ -2965,6 +2976,32 @@ function AnalysisSchedulePanels({
               </Banner>
             )}
             <Text as="p">{t(locale, "runReanalysisConfirmBody")}</Text>
+            {validatable.length > 0 && (
+              <BlockStack gap="300">
+                <Text as="h3" variant="headingSm">{t(locale, "runReanalysisSelectTitle")}</Text>
+                {validatable.map((p) => {
+                  const pack = p.content_test_pack;
+                  const fields = VALIDATE_FIELDS.filter(
+                    (f) => hasProposalFor(pack, f) && !isApplied(p.product_id, pack, f),
+                  );
+                  if (fields.length === 0) return null;
+                  const set = checked[p.product_id] ?? new Set<ValidateField>();
+                  return (
+                    <BlockStack key={p.product_id} gap="100">
+                      <Text as="h4" variant="headingXs">{p.product_title}</Text>
+                      {fields.map((f) => (
+                        <Checkbox
+                          key={f}
+                          checked={set.has(f)}
+                          onChange={() => toggleField(p.product_id, f)}
+                          label={t(locale, VALIDATE_FIELD_LABELS[f])}
+                        />
+                      ))}
+                    </BlockStack>
+                  );
+                })}
+              </BlockStack>
+            )}
           </BlockStack>
         </Modal.Section>
       </Modal>

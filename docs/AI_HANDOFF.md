@@ -12,6 +12,22 @@
 
 - **Date:** 2026-07-03
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Corriger le second bug d'auto-publication (décocher tous les champs d'un produit publiait quand même **tout**) et permettre au marchand de choisir **directement dans la popup** de ré-analyse ce qui sera publié, par produit.
+- **Root cause:** « Lancer une analyse maintenant » déclenche une **ré-analyse complète** : `run_market_reanalysis` régénère des `content_test_pack` **frais sans `auto_publish_fields`**, puis `save_latest_result` **écrase** `market_analysis_latest.json` (perdant la sélection persistée), puis `auto_publish_checked_proposals` lit les packs frais et retombe sur `_default_auto_publish_fields` = **tous les champs proposés**. Le produit « description seule » n'avait publié que description par **coïncidence** (seul champ dont `proposed != current`).
+- **Fix backend:**
+  - `app/agent_schedule/reanalysis.py` : nouveau helper `_carry_forward_auto_publish_selection(shop, completed_data, selection, *, db_path)` appelé **avant** `save_latest_result`. Priorité : `selection` explicite (payload popup) → sinon la sélection **persistée** (`load_latest_result`). **Préserve la liste vide** (`[]` = ne rien publier). Filtre hors `_APPLYABLE_FIELDS`. Nouveau param `selection` sur `run_market_reanalysis` et `run_scheduled_reanalysis` (le run quotidien sans payload lit donc la sélection persistée).
+  - `app/api/agent_schedule.py` : body optionnel `RunAndPublishRequest(selection: dict[str, list[str]] | None)` ; `_run_reanalysis_job` threade `selection`.
+- **Fix frontend:**
+  - `shopify-app/app/routes/app._index.tsx` : la popup « Lancer une ré-analyse planifiée ? » liste désormais chaque produit avec ses cases à cocher (pré-remplies depuis `auto_publish_fields` via `seedChecked`). À la confirmation, construit `selection = {product_id: [fields]}` depuis l'état `checked` et l'envoie avec l'intent `startReanalysis` (**race-free** : le payload confirmé prime sur la persistance async des toggles). Le handler `startReanalysis` transmet `selection` dans le body du POST `run-and-publish`.
+  - `shopify-app/app/lib/i18n.ts` : nouvelle clé `runReanalysisSelectTitle` (FR/EN).
+- **Tests:** `tests/test_agent_schedule/test_reanalysis.py` (4 tests du helper : sélection explicite / liste vide préservée / filtrage champs inconnus / lecture de la sélection persistée quand `selection=None`) ; `tests/market_analysis/test_auto_publish.py::test_empty_selection_publishes_nothing`.
+- **Validations:** `ruff check` (fichiers modifiés) ✅ ; `pytest` complet → **2025 passed, 182 skipped** ✅ ; `npm run typecheck` ✅ ; `npm run build` ✅.
+- **Open risk:** vérifié par tests unitaires ; **non reproduit** en runtime (pas de token/boutique en local). À confirmer après déploiement : décocher tous les champs d'un produit dans la popup → ce produit ne publie **rien**, les autres publient selon leurs cases.
+
+## Previous completed task
+
+- **Date:** 2026-07-03
+- **Agent:** Claude (Opus 4.8)
 - **Goal:** **Corriger la cause racine** de l'auto-publication qui ne publiait jamais rien via « Lancer une analyse maintenant » (suite au diagnostic de l'export marchand `Ananlyse_json/`).
 - **Root cause:** `get_token(shop)` renvoie un **dict** (`{"access_token": "shpua_…", …}`), mais `auto_publish_checked_proposals` le passait tel quel comme `access_token` à `_apply_proposals_core` → `ShopifyWriter`, qui l'injectait dans le header `X-Shopify-Access-Token`. Un dict en valeur de header → **toutes** les écritures Shopify de ce chemin échouaient silencieusement (0 geo_event). L'endpoint d'apply manuel, lui, passe `ctx.access_token` (une string) et fonctionnait — d'où les applies historiques du cycle learning (`source=auto_apply`) mais aucun via le bouton « Lancer une analyse ». Le test existant masquait le bug en mockant `get_token` avec une string.
 - **Diagnostic (export 02 Juil 2026):** `mode=auto_apply` (schedule + learning), 3 produits avec proposals (`improved:true`), `last_reanalysis_at` positionné → la ré-analyse s'est bien exécutée, mais **0** nouvel `applied_optimization` (dernier event = 06-29, cycle learning). Échec **avant** l'apply, mode correct → suspect = token.

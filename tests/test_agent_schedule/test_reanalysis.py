@@ -280,3 +280,53 @@ def test_run_due_runs_learning_cycle_even_when_reanalysis_budget_exceeded(
     schedule = get_schedule(SHOP, db_path=db)
     # Budget skip must not advance the cadence — retried on the next due tick.
     assert schedule.last_reanalysis_at is None
+
+
+# ── _carry_forward_auto_publish_selection ────────────────────────────────────
+
+
+def _completed(*product_ids: str) -> dict:
+    return {
+        "products": [
+            {"product_id": pid, "content_test_pack": {"proposed_meta_title": "New"}}
+            for pid in product_ids
+        ]
+    }
+
+
+def test_carry_forward_uses_explicit_selection() -> None:
+    data = _completed("gid://1", "gid://2")
+    reanalysis._carry_forward_auto_publish_selection(
+        SHOP, data, {"gid://1": ["meta_title"], "gid://2": ["description"]}
+    )
+    packs = {p["product_id"]: p["content_test_pack"] for p in data["products"]}
+    assert packs["gid://1"]["auto_publish_fields"] == ["meta_title"]
+    assert packs["gid://2"]["auto_publish_fields"] == ["description"]
+
+
+def test_carry_forward_preserves_empty_selection() -> None:
+    # Uncheck-all must survive: [] means "publish nothing for this product".
+    data = _completed("gid://1")
+    reanalysis._carry_forward_auto_publish_selection(SHOP, data, {"gid://1": []})
+    assert data["products"][0]["content_test_pack"]["auto_publish_fields"] == []
+
+
+def test_carry_forward_filters_unknown_fields() -> None:
+    data = _completed("gid://1")
+    reanalysis._carry_forward_auto_publish_selection(SHOP, data, {"gid://1": ["meta_title", "faq"]})
+    assert data["products"][0]["content_test_pack"]["auto_publish_fields"] == ["meta_title"]
+
+
+def test_carry_forward_reads_persisted_selection_when_none() -> None:
+    data = _completed("gid://1", "gid://2")
+    prior = {
+        "products": [
+            {"product_id": "gid://1", "content_test_pack": {"auto_publish_fields": []}},
+            {"product_id": "gid://2", "content_test_pack": {"auto_publish_fields": ["meta_title"]}},
+        ]
+    }
+    with patch.object(reanalysis, "load_latest_result", return_value=prior):
+        reanalysis._carry_forward_auto_publish_selection(SHOP, data, None)
+    packs = {p["product_id"]: p["content_test_pack"] for p in data["products"]}
+    assert packs["gid://1"]["auto_publish_fields"] == []
+    assert packs["gid://2"]["auto_publish_fields"] == ["meta_title"]

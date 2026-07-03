@@ -21,6 +21,7 @@ from fastapi import HTTPException
 
 from app.api.deps import _RAW_DIR, ShopContext
 from app.api.market_analysis import (
+    _APPLYABLE_FIELDS,
     _attach_business_profile_context_status,
     _auto_sync_schema_facts,
     _gather_analysis_inputs,
@@ -31,7 +32,7 @@ from app.blog.auto_draft import auto_create_orphan_drafts
 from app.geo.continuous_improvement import enrich_market_analysis_result
 from app.jobs.store import enqueue_unique
 from app.market_analysis.engine import _DEFAULT_BUDGET_USD, _PLAN_BUDGETS_USD, run_market_analysis
-from app.market_analysis.jobs import save_latest_result
+from app.market_analysis.jobs import load_latest_result, save_latest_result
 from app.observability.metrics import check_budget
 
 logger = logging.getLogger(__name__)
@@ -72,12 +73,51 @@ def _enqueue_refresh_jobs(shop: str, access_token: str) -> None:
     enqueue_unique("gsc_import", {"days": 28}, shop=shop, max_retries=2)
 
 
+def _carry_forward_auto_publish_selection(
+    shop: str,
+    completed_data: dict[str, Any],
+    selection: dict[str, list[str]] | None,
+    *,
+    db_path: Path | None = None,
+) -> None:
+    """Inject the merchant's per-product ``auto_publish_fields`` into fresh packs.
+
+    A fresh re-analysis regenerates ``content_test_pack`` without the merchant's
+    checkbox selection, so ``save_latest_result`` would drop it and auto-publish
+    would fall back to *all* proposed fields. Priority: an explicit ``selection``
+    (from the re-analysis popup) wins; otherwise the previously persisted
+    selection is reused. An **empty list is preserved** (``[]`` = publish nothing
+    for that product) — the whole point of respecting an "uncheck all".
+    """
+    source = selection
+    if source is None:
+        prior = load_latest_result(shop, db_path=db_path) or {}
+        source = {}
+        for product in prior.get("products") or []:
+            if not isinstance(product, dict):
+                continue
+            pack = product.get("content_test_pack") or {}
+            fields = pack.get("auto_publish_fields")
+            if isinstance(fields, list):
+                source[str(product.get("product_id") or "")] = fields
+
+    for product in completed_data.get("products") or []:
+        if not isinstance(product, dict):
+            continue
+        product_id = str(product.get("product_id") or "")
+        if product_id not in source:
+            continue
+        pack = product.setdefault("content_test_pack", {})
+        pack["auto_publish_fields"] = [f for f in source[product_id] if f in _APPLYABLE_FIELDS]
+
+
 def run_market_reanalysis(
     shop: str,
     *,
     access_token: str,
     plan: str = "free",
     db_path: Path | None = None,
+    selection: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """Run a full market re-analysis for `shop` and persist the result.
 
@@ -147,6 +187,7 @@ def run_market_reanalysis(
         niche_hypothesis=niche_hypothesis,
         db_path=db_path,
     )
+    _carry_forward_auto_publish_selection(shop, completed_data, selection, db_path=db_path)
     save_latest_result(shop, completed_data)
     _auto_sync_schema_facts(shop, completed_data["products"])
     auto_create_orphan_drafts(shop, completed_data)
@@ -161,6 +202,7 @@ def run_scheduled_reanalysis(
     *,
     access_token: str,
     db_path: Path | None = None,
+    selection: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """Run the heavy re-analysis pipeline for a due shop, respecting the LLM budget.
 
@@ -178,7 +220,9 @@ def run_scheduled_reanalysis(
 
     _enqueue_refresh_jobs(shop, access_token)
     try:
-        result = run_market_reanalysis(shop, access_token=access_token, plan=plan, db_path=db_path)
+        result = run_market_reanalysis(
+            shop, access_token=access_token, plan=plan, db_path=db_path, selection=selection
+        )
     except HTTPException as exc:
         if exc.status_code == 404:
             logger.info("Skipping scheduled re-analysis for %s: no snapshot on disk", shop)

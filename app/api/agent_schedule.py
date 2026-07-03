@@ -112,15 +112,26 @@ async def test_agent_in_1h(
     return {"shop": ctx.shop, "schedule": settings.to_dict()}
 
 
-def _run_reanalysis_job(job_id: str, shop: str, access_token: str) -> None:
+def _run_reanalysis_job(
+    job_id: str,
+    shop: str,
+    access_token: str,
+    selection: dict[str, list[str]] | None = None,
+) -> None:
     """Background worker: run the scheduled re-analysis and record the job outcome.
 
     A full catalog re-analysis takes minutes, so it must run as a background job
     (started via `run-and-publish`, polled via `run-and-publish/{job_id}`) to
     avoid the request timing out while the analysis is still running.
+
+    ``selection`` (per-product ``{product_id: [fields]}``) comes from the
+    re-analysis popup and decides what auto-publish writes; when absent the
+    persisted per-product checkbox selection is honored instead.
     """
     try:
-        outcome = run_scheduled_reanalysis(shop, access_token=access_token, db_path=DB_PATH)
+        outcome = run_scheduled_reanalysis(
+            shop, access_token=access_token, db_path=DB_PATH, selection=selection
+        )
         # Record the completion so the dashboard history + calendar reflect it
         # (mirrors the scheduled path in scheduler._maybe_run_reanalysis).
         if outcome.get("status") == "completed":
@@ -141,11 +152,16 @@ def _run_reanalysis_job(job_id: str, shop: str, access_token: str) -> None:
         update_job(job_id, status="error", error=str(exc))
 
 
+class RunAndPublishRequest(BaseModel):
+    selection: dict[str, list[str]] | None = None
+
+
 @router.post("/shops/{shop}/agent-schedule/run-and-publish")
 async def run_and_publish_now(
     shop: str,
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     background_tasks: BackgroundTasks,
+    body: RunAndPublishRequest | None = None,
 ) -> dict[str, Any]:
     """Start a fresh full re-analysis + auto-publish as a background job.
 
@@ -153,12 +169,16 @@ async def run_and_publish_now(
     auto-publish), respecting the LLM budget. Returns a ``job_id`` to poll via
     ``GET run-and-publish/{job_id}``; the analysis keeps running server-side even
     if the merchant navigates away.
+
+    An optional ``selection`` (per-product ``{product_id: [fields]}``, from the
+    re-analysis popup) decides exactly what auto-publish writes.
     """
     if not ctx.access_token:
         raise HTTPException(status_code=401, detail="Missing Shopify access token")
+    selection = body.selection if body is not None else None
     job_id = create_job(ctx.shop)
     update_job(job_id, status="running")
-    background_tasks.add_task(_run_reanalysis_job, job_id, ctx.shop, ctx.access_token)
+    background_tasks.add_task(_run_reanalysis_job, job_id, ctx.shop, ctx.access_token, selection)
     return {"shop": ctx.shop, "job_id": job_id}
 
 

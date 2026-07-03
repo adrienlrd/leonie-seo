@@ -128,6 +128,20 @@ def test_access_token_argument_is_preferred_over_token_store(
     assert summary["published"] == 1
 
 
+def test_empty_selection_publishes_nothing(monkeypatch: pytest.MonkeyPatch, captured: dict) -> None:
+    # auto_publish_fields=[] (merchant unchecked everything) must publish nothing,
+    # never fall back to the "all proposed fields" default.
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    product = _product(
+        proposed_meta_title="Harnais Premium pour Chien de Berger",
+        current_meta_title="Old",
+        auto_publish_fields=[],
+    )
+    summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+    assert captured["applied"] == []
+    assert summary["published"] == 0
+
+
 def test_default_fields_when_no_checkboxes_persisted(
     monkeypatch: pytest.MonkeyPatch, captured: dict
 ) -> None:
