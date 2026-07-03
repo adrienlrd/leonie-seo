@@ -25,15 +25,18 @@ def captured(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
     def fake_apply_core(shop, token, product, fields):
         calls["applied"].append((product["product_id"], list(fields)))
-        return {"results": {}, "applied_fields": {}}
+        calls["tokens"].append(token)
+        return {"results": {f: {"applied": True} for f in fields}, "applied_fields": {}}
 
     def fake_patch(shop, product_id, proposals):
         calls["patched"].append((product_id, proposals))
         return True
 
+    calls["tokens"] = []
     monkeypatch.setattr(ma, "_apply_proposals_core", fake_apply_core)
     monkeypatch.setattr(ma, "patch_product_proposals", fake_patch)
-    monkeypatch.setattr(ma, "get_token", lambda shop: "tok")
+    # get_token returns a *record dict* (decrypted access_token inside), not a bare string.
+    monkeypatch.setattr(ma, "get_token", lambda shop: {"shop": shop, "access_token": "shpua_tok"})
     return calls
 
 
@@ -96,6 +99,33 @@ def test_identical_proposal_is_skipped(monkeypatch: pytest.MonkeyPatch, captured
     summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
     assert captured["applied"] == []
     assert summary["published"] == 0
+
+
+def test_token_record_dict_is_reduced_to_access_token_string(
+    monkeypatch: pytest.MonkeyPatch, captured: dict
+) -> None:
+    # Regression: get_token returns a dict; the *string* access_token must reach
+    # ShopifyWriter, otherwise every auto-publish write silently fails.
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    product = _product(proposed_meta_title="Harnais Premium pour Chien de Berger", current_meta_title="Old")
+    summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+    assert captured["tokens"] == ["shpua_tok"]
+    assert summary["published"] == 1
+
+
+def test_access_token_argument_is_preferred_over_token_store(
+    monkeypatch: pytest.MonkeyPatch, captured: dict
+) -> None:
+    # The re-analysis job holds a valid token; it must be used even if the token
+    # store is empty (ephemeral disk / out-of-sync shop_tokens on Render).
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    monkeypatch.setattr(ma, "get_token", lambda shop: None)
+    product = _product(proposed_meta_title="Harnais Premium pour Chien de Berger", current_meta_title="Old")
+    summary = ma.auto_publish_checked_proposals(
+        "s.myshopify.com", {"products": [product]}, {}, access_token="shpua_from_job"
+    )
+    assert captured["tokens"] == ["shpua_from_job"]
+    assert summary["published"] == 1
 
 
 def test_default_fields_when_no_checkboxes_persisted(

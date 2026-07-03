@@ -10,6 +10,20 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-03
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** **Corriger la cause racine** de l'auto-publication qui ne publiait jamais rien via « Lancer une analyse maintenant » (suite au diagnostic de l'export marchand `Ananlyse_json/`).
+- **Root cause:** `get_token(shop)` renvoie un **dict** (`{"access_token": "shpua_…", …}`), mais `auto_publish_checked_proposals` le passait tel quel comme `access_token` à `_apply_proposals_core` → `ShopifyWriter`, qui l'injectait dans le header `X-Shopify-Access-Token`. Un dict en valeur de header → **toutes** les écritures Shopify de ce chemin échouaient silencieusement (0 geo_event). L'endpoint d'apply manuel, lui, passe `ctx.access_token` (une string) et fonctionnait — d'où les applies historiques du cycle learning (`source=auto_apply`) mais aucun via le bouton « Lancer une analyse ». Le test existant masquait le bug en mockant `get_token` avec une string.
+- **Diagnostic (export 02 Juil 2026):** `mode=auto_apply` (schedule + learning), 3 produits avec proposals (`improved:true`), `last_reanalysis_at` positionné → la ré-analyse s'est bien exécutée, mais **0** nouvel `applied_optimization` (dernier event = 06-29, cycle learning). Échec **avant** l'apply, mode correct → suspect = token.
+- **Fix:**
+  - `auto_publish_checked_proposals` (`app/api/market_analysis.py`) : extrait la **string** `access_token` du record dict (`record.get("access_token")`) ; nouveau paramètre `access_token` (le token déjà en main du job de ré-analyse, prioritaire sur le token store — robuste si `shop_tokens` est vide sur le disque éphémère Render) ; `published` compte désormais les champs **réellement** appliqués (retour de `_apply_proposals_core`), plus les champs seulement tentés → bannière honnête.
+  - `run_market_reanalysis` (`app/agent_schedule/reanalysis.py`) : passe `access_token=access_token`.
+  - Tests (`tests/market_analysis/test_auto_publish.py`) : `get_token` mocke désormais un **dict** (contrat réel) ; le fake `_apply_proposals_core` renvoie des `results` appliqués ; 2 régressions ajoutées (token dict → string ; `access_token` param prioritaire quand le store est vide).
+- **Validations:** `ruff check` (fichiers modifiés) ✅ ; `pytest tests/market_analysis/test_auto_publish.py` → **7 passed** ✅ ; `pytest` complet → **2020 passed, 182 skipped** ✅.
+- **Open risk:** correctif vérifié par tests unitaires + cohérent avec l'export, mais **non reproduit** en runtime (pas de token/boutique en local). À confirmer après déploiement : « Lancer une analyse » doit publier et la bannière afficher « N champ(s) publié(s) ».
+
+## Previous completed task
+
 - **Date:** 2026-07-02
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Renommages UI (« ré-analyse »→« analyse », « valider »→« publier » en contexte publication), refonte du panneau de mode de publication, icônes flat sur la page Analyse, et **visibilité du résultat d'auto-publication** (le run « Lancer une analyse » publiait 0 champ sans jamais dire pourquoi).

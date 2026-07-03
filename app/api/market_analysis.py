@@ -1165,6 +1165,7 @@ def auto_publish_checked_proposals(
     niche_hypothesis: dict[str, Any] | None,
     *,
     db_path: Path | None = None,
+    access_token: str | None = None,
 ) -> dict[str, Any]:
     """Auto-publish the per-product checked proposals when the shop is in auto mode.
 
@@ -1174,6 +1175,11 @@ def auto_publish_checked_proposals(
     Fields that fail validation are held (``auto_publish_held``) for manual
     review and regenerated at the next analysis. No-op when the shop is in
     manual mode or has no Shopify token. Fail-open: never raises.
+
+    ``access_token`` (the string token the caller already holds, e.g. the
+    re-analysis job) is preferred; otherwise it is read from the token store.
+    ``get_token`` returns a *record dict*, so its ``access_token`` field must be
+    extracted — passing the dict straight to ShopifyWriter breaks every write.
     """
     import logging  # noqa: PLC0415
 
@@ -1184,7 +1190,10 @@ def auto_publish_checked_proposals(
         if settings.mode != LearningMode.AUTO_APPLY:
             return summary
         summary["mode"] = "auto"
-        token = get_token(shop)
+        token = access_token
+        if not token:
+            record = get_token(shop)
+            token = record.get("access_token") if isinstance(record, dict) else record
         if not token:
             summary["skipped_reason"] = "no_token"
             return summary
@@ -1223,8 +1232,11 @@ def auto_publish_checked_proposals(
                     held[field] = reasons
 
             if fields_to_apply:
-                _apply_proposals_core(shop, token, product, fields_to_apply)
-                summary["published"] += len(fields_to_apply)
+                outcome = _apply_proposals_core(shop, token, product, fields_to_apply)
+                results = outcome.get("results") or {}
+                summary["published"] += sum(
+                    1 for r in results.values() if isinstance(r, dict) and r.get("applied")
+                )
             patch_product_proposals(shop, str(product.get("product_id") or ""), {"auto_publish_held": held})
             summary["held"] += len(held)
             summary["products"] += 1

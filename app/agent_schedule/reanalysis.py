@@ -151,7 +151,7 @@ def run_market_reanalysis(
     _auto_sync_schema_facts(shop, completed_data["products"])
     auto_create_orphan_drafts(shop, completed_data)
     completed_data["auto_publish"] = auto_publish_checked_proposals(
-        shop, completed_data, niche_hypothesis, db_path=db_path
+        shop, completed_data, niche_hypothesis, db_path=db_path, access_token=access_token
     )
     return completed_data
 
