@@ -10,7 +10,7 @@
 | | Verdict |
 |---|---|
 | **Conformité technique App Store** | 🟢 Très bonne base — auth, billing, webhooks, scopes, sécurité sont corrects |
-| **Bloqueurs avant soumission** | 🔴 4 points à corriger (détail §1) |
+| **Bloqueurs avant soumission** | 🟢 4/4 corrigés le 2026-07-05 (détail §1) |
 | **Listing & processus de review** | 🟠 Tout reste à préparer (assets, screencast, credentials de test) |
 | **Badge Built for Shopify** | ⚪ Inatteignable au lancement par design : exige **50 installs payantes nettes + 5 avis + 28 jours de métriques**. Le code doit être prêt dès maintenant (il l'est presque), le badge se gagne après lancement |
 
@@ -20,32 +20,25 @@ Note : Shopify re-vérifiera ces points et d'autres (navigateur, listing) lors d
 
 ---
 
-## 1. Bloqueurs — à corriger AVANT de soumettre
+## 1. Bloqueurs — tous corrigés le 2026-07-05 ✅
 
-### 1.1 ❌ `shop/redact` ne supprime pas les données de la boutique (GDPR)
+### 1.1 ✅ `shop/redact` supprime désormais toutes les données de la boutique (GDPR)
 
-- **Où :** `app/oauth/gdpr.py:79-96`
-- **Problème :** le webhook `shop/redact` supprime uniquement le token OAuth (`delete_token`). Les fichiers `data/raw/{shop}/` (snapshots, analyses, exports) et les lignes dérivées en base **restent sur le serveur**. Shopify exige la suppression de *toutes* les données de la boutique 48 h après ce webhook.
-- **À faire :** dans le handler `shop/redact`, purger le répertoire `data/raw/{shop}/` et toutes les tables liées au shop (billing, jobs, settings…). Ajouter un test.
-- **Risque si ignoré :** rejet quasi certain — les webhooks GDPR sont vérifiés systématiquement.
+- **Corrigé :** `purge_shop_data()` (`app/oauth/gdpr.py`) supprime les lignes de **toutes** les tables à colonne `shop` (33 tables, allowlist explicite) + le répertoire `data/raw/{shop}/`. Le journal `gdpr_requests` est conservé comme piste d'audit de conformité. Validation stricte du domaine avant tout `rmtree` (anti path-traversal).
+- **Tests :** purge multi-tables, isolation entre boutiques, domaine malformé refusé, et un **garde anti-dérive** qui échoue si une future table à colonne `shop` n'est pas couverte par la purge.
 
-### 1.2 ⚠️ Champ de saisie de clé API PageSpeed visible par le marchand
+### 1.2 ✅ Fonctionnalité PageSpeed entièrement supprimée
 
-- **Où :** `shopify-app/app/onboarding/PageSpeedCard.tsx:63-83` (TextField password, placeholder `AIzaSy…`). `app.settings.tsx` est propre.
-- **Problème :** demander au marchand de coller une clé API Google est un anti-pattern App Store (« Users should be able to start using the app immediately after installing it, without having to complete another sign up »). Décision déjà actée : masquer avant App Store, usage interne uniquement.
-- **À faire :** retirer la carte du flux d'onboarding (ou la cacher derrière un flag env interne).
+- Décision produit (2026-07-05) : la feature n'était plus utilisée. Supprimés : module `app/pagespeed/`, API `/pagespeed/*`, job `pagespeed_import`, carte d'onboarding (avec son champ de clé API — le bloqueur), commande CLI `fetch-pagespeed`, alertes CWV, panneau dashboard, config tenant `pagespeed_urls`, mentions dans la politique de confidentialité et le README.
 
-### 1.3 ⚠️ Hypothèse non vérifiée sur le serving des templates `llms.txt`
+### 1.3 ✅ Serving `llms.txt` confirmé officiellement par Shopify
 
-- **Où :** `app/apply/shopify_theme_files.py:31-36` (`REVIEW_NOTE` dans le code).
-- **Problème :** tout le cas d'usage `write_themes` repose sur l'hypothèse que Shopify sert `/llms.txt`, `/llms-full.txt`, `/agents.md` depuis des templates Liquid `templates/llms.txt.liquid`. **Non confirmé sur une vraie boutique.** Si ça ne marche pas : fonctionnalité morte + scope `write_themes` injustifié = double motif de rejet (« deliver features described in listing » + « request only necessary scopes »).
-- **À faire :** tester sur la boutique de dev. Si ça marche → supprimer la note. Si ça ne marche pas → retirer la feature du listing, garder `LEONIE_THEME_WRITE_MODE=disabled` et **retirer `read_themes,write_themes` des scopes**.
+- **Confirmé :** le [changelog Shopify du 2026-05-28](https://shopify.dev/changelog/customize-llmstxt-llms-fulltxt-and-agentsmd) documente exactement le mécanisme utilisé par l'app : `templates/llms.txt.liquid` → `/llms.txt`, `templates/llms-full.txt.liquid` → `/llms-full.txt`, `templates/agents.md.liquid` → `/agents.md` (et fallback des deux autres chemins). Templates Liquid obligatoires (pas de JSON) — c'est ce que l'app écrit.
+- Le `REVIEW_NOTE` d'hypothèse non vérifiée a été remplacé par la référence officielle. **Le scope `write_themes` est justifié.** Un test de bout en bout sur la boutique de dev (publier puis `GET https://<shop>/llms.txt`) reste recommandé avant soumission, mais ce n'est plus un risque de rejet.
 
-### 1.4 ⚠️ Badge « TODO » affiché au marchand
+### 1.4 ✅ Badges « TODO » remplacés
 
-- **Où :** `shopify-app/app/routes/app.settings.tsx:70,119` — Badge Polaris avec le texte littéral « TODO ».
-- **Problème :** texte placeholder visible = signal « app pas finie » pour le reviewer, et non-conforme au critère BFS « clear, grammatically correct language ».
-- **À faire :** remplacer par un libellé réel (ex. « À configurer » / « To set up ») via `i18n.ts` (FR + EN).
+- `app.settings.tsx` utilise désormais les clés i18n `stateReady` (« OK ») / `stateToConfigure` (« À configurer » / « To set up »).
 
 ---
 
@@ -149,16 +142,17 @@ Critère BFS : « start using the app immediately after installing, without anot
 ## 6. Checklist d'exécution (ordre recommandé)
 
 **Avant soumission (code)**
-- [ ] 1.1 Purge complète des données shop sur `shop/redact` + test
-- [ ] 1.2 Masquer la carte PageSpeed de l'onboarding
-- [ ] 1.3 Vérifier le serving `llms.txt` sur boutique de dev → garder ou retirer `write_themes`
-- [ ] 1.4 Remplacer les badges « TODO » (i18n FR + EN)
+- [x] 1.1 Purge complète des données shop sur `shop/redact` + tests (2026-07-05)
+- [x] 1.2 Feature PageSpeed supprimée entièrement (2026-07-05)
+- [x] 1.3 Serving `llms.txt` confirmé par le changelog officiel Shopify → `write_themes` conservé (2026-07-05)
+- [x] 1.4 Badges « TODO » remplacés par des libellés i18n FR + EN (2026-07-05)
 - [ ] Ajouter le flag `test` env-piloté sur `appSubscriptionCreate`
 - [ ] Combler l'asymétrie i18n (~12 clés EN sans FR)
 
 **Avant soumission (manuel)**
 - [ ] Parcours billing complet : souscrire / refuser / changer de plan / désinstaller / réinstaller
 - [ ] Test incognito Chrome
+- [ ] Test bout-en-bout llms.txt sur boutique de dev : publier → `GET https://<shop>/llms.txt` = 200
 - [ ] Vérifier persistance disque Render (ou migrer le stockage)
 - [ ] `shopify app deploy` (webhooks TOML)
 - [ ] Politique de confidentialité accessible publiquement

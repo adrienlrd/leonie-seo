@@ -12,6 +12,24 @@
 
 - **Date:** 2026-07-05
 - **Agent:** Claude (Fable 5)
+- **Goal:** Fix the 4 App Store submission blockers identified by the readiness audit.
+- **Summary:**
+  1. **GDPR purge:** `shop/redact` now calls `purge_shop_data()` — deletes rows from all 33 shop-scoped tables (explicit allowlist, `gdpr_requests` audit trail kept) + `data/raw/{shop}/`. Shop domain validated before any filesystem delete. Drift-guard test fails if a future `shop`-column table is missing from the allowlist.
+  2. **PageSpeed removed entirely** (product decision — unused): `app/pagespeed/`, `app/api/pagespeed.py`, `pagespeed_import` job handler + queue timeout, onboarding `PageSpeedCard` (incl. the merchant API-key input blocker), checklist item, `PageSpeedStatus` types, CLI `audit fetch-pagespeed`, CWV alerts in `send_alerts.py`, dashboard CWV panel, `pagespeed_urls`/cwv tenant config fields, privacy-policy + README mentions, `.env.example` key, and all related tests. CWV component in `calculate_score` is now a neutral 0.5 constant.
+  3. **llms.txt serving confirmed:** Shopify changelog 2026-05-28 officially documents `templates/{llms.txt,llms-full.txt,agents.md}.liquid` → root paths. Replaced the unverified-assumption `REVIEW_NOTE` in `app/apply/shopify_theme_files.py` with the official reference. `write_themes` scope stays.
+  4. **TODO badges:** `app.settings.tsx` now uses i18n keys `stateReady`/`stateToConfigure` (FR + EN).
+- **Files created:** none.
+- **Files deleted:** `app/pagespeed/`, `app/api/pagespeed.py`, `scripts/audit/fetch_pagespeed.py`, `shopify-app/app/components/onboarding/PageSpeedCard.tsx`, `tests/test_pagespeed/`, `tests/audit/test_fetch_pagespeed.py`, `tests/test_api/test_pagespeed.py`, `tests/test_api/test_pagespeed_configure.py`, `tests/test_api/test_alerts.py` (archived tests of a removed module).
+- **Files modified:** `app/oauth/gdpr.py`, `app/main.py`, `app/jobs/{worker,handlers}.py`, `app/api/{help,privacy}.py`, `app/apply/shopify_theme_files.py`, `scripts/{cli,setup,_config}.py`, `scripts/report/{send_alerts,dashboard,generate_report}.py`, `shopify-app/app/routes/{app.onboarding,app.jobs,app.settings}.tsx`, `shopify-app/app/components/onboarding/{InstallationChecklistCard.tsx,types.ts}`, `shopify-app/app/lib/i18n.ts`, `tests/*` (gdpr, cli, config, setup, worker, send_alerts, dashboard, shop_config_store, conftest, fixtures), `.env.example`, `README.md`, `docs/APP_STORE_READINESS.md`.
+- **Validations run:** `ruff check .` ✅ · `pytest` → **2004 passed, 174 skipped** ✅ · `npm run typecheck` ✅ · `npm run build` ✅.
+- **Validations skipped:** live llms.txt end-to-end check on a real store (needs deployed app; recommended before submission, no longer a rejection risk).
+- **Open issues:** billing `test` flag + i18n key asymmetry (see APP_STORE_READINESS.md §6); manual pre-submission checks pending.
+- **Next recommended action:** run the manual pre-submission checklist (billing flow, incognito, Render disk persistence, `shopify app deploy`).
+
+## Previous completed task
+
+- **Date:** 2026-07-05
+- **Agent:** Claude (Fable 5)
 - **Goal:** Pre-submission audit for Shopify App Store + Built for Shopify badge roadmap.
 - **Summary:** Full read-only compliance sweep (Remix + FastAPI) cross-checked against official App Store and BFS requirements (shopify.dev, 2026). Produced `docs/APP_STORE_READINESS.md`: 4 pre-submission blockers, manual verification list, listing checklist, BFS roadmap.
 - **Files created:** `docs/APP_STORE_READINESS.md`.
