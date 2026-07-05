@@ -10,25 +10,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   Banner,
   BlockStack,
-  Button,
-  Card,
-  InlineGrid,
-  InlineStack,
   Link,
   Page,
   Text,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import {
-  callBackend,
-  callBackendForShop,
-  callBackendMultipartForShop,
-} from "../lib/api.server";
+import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
-import { AuditLauncherCard } from "../components/onboarding/AuditLauncherCard";
-import { CrawlCard } from "../components/onboarding/CrawlCard";
-import { GoogleSearchConsoleCard } from "../components/onboarding/GoogleSearchConsoleCard";
-import { InstallationChecklistCard } from "../components/onboarding/InstallationChecklistCard";
 import { BusinessProfilePanel } from "../components/BusinessProfilePanel";
 import { ProductIdentificationPanel } from "../components/ProductIdentificationPanel";
 import { MarketAnalysisProgressPanel } from "../components/MarketAnalysisProgressPanel";
@@ -47,25 +35,18 @@ import {
   pollProductAnalysis as pollProductAnalysisAction,
 } from "../lib/productIdentificationActions.server";
 import type {
-  CrawlStatus,
   GA4Property,
   GA4Status,
   GSCStatus,
-  Health,
   OnboardingActionData,
-  ShopStatus,
 } from "../components/onboarding/types";
 
 interface LoaderData {
   locale: Locale;
   shop: string;
-  health: Health | null;
-  status: ShopStatus | null;
   gsc: GSCStatus | null;
   ga4: GA4Status | null;
   ga4Properties: GA4Property[];
-  crawl: CrawlStatus | null;
-  recentJobs: number;
   businessProfile: BusinessProfile | null;
   startStep: 1 | 2 | 3 | 4;
 }
@@ -88,17 +69,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const be = (path: string) =>
     callBackendForShop(shop, path, { accessToken: session.accessToken });
 
-  const [health, status, jobs, gsc, ga4, crawl, businessProfile, latestAnalysis] =
-    await Promise.all([
-      fetchOk<Health>(callBackend("/health")),
-      fetchOk<ShopStatus>(be(`/api/shops/${shop}/status`)),
-      fetchOk<{ count: number }>(be(`/api/shops/${shop}/jobs?limit=10`)),
-      fetchOk<GSCStatus>(be(`/api/shops/${shop}/gsc/status`)),
-      fetchOk<GA4Status>(be(`/api/shops/${shop}/ga4/status`)),
-      fetchOk<CrawlStatus>(be(`/api/shops/${shop}/crawl/status`)),
-      fetchLatestBusinessProfile(shop, session.accessToken),
-      fetchOk<unknown>(be(`/api/shops/${shop}/market-analysis/latest`)),
-    ]);
+  const [gsc, ga4, businessProfile, latestAnalysis] = await Promise.all([
+    fetchOk<GSCStatus>(be(`/api/shops/${shop}/gsc/status`)),
+    fetchOk<GA4Status>(be(`/api/shops/${shop}/ga4/status`)),
+    fetchLatestBusinessProfile(shop, session.accessToken),
+    fetchOk<unknown>(be(`/api/shops/${shop}/market-analysis/latest`)),
+  ]);
 
   const gscConnected = Boolean(gsc?.connected);
   const profileValidated = businessProfile?.status === "validated";
@@ -127,13 +103,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json<LoaderData>({
     locale,
     shop,
-    health,
-    status,
     gsc,
     ga4,
     ga4Properties,
-    crawl,
-    recentJobs: jobs?.count ?? 0,
     businessProfile,
     startStep,
   });
@@ -195,30 +167,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
       if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
       return json<OnboardingActionData>({ ga4PropertySaved: true });
-    }
-
-    if (intent === "crawl_upload") {
-      const overviewFile = form.get("overview");
-      if (!overviewFile || !(overviewFile instanceof File) || overviewFile.size === 0) {
-        return json<OnboardingActionData>({ error: "Fichier overview CSV manquant." });
-      }
-      const backendForm = new FormData();
-      backendForm.append("overview", overviewFile, overviewFile.name);
-      const redirectsFile = form.get("redirects");
-      if (redirectsFile instanceof File && redirectsFile.size > 0) {
-        backendForm.append("redirects", redirectsFile, redirectsFile.name);
-      }
-      const resp = await callBackendMultipartForShop(
-        shop,
-        `/api/shops/${shop}/crawl/upload`,
-        backendForm,
-        session.accessToken,
-      );
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
-      const data = (await resp.json()) as { url_count: number; issue_count: number };
-      return json<OnboardingActionData>({
-        jobId: `Crawl: ${data.url_count} URLs · ${data.issue_count} issues`,
-      });
     }
 
     if (intent === "startBusinessAnalysis") {
@@ -321,7 +269,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 // ---------------------------------------------------------------------------
 
 export default function Onboarding() {
-  const { locale, shop, health, status, gsc, ga4, ga4Properties, crawl, recentJobs, businessProfile, startStep } =
+  const { locale, gsc, ga4, ga4Properties, businessProfile, startStep } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const revalidator = useRevalidator();
@@ -463,28 +411,6 @@ export default function Onboarding() {
             onComplete={handleAnalysisComplete}
           />
         )}
-
-        <details>
-          <summary>{locale === "fr" ? "Outils avancés" : "Advanced tools"}</summary>
-          <div style={{ marginTop: "var(--p-space-300)" }}>
-            <BlockStack gap="400">
-              <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
-                <InstallationChecklistCard
-                  locale={locale}
-                  shop={shop}
-                  status={status}
-                  health={health}
-                  gsc={gsc}
-                  crawl={crawl}
-                />
-                <AuditLauncherCard locale={locale} recentJobs={recentJobs} actionData={legacyActionData} />
-              </InlineGrid>
-
-              <GoogleSearchConsoleCard locale={locale} gsc={gsc} actionData={legacyActionData} />
-              <CrawlCard locale={locale} crawl={crawl} actionData={legacyActionData} />
-            </BlockStack>
-          </div>
-        </details>
       </BlockStack>
     </Page>
   );

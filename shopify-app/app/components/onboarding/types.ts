@@ -1,19 +1,5 @@
 /** Shared types for the onboarding step cards. */
 
-export interface ShopStatus {
-  installed: boolean;
-  snapshot_available: boolean;
-  product_count: number;
-  collection_count: number;
-  plan: string;
-  can_apply: boolean;
-}
-
-export interface Health {
-  status: string;
-  missing_env: string[];
-}
-
 export interface GSCStatus {
   configured: boolean;
   connected: boolean;
@@ -25,22 +11,6 @@ export interface GSCStatus {
     imported_at: string | null;
   };
   action_required: string | null;
-}
-
-export interface CrawlIssue {
-  url: string;
-  issue_type: string;
-  severity: string;
-  detail: string;
-}
-
-export interface CrawlStatus {
-  available: boolean;
-  url_count: number;
-  issue_count: number;
-  by_severity: Record<string, number>;
-  issues: CrawlIssue[];
-  imported_at: string | null;
 }
 
 export interface GA4Status {
