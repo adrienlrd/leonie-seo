@@ -207,6 +207,35 @@ def test_force_bypasses_freshness_check(tmp_path, monkeypatch):
     assert result["products"] == 1
 
 
+def test_snapshot_written_with_fresh_date(tmp_path, monkeypatch):
+    """The written snapshot must carry a parseable snapshot_date so the dashboard
+    does not flag a just-refreshed catalog as stale (age None -> always stale)."""
+    from app.api.audit import _snapshot_age_days
+
+    raw_dir = tmp_path / "raw"
+
+    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_products", lambda **kw: [{"id": "p1"}])
+    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_collections", lambda **kw: [])
+    monkeypatch.setattr("app.jobs.audit_snapshot.fetch_shop_metadata", lambda **kw: {})
+
+    init_db(tmp_path / "history.db")
+    _run(
+        crawl_shopify_catalog_for_job(
+            "store.myshopify.com",
+            "shpat_token",
+            db_path=tmp_path / "history.db",
+            raw_dir=raw_dir,
+        )
+    )
+
+    payload = json.loads(
+        (raw_dir / "store.myshopify.com" / "shopify_snapshot.json").read_text(encoding="utf-8")
+    )
+    assert "snapshot_date" in payload
+    age = _snapshot_age_days(payload)
+    assert age == 0
+
+
 def test_legacy_products_only_kwarg_still_accepted(tmp_path, monkeypatch):
     """products_only=True (legacy) ≡ include_content_pages=False."""
     fetched: list[str] = []

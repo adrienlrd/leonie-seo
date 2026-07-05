@@ -206,6 +206,10 @@ async def crawl_shopify_catalog_for_job(
 
     payload = {
         "shop": shop_metadata,
+        # ISO timestamp so the dashboard can compute snapshot age; without it
+        # `_snapshot_age_days` returns None and the "data older than 7 days"
+        # banner stays on permanently even right after a refresh.
+        "snapshot_date": datetime.now(UTC).isoformat(),
         "products": products,
         "collections": collections,
         "pages": pages,
