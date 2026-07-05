@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFetcher, useLoaderData, useRevalidator } from "@remix-run/react";
 import {
@@ -98,6 +98,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "resetAllData") {
     let ok = false;
     let status = 0;
+    let deleted = 0;
+    let error: string | null = null;
     try {
       const resp = await callBackendForShop(
         session.shop,
@@ -106,13 +108,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
       ok = resp.ok;
       status = resp.status;
-    } catch {
-      // Timeout / network error — fall through to the error branch below.
+      const bodyText = await resp.text();
+      if (ok) {
+        try {
+          deleted = (JSON.parse(bodyText) as { deleted?: number }).deleted ?? 0;
+        } catch {
+          /* keep deleted = 0 */
+        }
+      } else {
+        error = bodyText.slice(0, 300);
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
     }
-    // On success, redirect from the server (reliable in the embedded app,
-    // unlike client-side navigate) straight to the home dashboard.
-    if (ok) return redirect(localizedPath("/app", getLocale(request)));
-    return json({ type: "resetAllData", ok: false, status });
+    // Diagnostic mode: always return JSON so the UI can show exactly what
+    // happened (row count on success, status + body on failure) instead of a
+    // silent redirect. Navigation to home is a manual button in the banner.
+    console.log(`[resetAllData] shop=${session.shop} ok=${ok} status=${status} deleted=${deleted} error=${error ?? ""}`);
+    return json({ type: "resetAllData", ok, status, deleted, error });
   }
 
   if (intent === "saveAutomation") {
@@ -168,7 +181,7 @@ export default function AccountHub() {
   const gscConnected = Boolean(gsc?.connected);
   const ga4Connected = Boolean(ga4?.ready);
   const resetFetcher = useFetcher<{ type: string; ok: boolean; reset: number }>();
-  const resetAllFetcher = useFetcher<{ type: string; ok: boolean; status?: number }>();
+  const resetAllFetcher = useFetcher<{ type: string; ok: boolean; status?: number; deleted?: number; error?: string | null }>();
   const automationFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const testReanalysisFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const onboardingFetcher = useFetcher<OnboardingActionData>();
@@ -203,11 +216,10 @@ export default function AccountHub() {
   // authorization URL, mirroring the onboarding wizard's connect flow.
   const revalidator = useRevalidator();
 
-  // A successful reset redirects to the home dashboard from the server action.
-  // We only get data back here on failure — reset the confirm state so the
-  // merchant can read the error banner and retry.
+  // Collapse the confirm buttons once the reset resolves (either outcome); the
+  // result banner below shows what happened.
   useEffect(() => {
-    if (resetAllFetcher.state === "idle" && resetAllFetcher.data && !resetAllFetcher.data.ok) {
+    if (resetAllFetcher.state === "idle" && resetAllFetcher.data) {
       setConfirmResetAll(false);
     }
   }, [resetAllFetcher.state, resetAllFetcher.data]);
@@ -542,6 +554,7 @@ export default function AccountHub() {
                       ? "Remet l'application à zéro, comme au premier lancement : supprime toutes vos données de nos serveurs (analyses, catalogue, tags, planification, connexions Google Search Console et Analytics) et relance la configuration initiale. Votre abonnement et l'installation sont conservés."
                       : "Resets the app to its first-open state: deletes all your data from our servers (analyses, catalog, tags, scheduling, Google Search Console and Analytics connections) and restarts the initial setup. Your subscription and installation are kept."}
                   </Text>
+                  <Text as="p" variant="bodyXs" tone="subdued">reset-diag-v5</Text>
                 </BlockStack>
                 {!confirmResetAll ? (
                   <Button tone="critical" onClick={() => setConfirmResetAll(true)}>
@@ -564,12 +577,29 @@ export default function AccountHub() {
               </InlineStack>
             </Box>
 
+            {resetAllFetcher.data?.ok && (
+              <Banner tone="success">
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodySm">
+                    {fr
+                      ? `Réinitialisation effectuée — ${resetAllFetcher.data.deleted ?? 0} élément(s) supprimé(s) de nos serveurs.`
+                      : `Reset complete — ${resetAllFetcher.data.deleted ?? 0} item(s) deleted from our servers.`}
+                  </Text>
+                  <InlineStack>
+                    <Button url={localizedPath("/app", locale)} variant="primary">
+                      {fr ? "Retour à l'accueil" : "Back to home"}
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </Banner>
+            )}
+
             {resetAllFetcher.data && !resetAllFetcher.data.ok && (
               <Banner tone="critical">
                 <Text as="p" variant="bodySm">
                   {fr
-                    ? `La réinitialisation a échoué (erreur ${resetAllFetcher.data.status ?? ""}). Réessayez dans un instant.`
-                    : `Reset failed (error ${resetAllFetcher.data.status ?? ""}). Please try again shortly.`}
+                    ? `La réinitialisation a échoué (HTTP ${resetAllFetcher.data.status ?? 0}). ${resetAllFetcher.data.error ?? ""}`
+                    : `Reset failed (HTTP ${resetAllFetcher.data.status ?? 0}). ${resetAllFetcher.data.error ?? ""}`}
                 </Text>
               </Banner>
             )}

@@ -10,6 +10,7 @@ All three must return 200 within 5 seconds or Shopify marks the app non-complian
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import shutil
@@ -21,6 +22,8 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from app.db import DB_PATH
 from app.db_adapter import get_conn
 from app.oauth.hmac_validator import verify_webhook_hmac
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -93,24 +96,30 @@ def purge_shop_data(shop: str) -> None:
         shutil.rmtree(shop_dir)
 
 
-def reset_shop_data(shop: str) -> None:
+def reset_shop_data(shop: str) -> int:
     """Reset a shop to its first-open state while keeping it installed.
 
     Deletes every shop-scoped DB row and the data/raw/{shop} directory, except
     the tables in ``_RESET_PRESERVED_TABLES`` (OAuth token + subscription).
     Triggered by the Danger Zone "reset app" action, not by GDPR redaction.
     Raises ValueError on a malformed shop domain instead of touching the disk.
+
+    Returns the total number of DB rows deleted (for diagnostics/UI feedback).
     """
     if not _SHOP_DOMAIN_RE.match(shop):
         raise ValueError(f"Invalid shop domain: {shop!r}")
     tables = [t for t in _SHOP_SCOPED_TABLES if t not in _RESET_PRESERVED_TABLES]
+    deleted = 0
     with get_conn(DB_PATH) as conn:
         for table in tables:
             # Table names come from the fixed allowlist above, never from input.
-            conn.execute(f"DELETE FROM {table} WHERE shop = ?", (shop,))  # noqa: S608
+            cur = conn.execute(f"DELETE FROM {table} WHERE shop = ?", (shop,))  # noqa: S608
+            deleted += max(cur.rowcount, 0)
     shop_dir = _RAW_DIR / shop
     if shop_dir.is_dir():
         shutil.rmtree(shop_dir)
+    logger.info("reset_shop_data(%s): deleted %d DB rows + raw dir", shop, deleted)
+    return deleted
 
 
 def _require_hmac(body: bytes, header_hmac: str | None) -> None:
