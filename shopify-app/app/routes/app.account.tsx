@@ -101,7 +101,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       `/api/shops/${session.shop}/reset-all`,
       { accessToken: session.accessToken, method: "DELETE" },
     );
-    return json({ type: "resetAllData", ok: resp.ok });
+    return json({ type: "resetAllData", ok: resp.ok, status: resp.status });
   }
 
   if (intent === "saveAutomation") {
@@ -157,7 +157,7 @@ export default function AccountHub() {
   const gscConnected = Boolean(gsc?.connected);
   const ga4Connected = Boolean(ga4?.ready);
   const resetFetcher = useFetcher<{ type: string; ok: boolean; reset: number }>();
-  const resetAllFetcher = useFetcher<{ type: string; ok: boolean }>();
+  const resetAllFetcher = useFetcher<{ type: string; ok: boolean; status?: number }>();
   const automationFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const testReanalysisFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const onboardingFetcher = useFetcher<OnboardingActionData>();
@@ -197,8 +197,12 @@ export default function AccountHub() {
   // (App Bridge), unlike a server redirect that would drop shop/host/id_token.
   const navigate = useNavigate();
   useEffect(() => {
-    if (resetAllFetcher.state === "idle" && resetAllFetcher.data?.ok) {
+    if (resetAllFetcher.state !== "idle" || !resetAllFetcher.data) return;
+    if (resetAllFetcher.data.ok) {
       navigate(localizedPath("/app/onboarding", locale));
+    } else {
+      // Surface the failure instead of silently doing nothing; let the merchant retry.
+      setConfirmResetAll(false);
     }
   }, [resetAllFetcher.state, resetAllFetcher.data, navigate, locale]);
 
@@ -270,8 +274,9 @@ export default function AccountHub() {
   const onResetAllConfirm = () => {
     const fd = new FormData();
     fd.set("intent", "resetAllData");
+    // Keep the confirm buttons mounted so the loading spinner is visible; the
+    // navigation effect closes them (on success we leave the page anyway).
     resetAllFetcher.submit(fd, { method: "post" });
-    setConfirmResetAll(false);
   };
 
   return (
@@ -552,6 +557,16 @@ export default function AccountHub() {
                 )}
               </InlineStack>
             </Box>
+
+            {resetAllFetcher.data && !resetAllFetcher.data.ok && (
+              <Banner tone="critical">
+                <Text as="p" variant="bodySm">
+                  {fr
+                    ? `La réinitialisation a échoué (erreur ${resetAllFetcher.data.status ?? ""}). Réessayez dans un instant.`
+                    : `Reset failed (error ${resetAllFetcher.data.status ?? ""}). Please try again shortly.`}
+                </Text>
+              </Banner>
+            )}
           </BlockStack>
         </Card>
       </BlockStack>
