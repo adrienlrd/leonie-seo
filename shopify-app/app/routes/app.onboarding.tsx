@@ -394,10 +394,6 @@ export default function Onboarding() {
   return (
     <Page
       title={t(locale, "onboarding")}
-      backAction={{
-        content: t(locale, "backDashboard"),
-        url: localizedPath("/app", locale),
-      }}
     >
       <BlockStack gap="400">
         {legacyActionData?.authorizationUrl && (

@@ -555,7 +555,6 @@ export default function CompetitorCrawlPage() {
           ? "Ce que font tes concurrents et comment t'en inspirer pour ton GEO."
           : "What your competitors do and how to take inspiration for your GEO."
       }
-      backAction={{ content: locale === "fr" ? "Accueil" : "Dashboard", url: localizedPath("/app", locale) }}
       primaryAction={
         hasData
           ? {

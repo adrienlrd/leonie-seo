@@ -79,7 +79,7 @@ export default function Settings() {
     useLoaderData<typeof loader>();
 
   return (
-    <Page title={t(locale, "settings")} backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}>
+    <Page title={t(locale, "settings")}>
       <BlockStack gap="400">
         <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
           <Card>

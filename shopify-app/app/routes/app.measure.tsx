@@ -286,7 +286,6 @@ export default function MeasurePage() {
     <Page
       title={t(locale, "measureTitle")}
       subtitle={t(locale, "measureSubtitle")}
-      backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}
     >
       <BlockStack gap="400">
         {trackingBanner && (

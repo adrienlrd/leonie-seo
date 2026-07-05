@@ -97,7 +97,6 @@ export default function Billing() {
   return (
     <Page
       title="Facturation"
-      backAction={{ content: "Dashboard", url: "/app" }}
     >
       <BlockStack gap="500">
         <Text as="p" tone="subdued">

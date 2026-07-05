@@ -259,7 +259,6 @@ export default function Jobs() {
   return (
     <Page
       title="Jobs GEO"
-      backAction={{ content: "Dashboard", url: "/app" }}
       primaryAction={
         hasActiveJobs
           ? {

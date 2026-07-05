@@ -117,7 +117,6 @@ export default function CompetitorsSettings() {
   return (
     <Page
       title={t(locale, "marketAnalysisCompetitorsTitle")}
-      backAction={{ content: t(locale, "settings"), url: localizedPath("/app/settings", locale) }}
     >
       <BlockStack gap="400">
         {savedBanner && (

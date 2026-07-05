@@ -424,7 +424,6 @@ export default function AnalysePage() {
     <Page
       title={t(locale, "analyseTitle")}
       subtitle={t(locale, "analyseSubtitle")}
-      backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}
       secondaryActions={[
         { content: t(locale, "measureNav"), url: localizedPath("/app/measure", locale) },
       ]}

@@ -1636,10 +1636,6 @@ export default function ProductsPage() {
     <Page
       title={t(locale, "navProducts")}
       subtitle={t(locale, "marketAnalysisSubtitle")}
-      backAction={{
-        content: t(locale, "backDashboard"),
-        url: localizedPath("/app", locale),
-      }}
     >
       <BlockStack gap="400">
         {gscReauthRequired ? (

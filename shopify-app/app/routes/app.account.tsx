@@ -216,13 +216,6 @@ export default function AccountHub() {
 
   const items: HubItem[] = [
     {
-      titleKey: "onboarding",
-      href: "/app/onboarding",
-      description: fr
-        ? "Configurez votre boutique étape par étape : Google, audit, performance."
-        : "Set up your store step by step: Google, audit, performance.",
-    },
-    {
       titleKey: "billing",
       href: "/app/billing",
       description: fr
@@ -235,13 +228,6 @@ export default function AccountHub() {
       description: fr
         ? "Préférences, budget IA, locales multilingues."
         : "Preferences, AI budget, multilingual locales.",
-    },
-    {
-      titleKey: "jobs",
-      href: "/app/jobs",
-      description: fr
-        ? "Suivi des tâches en arrière-plan : analyses, imports, applications."
-        : "Monitor background tasks: analyses, imports, apply runs.",
     },
     {
       titleKey: "privacy",
@@ -263,7 +249,6 @@ export default function AccountHub() {
     <Page
       title={t(locale, "hubSettings")}
       subtitle={t(locale, "hubSettingsSubtitle")}
-      backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}
     >
       <BlockStack gap="600">
         <HubGrid items={items} locale={locale} />

@@ -59,7 +59,7 @@ export default function Privacy() {
   const subscription = exportPayload?.data.subscription;
 
   return (
-    <Page title={t(locale, "privacy")} backAction={{ content: t(locale, "backDashboard"), url: localizedPath("/app", locale) }}>
+    <Page title={t(locale, "privacy")}>
       <BlockStack gap="400">
         {error && (
           <Card>
