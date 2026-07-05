@@ -15,7 +15,6 @@ import os
 import re
 import shutil
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -23,6 +22,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from app.db import DB_PATH
 from app.db_adapter import get_conn
 from app.oauth.hmac_validator import verify_webhook_hmac
+from app.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,12 @@ router = APIRouter()
 # Same defense-in-depth pattern as app/api/deps.py: never join an unvalidated
 # shop value to a filesystem path (stops `..` traversal cold).
 _SHOP_DOMAIN_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$")
-_RAW_DIR = Path(__file__).parents[2] / "data" / "raw"
+# Resolve the raw-data directory the same way the rest of the app writes it
+# (respecting the DATA_DIR env var / Render persistent disk). A hardcoded
+# parents[2]/data/raw path silently missed the real files in production, so the
+# reset deleted DB rows but left business_profile.json / snapshots on disk —
+# leaving the merchant with a fully populated dashboard after a "reset".
+_RAW_DIR = data_dir()
 
 # Every table in app/db.py with a `shop` column. gdpr_requests is intentionally
 # excluded: it is the compliance audit trail proving redaction requests were

@@ -248,6 +248,35 @@ def test_reset_shop_data_wipes_everything_except_token_and_subscription(tmp_path
     assert not (raw_dir / SHOP).exists()
 
 
+def test_reset_shop_data_deletes_business_profile(tmp_path, monkeypatch):
+    """The whole point of a reset: the merchant must land back on onboarding.
+
+    The home loader keeps showing a populated dashboard as long as
+    load_business_profile returns a validated profile — which reads
+    business_profile.json first (data dir), then the analysis_artifacts row.
+    Reset must clear BOTH, so its raw dir must be the same one the profile is
+    written to. Guards against the prod bug where reset wiped DB rows but a
+    hardcoded, DATA_DIR-ignoring path left the file on disk.
+    """
+    db = tmp_path / "test.db"
+    data = tmp_path / "raw"
+    monkeypatch.setattr("app.oauth.gdpr.DB_PATH", db)
+    monkeypatch.setattr("app.oauth.gdpr._RAW_DIR", data)
+    monkeypatch.setattr("app.business_profile.jobs._DATA_DIR", data)
+    from app.business_profile.jobs import load_business_profile, save_business_profile
+    from app.db import init_db
+    from app.oauth.gdpr import reset_shop_data
+
+    init_db(db)
+    save_business_profile(SHOP, {"brand": "X", "status": "validated"}, db_path=db)
+    assert load_business_profile(SHOP, db_path=db) is not None
+
+    reset_shop_data(SHOP)
+
+    assert load_business_profile(SHOP, db_path=db) is None
+    assert not (data / SHOP).exists()
+
+
 def test_reset_shop_data_rejects_malformed_domain(tmp_path, monkeypatch):
     from app.oauth.gdpr import reset_shop_data
 
