@@ -227,9 +227,10 @@ def test_reset_shop_data_wipes_everything_except_token_and_subscription(tmp_path
             (SHOP,),
         )
 
-    deleted = reset_shop_data(SHOP)
-    # shop_config + analysis_artifacts seeded above = 2 rows wiped.
-    assert deleted == 2
+    result = reset_shop_data(SHOP)
+    # shop_config + analysis_artifacts seeded above = 2 rows wiped, no failures.
+    assert result["deleted"] == 2
+    assert result["failed"] == []
 
     with sqlite3.connect(db) as conn:
         # Preserved: OAuth token + subscription keep the app installed and billed.

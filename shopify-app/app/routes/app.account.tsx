@@ -99,6 +99,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     let ok = false;
     let status = 0;
     let deleted = 0;
+    let failed: string[] = [];
     let error: string | null = null;
     try {
       const resp = await callBackendForShop(
@@ -111,9 +112,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const bodyText = await resp.text();
       if (ok) {
         try {
-          deleted = (JSON.parse(bodyText) as { deleted?: number }).deleted ?? 0;
+          const parsed = JSON.parse(bodyText) as { deleted?: number; failed?: string[] };
+          deleted = parsed.deleted ?? 0;
+          failed = parsed.failed ?? [];
         } catch {
-          /* keep deleted = 0 */
+          /* keep defaults */
         }
       } else {
         error = bodyText.slice(0, 300);
@@ -122,10 +125,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       error = err instanceof Error ? err.message : String(err);
     }
     // Diagnostic mode: always return JSON so the UI can show exactly what
-    // happened (row count on success, status + body on failure) instead of a
-    // silent redirect. Navigation to home is a manual button in the banner.
-    console.log(`[resetAllData] shop=${session.shop} ok=${ok} status=${status} deleted=${deleted} error=${error ?? ""}`);
-    return json({ type: "resetAllData", ok, status, deleted, error });
+    // happened (row count + failed tables on success, status + body on failure)
+    // instead of a silent redirect. Navigation to home is a manual button.
+    console.log(`[resetAllData] shop=${session.shop} ok=${ok} status=${status} deleted=${deleted} failed=${failed.join(",")} error=${error ?? ""}`);
+    return json({ type: "resetAllData", ok, status, deleted, failed, error });
   }
 
   if (intent === "saveAutomation") {
@@ -181,7 +184,7 @@ export default function AccountHub() {
   const gscConnected = Boolean(gsc?.connected);
   const ga4Connected = Boolean(ga4?.ready);
   const resetFetcher = useFetcher<{ type: string; ok: boolean; reset: number }>();
-  const resetAllFetcher = useFetcher<{ type: string; ok: boolean; status?: number; deleted?: number; error?: string | null }>();
+  const resetAllFetcher = useFetcher<{ type: string; ok: boolean; status?: number; deleted?: number; failed?: string[]; error?: string | null }>();
   const automationFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const testReanalysisFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const onboardingFetcher = useFetcher<OnboardingActionData>();
@@ -554,7 +557,7 @@ export default function AccountHub() {
                       ? "Remet l'application à zéro, comme au premier lancement : supprime toutes vos données de nos serveurs (analyses, catalogue, tags, planification, connexions Google Search Console et Analytics) et relance la configuration initiale. Votre abonnement et l'installation sont conservés."
                       : "Resets the app to its first-open state: deletes all your data from our servers (analyses, catalog, tags, scheduling, Google Search Console and Analytics connections) and restarts the initial setup. Your subscription and installation are kept."}
                   </Text>
-                  <Text as="p" variant="bodyXs" tone="subdued">reset-diag-v5</Text>
+                  <Text as="p" variant="bodyXs" tone="subdued">reset-diag-v6</Text>
                 </BlockStack>
                 {!confirmResetAll ? (
                   <Button tone="critical" onClick={() => setConfirmResetAll(true)}>
@@ -578,13 +581,19 @@ export default function AccountHub() {
             </Box>
 
             {resetAllFetcher.data?.ok && (
-              <Banner tone="success">
+              <Banner tone={resetAllFetcher.data.failed?.length ? "warning" : "success"}>
                 <BlockStack gap="200">
                   <Text as="p" variant="bodySm">
                     {fr
                       ? `Réinitialisation effectuée — ${resetAllFetcher.data.deleted ?? 0} élément(s) supprimé(s) de nos serveurs.`
                       : `Reset complete — ${resetAllFetcher.data.deleted ?? 0} item(s) deleted from our servers.`}
                   </Text>
+                  {resetAllFetcher.data.failed?.length ? (
+                    <Text as="p" variant="bodySm">
+                      {(fr ? "Tables ignorées (erreur) : " : "Skipped tables (error): ") +
+                        resetAllFetcher.data.failed.join(", ")}
+                    </Text>
+                  ) : null}
                   <InlineStack>
                     <Button url={localizedPath("/app", locale)} variant="primary">
                       {fr ? "Retour à l'accueil" : "Back to home"}

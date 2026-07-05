@@ -906,8 +906,8 @@ async def reset_shop_all_data(
     the OAuth token and subscription. Only callable from the Danger Zone."""
     from app.oauth.gdpr import reset_shop_data
 
-    deleted = reset_shop_data(ctx.shop)
-    return {"reset": True, "deleted": deleted}
+    result = reset_shop_data(ctx.shop)
+    return {"reset": True, **result}
 
 
 @router.patch("/shops/{shop}/market-analysis/proposals/{product_id:path}")

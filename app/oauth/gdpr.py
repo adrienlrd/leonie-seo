@@ -16,6 +16,7 @@ import re
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
@@ -96,7 +97,7 @@ def purge_shop_data(shop: str) -> None:
         shutil.rmtree(shop_dir)
 
 
-def reset_shop_data(shop: str) -> int:
+def reset_shop_data(shop: str) -> dict[str, Any]:
     """Reset a shop to its first-open state while keeping it installed.
 
     Deletes every shop-scoped DB row and the data/raw/{shop} directory, except
@@ -104,22 +105,37 @@ def reset_shop_data(shop: str) -> int:
     Triggered by the Danger Zone "reset app" action, not by GDPR redaction.
     Raises ValueError on a malformed shop domain instead of touching the disk.
 
-    Returns the total number of DB rows deleted (for diagnostics/UI feedback).
+    Each table is wiped in its own transaction so one failing table (e.g. a
+    prod schema drift where an allowlisted table is missing) cannot abort the
+    whole reset — it is skipped, reported in ``failed`` and logged, while every
+    other table is still cleared. Returns ``{"deleted", "failed"}``.
     """
     if not _SHOP_DOMAIN_RE.match(shop):
         raise ValueError(f"Invalid shop domain: {shop!r}")
     tables = [t for t in _SHOP_SCOPED_TABLES if t not in _RESET_PRESERVED_TABLES]
     deleted = 0
-    with get_conn(DB_PATH) as conn:
-        for table in tables:
+    failed: list[str] = []
+    for table in tables:
+        try:
             # Table names come from the fixed allowlist above, never from input.
-            cur = conn.execute(f"DELETE FROM {table} WHERE shop = ?", (shop,))  # noqa: S608
-            deleted += max(cur.rowcount, 0)
+            with get_conn(DB_PATH) as conn:
+                cur = conn.execute(f"DELETE FROM {table} WHERE shop = ?", (shop,))  # noqa: S608
+                deleted += max(cur.rowcount, 0)
+        except Exception as exc:  # noqa: BLE001 - best-effort wipe: skip + report a failing table
+            failed.append(table)
+            logger.warning("reset_shop_data(%s): table %s failed: %s", shop, table, exc)
     shop_dir = _RAW_DIR / shop
     if shop_dir.is_dir():
-        shutil.rmtree(shop_dir)
-    logger.info("reset_shop_data(%s): deleted %d DB rows + raw dir", shop, deleted)
-    return deleted
+        try:
+            shutil.rmtree(shop_dir)
+        except OSError as exc:
+            failed.append("data/raw")
+            logger.warning("reset_shop_data(%s): raw dir removal failed: %s", shop, exc)
+    logger.info(
+        "reset_shop_data(%s): deleted %d rows + raw dir; failed=%s",
+        shop, deleted, failed,
+    )
+    return {"deleted": deleted, "failed": failed}
 
 
 def _require_hmac(body: bytes, header_hmac: str | None) -> None:
