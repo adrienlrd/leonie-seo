@@ -104,12 +104,6 @@ def test_generate_yaml_produces_valid_tenant_config():
     assert cfg.niche == "pet_accessories_fr"
 
 
-def test_generate_yaml_includes_homepage_in_pagespeed_urls():
-    content = generate_yaml("t", "T", "https://www.t.com", "t.myshopify.com", "generic")
-    data = yaml.safe_load(content)
-    assert "https://www.t.com" in data["pagespeed_urls"]
-
-
 def test_generate_yaml_default_seo_rules():
     content = generate_yaml("t", "T", "https://www.t.com", "t.myshopify.com", "generic")
     data = yaml.safe_load(content)

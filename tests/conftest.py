@@ -28,7 +28,6 @@ def _cli_tenant(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch)
         yield
 
 _ARCHIVED_API_TESTS = {
-    "tests/test_api/test_alerts.py",
     "tests/test_api/test_alt_text.py",
     "tests/test_api/test_apply.py",
     "tests/test_api/test_audit.py",
@@ -177,22 +176,4 @@ def gsc_response() -> dict:
                 "position": 22.1,
             },
         ]
-    }
-
-
-# --- Fixtures PageSpeed ---
-
-
-@pytest.fixture
-def pagespeed_response() -> dict:
-    """Réponse API PageSpeed simulée."""
-    return {
-        "lighthouseResult": {
-            "categories": {"performance": {"score": 0.72}},
-            "audits": {
-                "largest-contentful-paint": {"numericValue": 3200},
-                "cumulative-layout-shift": {"numericValue": 0.08},
-                "total-blocking-time": {"numericValue": 450},
-            },
-        }
     }

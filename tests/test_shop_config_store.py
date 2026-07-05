@@ -19,28 +19,28 @@ def _use_tmp_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_get_returns_none_when_absent() -> None:
-    assert get_shop_config("shop.myshopify.com", "pagespeed_api_key") is None
+    assert get_shop_config("shop.myshopify.com", "custom_api_key") is None
 
 
 def test_set_and_get_roundtrip() -> None:
-    set_shop_config("shop.myshopify.com", "pagespeed_api_key", "AIzaSy_test")
-    assert get_shop_config("shop.myshopify.com", "pagespeed_api_key") == "AIzaSy_test"
+    set_shop_config("shop.myshopify.com", "custom_api_key", "AIzaSy_test")
+    assert get_shop_config("shop.myshopify.com", "custom_api_key") == "AIzaSy_test"
 
 
 def test_set_upserts_existing_key() -> None:
-    set_shop_config("shop.myshopify.com", "pagespeed_api_key", "first")
-    set_shop_config("shop.myshopify.com", "pagespeed_api_key", "second")
-    assert get_shop_config("shop.myshopify.com", "pagespeed_api_key") == "second"
+    set_shop_config("shop.myshopify.com", "custom_api_key", "first")
+    set_shop_config("shop.myshopify.com", "custom_api_key", "second")
+    assert get_shop_config("shop.myshopify.com", "custom_api_key") == "second"
 
 
 def test_delete_removes_key() -> None:
-    set_shop_config("shop.myshopify.com", "pagespeed_api_key", "AIzaSy_test")
-    delete_shop_config("shop.myshopify.com", "pagespeed_api_key")
-    assert get_shop_config("shop.myshopify.com", "pagespeed_api_key") is None
+    set_shop_config("shop.myshopify.com", "custom_api_key", "AIzaSy_test")
+    delete_shop_config("shop.myshopify.com", "custom_api_key")
+    assert get_shop_config("shop.myshopify.com", "custom_api_key") is None
 
 
 def test_keys_are_shop_scoped() -> None:
-    set_shop_config("shop-a.myshopify.com", "pagespeed_api_key", "key-a")
-    set_shop_config("shop-b.myshopify.com", "pagespeed_api_key", "key-b")
-    assert get_shop_config("shop-a.myshopify.com", "pagespeed_api_key") == "key-a"
-    assert get_shop_config("shop-b.myshopify.com", "pagespeed_api_key") == "key-b"
+    set_shop_config("shop-a.myshopify.com", "custom_api_key", "key-a")
+    set_shop_config("shop-b.myshopify.com", "custom_api_key", "key-b")
+    assert get_shop_config("shop-a.myshopify.com", "custom_api_key") == "key-a"
+    assert get_shop_config("shop-b.myshopify.com", "custom_api_key") == "key-b"

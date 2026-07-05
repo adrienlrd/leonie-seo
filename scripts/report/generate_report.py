@@ -43,7 +43,6 @@ def calculate_score(
     issues: list[Issue],
     total_resources: int,
     total_images: int,
-    pagespeed_data: list[dict[str, Any]] | None = None,
     rules_path: str = _RULES_PATH,
 ) -> SEOScore:
     """Calculate a weighted SEO score from 0 to 100.
@@ -52,7 +51,6 @@ def calculate_score(
         issues: All detected issues.
         total_resources: Total number of products + collections.
         total_images: Total number of product images.
-        pagespeed_data: Optional list of fetch_score() results.
         rules_path: Path to seo_rules.yaml.
 
     Returns:
@@ -79,12 +77,8 @@ def calculate_score(
     alt_bad = counts.get("missing_alt_text", 0)
     alt_score = max(0.0, 1.0 - alt_bad / n_img)
 
-    # Core Web Vitals — use PageSpeed data if available, else neutral 0.5
-    if pagespeed_data:
-        mobile = [r["performance_score"] for r in pagespeed_data if r.get("strategy") == "mobile"]
-        cwv_score = sum(mobile) / len(mobile) if mobile else 0.5
-    else:
-        cwv_score = 0.5
+    # Core Web Vitals — no measurement source anymore, neutral weight contribution
+    cwv_score = 0.5
 
     # Redirections + 404
     redirect_bad = (
@@ -201,13 +195,11 @@ def generate_markdown_report(
 
 @click.command()
 @click.option("--data", default="data/raw/shopify_snapshot.json", show_default=True)
-@click.option("--pagespeed", default=None, help="pagespeed.csv from fetch_pagespeed")
 @click.option("--sf-overview", default=None, help="Screaming Frog overview CSV")
 @click.option("--sf-redirects", default=None, help="Screaming Frog response codes CSV")
 @click.option("--output-dir", default=_REPORTS_DIR, show_default=True)
 def main(
     data: str,
-    pagespeed: str | None,
     sf_overview: str | None,
     sf_redirects: str | None,
     output_dir: str,
@@ -218,7 +210,6 @@ def main(
     except LicenseError as e:
         console.print(f"  [red]✗[/red] Licence invalide : {e}")
         raise SystemExit(1)
-    import pandas as pd
 
     console.print("[bold cyan]► Generating SEO report[/bold cyan]")
 
@@ -238,14 +229,8 @@ def main(
     issues += detect_redirect_issues(parse_redirects(sf_redirects) if sf_redirects else None)
     issues += detect_404_issues(parse_overview(sf_overview) if sf_overview else None)
 
-    pagespeed_data: list[dict[str, Any]] | None = None
-    if pagespeed and Path(pagespeed).exists():
-        pagespeed_data = pd.read_csv(pagespeed).to_dict("records")
-    elif pagespeed:
-        console.print(f"  [yellow]⚠[/yellow] {pagespeed} not found — skipping CWV scores")
-
     total_images = sum(len((p.get("images") or {}).get("edges", [])) for p in products)
-    score = calculate_score(issues, len(products) + len(collections), total_images, pagespeed_data)
+    score = calculate_score(issues, len(products) + len(collections), total_images)
 
     console.print(f"  [green]✓[/green] {len(issues)} issues — score {score.total}/100")
 

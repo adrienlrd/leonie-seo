@@ -1,6 +1,6 @@
 import { Badge, BlockStack, Card, InlineStack, Text } from "@shopify/polaris";
 import { t, type Locale } from "../../lib/i18n";
-import type { CrawlStatus, GSCStatus, Health, PageSpeedStatus, ShopStatus } from "./types";
+import type { CrawlStatus, GSCStatus, Health, ShopStatus } from "./types";
 
 function Step({
   label,
@@ -40,7 +40,6 @@ interface Props {
   status: ShopStatus | null;
   health: Health | null;
   gsc: GSCStatus | null;
-  pagespeed: PageSpeedStatus | null;
   crawl: CrawlStatus | null;
 }
 
@@ -51,7 +50,6 @@ export function InstallationChecklistCard({
   status,
   health,
   gsc,
-  pagespeed,
   crawl,
 }: Props) {
   return (
@@ -94,20 +92,6 @@ export function InstallationChecklistCard({
                 }`
               : gsc?.action_required ??
                 (locale === "fr" ? "Connexion requise" : "Connection required")
-          }
-        />
-        <Step
-          locale={locale}
-          label="PageSpeed / Core Web Vitals"
-          done={Boolean(pagespeed?.available)}
-          detail={
-            pagespeed?.available
-              ? `${pagespeed.url_count} URL(s) · mobile ${Math.round(
-                  (pagespeed.mobile_average ?? 0) * 100
-                )}%`
-              : locale === "fr"
-              ? "Analyse performance à lancer"
-              : "Performance analysis to run"
           }
         />
         <Step

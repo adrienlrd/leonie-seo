@@ -27,7 +27,6 @@ from app.api.competitor_serp import router as competitor_serp_router  # noqa: E4
 from app.api.ga4 import router as ga4_router  # noqa: E402  (status used by market-analysis)
 from app.api.geo import router as geo_router  # noqa: E402  (continuous-improvement)
 from app.api.gsc import router as gsc_router  # noqa: E402  (status used by market-analysis)
-from app.api.pagespeed import router as pagespeed_router  # noqa: E402  (onboarding)
 from app.api.observability import router as observability_router  # noqa: E402
 from app.api.privacy import router as privacy_router  # noqa: E402
 from app.api.dashboard import router as dashboard_router  # noqa: E402
@@ -206,7 +205,6 @@ app.include_router(dashboard_router)
 app.include_router(help_router)
 app.include_router(jobs_router)
 app.include_router(gsc_router)
-app.include_router(pagespeed_router)
 app.include_router(crawl_router)
 app.include_router(observability_router)
 app.include_router(ga4_router)

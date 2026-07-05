@@ -19,7 +19,6 @@ _DEFAULT_TIMEOUT = 600  # seconds per job before it is marked failed (global cei
 _QUEUE_TIMEOUTS: dict[str, int] = {
     "seo_audit": 90,
     "gsc_import": 120,
-    "pagespeed_import": 180,
 }
 
 

@@ -27,29 +27,6 @@ export interface GSCStatus {
   action_required: string | null;
 }
 
-export interface PageSpeedAlert {
-  url: string;
-  strategy: string;
-  performance_score: number | null;
-  lcp_ms: number | null;
-  cls: number | null;
-  severity: string;
-  recommendations: string[];
-}
-
-export interface PageSpeedStatus {
-  configured: boolean;
-  key_source: "env" | "db" | null;
-  available: boolean;
-  row_count: number;
-  url_count: number;
-  imported_at: string | null;
-  mobile_average: number | null;
-  desktop_average: number | null;
-  targets: string[];
-  alerts: PageSpeedAlert[];
-}
-
 export interface CrawlIssue {
   url: string;
   issue_type: string;

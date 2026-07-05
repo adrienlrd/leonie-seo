@@ -84,7 +84,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
   <p>
     Giulio Geo <strong>ne collecte pas</strong> de données clients individuels du marchand
     (noms, emails, adresses, historiques de commandes). L'app accède uniquement aux
-    méta-données produits/collections et aux performances SEO (GSC, PageSpeed, GA4).
+    méta-données produits/collections et aux performances SEO (GSC, GA4).
   </p>
 
   <h2>4. Sous-traitants</h2>
@@ -93,7 +93,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
     <li>OpenAI (génération LLM, GPT-4o mini) — USA, DPA signé, contenu non utilisé pour entraînement</li>
     <li>Cloudflare Workers AI (génération LLM, fallback) — USA/UE</li>
     <li>Groq (génération LLM, fallback) — USA</li>
-    <li>Google Cloud (GSC, PageSpeed, GA4 APIs) — USA</li>
+    <li>Google Cloud (GSC, GA4 APIs) — USA</li>
   </ul>
 
   <h2>5. Sécurité</h2>
@@ -142,7 +142,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
   <p>
     Giulio Geo does <strong>not</strong> collect individual customer data (names,
     emails, addresses, order history). The app only accesses product/collection
-    meta-data and SEO performance data (GSC, PageSpeed, GA4).
+    meta-data and SEO performance data (GSC, GA4).
   </p>
 
   <h2>4. Subprocessors</h2>
@@ -151,7 +151,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
     <li>OpenAI (LLM generation, GPT-4o mini) — USA, DPA signed, content not used for training</li>
     <li>Cloudflare Workers AI (LLM generation, fallback) — USA/EU</li>
     <li>Groq (LLM generation, fallback) — USA</li>
-    <li>Google Cloud (GSC, PageSpeed, GA4 APIs) — USA</li>
+    <li>Google Cloud (GSC, GA4 APIs) — USA</li>
   </ul>
 
   <h2>5. Security</h2>
@@ -219,7 +219,7 @@ _PRIVACY_HTML_SELF_HOSTED = """<!DOCTYPE html>
   <p>
     Giulio Geo <strong>ne collecte pas</strong> de données clients individuels (noms, emails,
     adresses, historiques de commandes). L'outil accède uniquement aux méta-données produits
-    et aux données de performance SEO (GSC, PageSpeed).
+    et aux données de performance SEO (GSC).
   </p>
 
   <h2>4. Sécurité</h2>
@@ -263,7 +263,7 @@ _PRIVACY_HTML_SELF_HOSTED = """<!DOCTYPE html>
   <p>
     Giulio Geo does <strong>not</strong> collect individual customer data (names, emails,
     addresses, order history). The tool only accesses product meta-data and SEO performance
-    data (GSC, PageSpeed).
+    data (GSC).
   </p>
 
   <h2>4. Security</h2>

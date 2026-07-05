@@ -176,34 +176,6 @@ async def handle_gsc_import(payload: dict, shop: str | None) -> dict:
     )
 
 
-@register("pagespeed_import")
-async def handle_pagespeed_import(payload: dict, shop: str | None) -> dict:
-    """Import PageSpeed scores for priority shop URLs."""
-    import asyncio
-
-    from app.pagespeed.client import fetch_and_store_pagespeed
-    from app.shop_config_store import get_shop_config
-
-    if not shop:
-        raise ValueError("shop is required for pagespeed_import")
-
-    urls = payload.get("urls")
-    api_key = get_shop_config(shop, "pagespeed_api_key") or None
-    # Without an API key the unauthenticated quota is ~1–2 req/min. Cap at 1 URL
-    # (homepage only) to avoid rate-limit loops that exhaust the job timeout.
-    default_max = 3 if api_key else 1
-    max_urls = min(int(payload.get("max_urls", default_max)), 5 if api_key else 1)
-    site_url = payload.get("site_url")
-    return await asyncio.to_thread(
-        fetch_and_store_pagespeed,
-        shop,
-        urls=list(urls) if isinstance(urls, list) else None,
-        max_urls=max_urls,
-        site_url=str(site_url) if site_url else None,
-        api_key=api_key,
-    )
-
-
 @register("learning_cycle")
 async def handle_learning_cycle(payload: dict, shop: str | None) -> dict:
     """Run the autonomous SEO/GEO learning cycle for a shop."""

@@ -23,9 +23,6 @@ class SeoRules(BaseModel):
 
 
 class AlertThresholds(BaseModel):
-    cwv_mobile_min: float = 0.50
-    cwv_lcp_max_ms: float = 4000.0
-    cwv_cls_max: float = 0.25
     quick_win_min_impressions: int = 30
     low_ctr_min_impressions: int = 100
     low_ctr_max_pct: float = 1.0
@@ -40,8 +37,6 @@ class AlertThresholds(BaseModel):
     position_ok: float = 10.0
     eeat_warn: float = 25.0
     eeat_ok: float = 45.0
-    cwv_warn: float = 0.50
-    cwv_ok: float = 0.70
     eeat_weak_threshold: float = 0.45
     eeat_action_threshold: float = 0.15
 
@@ -68,7 +63,6 @@ class TenantConfig(BaseModel):
     category_labels: dict[str, str] = Field(default_factory=dict)
     category_collections: dict[str, str] = Field(default_factory=dict)
     hreflang_locales: list[HreflangLocale] = Field(default_factory=list)
-    pagespeed_urls: list[str] = Field(default_factory=list)
     competitors: list[str] = Field(default_factory=list)
     seo_rules: SeoRules = Field(default_factory=SeoRules)
     alert_thresholds: AlertThresholds = Field(default_factory=AlertThresholds)

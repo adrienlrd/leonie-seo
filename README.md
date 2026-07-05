@@ -20,7 +20,7 @@ Giulio Geo est un **copilote SEO niche-first pour boutiques Shopify** — conçu
 
 | Phase | Périmètre | Statut |
 |---|---|---|
-| 1 — Fondations & Audit | Crawl, GSC, PageSpeed, détection, score | ✅ |
+| 1 — Fondations & Audit | Crawl, GSC, détection, score | ✅ |
 | 2 — Application supervisée | ICE matrix, apply meta/alt, rollback, alertes | ✅ |
 | 3 — Contenu SEO & Niche | Briefs blog, descriptions LT, maillage, E-E-A-T | ✅ |
 | 4 — Productisation | Multi-tenant YAML, CLI universel, licences, Docker | ✅ |
@@ -118,9 +118,6 @@ curl -sSL https://raw.githubusercontent.com/adrienlrd/leonie-seo/main/install.sh
 SHOPIFY_ACCESS_TOKEN=shpat_...
 SHOPIFY_STORE_DOMAIN=xxx.myshopify.com
 
-# Google
-PAGESPEED_API_KEY=...
-
 # App web (OAuth Shopify)
 SHOPIFY_CLIENT_ID=...
 SHOPIFY_CLIENT_SECRET=...
@@ -143,7 +140,6 @@ ALERT_EMAIL=...
 ```bash
 leonie-seo audit crawl           # snapshot catalogue Shopify
 leonie-seo audit gsc             # données GSC 90 jours
-leonie-seo audit pagespeed       # Core Web Vitals
 leonie-seo audit detect          # détection problèmes
 leonie-seo report weekly         # rapport Markdown
 # → lire reports/YYYY-MM-DD/report.md
@@ -190,7 +186,7 @@ app/              ← Backend Python (moteur SEO / IA)
   apply/          ← bulk orchestrator (rate-limit, retry)
 
 scripts/          ← CLI Click (audit + apply + report) — réutilisable
-  audit/          ← lecture seule : crawl, GSC, PageSpeed
+  audit/          ← lecture seule : crawl, GSC
   apply/          ← écriture Shopify (dry-run par défaut)
   report/         ← génération rapports Markdown
 
@@ -238,7 +234,6 @@ leonie-seo --help
 ```bash
 leonie-seo audit crawl       # Shopify catalog snapshot
 leonie-seo audit gsc         # 90-day GSC data
-leonie-seo audit pagespeed   # Core Web Vitals
 leonie-seo audit detect      # detect SEO issues
 leonie-seo report weekly     # generate Markdown report
 

@@ -71,14 +71,6 @@ hreflang_locales:
   - hreflang: fr
     prefix: ""
 
-# ── URLs PageSpeed à tester ───────────────────────────────────────────────
-pagespeed_urls:
-  - "https://www.leoniedelacroix.com"
-  - "https://www.leoniedelacroix.com/collections/chien"
-  - "https://www.leoniedelacroix.com/collections/chat"
-  - "https://www.leoniedelacroix.com/products/labreuvoir"
-  - "https://www.leoniedelacroix.com/products/fontaine-smart-cordless"
-
 # ── Concurrents (semantic analysis benchmark) ─────────────────────────────
 competitors:
   - Miacara

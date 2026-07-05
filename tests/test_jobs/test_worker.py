@@ -187,30 +187,6 @@ def test_gsc_import_handler_imports_for_shop(monkeypatch):
     assert calls == [("store.myshopify.com", 30, "sc-domain:example.com", False)]
 
 
-def test_pagespeed_import_handler_imports_for_shop(monkeypatch):
-    from app.jobs.handlers import handle_pagespeed_import
-
-    calls: list[tuple[str, list[str] | None, int, str | None]] = []
-    monkeypatch.setattr(
-        "app.pagespeed.client.fetch_and_store_pagespeed",
-        lambda shop, urls, max_urls, site_url, api_key=None: calls.append(
-            (shop, urls, max_urls, site_url)
-        )
-        or {"rows": 2},
-    )
-
-    result = asyncio.run(
-        handle_pagespeed_import(
-            {"urls": ["https://example.com"], "max_urls": 1, "site_url": "https://example.com"},
-            "store.myshopify.com",
-        )
-    )
-
-    assert result["rows"] == 2
-    assert calls == [
-        ("store.myshopify.com", ["https://example.com"], 1, "https://example.com")
-    ]
-
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 

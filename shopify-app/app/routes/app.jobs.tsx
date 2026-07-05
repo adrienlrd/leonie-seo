@@ -126,13 +126,6 @@ function summarizeResult(result: Job["result"]): string {
     return `Prévisualisation: ${result.details.length} suggestion(s), aucune écriture Shopify`;
   }
 
-  const rows = result.rows;
-  const urls = result.urls;
-  if (typeof rows === "number" && typeof urls === "number") {
-    const regressions = Array.isArray(result.regression_alerts) ? result.regression_alerts.length : 0;
-    return `PageSpeed: ${urls} URL(s), ${rows} score(s), ${regressions} régression(s)`;
-  }
-
   const products = result.products;
   const collections = result.collections;
   if (typeof products === "number" || typeof collections === "number") {

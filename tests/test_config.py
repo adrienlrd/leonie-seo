@@ -42,10 +42,6 @@ hreflang_locales:
     prefix: "/fr-ch"
   - hreflang: fr-CA
     prefix: "/fr-ca"
-pagespeed_urls:
-  - "https://www.acme-pets.example/"
-  - "https://www.acme-pets.example/collections/fontaines"
-  - "https://www.acme-pets.example/products/labreuvoir"
 """
 
 
@@ -97,12 +93,6 @@ def test_load_tenant_has_hreflang_locales():
     assert "fr-BE" in hreflangs
 
 
-def test_load_tenant_has_pagespeed_urls():
-    cfg = load_tenant("acme")
-    assert len(cfg.pagespeed_urls) >= 3
-    assert any("acme-pets.example" in u for u in cfg.pagespeed_urls)
-
-
 # ── Multi-tenant analytics + locale ──────────────────────────────────────
 
 
@@ -151,7 +141,7 @@ def test_load_tenant_seo_rules():
 
 def test_load_tenant_alert_thresholds():
     cfg = load_tenant("acme")
-    assert cfg.alert_thresholds.cwv_mobile_min == 0.50
+    assert cfg.alert_thresholds.quick_win_min_impressions == 30
     assert cfg.alert_thresholds.eeat_weak_threshold == 0.45
 
 

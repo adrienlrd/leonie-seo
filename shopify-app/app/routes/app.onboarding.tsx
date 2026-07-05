@@ -29,7 +29,6 @@ import { AuditLauncherCard } from "../components/onboarding/AuditLauncherCard";
 import { CrawlCard } from "../components/onboarding/CrawlCard";
 import { GoogleSearchConsoleCard } from "../components/onboarding/GoogleSearchConsoleCard";
 import { InstallationChecklistCard } from "../components/onboarding/InstallationChecklistCard";
-import { PageSpeedCard } from "../components/onboarding/PageSpeedCard";
 import { BusinessProfilePanel } from "../components/BusinessProfilePanel";
 import { ProductIdentificationPanel } from "../components/ProductIdentificationPanel";
 import { MarketAnalysisProgressPanel } from "../components/MarketAnalysisProgressPanel";
@@ -54,7 +53,6 @@ import type {
   GSCStatus,
   Health,
   OnboardingActionData,
-  PageSpeedStatus,
   ShopStatus,
 } from "../components/onboarding/types";
 
@@ -66,7 +64,6 @@ interface LoaderData {
   gsc: GSCStatus | null;
   ga4: GA4Status | null;
   ga4Properties: GA4Property[];
-  pagespeed: PageSpeedStatus | null;
   crawl: CrawlStatus | null;
   recentJobs: number;
   businessProfile: BusinessProfile | null;
@@ -91,14 +88,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const be = (path: string) =>
     callBackendForShop(shop, path, { accessToken: session.accessToken });
 
-  const [health, status, jobs, gsc, ga4, pagespeed, crawl, businessProfile, latestAnalysis] =
+  const [health, status, jobs, gsc, ga4, crawl, businessProfile, latestAnalysis] =
     await Promise.all([
       fetchOk<Health>(callBackend("/health")),
       fetchOk<ShopStatus>(be(`/api/shops/${shop}/status`)),
       fetchOk<{ count: number }>(be(`/api/shops/${shop}/jobs?limit=10`)),
       fetchOk<GSCStatus>(be(`/api/shops/${shop}/gsc/status`)),
       fetchOk<GA4Status>(be(`/api/shops/${shop}/ga4/status`)),
-      fetchOk<PageSpeedStatus>(be(`/api/shops/${shop}/pagespeed/status`)),
       fetchOk<CrawlStatus>(be(`/api/shops/${shop}/crawl/status`)),
       fetchLatestBusinessProfile(shop, session.accessToken),
       fetchOk<unknown>(be(`/api/shops/${shop}/market-analysis/latest`)),
@@ -136,7 +132,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     gsc,
     ga4,
     ga4Properties,
-    pagespeed,
     crawl,
     recentJobs: jobs?.count ?? 0,
     businessProfile,
@@ -200,27 +195,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
       if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
       return json<OnboardingActionData>({ ga4PropertySaved: true });
-    }
-
-    if (intent === "pagespeed_import") {
-      const resp = await be(`/api/shops/${shop}/pagespeed/import`, {
-        method: "POST",
-        body: JSON.stringify({ max_urls: 3 }),
-      });
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
-      const data = (await resp.json()) as { job_id: string };
-      return json<OnboardingActionData>({ jobId: data.job_id });
-    }
-
-    if (intent === "pagespeed_configure") {
-      const apiKey = String(form.get("pagespeed_api_key") || "").trim();
-      if (!apiKey) return json<OnboardingActionData>({ error: "Clé API manquante." });
-      const resp = await be(`/api/shops/${shop}/pagespeed/configure`, {
-        method: "POST",
-        body: JSON.stringify({ api_key: apiKey }),
-      });
-      if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
-      return json<OnboardingActionData>({ jobId: "Clé PageSpeed enregistrée." });
     }
 
     if (intent === "crawl_upload") {
@@ -347,7 +321,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 // ---------------------------------------------------------------------------
 
 export default function Onboarding() {
-  const { locale, shop, health, status, gsc, ga4, ga4Properties, pagespeed, crawl, recentJobs, businessProfile, startStep } =
+  const { locale, shop, health, status, gsc, ga4, ga4Properties, crawl, recentJobs, businessProfile, startStep } =
     useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const revalidator = useRevalidator();
@@ -505,14 +479,12 @@ export default function Onboarding() {
                   status={status}
                   health={health}
                   gsc={gsc}
-                  pagespeed={pagespeed}
                   crawl={crawl}
                 />
                 <AuditLauncherCard locale={locale} recentJobs={recentJobs} actionData={legacyActionData} />
               </InlineGrid>
 
               <GoogleSearchConsoleCard locale={locale} gsc={gsc} actionData={legacyActionData} />
-              <PageSpeedCard locale={locale} pagespeed={pagespeed} />
               <CrawlCard locale={locale} crawl={crawl} actionData={legacyActionData} />
             </BlockStack>
           </div>

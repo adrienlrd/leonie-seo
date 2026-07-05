@@ -9,7 +9,6 @@ from scripts.report.dashboard import (
     cannibalization_summary,
     eeat_summary,
     gsc_summary,
-    pagespeed_summary,
     quick_wins_list,
     top_pages_list,
 )
@@ -91,26 +90,6 @@ def test_cannibalization_summary_counts_high_severity():
     s = cannibalization_summary(path)
     assert s["high"] == 2
     assert s["total"] == 3
-
-
-# ── pagespeed_summary ──────────────────────────────────────────────────────
-
-
-def test_pagespeed_summary_missing_file():
-    s = pagespeed_summary("/nonexistent/file.csv")
-    assert s["mobile_avg"] is None
-
-
-def test_pagespeed_summary_filters_mobile():
-    df = pd.DataFrame(
-        [
-            {"url": "a", "strategy": "mobile", "performance_score": 0.6},
-            {"url": "a", "strategy": "desktop", "performance_score": 0.9},
-        ]
-    )
-    path = _write_csv(df)
-    s = pagespeed_summary(path)
-    assert s["mobile_avg"] == 0.6
 
 
 # ── quick_wins_list ────────────────────────────────────────────────────────

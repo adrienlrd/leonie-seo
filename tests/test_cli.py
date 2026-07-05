@@ -47,7 +47,6 @@ def test_audit_lists_commands(runner: CliRunner) -> None:
     for cmd in (
         "crawl-shopify",
         "fetch-gsc",
-        "fetch-pagespeed",
         "parse-screaming-frog",
         "detect-gsc-opportunities",
         "analyze-longtail",
@@ -63,11 +62,6 @@ def test_audit_crawl_shopify_help(runner: CliRunner) -> None:
 
 def test_audit_fetch_gsc_help(runner: CliRunner) -> None:
     result = runner.invoke(cli, ["audit", "fetch-gsc", "--help"])
-    assert result.exit_code == 0
-
-
-def test_audit_fetch_pagespeed_help(runner: CliRunner) -> None:
-    result = runner.invoke(cli, ["audit", "fetch-pagespeed", "--help"])
     assert result.exit_code == 0
 
 

@@ -29,12 +29,12 @@ _FAQ: list[dict] = [
         "question_en": "How do I run my first audit?",
         "answer_fr": (
             "Exécutez dans l'ordre : `leonie-seo audit crawl` → `leonie-seo audit gsc` → "
-            "`leonie-seo audit pagespeed` → `leonie-seo audit detect`. "
+            "`leonie-seo audit detect`. "
             "Puis `leonie-seo report weekly` pour générer le rapport."
         ),
         "answer_en": (
             "Run in order: `leonie-seo audit crawl` → `leonie-seo audit gsc` → "
-            "`leonie-seo audit pagespeed` → `leonie-seo audit detect`. "
+            "`leonie-seo audit detect`. "
             "Then `leonie-seo report weekly` to generate the report."
         ),
     },

@@ -139,7 +139,6 @@ def generate_yaml(
             {"hreflang": "fr-FR", "prefix": ""},
             {"hreflang": "fr", "prefix": ""},
         ],
-        "pagespeed_urls": [base_url],
         "competitors": [],
         "seo_rules": {
             "title_min_chars": 50,
@@ -150,9 +149,6 @@ def generate_yaml(
             "min_alt_text_length": 10,
         },
         "alert_thresholds": {
-            "cwv_mobile_min": 0.50,
-            "cwv_lcp_max_ms": 4000.0,
-            "cwv_cls_max": 0.25,
             "quick_win_min_impressions": 30,
             "low_ctr_min_impressions": 100,
             "low_ctr_max_pct": 1.0,
@@ -167,8 +163,6 @@ def generate_yaml(
             "position_ok": 10.0,
             "eeat_warn": 25.0,
             "eeat_ok": 45.0,
-            "cwv_warn": 0.50,
-            "cwv_ok": 0.70,
             "eeat_weak_threshold": 0.45,
             "eeat_action_threshold": 0.15,
         },

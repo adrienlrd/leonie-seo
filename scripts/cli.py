@@ -19,7 +19,6 @@ from scripts.audit.crawl_shopify import main as crawl_main
 from scripts.audit.detect_cannibalization import main as cannibalization_main
 from scripts.audit.detect_gsc_opportunities import main as gsc_opp_main
 from scripts.audit.fetch_gsc import main as fetch_gsc_main
-from scripts.audit.fetch_pagespeed import main as pagespeed_main
 from scripts.audit.parse_screaming_frog import main as screaming_frog_main
 from scripts.license import cli as license_cli
 from scripts.pilot_smoke import smoke_public
@@ -54,12 +53,11 @@ cli.add_command(license_cli, name="license")
 
 @cli.group()
 def audit() -> None:
-    """Read-only audit commands — snapshot Shopify, GSC, PageSpeed."""
+    """Read-only audit commands — snapshot Shopify, GSC."""
 
 
 audit.add_command(crawl_main, name="crawl-shopify")
 audit.add_command(fetch_gsc_main, name="fetch-gsc")
-audit.add_command(pagespeed_main, name="fetch-pagespeed")
 audit.add_command(screaming_frog_main, name="parse-screaming-frog")
 audit.add_command(gsc_opp_main, name="detect-gsc-opportunities")
 audit.add_command(longtail_main, name="analyze-longtail")

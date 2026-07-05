@@ -77,18 +77,6 @@ def cannibalization_summary(cannibal_path: str) -> dict[str, Any]:
     return {"high": high, "total": len(data)}
 
 
-def pagespeed_summary(pagespeed_path: str) -> dict[str, Any]:
-    """Return average mobile performance score."""
-    df = _load_csv(pagespeed_path, ["url", "strategy", "performance_score"])
-    if df.empty:
-        return {"mobile_avg": None}
-    mobile = df[df["strategy"] == "mobile"] if "strategy" in df.columns else df
-    if mobile.empty:
-        return {"mobile_avg": None}
-    avg = round(float(mobile["performance_score"].mean()), 2)
-    return {"mobile_avg": avg}
-
-
 def quick_wins_list(opps_path: str, n: int = 5) -> list[dict[str, Any]]:
     """Return top N quick-win opportunities."""
     data = _load_json(opps_path)
@@ -172,7 +160,7 @@ def _panel_kpis(gsc: dict[str, Any], cfg: TenantConfig | None = None) -> Panel:
     return Panel(t, title="[bold]KPIs GSC[/bold]", border_style="blue", padding=(0, 1))
 
 
-def _panel_health(eeat: dict, cannibal: dict, ps: dict, cfg: TenantConfig | None = None) -> Panel:
+def _panel_health(eeat: dict, cannibal: dict, cfg: TenantConfig | None = None) -> Panel:
     _cfg = cfg or get_config()
     t_cfg = _cfg.alert_thresholds
     t = Table.grid(padding=(0, 1))
@@ -205,15 +193,6 @@ def _panel_health(eeat: dict, cannibal: dict, ps: dict, cfg: TenantConfig | None
     total_c = cannibal["total"]
     t.add_row(
         "Total cannibal.", Text(str(total_c) if total_c is not None else "N/A", style="white")
-    )
-
-    mob = ps["mobile_avg"]
-    t.add_row(
-        "CWV mobile",
-        Text(
-            f"{mob:.0%}" if mob is not None else "N/A",
-            style=_color(mob, t_cfg.cwv_warn, t_cfg.cwv_ok) if mob is not None else "dim",
-        ),
     )
 
     return Panel(t, title="[bold]Santé SEO[/bold]", border_style="magenta", padding=(0, 1))
@@ -262,7 +241,6 @@ def build_layout(
     gsc: dict,
     eeat: dict,
     cannibal: dict,
-    ps: dict,
     wins: list,
     pages: list,
     timestamp: str,
@@ -283,7 +261,7 @@ def build_layout(
 
     layout["top"].split_row(
         Layout(_panel_kpis(gsc, cfg), name="kpis"),
-        Layout(_panel_health(eeat, cannibal, ps, cfg), name="health"),
+        Layout(_panel_health(eeat, cannibal, cfg), name="health"),
         Layout(_panel_wins(wins), name="wins"),
     )
 
@@ -302,7 +280,6 @@ def build_layout(
 @click.option("--opportunities", default="data/raw/gsc_opportunities.json", show_default=True)
 @click.option("--cannibalization", default="data/raw/cannibalization.json", show_default=True)
 @click.option("--eeat", default="data/raw/eeat_scores.json", show_default=True)
-@click.option("--pagespeed", default="data/raw/pagespeed.csv", show_default=True)
 @click.option("--watch", is_flag=True, default=False, help="Refresh every 30s (Ctrl+C to exit)")
 @click.option("--refresh", default=30, show_default=True, help="Refresh interval in seconds")
 @click.option("--tenant", default=None, help="Tenant ID (default: TENANT_ID env var)")
@@ -311,7 +288,6 @@ def main(
     opportunities: str,
     cannibalization: str,
     eeat: str,
-    pagespeed: str,
     watch: bool,
     refresh: int,
     tenant: str | None,
@@ -327,7 +303,6 @@ def main(
             gsc_summary(gsc),
             eeat_summary(eeat),
             cannibalization_summary(cannibalization),
-            pagespeed_summary(pagespeed),
             quick_wins_list(opportunities),
             top_pages_list(gsc),
             ts,
