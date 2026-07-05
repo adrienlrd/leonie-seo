@@ -784,46 +784,62 @@ function DataSourcesPanel({
 
   return (
     <Box background="bg-surface-secondary" padding="200" borderRadius="200">
-      <InlineStack gap="400" wrap>
-        <InlineStack gap="200" blockAlign="center">
-          <Text as="span" variant="bodySm">Shopify</Text>
-          <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
-        </InlineStack>
-
-        <InlineStack gap="200" blockAlign="center">
-          <Text as="span" variant="bodySm">Google Search Console</Text>
-          {gscConnected ? (
+      <BlockStack gap="100">
+        <InlineStack gap="400" wrap>
+          <InlineStack gap="200" blockAlign="center">
+            <Text as="span" variant="bodySm">Shopify</Text>
             <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
-          ) : (
-            <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
-          )}
-        </InlineStack>
+          </InlineStack>
 
-        <InlineStack gap="200" blockAlign="center">
-          <Text as="span" variant="bodySm">Google Analytics 4</Text>
-          {ga4Connected ? (
-            <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
-          ) : (
-            <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
-          )}
-        </InlineStack>
+          <InlineStack gap="200" blockAlign="center">
+            <Text as="span" variant="bodySm">Google Search Console</Text>
+            {gscConnected ? (
+              <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
+            ) : (
+              <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
+            )}
+          </InlineStack>
 
-        <InlineStack gap="100" blockAlign="center" wrap={false}>
-          <Text as="span" variant="bodySm">{fr ? "Extension de thème" : "Theme extension"}</Text>
-          <Tooltip content={themeTooltip}>
-            <span style={{ display: "inline-flex", cursor: "help" }}>
-              <Icon source={QuestionCircleIcon} tone="subdued" />
-            </span>
-          </Tooltip>
-          {themeEnabled === true ? (
-            <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
-          ) : themeEnabled === false ? (
-            <Badge tone="critical">{fr ? "Non activée" : "Not enabled"}</Badge>
-          ) : (
-            <Badge tone="info">{fr ? "Indéterminé" : "Unknown"}</Badge>
-          )}
+          <InlineStack gap="200" blockAlign="center">
+            <Text as="span" variant="bodySm">Google Analytics 4</Text>
+            {ga4Connected ? (
+              <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
+            ) : (
+              <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
+            )}
+          </InlineStack>
+
+          <InlineStack gap="100" blockAlign="center" wrap={false}>
+            <Text as="span" variant="bodySm">{fr ? "Extension de thème" : "Theme extension"}</Text>
+            <Tooltip content={themeTooltip}>
+              <span style={{ display: "inline-flex", cursor: "help" }}>
+                <Icon source={QuestionCircleIcon} tone="subdued" />
+              </span>
+            </Tooltip>
+            {themeEnabled === true ? (
+              <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
+            ) : themeEnabled === false ? (
+              <Badge tone="critical">{fr ? "Non activée" : "Not enabled"}</Badge>
+            ) : (
+              <Badge tone="info">{fr ? "Indéterminé" : "Unknown"}</Badge>
+            )}
+          </InlineStack>
         </InlineStack>
-      </InlineStack>
+        {gscConnected && (
+          <Text as="p" variant="bodySm">
+            <a
+              href="https://search.google.com/search-console"
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "inherit" }}
+            >
+              {fr
+                ? "Vérifiez si vos pages sont indexées sur Google Search Console →"
+                : "Check if your pages are indexed on Google Search Console →"}
+            </a>
+          </Text>
+        )}
+      </BlockStack>
     </Box>
   );
 }
@@ -909,16 +925,16 @@ function Zone1({
           </InlineStack>
         </Box>
         {dataSources}
-        {analysisPanels && (
-          <>
-            <Divider />
-            {analysisPanels}
-          </>
-        )}
         {publishMode && (
           <>
             <Divider />
             {publishMode}
+          </>
+        )}
+        {analysisPanels && (
+          <>
+            <Divider />
+            {analysisPanels}
           </>
         )}
       </BlockStack>
