@@ -10,6 +10,18 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-05
+- **Agent:** Claude (Fable 5)
+- **Goal:** Pre-submission audit for Shopify App Store + Built for Shopify badge roadmap.
+- **Summary:** Full read-only compliance sweep (Remix + FastAPI) cross-checked against official App Store and BFS requirements (shopify.dev, 2026). Produced `docs/APP_STORE_READINESS.md`: 4 pre-submission blockers, manual verification list, listing checklist, BFS roadmap.
+- **Files created:** `docs/APP_STORE_READINESS.md`.
+- **Files modified:** `docs/AI_HANDOFF.md` (this entry).
+- **Key findings (blockers):** (1) `shop/redact` webhook only deletes the OAuth token, leaves `data/raw/{shop}/` on disk — GDPR gap (`app/oauth/gdpr.py:79-96`); (2) PageSpeed API-key input still visible in onboarding (`shopify-app/app/onboarding/PageSpeedCard.tsx:63-83`); (3) unverified `REVIEW_NOTE` assumption that Shopify serves `/llms.txt` from theme templates (`app/apply/shopify_theme_files.py:31-36`) — gates the `write_themes` scope justification; (4) literal "TODO" badge shown to merchants (`app.settings.tsx:70,119`).
+- **Validations:** none run (documentation-only change, no code touched).
+- **Next recommended action:** fix blocker 1 (shop/redact data purge + test), then follow the checklist in `docs/APP_STORE_READINESS.md` §6.
+
+## Previous completed task
+
 - **Date:** 2026-07-03
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Corriger le second bug d'auto-publication (décocher tous les champs d'un produit publiait quand même **tout**) et permettre au marchand de choisir **directement dans la popup** de ré-analyse ce qui sera publié, par produit.
