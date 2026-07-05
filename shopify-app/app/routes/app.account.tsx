@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useFetcher, useLoaderData, useNavigate, useRevalidator } from "@remix-run/react";
+import { useFetcher, useLoaderData, useRevalidator } from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -96,12 +96,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "resetAllData") {
-    const resp = await callBackendForShop(
-      session.shop,
-      `/api/shops/${session.shop}/reset-all`,
-      { accessToken: session.accessToken, method: "DELETE" },
-    );
-    return json({ type: "resetAllData", ok: resp.ok, status: resp.status });
+    let ok = false;
+    let status = 0;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/reset-all`,
+        { accessToken: session.accessToken, method: "DELETE", signal: AbortSignal.timeout(25_000) },
+      );
+      ok = resp.ok;
+      status = resp.status;
+    } catch {
+      // Timeout / network error — fall through to the error branch below.
+    }
+    // On success, redirect from the server (reliable in the embedded app,
+    // unlike client-side navigate) straight to the home dashboard.
+    if (ok) return redirect(localizedPath("/app", getLocale(request)));
+    return json({ type: "resetAllData", ok: false, status });
   }
 
   if (intent === "saveAutomation") {
@@ -192,19 +203,14 @@ export default function AccountHub() {
   // authorization URL, mirroring the onboarding wizard's connect flow.
   const revalidator = useRevalidator();
 
-  // After a full reset, force the merchant back into onboarding as if the app
-  // was just installed. Client-side navigation keeps the embedded auth context
-  // (App Bridge), unlike a server redirect that would drop shop/host/id_token.
-  const navigate = useNavigate();
+  // A successful reset redirects to the home dashboard from the server action.
+  // We only get data back here on failure — reset the confirm state so the
+  // merchant can read the error banner and retry.
   useEffect(() => {
-    if (resetAllFetcher.state !== "idle" || !resetAllFetcher.data) return;
-    if (resetAllFetcher.data.ok) {
-      navigate(localizedPath("/app/onboarding", locale));
-    } else {
-      // Surface the failure instead of silently doing nothing; let the merchant retry.
+    if (resetAllFetcher.state === "idle" && resetAllFetcher.data && !resetAllFetcher.data.ok) {
       setConfirmResetAll(false);
     }
-  }, [resetAllFetcher.state, resetAllFetcher.data, navigate, locale]);
+  }, [resetAllFetcher.state, resetAllFetcher.data]);
 
   const openedUrlRef = useRef<string | null>(null);
   useEffect(() => {
