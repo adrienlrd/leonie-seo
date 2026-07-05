@@ -66,8 +66,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json<LoaderData>({ locale, shop, backendUrl, status, health, budget, locales });
 };
 
-function StateBadge({ ok }: { ok: boolean }) {
-  return <Badge tone={ok ? "success" : "warning"}>{ok ? "OK" : "TODO"}</Badge>;
+function StateBadge({ ok, locale }: { ok: boolean; locale: Locale }) {
+  return (
+    <Badge tone={ok ? "success" : "warning"}>
+      {ok ? t(locale, "stateReady") : t(locale, "stateToConfigure")}
+    </Badge>
+  );
 }
 
 export default function Settings() {
@@ -84,7 +88,7 @@ export default function Settings() {
                 <Text as="h2" variant="headingMd">
                   {t(locale, "shopify")}
                 </Text>
-                <StateBadge ok={Boolean(status)} />
+                <StateBadge ok={Boolean(status)} locale={locale} />
               </InlineStack>
               <Text as="p">{shop}</Text>
               <Text as="p" tone="subdued">
@@ -99,7 +103,7 @@ export default function Settings() {
                 <Text as="h2" variant="headingMd">
                   {t(locale, "backend")}
                 </Text>
-                <StateBadge ok={health?.status === "ok"} />
+                <StateBadge ok={health?.status === "ok"} locale={locale} />
               </InlineStack>
               <Text as="p">{backendUrl}</Text>
               <Text as="p" tone="subdued">
@@ -116,7 +120,9 @@ export default function Settings() {
                 {t(locale, "snapshot")}
               </Text>
               <Badge tone={status?.snapshot_available ? "success" : "warning"}>
-                {status?.snapshot_available ? "OK" : "TODO"}
+                {status?.snapshot_available
+                  ? t(locale, "stateReady")
+                  : t(locale, "stateToConfigure")}
               </Badge>
               <Text as="p" tone="subdued">
                 {String(status?.product_count ?? 0)} {t(locale, "products")} ·{" "}

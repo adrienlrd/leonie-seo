@@ -28,12 +28,10 @@ _TIMEOUT = 30
 # any network call. This is the hard guarantee that write_themes can never be
 # used to modify a merchant's existing theme design or code.
 #
-# REVIEW_NOTE: This feature assumes Shopify serves /llms.txt, /llms-full.txt and
-# /agents.md from these template files on the published theme. This MUST be
-# verified on a real store before App Store submission (publish, then GET
-# https://<shop>/llms.txt and confirm a 200 with the generated content). If
-# Shopify does NOT serve these root paths from templates, do not force it: keep
-# LEONIE_THEME_WRITE_MODE=disabled (preview/export only) and drop write_themes.
+# Shopify officially serves /llms.txt, /llms-full.txt and /agents.md from these
+# theme templates since 2026-05-28 (templates/agents.md.liquid is the fallback
+# for the other two paths):
+# https://shopify.dev/changelog/customize-llmstxt-llms-fulltxt-and-agentsmd
 ALLOWED_THEME_FILES = frozenset(
     {
         "templates/llms.txt.liquid",
