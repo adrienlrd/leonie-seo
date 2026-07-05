@@ -18,10 +18,11 @@
   2. **Reset résilient** (déjà en place, commit `cfdfaf7`) : `reset_shop_data` supprime table par table dans des transactions séparées, reporte les tables en échec dans `failed` au lieu d'avorter tout le reset ; préserve `_RESET_PRESERVED_TABLES = ("shop_tokens", "subscriptions")`.
   3. **Test garde-fou** (`tests/test_db_adapter.py`) : `test_pg_and_sqlite_ddl_create_the_same_tables` échoue si une table SQLite manque au schéma Postgres (comptant `_PG_DDL` + `_PG_EMBEDDINGS` + `_PG_LLM_METRICS`/`_PG_LLM_CACHE`/`_PG_KEYWORD_CACHE`/`_PG_SHOP_CONFIG`).
   4. **UX propre** (`app.account.tsx`) : suppression du mode diagnostic (marqueur `reset-diag-v6`, bannières verboses deleted/failed). Au succès, l'action fait un `redirect(localizedPath("/app"))` côté serveur (suivi par le fetcher — fiable en iframe embarquée) → retour accueil. Bannière d'erreur conservée en cas d'échec.
-- **Files modified:** `app/db.py`, `tests/test_db_adapter.py`, `shopify-app/app/routes/app.account.tsx`, `docs/AI_HANDOFF.md`.
-- **Validations run:** `ruff check .` ✅ · `pytest tests/test_db_adapter.py tests/test_oauth/test_gdpr.py -q` → **30 passed** ✅ · `npm run typecheck` ✅ · `npm run build` ✅.
-- **Open issues:** les 2 tables ne seront présentes en prod qu'après ré-init Postgres au prochain déploiement (`_init_postgres` s'exécute au démarrage). Reset non rejoué en runtime réel depuis le fix.
-- **Next recommended action:** déployer, puis rejouer le reset sur la boutique pilote → confirmer `failed` vide + redirection accueil.
+  5. **Root cause #2 — chemin fichiers (« tout s'affiche » après reset)** (`app/oauth/gdpr.py`) : `_RAW_DIR` était codé en dur `parents[2]/data/raw`, ignorant la variable `DATA_DIR` que le reste de l'app utilise via `app.paths.data_dir()` (disque persistant Render). En prod le reset effaçait les lignes DB mais **pas** `business_profile.json`/snapshots → `load_business_profile` relisait le fichier → la home affichait un dashboard complet. Fix : `_RAW_DIR = data_dir()`. Test de non-régression `test_reset_shop_data_deletes_business_profile`.
+- **Files modified:** `app/db.py`, `app/oauth/gdpr.py`, `tests/test_db_adapter.py`, `tests/test_oauth/test_gdpr.py`, `shopify-app/app/routes/app.account.tsx`, `docs/AI_HANDOFF.md`.
+- **Validations run:** `ruff check .` ✅ · `pytest tests/test_db_adapter.py tests/test_oauth/test_gdpr.py -q` → **31 passed** ✅ · `npm run typecheck` ✅ · `npm run build` ✅.
+- **Open issues:** les 2 tables Postgres ne seront présentes qu'après ré-init au prochain déploiement (`_init_postgres` au démarrage). Reset non rejoué en runtime réel depuis les fixes.
+- **Next recommended action:** déployer, puis rejouer le reset sur la boutique pilote → confirmer dashboard vide + redirection onboarding/accueil + abonnement conservé.
 
 ## Previous completed task
 
