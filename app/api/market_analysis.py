@@ -898,6 +898,18 @@ async def reset_shop_tags(
     return {"reset": deleted}
 
 
+@router.delete("/shops/{shop}/reset-all")
+async def reset_shop_all_data(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Reset the shop to its first-open state: wipe all server-side data except
+    the OAuth token and subscription. Only callable from the Danger Zone."""
+    from app.oauth.gdpr import reset_shop_data
+
+    reset_shop_data(ctx.shop)
+    return {"reset": True}
+
+
 @router.patch("/shops/{shop}/market-analysis/proposals/{product_id:path}")
 async def patch_market_analysis_proposals(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],

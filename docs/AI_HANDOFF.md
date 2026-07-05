@@ -11,6 +11,20 @@
 ## Last completed task
 
 - **Date:** 2026-07-05
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Danger Zone — bouton "Réinitialiser l'application" : remet l'app à l'état "première ouverture" en supprimant toutes les données serveur, en gardant l'installation + l'abonnement, puis force le re-onboarding.
+- **Summary:**
+  1. **Backend `reset_shop_data(shop)`** (`app/oauth/gdpr.py`) : réutilise l'allowlist `_SHOP_SCOPED_TABLES` en excluant `_RESET_PRESERVED_TABLES = ("shop_tokens", "subscriptions")` — le token OAuth garde la session, l'abonnement garde le billing ; tout le reste (dont `google_tokens` → GSC/GA4) + `data/raw/{shop}` est effacé. Garde `_SHOP_DOMAIN_RE` avant toute écriture disque. Distinct de `purge_shop_data` (uninstall).
+  2. **Endpoint** `DELETE /api/shops/{shop}/reset-all` (`app/api/market_analysis.py`) protégé par `get_shop_context` (secret interne), à côté de `tags/reset`.
+  3. **Frontend** (`app.account.tsx`) : intent `resetAllData`, fetcher + confirmation en deux temps dans la Zone de danger, copie FR/EN explicite. Au succès, `useNavigate` redirige vers `/app/onboarding` (re-onboarding forcé, contexte embedded préservé). Le dashboard renvoie de toute façon 404 après reset (plus de snapshot) → onboarding.
+- **Files modified:** `app/oauth/gdpr.py`, `app/api/market_analysis.py`, `shopify-app/app/routes/app.account.tsx`, `tests/test_oauth/test_gdpr.py`, `docs/AI_HANDOFF.md`.
+- **Validations run:** `ruff check app/oauth/gdpr.py app/api/market_analysis.py tests/test_oauth/test_gdpr.py` ✅ · `pytest tests/test_oauth/test_gdpr.py` → **17 passed** ✅ · `npm run typecheck` ✅ · `npm run build` ✅.
+- **Open issues:** reset non testé en runtime (pas de token/boutique locale) ; validé par tests unitaires + cohérence du flux 404→onboarding.
+- **Next recommended action:** vérifier manuellement après déploiement (reset → onboarding, abonnement conservé).
+
+## Previous completed task
+
+- **Date:** 2026-07-05
 - **Agent:** Claude (Fable 5)
 - **Goal:** Fix the 4 App Store submission blockers identified by the readiness audit.
 - **Summary:**
@@ -26,7 +40,7 @@
 - **Open issues:** billing `test` flag + i18n key asymmetry (see APP_STORE_READINESS.md §6); manual pre-submission checks pending.
 - **Next recommended action:** run the manual pre-submission checklist (billing flow, incognito, Render disk persistence, `shopify app deploy`).
 
-## Previous completed task
+## Earlier completed task
 
 - **Date:** 2026-07-05
 - **Agent:** Claude (Fable 5)

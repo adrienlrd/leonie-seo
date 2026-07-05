@@ -68,6 +68,13 @@ _SHOP_SCOPED_TABLES = (
     "analysis_artifacts",
 )
 
+# Tables kept during an in-app "reset to first-open" (Danger Zone). The OAuth
+# token must survive or the embedded session breaks; the subscription must
+# survive because a merchant reset cannot un-bill an active plan. Everything
+# else (including google_tokens → GSC/GA4) is wiped to restore the first-open
+# state. This differs from shop/redact, which deletes everything on uninstall.
+_RESET_PRESERVED_TABLES = ("shop_tokens", "subscriptions")
+
 
 def purge_shop_data(shop: str) -> None:
     """Delete every trace of a shop: all shop-scoped DB rows + data/raw/{shop} files.
@@ -79,6 +86,26 @@ def purge_shop_data(shop: str) -> None:
         raise ValueError(f"Invalid shop domain: {shop!r}")
     with get_conn(DB_PATH) as conn:
         for table in _SHOP_SCOPED_TABLES:
+            # Table names come from the fixed allowlist above, never from input.
+            conn.execute(f"DELETE FROM {table} WHERE shop = ?", (shop,))  # noqa: S608
+    shop_dir = _RAW_DIR / shop
+    if shop_dir.is_dir():
+        shutil.rmtree(shop_dir)
+
+
+def reset_shop_data(shop: str) -> None:
+    """Reset a shop to its first-open state while keeping it installed.
+
+    Deletes every shop-scoped DB row and the data/raw/{shop} directory, except
+    the tables in ``_RESET_PRESERVED_TABLES`` (OAuth token + subscription).
+    Triggered by the Danger Zone "reset app" action, not by GDPR redaction.
+    Raises ValueError on a malformed shop domain instead of touching the disk.
+    """
+    if not _SHOP_DOMAIN_RE.match(shop):
+        raise ValueError(f"Invalid shop domain: {shop!r}")
+    tables = [t for t in _SHOP_SCOPED_TABLES if t not in _RESET_PRESERVED_TABLES]
+    with get_conn(DB_PATH) as conn:
+        for table in tables:
             # Table names come from the fixed allowlist above, never from input.
             conn.execute(f"DELETE FROM {table} WHERE shop = ?", (shop,))  # noqa: S608
     shop_dir = _RAW_DIR / shop

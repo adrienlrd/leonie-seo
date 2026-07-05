@@ -207,6 +207,60 @@ def test_purge_shop_data_covers_every_shop_scoped_table(tmp_path, monkeypatch):
     assert expected == set(_SHOP_SCOPED_TABLES)
 
 
+# ── in-app reset (Danger Zone) ───────────────────────────────────────────────
+
+
+def test_reset_shop_data_wipes_everything_except_token_and_subscription(tmp_path, monkeypatch):
+    db = tmp_path / "test.db"
+    raw_dir = tmp_path / "raw"
+    monkeypatch.setattr("app.oauth.gdpr.DB_PATH", db)
+    monkeypatch.setattr("app.oauth.gdpr._RAW_DIR", raw_dir)
+    from app.db import init_db
+    from app.oauth.gdpr import _RESET_PRESERVED_TABLES, reset_shop_data
+
+    init_db(db)
+    _seed_shop_data(db, raw_dir, SHOP)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO subscriptions (shop, plan, status, created_at, updated_at) "
+            "VALUES (?, 'pro', 'active', 'now', 'now')",
+            (SHOP,),
+        )
+
+    reset_shop_data(SHOP)
+
+    with sqlite3.connect(db) as conn:
+        # Preserved: OAuth token + subscription keep the app installed and billed.
+        for table in _RESET_PRESERVED_TABLES:
+            assert (
+                conn.execute(f"SELECT COUNT(*) FROM {table} WHERE shop = ?", (SHOP,)).fetchone()[0]  # noqa: S608
+                == 1
+            )
+        # Wiped: everything else, including analysis artifacts.
+        for table in ("shop_config", "analysis_artifacts"):
+            assert (
+                conn.execute(f"SELECT COUNT(*) FROM {table} WHERE shop = ?", (SHOP,)).fetchone()[0]  # noqa: S608
+                == 0
+            )
+    assert not (raw_dir / SHOP).exists()
+
+
+def test_reset_shop_data_rejects_malformed_domain(tmp_path, monkeypatch):
+    from app.oauth.gdpr import reset_shop_data
+
+    monkeypatch.setattr("app.oauth.gdpr.DB_PATH", tmp_path / "test.db")
+    with pytest.raises(ValueError, match="Invalid shop domain"):
+        reset_shop_data("../../etc")
+
+
+def test_reset_preserved_tables_are_shop_scoped():
+    """Preserved tables must be a subset of the purge allowlist — guards against
+    a typo silently preserving nothing (or a non-existent table)."""
+    from app.oauth.gdpr import _RESET_PRESERVED_TABLES, _SHOP_SCOPED_TABLES
+
+    assert set(_RESET_PRESERVED_TABLES) <= set(_SHOP_SCOPED_TABLES)
+
+
 def test_shop_redact_invalid_hmac_returns_401(client):
     headers = {"X-Shopify-Hmac-Sha256": "bad", "X-Shopify-Shop-Domain": SHOP}
     resp = client.post("/shopify/webhooks/shop/redact", content=BODY, headers=headers)

@@ -1,7 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useFetcher, useLoaderData, useRevalidator } from "@remix-run/react";
+import { useFetcher, useLoaderData, useNavigate, useRevalidator } from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -95,6 +95,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ type: "resetTags", ok: resp.ok, reset: data?.reset ?? 0 });
   }
 
+  if (intent === "resetAllData") {
+    const resp = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/reset-all`,
+      { accessToken: session.accessToken, method: "DELETE" },
+    );
+    return json({ type: "resetAllData", ok: resp.ok });
+  }
+
   if (intent === "saveAutomation") {
     const automationMode = String(form.get("automation_mode") ?? "semi_auto");
     // "manual" maps to enabled=false; the persisted `mode` then defaults back to
@@ -148,10 +157,12 @@ export default function AccountHub() {
   const gscConnected = Boolean(gsc?.connected);
   const ga4Connected = Boolean(ga4?.ready);
   const resetFetcher = useFetcher<{ type: string; ok: boolean; reset: number }>();
+  const resetAllFetcher = useFetcher<{ type: string; ok: boolean }>();
   const automationFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const testReanalysisFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const onboardingFetcher = useFetcher<OnboardingActionData>();
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmResetAll, setConfirmResetAll] = useState(false);
 
   const initialMode: "manual" | "semi_auto" | "auto_apply" = !learningSettings?.enabled
     ? "manual"
@@ -180,6 +191,17 @@ export default function AccountHub() {
   // Open Google's consent screen in a popup when the onboarding action returns an
   // authorization URL, mirroring the onboarding wizard's connect flow.
   const revalidator = useRevalidator();
+
+  // After a full reset, force the merchant back into onboarding as if the app
+  // was just installed. Client-side navigation keeps the embedded auth context
+  // (App Bridge), unlike a server redirect that would drop shop/host/id_token.
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (resetAllFetcher.state === "idle" && resetAllFetcher.data?.ok) {
+      navigate(localizedPath("/app/onboarding", locale));
+    }
+  }, [resetAllFetcher.state, resetAllFetcher.data, navigate, locale]);
+
   const openedUrlRef = useRef<string | null>(null);
   useEffect(() => {
     const url = onboardingFetcher.data?.authorizationUrl;
@@ -243,6 +265,13 @@ export default function AccountHub() {
     fd.set("intent", "resetTags");
     resetFetcher.submit(fd, { method: "post" });
     setConfirmReset(false);
+  };
+
+  const onResetAllConfirm = () => {
+    const fd = new FormData();
+    fd.set("intent", "resetAllData");
+    resetAllFetcher.submit(fd, { method: "post" });
+    setConfirmResetAll(false);
   };
 
   return (
@@ -484,6 +513,45 @@ export default function AccountHub() {
                 </Text>
               </Banner>
             )}
+
+            <Box
+              padding="400"
+              background="bg-surface-critical"
+              borderRadius="200"
+              borderColor="border-critical"
+              borderWidth="025"
+            >
+              <InlineStack align="space-between" blockAlign="center">
+                <BlockStack gap="050">
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    {fr ? "Réinitialiser l'application" : "Reset the app"}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {fr
+                      ? "Remet l'application à zéro, comme au premier lancement : supprime toutes vos données de nos serveurs (analyses, catalogue, tags, planification, connexions Google Search Console et Analytics) et relance la configuration initiale. Votre abonnement et l'installation sont conservés."
+                      : "Resets the app to its first-open state: deletes all your data from our servers (analyses, catalog, tags, scheduling, Google Search Console and Analytics connections) and restarts the initial setup. Your subscription and installation are kept."}
+                  </Text>
+                </BlockStack>
+                {!confirmResetAll ? (
+                  <Button tone="critical" onClick={() => setConfirmResetAll(true)}>
+                    {fr ? "Réinitialiser" : "Reset"}
+                  </Button>
+                ) : (
+                  <InlineStack gap="200">
+                    <Button variant="plain" onClick={() => setConfirmResetAll(false)}>
+                      {fr ? "Annuler" : "Cancel"}
+                    </Button>
+                    <Button
+                      tone="critical"
+                      loading={resetAllFetcher.state !== "idle"}
+                      onClick={onResetAllConfirm}
+                    >
+                      {fr ? "Tout supprimer" : "Delete everything"}
+                    </Button>
+                  </InlineStack>
+                )}
+              </InlineStack>
+            </Box>
           </BlockStack>
         </Card>
       </BlockStack>
