@@ -1339,34 +1339,40 @@ function PublishModeCard({
   const content = (
     <BlockStack gap="300">
       <InlineGrid columns={2} gap="300">
-          <Box
-            padding="300"
-            borderWidth="025"
-            borderRadius="200"
-            borderColor="border"
-            background={!isAuto ? "bg-surface-secondary" : "bg-surface"}
-          >
-            <BlockStack gap="200">
-              <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-start" }}>
-                <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
-                  <Icon source={ContentIcon} />
-                </span>
-                <Text as="p" variant="bodyMd" fontWeight="semibold">
-                  {t(locale, "publishModeManualTitle")}
+          {/* Publication manuelle — grisé quand l'auto est actif */}
+          <div style={{ opacity: isAuto ? 0.45 : 1, display: "flex", flexDirection: "column" }}>
+            <Box
+              padding="300"
+              borderWidth="025"
+              borderRadius="200"
+              borderColor="border"
+              background="bg-surface-secondary"
+            >
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)" }}>
+                <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
+                    <Icon source={ContentIcon} />
+                  </span>
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    {t(locale, "publishModeManualTitle")}
+                  </Text>
+                </div>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t(locale, "publishModeManualDesc")}
                 </Text>
+                <div style={{ flex: "1 1 auto" }} />
+                {!isAuto ? (
+                  <span style={{ fontWeight: 700, fontSize: "0.8125rem", color: "#000" }}>
+                    {locale === "fr" ? "Actif" : "Active"}
+                  </span>
+                ) : (
+                  <Button size="slim" onClick={() => handleToggle("semi_auto")} loading={busy}>
+                    {locale === "fr" ? "Activer" : "Activate"}
+                  </Button>
+                )}
               </div>
-              <Text as="p" variant="bodySm" tone="subdued">
-                {t(locale, "publishModeManualDesc")}
-              </Text>
-              {!isAuto ? (
-                <Badge tone="success">{locale === "fr" ? "Actif" : "Active"}</Badge>
-              ) : (
-                <Button size="slim" onClick={() => handleToggle("semi_auto")} loading={busy}>
-                  {locale === "fr" ? "Activer" : "Activate"}
-                </Button>
-              )}
-            </BlockStack>
-          </Box>
+            </Box>
+          </div>
 
           <div
             style={{
@@ -1391,7 +1397,7 @@ function PublishModeCard({
             <div style={{ flex: 1, minWidth: 0, padding: "var(--p-space-300)", display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)" }}>
               <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-start" }}>
                 <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
-                  <Icon source={AutomationIcon} />
+                  <RocketIcon size={20} />
                 </span>
                 <Text as="p" variant="bodyMd" fontWeight="semibold">
                   {t(locale, "publishModeAutoTitle")}{" "}
@@ -1444,26 +1450,24 @@ function PublishModeCard({
             </div>
           </div>
         </InlineGrid>
-        {isAuto && (
-          <div
-            style={{
-              background: "#000",
-              color: "#fff",
-              borderRadius: "var(--p-border-radius-200)",
-              padding: "var(--p-space-300)",
-              display: "flex",
-              gap: "var(--p-space-200)",
-              alignItems: "flex-start",
-            }}
-          >
-            <span style={{ flex: "0 0 auto", display: "inline-flex", marginTop: "0.1rem" }}>
-              <RocketIcon size={18} />
-            </span>
-            <p style={{ margin: 0, fontSize: "0.8125rem", lineHeight: 1.4 }}>
-              {t(locale, "publishModeAutoDisclaimer")}
-            </p>
-          </div>
-        )}
+        <div
+          style={{
+            background: "#000",
+            color: "#fff",
+            borderRadius: "var(--p-border-radius-200)",
+            padding: "var(--p-space-300)",
+            display: "flex",
+            gap: "var(--p-space-200)",
+            alignItems: "flex-start",
+          }}
+        >
+          <span style={{ flex: "0 0 auto", display: "inline-flex", marginTop: "0.1rem" }}>
+            <RocketIcon size={18} />
+          </span>
+          <p style={{ margin: 0, fontSize: "0.8125rem", lineHeight: 1.4 }}>
+            {t(locale, "publishModeAutoDisclaimer")}
+          </p>
+        </div>
     </BlockStack>
   );
 
