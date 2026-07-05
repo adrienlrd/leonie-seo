@@ -215,3 +215,47 @@ def test_legacy_geo_impact_events_get_tracking_columns(tmp_path):
     assert "score_after" in columns
     assert "measurement_status" in columns
     assert "status_history" in columns
+
+
+# ── schema parity SQLite ↔ Postgres ───────────────────────────────────────────
+
+
+def test_pg_and_sqlite_ddl_create_the_same_tables():
+    """Every table in the SQLite schema must also exist in the Postgres schema.
+
+    Guards against the drift that let content_actions / content_action_decisions
+    be created for SQLite (and tests) but never in production Postgres, so the
+    Danger Zone reset raised UndefinedTable in prod while passing every test.
+    Postgres builds its schema from _PG_DDL plus a handful of standalone DDL
+    constants applied in _init_postgres — all of them must be counted here.
+    """
+    import re
+
+    from app.db import (
+        _PG_DDL,
+        _PG_EMBEDDINGS,
+        _PG_KEYWORD_CACHE,
+        _PG_LLM_CACHE,
+        _PG_LLM_METRICS,
+        _PG_SHOP_CONFIG,
+        _SQLITE_DDL,
+    )
+
+    def table_names(statements):
+        names = set()
+        for stmt in statements:
+            match = re.search(r"CREATE TABLE IF NOT EXISTS\s+(\w+)", stmt)
+            if match:
+                names.add(match.group(1))
+        return names
+
+    pg_tables = (
+        table_names(_PG_DDL)
+        | table_names(_PG_EMBEDDINGS)
+        | table_names(
+            [_PG_LLM_METRICS, _PG_LLM_CACHE, _PG_KEYWORD_CACHE, _PG_SHOP_CONFIG]
+        )
+    )
+    sqlite_tables = table_names(_SQLITE_DDL)
+
+    assert sqlite_tables - pg_tables == set()

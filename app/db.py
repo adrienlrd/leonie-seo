@@ -591,6 +591,32 @@ _PG_DDL = [
         created_at      TEXT NOT NULL,
         updated_at      TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS content_actions (
+        action_id       TEXT PRIMARY KEY,
+        shop            TEXT NOT NULL,
+        content_type    TEXT NOT NULL,
+        resource_id     TEXT NOT NULL,
+        resource_handle TEXT NOT NULL DEFAULT '',
+        result_json     TEXT NOT NULL,
+        status          TEXT NOT NULL DEFAULT 'draft',
+        retry_count     INTEGER NOT NULL DEFAULT 0,
+        created_at      TEXT NOT NULL,
+        updated_at      TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS content_action_decisions (
+        id              SERIAL PRIMARY KEY,
+        shop            TEXT NOT NULL,
+        action_id       TEXT NOT NULL,
+        content_type    TEXT NOT NULL,
+        decision        TEXT NOT NULL,
+        decided_by      TEXT NOT NULL DEFAULT 'merchant',
+        decided_at      TEXT NOT NULL,
+        before_hash     TEXT,
+        after_hash      TEXT,
+        edit_diff       TEXT,
+        rejected_reason TEXT,
+        retry_index     INTEGER NOT NULL DEFAULT 0
+    )""",
     """CREATE TABLE IF NOT EXISTS jobs (
         id           TEXT PRIMARY KEY,
         queue        TEXT NOT NULL,

@@ -12,15 +12,16 @@
 
 - **Date:** 2026-07-05
 - **Agent:** Claude (Opus 4.8)
-- **Goal:** Danger Zone — bouton "Réinitialiser l'application" : remet l'app à l'état "première ouverture" en supprimant toutes les données serveur, en gardant l'installation + l'abonnement, puis force le re-onboarding.
+- **Goal:** Fix root cause du reset "Zone de danger" qui échouait en prod (HTTP 500 / suppression partielle) : dérive de schéma SQLite ↔ Postgres. Puis rétablir l'UX propre (redirection accueil).
 - **Summary:**
-  1. **Backend `reset_shop_data(shop)`** (`app/oauth/gdpr.py`) : réutilise l'allowlist `_SHOP_SCOPED_TABLES` en excluant `_RESET_PRESERVED_TABLES = ("shop_tokens", "subscriptions")` — le token OAuth garde la session, l'abonnement garde le billing ; tout le reste (dont `google_tokens` → GSC/GA4) + `data/raw/{shop}` est effacé. Garde `_SHOP_DOMAIN_RE` avant toute écriture disque. Distinct de `purge_shop_data` (uninstall).
-  2. **Endpoint** `DELETE /api/shops/{shop}/reset-all` (`app/api/market_analysis.py`) protégé par `get_shop_context` (secret interne), à côté de `tags/reset`.
-  3. **Frontend** (`app.account.tsx`) : intent `resetAllData`, fetcher + confirmation en deux temps dans la Zone de danger, copie FR/EN explicite. Au succès, `useNavigate` redirige vers `/app/onboarding` (re-onboarding forcé, contexte embedded préservé). Le dashboard renvoie de toute façon 404 après reset (plus de snapshot) → onboarding.
-- **Files modified:** `app/oauth/gdpr.py`, `app/api/market_analysis.py`, `shopify-app/app/routes/app.account.tsx`, `tests/test_oauth/test_gdpr.py`, `docs/AI_HANDOFF.md`.
-- **Validations run:** `ruff check app/oauth/gdpr.py app/api/market_analysis.py tests/test_oauth/test_gdpr.py` ✅ · `pytest tests/test_oauth/test_gdpr.py` → **17 passed** ✅ · `npm run typecheck` ✅ · `npm run build` ✅.
-- **Open issues:** reset non testé en runtime (pas de token/boutique locale) ; validé par tests unitaires + cohérence du flux 404→onboarding.
-- **Next recommended action:** vérifier manuellement après déploiement (reset → onboarding, abonnement conservé).
+  1. **Root cause — schema drift** (`app/db.py`) : `content_actions` et `content_action_decisions` existaient dans `_SQLITE_DDL` (tests/local) mais **manquaient dans `_PG_DDL`** → jamais créées en Postgres prod → `DELETE` levait `UndefinedTable`. Ajout des deux `CREATE TABLE IF NOT EXISTS` en syntaxe Postgres (`SERIAL PRIMARY KEY` pour l'autoincrement). Les 6 autres tables "SQLite-only" (shop_config, embeddings, caches) sont créées via des constantes DDL séparées dans `_init_postgres` — pas de vraie dérive.
+  2. **Reset résilient** (déjà en place, commit `cfdfaf7`) : `reset_shop_data` supprime table par table dans des transactions séparées, reporte les tables en échec dans `failed` au lieu d'avorter tout le reset ; préserve `_RESET_PRESERVED_TABLES = ("shop_tokens", "subscriptions")`.
+  3. **Test garde-fou** (`tests/test_db_adapter.py`) : `test_pg_and_sqlite_ddl_create_the_same_tables` échoue si une table SQLite manque au schéma Postgres (comptant `_PG_DDL` + `_PG_EMBEDDINGS` + `_PG_LLM_METRICS`/`_PG_LLM_CACHE`/`_PG_KEYWORD_CACHE`/`_PG_SHOP_CONFIG`).
+  4. **UX propre** (`app.account.tsx`) : suppression du mode diagnostic (marqueur `reset-diag-v6`, bannières verboses deleted/failed). Au succès, l'action fait un `redirect(localizedPath("/app"))` côté serveur (suivi par le fetcher — fiable en iframe embarquée) → retour accueil. Bannière d'erreur conservée en cas d'échec.
+- **Files modified:** `app/db.py`, `tests/test_db_adapter.py`, `shopify-app/app/routes/app.account.tsx`, `docs/AI_HANDOFF.md`.
+- **Validations run:** `ruff check .` ✅ · `pytest tests/test_db_adapter.py tests/test_oauth/test_gdpr.py -q` → **30 passed** ✅ · `npm run typecheck` ✅ · `npm run build` ✅.
+- **Open issues:** les 2 tables ne seront présentes en prod qu'après ré-init Postgres au prochain déploiement (`_init_postgres` s'exécute au démarrage). Reset non rejoué en runtime réel depuis le fix.
+- **Next recommended action:** déployer, puis rejouer le reset sur la boutique pilote → confirmer `failed` vide + redirection accueil.
 
 ## Previous completed task
 
