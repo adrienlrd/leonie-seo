@@ -101,17 +101,110 @@ def test_customers_redact_missing_hmac_returns_401(client):
 # ── shop/redact ───────────────────────────────────────────────────────────────
 
 
-def test_shop_redact_valid_deletes_token_and_returns_200(client, tmp_path, monkeypatch):
-    monkeypatch.setattr("app.oauth.gdpr.DB_PATH", tmp_path / "test.db")
+def _seed_shop_data(db, raw_dir, shop):
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO shop_tokens (shop, access_token, installed_at, updated_at) "
+            "VALUES (?, 'tok', 'now', 'now')",
+            (shop,),
+        )
+        conn.execute(
+            "INSERT INTO shop_config (shop, key, value) VALUES (?, 'lang', 'fr')", (shop,)
+        )
+        conn.execute(
+            "INSERT INTO analysis_artifacts (shop, artifact_type, data_json, updated_at) "
+            "VALUES (?, 'market_analysis', '{}', 'now')",
+            (shop,),
+        )
+    shop_dir = raw_dir / shop
+    shop_dir.mkdir(parents=True)
+    (shop_dir / "shopify_snapshot.json").write_text("{}")
+
+
+def test_shop_redact_purges_db_rows_and_raw_files_and_returns_200(client, tmp_path, monkeypatch):
+    db = tmp_path / "test.db"
+    raw_dir = tmp_path / "raw"
+    monkeypatch.setattr("app.oauth.gdpr.DB_PATH", db)
+    monkeypatch.setattr("app.oauth.gdpr._RAW_DIR", raw_dir)
     from app.db import init_db
 
-    init_db(tmp_path / "test.db")
-    mock_delete = patch("app.oauth.gdpr.delete_token").start()
+    init_db(db)
+    _seed_shop_data(db, raw_dir, SHOP)
+    _seed_shop_data(db, raw_dir, "other-shop.myshopify.com")
+
     resp = client.post("/shopify/webhooks/shop/redact", content=BODY, headers=_headers(BODY))
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
-    mock_delete.assert_called_once_with(SHOP)
+
+    with sqlite3.connect(db) as conn:
+        for table in ("shop_tokens", "shop_config", "analysis_artifacts"):
+            assert (
+                conn.execute(f"SELECT COUNT(*) FROM {table} WHERE shop = ?", (SHOP,)).fetchone()[0]  # noqa: S608
+                == 0
+            )
+            assert (
+                conn.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE shop = ?",  # noqa: S608
+                    ("other-shop.myshopify.com",),
+                ).fetchone()[0]
+                == 1
+            )
+        # Audit trail must survive the purge.
+        rows = conn.execute("SELECT topic, shop FROM gdpr_requests").fetchall()
+    assert rows == [("shop/redact", SHOP)]
+    assert not (raw_dir / SHOP).exists()
+    assert (raw_dir / "other-shop.myshopify.com" / "shopify_snapshot.json").exists()
+
+
+def test_shop_redact_invalid_shop_domain_skips_purge_and_returns_200(
+    client, tmp_path, monkeypatch
+):
+    db = tmp_path / "test.db"
+    monkeypatch.setattr("app.oauth.gdpr.DB_PATH", db)
+    from app.db import init_db
+
+    init_db(db)
+    mock_purge = patch("app.oauth.gdpr.purge_shop_data").start()
+    headers = {
+        "X-Shopify-Hmac-Sha256": _sign(BODY),
+        "X-Shopify-Shop-Domain": "../evil",
+        "Content-Type": "application/json",
+    }
+    resp = client.post("/shopify/webhooks/shop/redact", content=BODY, headers=headers)
+    assert resp.status_code == 200
+    mock_purge.assert_not_called()
     patch.stopall()
+
+
+def test_purge_shop_data_rejects_malformed_domain(tmp_path, monkeypatch):
+    from app.oauth.gdpr import purge_shop_data
+
+    monkeypatch.setattr("app.oauth.gdpr.DB_PATH", tmp_path / "test.db")
+    with pytest.raises(ValueError, match="Invalid shop domain"):
+        purge_shop_data("../../etc")
+
+
+def test_purge_shop_data_covers_every_shop_scoped_table(tmp_path, monkeypatch):
+    """Every table created by init_db with a `shop` column must be purged
+    (except the gdpr_requests audit trail) — guards against schema drift."""
+    db = tmp_path / "test.db"
+    monkeypatch.setattr("app.oauth.gdpr.DB_PATH", db)
+    from app.db import init_db
+    from app.oauth.gdpr import _SHOP_SCOPED_TABLES
+
+    init_db(db)
+    with sqlite3.connect(db) as conn:
+        tables = [
+            r[0]
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        ]
+        shop_tables = {
+            t
+            for t in tables
+            if any(r[1] == "shop" for r in conn.execute(f"PRAGMA table_info({t})").fetchall())
+        }
+    expected = shop_tables - {"gdpr_requests"}
+    assert expected == set(_SHOP_SCOPED_TABLES)
 
 
 def test_shop_redact_invalid_hmac_returns_401(client):
