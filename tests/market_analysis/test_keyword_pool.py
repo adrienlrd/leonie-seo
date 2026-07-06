@@ -611,3 +611,49 @@ def test_complete_json_uses_deterministic_json_mode_by_default():
     engine._complete_json(router, "prompt", ("seo_keywords",), {"seo_keywords": []}, "Produit")
     kwargs = router.complete.call_args.kwargs
     assert kwargs["json_mode"] is True
+
+
+# ── Seed hygiene: intent labels never become keywords ────────────────────────
+
+
+def test_seed_queries_exclude_intent_type_labels_and_verbs():
+    # Pass 1 buying_intents mix real needs with intent-type labels; the labels
+    # must never be concatenated into seeds ("pull chien transactional").
+    seeds = engine._market_need_seed_queries(
+        "Le pull pour chien Le Léonie",
+        buying_intents=[
+            "transactional",
+            "commercial",
+            "acheter un pull pour chien",
+            "rechercher des vêtements pour animaux",
+        ],
+        target_customer="Propriétaires d'animaux soucieux de la qualité",
+    )
+    joined = " ".join(seeds)
+    for banned in ("transactional", "commercial", "acheter", "rechercher", "recherche"):
+        assert banned not in joined, seeds
+
+
+def test_seed_candidates_are_capped_at_neutral_fit():
+    # Recombined seeds are unverified by any real source: they must never carry
+    # a "positive" (>=70) product_fit_score.
+    candidates = engine._seed_keyword_candidates(
+        ["pull chien cachemire", "pull pour chien"],
+        frozenset({"pull", "chien", "cachemire", "léonie"}),
+    )
+    assert candidates
+    assert all(c["product_fit_score"] <= 60 for c in candidates)
+
+
+def test_idea_fit_downgrades_word_bag_collisions_without_shared_bigram():
+    # "harnais chaise haute" shares {harnais, haute} with "Harnais Haute Couture"
+    # but is a baby high-chair harness — no shared adjacent word pair.
+    product_text = "Le Harnais Haute Couture harnais-haute-couture"
+    product_words = engine._content_words(product_text)
+    product_bigrams = engine._word_bigrams(engine._content_word_sequence(product_text))
+
+    off_topic = engine._score_idea_fit("harnais chaise haute chicco", product_words, product_bigrams)
+    on_topic = engine._score_idea_fit("harnais haute couture chien", product_words, product_bigrams)
+
+    assert off_topic <= 60
+    assert on_topic >= 75

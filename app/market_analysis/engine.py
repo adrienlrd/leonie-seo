@@ -471,10 +471,11 @@ def _fill_image_alts(
 ) -> list[dict[str, str]]:
     """Return exactly one alt proposal per product image, in image order.
 
-    LLM-provided alts are matched by image id (then by position); any image the
-    LLM skipped falls back to the product title plus a *value-adding* keyword
-    (one not already present in the title), assigning a distinct keyword to each
-    skipped image so they never collapse to the bare title or a repeated phrase.
+    LLM-provided alts are matched by image id (then by position). For any image
+    the LLM skipped, the existing alt is kept when it has one — overwriting a
+    human-written description with a "title – keyword" template is a downgrade
+    (Google Images wants alts that describe the image). Only images with NO alt
+    at all fall back to the product title plus a distinct value-adding keyword.
     """
     llm_items = value if isinstance(value, list) else []
     by_id: dict[str, str] = {}
@@ -505,6 +506,8 @@ def _fill_image_alts(
         alt = by_id.get(image_id, "")
         if not alt and i < len(positional):
             alt = positional[i]
+        if not alt:
+            alt = str(img.get("current_alt") or "").strip()
         if not alt:
             if value_keywords:
                 keyword = value_keywords[fallback_index % len(value_keywords)]
@@ -1120,7 +1123,8 @@ def _build_pass2_prompt(
         f"Les mots-clés guident l'intention, jamais des affirmations. "
         f"Utilise uniquement les faits confirmés pour parler du produit.\n"
         f"\n▶ proposed_meta_title (45-60 caractères) :\n"
-        f'   • Contient naturellement le mot-clé #1 ("{top_kw_1}") OU une variation proche.\n'
+        f'   • Contient naturellement le mot-clé #1 ("{top_kw_1}") OU une variation proche, placé le plus tôt possible dans le titre.\n'
+        f"   • Ne renvoie JAMAIS le titre produit tel quel : reformule avec le mot-clé en tête et un bénéfice court.\n"
         f"   • Chaque mot-clé primary/secondary du TOP 5 doit apparaître dans proposed_meta_title OU proposed_meta_description.\n"
         f"   • Différenciant vs CONCURRENTS SERP et TITRES SEO CONCURRENTS listés : reprends l'angle gagnant mais formule-le autrement (jamais copier).\n"
         f"\n▶ proposed_meta_description (120-160 caractères) :\n"
@@ -1131,11 +1135,13 @@ def _build_pass2_prompt(
         f"\n▶ proposed_image_alts (tableau JSON — UNE ENTRÉE POUR CHAQUE image listée dans IMAGES PRODUIT) :\n"
         f'   • Chaque objet : {{"image_id": "<id exact>", "proposed_alt": "<alt proposé>"}}\n'
         f"   • Réutilise l'`image_id` EXACT de chaque image listée ; n'en oublie aucune.\n"
+        f"   • L'alt décrit d'abord CE QUE MONTRE L'IMAGE (couleur, matière, angle, mise en situation), "
+        f"comme pour un lecteur d'écran — ce n'est pas un slot à mot-clé.\n"
         f"   • CHAQUE alt doit être DIFFÉRENT des autres : varie l'angle décrit (face, étiquette, "
-        f"détail, mise en situation, échelle…) ET le mot-clé employé.\n"
-        f"   • Répartis les mots-clés du TOP 5 sur les images : image 1 → mot-clé #1, image 2 → #2, etc. "
-        f"Ne réutilise JAMAIS le même alt ni le même mot-clé pour deux images.\n"
-        f"   • proposed_alt ≤ 125 caractères, décrit concrètement ce que montre l'image — jamais de texte générique.\n"
+        f"détail, mise en situation, échelle…).\n"
+        f"   • Intègre un mot-clé du TOP 5 naturellement dans 1 ou 2 alts MAXIMUM ; les autres restent purement descriptifs. "
+        f'Jamais le schéma "titre produit – mot-clé".\n'
+        f"   • proposed_alt ≤ 125 caractères, jamais de texte générique.\n"
         f"   • Si aucune image n'est fournie dans IMAGES PRODUIT : retourner [].\n"
         f"\n▶ proposed_product_description (200-300 mots, plusieurs paragraphes) :\n"
         f"   • Si la surface est marquée NE PAS GÉNÉRER, retourne une chaîne vide.\n"
@@ -1744,16 +1750,32 @@ def _generic_product_seeds(seed_texts: str | list[str], *, limit: int = 6) -> li
     return list(dict.fromkeys(seed for seed in seeds if seed.strip()))[:limit]
 
 
-def _score_idea_fit(idea_query: str, product_words: frozenset[str]) -> int:
+def _word_bigrams(sequence: list[str]) -> frozenset[tuple[str, str]]:
+    return frozenset(zip(sequence, sequence[1:]))
+
+
+def _score_idea_fit(
+    idea_query: str,
+    product_words: frozenset[str],
+    product_bigrams: frozenset[tuple[str, str]] = frozenset(),
+) -> int:
     """Heuristic product_fit_score for DataForSEO keyword ideas (no extra LLM call).
 
     Counts content-word overlap between the idea and the product's own text
     (title + handle + tags + collections). Ideas already passed _idea_is_relevant,
     so they share words with the seed keywords; a 0-overlap result here still gets
     a non-zero floor (50) rather than the misleading 0 from the provider.
+
+    Bag-of-words overlap alone is fooled by unrelated noun phrases sharing an
+    adjective ("harnais chaise haute" vs "harnais haute couture" both contain
+    "harnais" + "haute"): a 2+ overlap only earns a high score when the idea also
+    shares an adjacent word pair with the product text.
     """
-    idea_words = _content_words(idea_query)
+    idea_seq = _content_word_sequence(idea_query)
+    idea_words = frozenset(idea_seq)
     overlap = len(idea_words & product_words)
+    if overlap >= 2 and product_bigrams and not (_word_bigrams(idea_seq) & product_bigrams):
+        overlap = 1
     if overlap >= 3:
         return 90
     if overlap >= 2:
@@ -1815,6 +1837,38 @@ _UNCONFIRMED_QUERY_MODIFIERS = frozenset(
 )
 
 
+# Intent-type labels and generic intent verbs coming back in Pass 1
+# ``buying_intents`` — they describe HOW someone searches, never belong inside a
+# keyword ("pull chien transactional", "harnais haute couture commercial").
+_INTENT_META_WORDS = frozenset(
+    {
+        "transactional",
+        "commercial",
+        "informational",
+        "navigational",
+        "achat",
+        "achats",
+        "acheter",
+        "recherche",
+        "recherches",
+        "rechercher",
+        "chercher",
+        "cherche",
+        "trouver",
+        "trouve",
+        "comparer",
+        "comparaison",
+        "besoin",
+        "besoins",
+        "intérêt",
+        "interet",
+        "intention",
+        "qualité",
+        "qualite",
+    }
+)
+
+
 def _market_need_seed_queries(
     source_text: str | list[str],
     *,
@@ -1828,9 +1882,11 @@ def _market_need_seed_queries(
     intent_words: list[str] = []
     for intent in buying_intents or []:
         for word in _content_word_sequence(str(intent)):
-            if word not in intent_words:
+            if word not in intent_words and word not in _INTENT_META_WORDS:
                 intent_words.append(word)
-    customer_words = _content_word_sequence(target_customer)
+    customer_words = [
+        word for word in _content_word_sequence(target_customer) if word not in _INTENT_META_WORDS
+    ]
 
     for base_seed in base_seeds[:2]:
         base_words = _content_words(base_seed)
@@ -1863,7 +1919,9 @@ def _seed_keyword_candidates(
                 "intent_type": "informational" if is_problem else "commercial",
                 "demand_score": 45 if is_problem else 50,
                 "competition_score": 50,
-                "product_fit_score": max(_score_idea_fit(query, product_words), 65),
+                # Cap at 60 (neutral): a recombined seed is unverified by any real
+                # source, so it must never surface as a "positive" keyword tag.
+                "product_fit_score": min(_score_idea_fit(query, product_words), 60),
                 "reason": (
                     "Seed déterministe de besoin client"
                     if is_problem
@@ -2051,9 +2109,9 @@ def _build_keyword_candidate_pool(
     title = str(fields.get("product_title", "")).strip()
     label = str(fields.get("merchant_label", "")).strip()
     handle_words = str(fields.get("handle", "")).replace("-", " ")
-    product_words = _content_words(
-        " ".join([fields.get("source_product_text", "") or title, label, handle_words])
-    )
+    product_text = " ".join([fields.get("source_product_text", "") or title, label, handle_words])
+    product_words = _content_words(product_text)
+    product_bigrams = _word_bigrams(_content_word_sequence(product_text))
 
     gsc_cands = _gsc_candidates(product_words, gsc_query_rows)
 
@@ -2090,7 +2148,7 @@ def _build_keyword_candidate_pool(
             query = str(idea.get("query", "")).strip()
             if not query or not _idea_is_relevant(query, seeds, product_words=product_words):
                 continue
-            idea["product_fit_score"] = _score_idea_fit(query, product_words)
+            idea["product_fit_score"] = _score_idea_fit(query, product_words, product_bigrams)
             _merge_pool_candidate(pool, idea)
 
     if use_suggest and seeds:
