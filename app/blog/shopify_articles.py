@@ -47,6 +47,14 @@ mutation UpdateArticle($id: ID!, $article: ArticleUpdateInput!) {
 }
 """.strip()
 
+_FIND_ARTICLE_QUERY = """
+query FindArticle($n: Int!, $q: String!) {
+  articles(first: $n, query: $q) {
+    nodes { id handle title isPublished blog { id handle } }
+  }
+}
+""".strip()
+
 _CREATE_BLOG_MUTATION = """
 mutation CreateBlog($blog: BlogInput!) {
   blogCreate(blog: $blog) {
@@ -161,6 +169,22 @@ class BlogPublisher:
             for n in nodes
             if isinstance(n, dict) and n.get("id")
         ]
+
+    def find_article_by_handle(self, handle: str) -> dict[str, Any] | None:
+        """Return the existing article with this handle, or None.
+
+        Publish flows use it as a dedup guard: when the local draft lost its
+        ``shopify_article_id`` (ephemeral disk), re-publishing must update the
+        existing article instead of creating a duplicate post.
+        """
+        handle = handle.strip()
+        if not handle:
+            return None
+        data = self._post(_FIND_ARTICLE_QUERY, {"n": 1, "q": f"handle:{handle}"})
+        _raise_for_graphql_errors(data, "articles")
+        nodes = (((data.get("data") or {}).get("articles") or {}).get("nodes")) or []
+        node = nodes[0] if nodes and isinstance(nodes[0], dict) else None
+        return node if node and node.get("id") else None
 
     @staticmethod
     def _build_article_input(

@@ -975,7 +975,33 @@ def publish_blog_draft(
     try:
         publisher = BlogPublisher(ctx.shop, ctx.access_token)
 
+        def _update_in_place(article_id: str) -> dict[str, Any]:
+            return publisher.update_article(
+                article_id=article_id,
+                title=draft.get("blog_title", ""),
+                body_html=body_html,
+                summary=meta_description or draft.get("summary", ""),
+                tags=draft.get("tags") or [],
+                author_name=draft.get("author_name", ""),
+                image_url=None,
+                image_alt=None,
+                meta_description=meta_description,
+                published=body.published,
+            )
+
         def _create() -> tuple[dict[str, Any], str]:
+            # Dedup guard: the draft may have lost its shopify_article_id
+            # (ephemeral disk) while the article already exists on Shopify —
+            # publishing again must not create a duplicate post.
+            try:
+                existing = publisher.find_article_by_handle(
+                    _slugify_handle(draft.get("blog_title", ""))
+                )
+            except ShopifyWriteError:
+                existing = None  # lookup is best-effort; fall through to create
+            if existing:
+                found_blog_id = str((existing.get("blog") or {}).get("id") or "")
+                return _update_in_place(str(existing["id"])), found_blog_id
             new_blog_id = str(draft.get("shopify_blog_id") or body.blog_id or "") or publisher.ensure_default_blog()
             return (
                 publisher.create_draft_article(
@@ -999,18 +1025,7 @@ def publish_blog_draft(
             # Re-publishing edits the SAME Shopify article in place (no duplicate).
             blog_id = str(draft.get("shopify_blog_id") or body.blog_id or "")
             try:
-                created = publisher.update_article(
-                    article_id=existing_article_id,
-                    title=draft.get("blog_title", ""),
-                    body_html=body_html,
-                    summary=meta_description or draft.get("summary", ""),
-                    tags=draft.get("tags") or [],
-                    author_name=draft.get("author_name", ""),
-                    image_url=None,
-                    image_alt=None,
-                    meta_description=meta_description,
-                    published=body.published,
-                )
+                created = _update_in_place(existing_article_id)
             except ShopifyWriteError as exc:
                 # The merchant deleted the article (or its blog) on Shopify → the
                 # stored id is stale. Recreate it instead of failing.

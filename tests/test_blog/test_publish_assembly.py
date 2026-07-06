@@ -213,6 +213,7 @@ def test_publish_corrects_canonical_url_with_real_handles() -> None:
         "cta_url": "/products/fontaine-smart",
     }
     publisher = MagicMock()
+    publisher.find_article_by_handle.return_value = None  # no pre-existing article
     # Real blog handle "news" differs from the predicted "blog" → triggers a correction.
     publisher.ensure_default_blog.return_value = "gid://shopify/Blog/1"
     publisher.create_draft_article.return_value = {
@@ -254,6 +255,7 @@ def test_publish_falls_back_to_create_when_article_deleted() -> None:
         "shopify_blog_id": "gid://shopify/Blog/1",
     }
     publisher = MagicMock()
+    publisher.find_article_by_handle.return_value = None  # no pre-existing article
     publisher.update_article.side_effect = ShopifyWriteError(
         "articleUpdate userErrors → ['id']: Article does not exist"
     )
@@ -316,3 +318,45 @@ def test_create_article_draft_by_default_and_live_when_published() -> None:
 
     publisher.create_draft_article(blog_id="gid://shopify/Blog/1", title="T", body_html="<p>x</p>", published=True)
     assert captured["variables"]["article"]["isPublished"] is True
+
+
+def test_publish_updates_existing_article_found_by_handle() -> None:
+    """A draft that lost its shopify_article_id (ephemeral disk) must not create
+    a duplicate: the existing article with the same handle is updated in place."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from app.api.blog import DraftPublishRequest, publish_blog_draft
+
+    draft = {
+        "id": "d1",
+        "blog_title": "Mon Article",
+        "intro": "Intro",
+        "sections": [{"h2": "Q1", "direct_answer": "R1", "body": "B"}],
+    }
+    publisher = MagicMock()
+    publisher.find_article_by_handle.return_value = {
+        "id": "gid://shopify/Article/42",
+        "handle": "mon-article",
+        "isPublished": True,
+        "blog": {"id": "gid://shopify/Blog/1", "handle": "blog"},
+    }
+    publisher.update_article.return_value = {
+        "id": "gid://shopify/Article/42",
+        "handle": "mon-article",
+        "isPublished": True,
+        "blog": {"handle": "blog"},
+    }
+    ctx = SimpleNamespace(shop="shop.myshopify.com", access_token="t")
+
+    with (
+        patch("app.api.blog.get_draft", return_value=draft),
+        patch("app.api.blog.save_draft", side_effect=lambda shop, d: d),
+        patch("app.api.blog.record_applied_change"),
+        patch("app.api.blog.BlogPublisher", return_value=publisher),
+    ):
+        result = publish_blog_draft("d1", DraftPublishRequest(published=True), ctx)  # type: ignore[arg-type]
+
+    publisher.create_draft_article.assert_not_called()
+    assert result["article"]["id"] == "gid://shopify/Article/42"
+    assert draft["shopify_article_id"] == "gid://shopify/Article/42"
