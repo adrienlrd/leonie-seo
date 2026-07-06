@@ -10,6 +10,25 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-06
+- **Agent:** Claude (Fable 5)
+- **Goal:** Audit of the pilot-shop reanalysis export (`Ananlyse_json/Export reanalyse 02 Juil 2026.json`) → fix the 8 quality gaps it revealed in the analysis/apply/measure pipeline.
+- **Summary:**
+  1. **Measurement loop (P1):** `auto_publish_checked_proposals` now enforces a 28-day cooldown per (product, field) via `pack.applied_fields` (re-applying reset the J+14/J+28 baseline — the pilot shop re-optimized the same product 3× in 4 days, so effectiveness stayed `NO_RUNS/inconclusive`), skips no-op proposals (normalized compare, incl. image_alts), and records a `learning_runs` row per auto-apply cycle. `evaluate_agent_effectiveness` counts applied ledger events as agent activity (`WAIT_FOR_WINDOW` instead of the misleading `NO_RUNS`).
+  2. **Scope enforcement (P2):** `learning.auto_publish_scopes` was stored but never read at publish time — out-of-scope fields (product description, etc.) were auto-applied. New `_SCOPE_TO_FIELD` gate; out-of-scope proposals stay pending for manual review.
+  3. **Blog dedup (P3):** `BlogPublisher.find_article_by_handle` + create-path guard in `publish_blog_draft` — a draft that lost its `shopify_article_id` (ephemeral disk) now updates the existing article instead of publishing a duplicate (pilot shop had the same guide published 3× in 5 min).
+  4. **Tag hygiene (P4):** `_axis_tags` drops raw intent-type labels ("transactional"…), maps `facts_missing` keys to actionable FR labels ("Origine de fabrication à confirmer") and drops LLM diagnostics ("pas de PAA…"); word-boundary truncation; `_dedupe_axis_variants` collapses near-identical persona rephrasings across re-analyses.
+  5. **Seed hygiene (P5):** `_INTENT_META_WORDS` blocklist stops "pull chien transactional"-style seeds; market_seed fit capped at 60 (never "positive" without a real source, was floored at 65).
+  6. **DataForSEO relevance (P6):** `_score_idea_fit` bigram guard — word-bag collisions without a shared adjacent pair ("harnais chaise haute" vs "Harnais Haute Couture") downgrade to 60/neutral.
+  7. **Content quality (P7):** Pass 2 prompt — meta title keyword-first + never the raw product title; image alts describe the image (keyword in 1-2 alts max, no "title – keyword" template, which the old prompt actively mandated). `_fill_image_alts` keeps the existing alt instead of overwriting with the template. New `NO_SEARCH_DATA` recommendation distinguishes "no GSC data yet" from "no effect" (pilot shop had all-zero GSC baselines).
+  8. **Export (P8):** removed the `events` section from `build_export` — it duplicated `geo_events` byte-for-byte (file was 2× its useful size).
+- **Files modified:** `app/api/market_analysis.py`, `app/agent_schedule/{evaluation,export}.py`, `app/geo/continuous_improvement.py`, `app/market_analysis/engine.py`, `app/api/blog.py`, `app/blog/shopify_articles.py`, tests (`tests/market_analysis/{test_auto_publish,test_keyword_pool}.py`, `tests/test_agent_schedule/{test_evaluation,test_export}.py`, `tests/test_geo/test_continuous_improvement.py`, `tests/test_blog/test_publish_assembly.py`).
+- **Decisions:** cooldown applies to the auto-apply path only (manual apply stays possible); market_seed keywords can never exceed neutral fit; unknown `facts_missing` strings are treated as diagnostics and never shown as tags.
+- **Open issues:** the pilot schedule's `last_run_at: null` is partly explained by the schedule being (re)configured on 2026-07-02 with `next_run 2026-07-03`; the in-process ticker (`app/main.py::_agent_schedule_loop`) also requires the Render service to be awake at tick time — verify a scheduled run actually fires in prod. Historical polluted tags on the pilot shop persist in `product_improvement_tags` until the next re-analysis overwrites them.
+- **Next recommended action:** deploy, re-run a reanalysis + export on the pilot shop and check: clean tags, no duplicated events, run recorded, `WAIT_FOR_WINDOW`/`NO_SEARCH_DATA` recommendations instead of `NO_RUNS`.
+
+## Previous completed task
+
 - **Date:** 2026-07-05
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Fix root cause du reset "Zone de danger" qui échouait en prod (HTTP 500 / suppression partielle) : dérive de schéma SQLite ↔ Postgres. Puis rétablir l'UX propre (redirection accueil).
