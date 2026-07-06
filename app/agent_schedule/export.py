@@ -67,7 +67,8 @@ def build_export(shop: str, *, db_path: Path | None = None) -> dict[str, Any]:
         "products": continuous.get("products", []),
         "tag_history": continuous.get("tag_history", []),
         "agent_runs": continuous.get("agent_runs", []),
-        "events": continuous.get("events", []),
+        # continuous_improvement "events" come from the same geo ledger as
+        # geo_events — exporting both doubled the file for no information.
         "geo_events": geo_events or [],
         "learning_runs": learning_runs or [],
         "pending_approvals": pending_approvals or [],

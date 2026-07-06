@@ -151,7 +151,8 @@ def test_export_contains_all_sections(client: TestClient, db: Path) -> None:
     assert len(body["pending_approvals"]) == 1
     assert len(body["geo_events"]) == 1
     assert "agent_runs" in body
-    assert "events" in body
+    # "events" was removed: it duplicated geo_events byte-for-byte.
+    assert "events" not in body
 
 
 def test_effectiveness_endpoint_returns_verdicts(client: TestClient) -> None:
