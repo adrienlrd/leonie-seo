@@ -120,21 +120,67 @@ def _keyword_tags(product: dict[str, Any]) -> list[dict[str, Any]]:
     return tags
 
 
+# Intent-type labels the LLM sometimes returns verbatim in buying_intents.
+# They describe how someone searches, not what they want — never show them.
+_INTENT_TYPE_LABELS = frozenset({"transactional", "commercial", "informational", "navigational"})
+
+# facts_missing mixes known fact keys with free-form LLM diagnostics ("pas de
+# PAA pour ce mot-clé"). Only known keys become merchant-facing tags, with a
+# label that says what to do; diagnostics stay in the analysis payload.
+_MISSING_FACT_LABELS_FR = {
+    "materials": "Matière à confirmer",
+    "origins": "Origine de fabrication à confirmer",
+    "origin": "Origine de fabrication à confirmer",
+    "certifications": "Certifications à confirmer",
+    "warranty": "Garantie à confirmer",
+    "care": "Conseils d'entretien à confirmer",
+    "care_instructions": "Conseils d'entretien à confirmer",
+    "dimensions": "Dimensions à confirmer",
+    "capacity": "Capacité à confirmer",
+    "compatibility": "Compatibilité à confirmer",
+    "size_recommendation": "Guide des tailles à confirmer",
+    "delivery": "Informations de livraison à confirmer",
+    "returns": "Politique de retour à confirmer",
+    "battery_autonomy": "Autonomie à confirmer",
+}
+
+
+def _truncate_label(text: str, limit: int = 80) -> str:
+    if len(text) <= limit:
+        return text
+    cut = text[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:.")
+    return f"{cut}…"
+
+
+def _missing_fact_label(fact: str) -> str | None:
+    key = fact.split(":", 1)[0].strip().lower().replace(" ", "_")
+    return _MISSING_FACT_LABELS_FR.get(key)
+
+
 def _axis_tags(product: dict[str, Any]) -> list[dict[str, Any]]:
     labels: list[tuple[str, str, int]] = []
     if product.get("target_customer"):
         labels.append(("analysis_axis", str(product["target_customer"]), 60))
     for intent in (product.get("buying_intents") or [])[:3]:
-        if intent:
-            labels.append(("content_axis", str(intent), 65))
+        if not intent:
+            continue
+        words = {w for w in str(intent).lower().split() if w}
+        if words and words <= _INTENT_TYPE_LABELS:
+            continue
+        labels.append(("content_axis", str(intent), 65))
     pack = (
         product.get("content_test_pack")
         if isinstance(product.get("content_test_pack"), dict)
         else {}
     )
-    for fact in (pack.get("facts_missing") or [])[:3]:
-        if fact:
-            labels.append(("risk", str(fact), 30))
+    seen_risks: set[str] = set()
+    for fact in pack.get("facts_missing") or []:
+        label = _missing_fact_label(str(fact)) if fact else None
+        if label and label not in seen_risks:
+            seen_risks.add(label)
+            labels.append(("risk", label, 30))
+        if len(seen_risks) >= 3:
+            break
 
     tags = []
     product_id = str(product.get("product_id", ""))
@@ -145,7 +191,7 @@ def _axis_tags(product: dict[str, Any]) -> list[dict[str, Any]]:
         tags.append(
             {
                 "tag_id": _stable_tag_id(product_id, tag_type, clean),
-                "label": clean[:80],
+                "label": _truncate_label(clean),
                 "tag_type": tag_type,
                 "status": "negative" if tag_type == "risk" else "neutral",
                 "score": score,
@@ -225,12 +271,40 @@ def merge_product_tags(
                 **{k: v for k, v in tag.items() if k in ("tag_id", "locked_by_merchant")},
             }
 
-    merged = list(by_label.values())
+    merged = _dedupe_axis_variants(list(by_label.values()))
     if persist and product_id:
         upsert_product_tags(shop, product_id, merged, db_path=db_path)
     return sorted(
         merged, key=lambda item: (item["status"] == "negative", item["tag_type"], item["label"])
     )
+
+
+def _dedupe_axis_variants(tags: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse near-identical persona labels accumulated across re-analyses.
+
+    Successive analyses rephrase the same target_customer ("Propriétaires
+    d'animaux soucieux de la qualité et de l'élégance / et du style / …");
+    keyed-by-label merging keeps every variant. Group analysis_axis tags by
+    their first words and keep one — locked first, then the most complete.
+    """
+    kept: list[dict[str, Any]] = []
+    best_by_prefix: dict[str, dict[str, Any]] = {}
+    for tag in tags:
+        if tag.get("tag_type") != "analysis_axis":
+            kept.append(tag)
+            continue
+        prefix = " ".join(str(tag.get("label") or "").casefold().split()[:5])
+        current = best_by_prefix.get(prefix)
+        if current is None:
+            best_by_prefix[prefix] = tag
+            continue
+        challenger_wins = bool(tag.get("locked_by_merchant")) and not current.get(
+            "locked_by_merchant"
+        )
+        same_lock = bool(tag.get("locked_by_merchant")) == bool(current.get("locked_by_merchant"))
+        if challenger_wins or (same_lock and len(str(tag["label"])) > len(str(current["label"]))):
+            best_by_prefix[prefix] = tag
+    return kept + list(best_by_prefix.values())
 
 
 def upsert_product_tags(

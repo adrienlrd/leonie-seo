@@ -98,3 +98,68 @@ def test_enrich_market_analysis_result_attaches_tags_and_elements(tmp_path: Path
     assert product["optimization_context"]["resource"]["id"] == PRODUCT_ID
     assert product["optimization_context"]["tags"]["guidance"]["reinforce"]
     assert any(tag["status"] == "negative" for tag in product["improvement_tags"])
+
+
+def test_axis_tags_drop_intent_type_labels_and_diagnostic_facts(tmp_path: Path) -> None:
+    db = tmp_path / "history.db"
+    init_db(db)
+    product = {
+        **_product(),
+        "buying_intents": ["transactional", "commercial", "choisir un harnais confortable"],
+        "content_test_pack": {
+            "facts_missing": [
+                "pas de PAA pour ce mot-clé",
+                "concurrents domaine absents",
+                "materials: Material or composition",
+                "origins",
+            ],
+        },
+    }
+    tags = merge_product_tags(SHOP, product, db_path=db)
+    labels = {t["label"] for t in tags}
+
+    assert "transactional" not in labels
+    assert "commercial" not in labels
+    assert "choisir un harnais confortable" in labels
+    # Diagnostics never surface; known fact keys become actionable FR labels.
+    assert not any("PAA" in label for label in labels)
+    assert not any("concurrents" in label for label in labels)
+    assert "Matière à confirmer" in labels
+    assert "Origine de fabrication à confirmer" in labels
+
+
+def test_axis_label_is_truncated_at_word_boundary(tmp_path: Path) -> None:
+    db = tmp_path / "history.db"
+    init_db(db)
+    long_persona = (
+        "Propriétaires d'animaux soucieux de la qualité et de l'élégance pour leurs "
+        "compagnons à quatre pattes exigeants"
+    )
+    product = {**_product(), "target_customer": long_persona}
+    tags = merge_product_tags(SHOP, product, db_path=db)
+    label = next(t["label"] for t in tags if t["tag_type"] == "analysis_axis")
+
+    assert len(label) <= 80
+    assert label.endswith("…")
+    assert not label.endswith("compa…")  # never cut mid-word
+
+
+def test_near_identical_personas_are_collapsed(tmp_path: Path) -> None:
+    db = tmp_path / "history.db"
+    init_db(db)
+    base = "Propriétaires d'animaux soucieux de la qualité"
+    # A previous analysis persisted two rephrasings of the same persona.
+    for suffix in (" et de l'élégance", " et du style"):
+        set_product_tag(
+            SHOP,
+            PRODUCT_ID,
+            label=base + suffix,
+            tag_type="analysis_axis",
+            status="neutral",
+            db_path=db,
+        )
+    product = {**_product(), "target_customer": base + " et de l'esthétique"}
+    tags = merge_product_tags(SHOP, product, db_path=db)
+    personas = [t for t in tags if t["tag_type"] == "analysis_axis"]
+
+    assert len(personas) == 1
