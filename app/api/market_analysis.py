@@ -36,8 +36,8 @@ from app.geo.continuous_improvement import (
 )
 from app.gsc.client import ensure_fresh_gsc
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
-from app.learning.models import LearningMode
-from app.learning.store import get_settings
+from app.learning.models import PRIMARY_WINDOW_DAYS, LearningMode
+from app.learning.store import get_settings, record_run
 from app.market_analysis.competitors import (
     load_competitors,
     load_excluded_competitors,
@@ -1143,6 +1143,58 @@ def _default_auto_publish_fields(pack: dict[str, Any]) -> list[str]:
     return [f for f in _APPLYABLE_FIELDS if _proposed_text(pack, f)]
 
 
+# Merchant-facing scope names (learning settings) → applyable field names.
+_SCOPE_TO_FIELD = {
+    "meta_title": "meta_title",
+    "meta_description": "meta_description",
+    "alt_text": "image_alts",
+    "product_description": "description",
+}
+
+
+def _normalized(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+def _is_noop(pack: dict[str, Any], field: str) -> bool:
+    """True when the proposal would not change what is already live."""
+    if field == "image_alts":
+        current = {
+            str(img.get("id") or ""): _normalized(str(img.get("current_alt") or ""))
+            for img in (pack.get("current_product_images") or [])
+            if isinstance(img, dict)
+        }
+        proposed = [
+            alt
+            for alt in (pack.get("proposed_image_alts") or [])
+            if isinstance(alt, dict) and str(alt.get("proposed_alt") or "")
+        ]
+        if not proposed:
+            return True
+        return all(
+            _normalized(str(alt.get("proposed_alt") or ""))
+            == current.get(str(alt.get("image_id") or ""), "")
+            for alt in proposed
+        )
+    return _normalized(_proposed_text(pack, field)) == _normalized(_current_text(pack, field))
+
+
+def _in_cooldown(pack: dict[str, Any], field: str, now: datetime) -> bool:
+    """True when the field was auto-applied less than one measurement window ago.
+
+    Re-applying before J+28 recaptures the baseline and the learning window never
+    matures — auto mode must wait; a manual apply remains always possible.
+    """
+    applied_at = (pack.get("applied_fields") or {}).get(field)
+    if not applied_at:
+        return False
+    try:
+        applied_dt = datetime.fromisoformat(str(applied_at))
+    except ValueError:
+        return False
+    return (now - applied_dt).days < PRIMARY_WINDOW_DAYS
+
+
 def _validate_field(
     field: str,
     proposed: str,
@@ -1196,12 +1248,25 @@ def auto_publish_checked_proposals(
     import logging  # noqa: PLC0415
 
     logger = logging.getLogger(__name__)
-    summary = {"published": 0, "held": 0, "products": 0, "mode": "manual"}
+    summary = {
+        "published": 0,
+        "held": 0,
+        "products": 0,
+        "mode": "manual",
+        "skipped_out_of_scope": 0,
+        "skipped_cooldown": 0,
+        "skipped_noop": 0,
+    }
     try:
         settings = get_settings(shop, db_path=db_path)
         if settings.mode != LearningMode.AUTO_APPLY:
             return summary
         summary["mode"] = "auto"
+        allowed_fields = {
+            _SCOPE_TO_FIELD[scope]
+            for scope in settings.auto_publish_scopes
+            if scope in _SCOPE_TO_FIELD
+        }
         token = access_token
         if not token:
             record = get_token(shop)
@@ -1214,6 +1279,7 @@ def auto_publish_checked_proposals(
         forbidden_promises = list(niche.get("forbidden_promises") or [])
         do_not_say = list((niche.get("brand_voice") or {}).get("do_not_say") or [])
 
+        now = datetime.now(UTC)
         for product in completed_data.get("products") or []:
             if not isinstance(product, dict):
                 continue
@@ -1229,8 +1295,15 @@ def auto_publish_checked_proposals(
                 proposed = _proposed_text(pack, field)
                 if not proposed:
                     continue
-                if field != "image_alts" and proposed == _current_text(pack, field):
-                    continue  # identical → no need to re-publish
+                if field not in allowed_fields:
+                    summary["skipped_out_of_scope"] += 1
+                    continue  # stays a proposal for manual review
+                if _is_noop(pack, field):
+                    summary["skipped_noop"] += 1
+                    continue  # identical → re-publishing would only reset the baseline
+                if _in_cooldown(pack, field, now):
+                    summary["skipped_cooldown"] += 1
+                    continue
                 safe, reasons = _validate_field(
                     field,
                     proposed,
@@ -1252,6 +1325,21 @@ def auto_publish_checked_proposals(
             patch_product_proposals(shop, str(product.get("product_id") or ""), {"auto_publish_held": held})
             summary["held"] += len(held)
             summary["products"] += 1
+
+        if summary["products"]:
+            # An auto-apply cycle IS a run: without this, effectiveness reports
+            # NO_RUNS even though changes were applied to the store.
+            record_run(
+                shop=shop,
+                status="completed",
+                observations_created=0,
+                weights_updated=0,
+                actions_reprioritized=0,
+                approvals_created=0,
+                auto_applied_count=int(summary["published"]),
+                errors=[],
+                db_path=db_path,
+            )
     except Exception:
         logger.exception("auto_publish_checked_proposals failed for shop=%s", shop)
     return summary

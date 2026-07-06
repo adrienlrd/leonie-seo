@@ -33,8 +33,12 @@ def captured(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         return True
 
     calls["tokens"] = []
+    calls["runs"] = []
     monkeypatch.setattr(ma, "_apply_proposals_core", fake_apply_core)
     monkeypatch.setattr(ma, "patch_product_proposals", fake_patch)
+    monkeypatch.setattr(
+        ma, "record_run", lambda **kwargs: calls["runs"].append(kwargs) or 1
+    )
     # get_token returns a *record dict* (decrypted access_token inside), not a bare string.
     monkeypatch.setattr(ma, "get_token", lambda shop: {"shop": shop, "access_token": "shpua_tok"})
     return calls
@@ -140,6 +144,118 @@ def test_empty_selection_publishes_nothing(monkeypatch: pytest.MonkeyPatch, capt
     summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
     assert captured["applied"] == []
     assert summary["published"] == 0
+
+
+def test_out_of_scope_field_is_not_auto_published(
+    monkeypatch: pytest.MonkeyPatch, captured: dict
+) -> None:
+    # Default scopes are meta_title/meta_description/alt_text: a checked product
+    # description must stay a proposal, never be auto-applied.
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    product = _product(
+        proposed_product_description="Nouvelle description produit détaillée et conforme.",
+        current_product_description_summary="Ancienne description",
+        auto_publish_fields=["description"],
+    )
+    summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+    assert captured["applied"] == []
+    assert summary["published"] == 0
+    assert summary["skipped_out_of_scope"] == 1
+
+
+def test_scope_setting_enables_description_publish(
+    monkeypatch: pytest.MonkeyPatch, captured: dict
+) -> None:
+    monkeypatch.setattr(
+        ma,
+        "get_settings",
+        lambda shop, db_path=None: MerchantLearningSettings(
+            shop=shop,
+            mode=LearningMode.AUTO_APPLY,
+            auto_publish_scopes=["product_description"],
+        ),
+    )
+    long_description = (
+        "Ce harnais pour chien est fabriqué dans un cuir souple et résistant, pensé pour "
+        "les promenades quotidiennes comme pour les longues randonnées avec votre animal. "
+        "Les coutures sont renforcées et les boucles en métal assurent une fermeture fiable "
+        "dans toutes les conditions. Le rembourrage intérieur protège le poitrail du chien "
+        "et répartit la traction sur l'ensemble du buste pour un confort durable. "
+        "Disponible en plusieurs tailles, il convient aux petits gabarits comme aux grands "
+        "chiens, et son entretien se limite à un simple nettoyage avec un chiffon humide. "
+        "Un choix durable pour les propriétaires attentifs à la qualité des accessoires."
+    )
+    product = _product(
+        proposed_product_description=long_description,
+        current_product_description_summary="Ancienne description",
+        auto_publish_fields=["description"],
+    )
+    summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+    assert captured["applied"] == [("gid://shopify/Product/1", ["description"])]
+    assert summary["published"] == 1
+
+
+def test_field_in_cooldown_is_skipped(monkeypatch: pytest.MonkeyPatch, captured: dict) -> None:
+    # Re-applying before J+28 would recapture the baseline and the measurement
+    # window would never mature.
+    from datetime import UTC, datetime, timedelta
+
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    recent = (datetime.now(UTC) - timedelta(days=3)).isoformat()
+    product = _product(
+        proposed_meta_title="Harnais Premium pour Chien de Berger",
+        current_meta_title="Old",
+        auto_publish_fields=["meta_title"],
+        applied_fields={"meta_title": recent},
+    )
+    summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+    assert captured["applied"] == []
+    assert summary["skipped_cooldown"] == 1
+
+
+def test_field_past_cooldown_is_published(
+    monkeypatch: pytest.MonkeyPatch, captured: dict
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    old = (datetime.now(UTC) - timedelta(days=35)).isoformat()
+    product = _product(
+        proposed_meta_title="Harnais Premium pour Chien de Berger",
+        current_meta_title="Old",
+        auto_publish_fields=["meta_title"],
+        applied_fields={"meta_title": old},
+    )
+    summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+    assert summary["published"] == 1
+
+
+def test_identical_image_alts_are_skipped(
+    monkeypatch: pytest.MonkeyPatch, captured: dict
+) -> None:
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    product = _product(
+        proposed_image_alts=[{"image_id": "42", "proposed_alt": "Chat buvant à la fontaine"}],
+        current_product_images=[{"id": "42", "current_alt": "Chat buvant à la fontaine"}],
+        auto_publish_fields=["image_alts"],
+    )
+    summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+    assert captured["applied"] == []
+    assert summary["skipped_noop"] == 1
+
+
+def test_auto_apply_cycle_records_a_learning_run(
+    monkeypatch: pytest.MonkeyPatch, captured: dict
+) -> None:
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    product = _product(
+        proposed_meta_title="Harnais Premium pour Chien de Berger",
+        current_meta_title="Old",
+        auto_publish_fields=["meta_title"],
+    )
+    ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+    assert len(captured["runs"]) == 1
+    assert captured["runs"][0]["auto_applied_count"] == 1
 
 
 def test_default_fields_when_no_checkboxes_persisted(
