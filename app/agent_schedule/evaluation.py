@@ -77,6 +77,17 @@ def _weighted_average(pairs: list[tuple[float, float]]) -> float:
     return sum(value * weight for value, weight in pairs) / total_weight
 
 
+def _has_search_data(observation: dict[str, Any]) -> bool:
+    """True when GSC recorded any traffic before or after — a flat zero baseline
+    means "no search data yet" (new site / property), not "no effect"."""
+    for key in ("before_metrics", "after_metrics"):
+        metrics = observation.get(key) or {}
+        gsc = metrics.get("gsc") if isinstance(metrics, dict) else None
+        if isinstance(gsc, dict) and any(_num(v) for v in gsc.values()):
+            return True
+    return False
+
+
 def _dimension_verdict(score: float, sample: int, avg_confidence: float) -> str:
     if sample < _MIN_SAMPLE or avg_confidence < _MIN_CONFIDENCE:
         return "inconclusive"
@@ -145,8 +156,24 @@ def _build_recommendations(
     positive_tags: int,
     negative_tags: int,
     has_any_run: bool,
+    without_search_data: int = 0,
 ) -> list[dict[str, str]]:
     recs: list[dict[str, str]] = []
+
+    if sample > 0 and without_search_data == sample:
+        recs.append(
+            _rec(
+                "NO_SEARCH_DATA",
+                "warning",
+                "Google Search Console ne rapporte encore aucun trafic sur les pages "
+                "mesurées : le verdict ne signifie pas « aucun effet », il signifie "
+                "« pas encore de données ». Vérifiez la propriété GSC et laissez le "
+                "site accumuler des impressions.",
+                "Google Search Console reports no traffic yet on the measured pages: "
+                "the verdict does not mean \"no effect\", it means \"no data yet\". "
+                "Check the GSC property and let the site accumulate impressions.",
+            )
+        )
 
     if not has_any_run:
         recs.append(
@@ -318,6 +345,7 @@ def evaluate_agent_effectiveness(shop: str, *, db_path: Path | None = None) -> d
         deltas = _deltas_for(observation)
         learnable.append(
             {
+                "has_search_data": _has_search_data(observation),
                 "field": metadata.get("field") or observation.get("action_type"),
                 "confidence": _num(observation.get("confidence_score")),
                 "outcome_score": _num(observation.get("outcome_score")),
@@ -340,7 +368,14 @@ def evaluate_agent_effectiveness(shop: str, *, db_path: Path | None = None) -> d
         int(run.get("summary", {}).get("proposals_created") or len(run.get("proposals") or []))
         for run in agent_runs
     )
-    applied_count = sum(int(run.get("summary", {}).get("applied") or 0) for run in agent_runs)
+    # Applied ledger events count as agent activity even when no run row exists
+    # (historical auto-apply cycles did not record runs).
+    by_status = summary.get("by_status") if isinstance(summary.get("by_status"), dict) else {}
+    applied_events = int(by_status.get("applied") or 0)
+    applied_count = max(
+        sum(int(run.get("summary", {}).get("applied") or 0) for run in agent_runs),
+        applied_events,
+    )
     avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.0
 
     recommendations = _build_recommendations(
@@ -355,7 +390,8 @@ def evaluate_agent_effectiveness(shop: str, *, db_path: Path | None = None) -> d
         avg_quality=avg_quality,
         positive_tags=int(summary.get("positive_tags") or 0),
         negative_tags=int(summary.get("negative_tags") or 0),
-        has_any_run=bool(runs or agent_runs),
+        has_any_run=bool(runs or agent_runs or applied_events),
+        without_search_data=sum(1 for row in learnable if not row["has_search_data"]),
     )
 
     return {

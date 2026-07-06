@@ -199,6 +199,35 @@ def test_no_runs_tells_merchant_to_run_agent(tmp_path: Path) -> None:
     assert "NO_RUNS" in _codes(result)
 
 
+def test_applied_ledger_events_count_as_agent_activity(tmp_path: Path) -> None:
+    # Historical auto-apply cycles created ledger events without run rows:
+    # the merchant must see "wait for the window", not "the agent never ran".
+    from app.geo.ledger import create_geo_event
+
+    db = _db(tmp_path)
+    create_geo_event(
+        shop=SHOP,
+        event_type="applied_optimization",
+        resource_type="product",
+        resource_id="gid://shopify/Product/1",
+        resource_title="Harnais",
+        action_type="meta_title",
+        before_snapshot={"field": "meta_title"},
+        metrics_before={"gsc": {"clicks": 0}},
+        estimated_impact={},
+        status="applied",
+        source="auto_apply",
+        db_path=db,
+    )
+
+    result = evaluate_agent_effectiveness(SHOP, db_path=db)
+
+    codes = _codes(result)
+    assert "NO_RUNS" not in codes
+    assert "WAIT_FOR_WINDOW" in codes
+    assert result["applied_count"] == 1
+
+
 # ── Proposals awaiting validation ────────────────────────────────────────────
 
 
@@ -246,3 +275,31 @@ def test_by_field_breakdown_highlights_best_field(tmp_path: Path) -> None:
     assert fields["meta_title"]["avg_outcome"] > fields["product_description"]["avg_outcome"]
     # Best-performing field is listed first.
     assert result["by_field"][0]["field"] == "meta_title"
+
+
+def test_zero_gsc_baseline_flags_no_search_data_not_no_effect(tmp_path: Path) -> None:
+    db = _db(tmp_path)
+    _learning_run(db)
+    for index in range(3):
+        create_observation(
+            shop=SHOP,
+            resource_type="product",
+            resource_id=f"gid://shopify/Product/{index}",
+            action_type="meta_title",
+            surface="product_page",
+            keyword_source="gsc",
+            before_metrics={"gsc": {"impressions": 0, "clicks": 0, "ctr": 0, "position": 0}},
+            after_metrics={"gsc": {"impressions": 0, "clicks": 0, "ctr": 0, "position": 0}},
+            control_metrics={},
+            window_days=28,
+            window_label="J+28",
+            is_primary_window=True,
+            outcome_score=0.0,
+            confidence_score=80,
+            metadata={"learnable": True, "field": "meta_title"},
+            db_path=db,
+        )
+
+    result = evaluate_agent_effectiveness(SHOP, db_path=db)
+
+    assert "NO_SEARCH_DATA" in _codes(result)
