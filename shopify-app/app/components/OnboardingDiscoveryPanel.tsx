@@ -179,14 +179,14 @@ export function OnboardingDiscoveryPanel({
         )}
 
         {stage !== "done" && !error && (
-          <Banner tone="info">
+          <Box padding="300" background="bg-surface-secondary" borderRadius="200" width="100%">
             <ResearchConsole
               locale={locale}
               phrases={loaderPhrases(locale, "profile")}
               estimateMs={150_000}
               steps={steps}
             />
-          </Banner>
+          </Box>
         )}
 
         {stage === "done" && profile && (

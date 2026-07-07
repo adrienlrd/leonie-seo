@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "@remix-run/react";
-import { Banner, BlockStack, Card, Text } from "@shopify/polaris";
+import { Banner, BlockStack, Box, Card, Text } from "@shopify/polaris";
 import { ChartHistogramGrowthIcon } from "@shopify/polaris-icons";
 import { loaderPhrases, t, type Locale } from "../lib/i18n";
 import { SectionTitle, type MarketJobState } from "../lib/marketAnalysisShared";
@@ -80,7 +80,7 @@ export function MarketAnalysisProgressPanel({ locale, jobId, onComplete }: Marke
           </Banner>
         )}
         {!error && (
-          <Banner tone="info">
+          <Box padding="300" background="bg-surface-secondary" borderRadius="200" width="100%">
             <ResearchConsole
               locale={locale}
               phrases={loaderPhrases(locale, "analysis")}
@@ -91,7 +91,7 @@ export function MarketAnalysisProgressPanel({ locale, jobId, onComplete }: Marke
               events={job?.events}
               counters={job ? buildAnalysisCounters(locale, job) : undefined}
             />
-          </Banner>
+          </Box>
         )}
       </BlockStack>
     </Card>

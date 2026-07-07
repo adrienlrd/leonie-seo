@@ -146,7 +146,7 @@ export function ProductIdentificationPanel({ locale, initialJobId, onSaved }: Pr
         )}
 
         {identifying && !labels && (
-          <Banner tone="info">
+          <Box padding="300" background="bg-surface-secondary" borderRadius="200" width="100%">
             <ResearchConsole
               locale={locale}
               phrases={loaderPhrases(locale, "profile")}
@@ -155,7 +155,7 @@ export function ProductIdentificationPanel({ locale, initialJobId, onSaved }: Pr
               steps={buildIdentificationSteps(locale, job?.status, job?.events)}
               events={job?.events}
             />
-          </Banner>
+          </Box>
         )}
 
         {labels && (
