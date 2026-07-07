@@ -52,12 +52,42 @@ def _load_result(shop: str) -> dict[str, Any] | None:
 # ── Background task ───────────────────────────────────────────────────────────
 
 
+_MAX_JOB_EVENTS = 50
+
+
+def _append_event(job_id: str, code: str, params: dict[str, Any] | None = None) -> None:
+    """Append a narratable progress event; codes are translated client-side."""
+    job = _jobs.get(job_id)
+    if job is None:
+        return
+    events = job.setdefault("events", [])
+    events.append(
+        {"at": datetime.now(UTC).isoformat(), "code": code, "params": params or {}}
+    )
+    if len(events) > _MAX_JOB_EVENTS:
+        del events[: len(events) - _MAX_JOB_EVENTS]
+
+
 def _run_crawl_background(job_id: str, shop: str) -> None:
     try:
         _jobs[job_id]["status"] = "running"
+        _append_event(job_id, "crawl_started", {})
         config = build_config_for_serp_job()
-        result = run_competitor_serp_crawl(shop, config)
+        result = run_competitor_serp_crawl(
+            shop,
+            config,
+            progress_callback=lambda code, params: _append_event(job_id, code, params),
+        )
         _save_result(shop, result)
+        _append_event(
+            job_id,
+            "crawl_completed",
+            {
+                "pages": result.get("total_pages_crawled", 0),
+                "keywords": result.get("keywords_used", 0),
+                "competitors": len(result.get("competitors", [])),
+            },
+        )
         _jobs[job_id].update({
             "status": "completed",
             "completed_at": datetime.now(UTC).isoformat(),
@@ -100,6 +130,7 @@ async def start_competitor_serp_job(
         "total_pages_crawled": None,
         "keywords_used": None,
         "competitor_count": None,
+        "events": [],
         "error": None,
     }
     background_tasks.add_task(_run_crawl_background, job_id, ctx.shop)

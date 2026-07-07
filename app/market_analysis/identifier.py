@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from typing import Any
 
 from app.llm import LLMError, get_router
@@ -83,6 +84,7 @@ def generate_product_labels(
     products: list[dict[str, Any]],
     shop: str,
     niche_summary: str = "",
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> dict[str, str]:
     """Generate short French SEO labels for all products via LLM (one call per chunk).
 
@@ -134,6 +136,8 @@ def generate_product_labels(
         except Exception as exc:
             logger.warning("Label generation failed for chunk: %s", exc)
             results.update(chunk_fallback)
+        if progress_callback is not None:
+            progress_callback(len(results), len(products))
 
     # Fill any product not returned by LLM
     for pid, title in fallback.items():

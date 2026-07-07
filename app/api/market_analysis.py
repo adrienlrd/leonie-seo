@@ -48,6 +48,7 @@ from app.market_analysis.engine import run_market_analysis
 from app.market_analysis.identifier import generate_product_labels
 from app.market_analysis.jobs import (
     active_job,
+    append_job_event,
     create_job,
     get_job,
     load_identification_job,
@@ -203,7 +204,14 @@ def _run_identification_background(
     """Background task: generate AI short labels for all active products."""
     try:
         update_job(job_id, status="running")
-        labels = generate_product_labels(products, shop_domain, niche_summary)
+        labels = generate_product_labels(
+            products,
+            shop_domain,
+            niche_summary,
+            progress_callback=lambda done, total: append_job_event(
+                job_id, "identification_chunk", {"done": done, "total": total}
+            ),
+        )
         product_titles = {str(p.get("id", "")): p.get("title", "") for p in products}
         completed_data: dict[str, Any] = {
             "job_id": job_id,
@@ -214,6 +222,7 @@ def _run_identification_background(
             "product_count": len(labels),
             "error": None,
         }
+        append_job_event(job_id, "identification_completed", {"count": len(labels)})
         update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
         save_identification_job(shop_domain, completed_data)
     except Exception as exc:
@@ -311,6 +320,8 @@ def _run_analysis_background(
     reflection_test: bool = True,
 ) -> None:
     """Background task: runs the full analysis and updates the job store incrementally."""
+    started_at = datetime.now(UTC)
+    last_step: dict[str, Any] = {"phase": None, "done": 0}
 
     def _on_progress(
         done: int, total: int, partial: list[dict[str, Any]], phase: str = "content"
@@ -326,6 +337,31 @@ def _run_analysis_background(
             total_opportunity_count=sum(
                 len(r.get("seo_keywords", [])) + len(r.get("geo_questions", [])) for r in partial
             ),
+        )
+        # Narrate each finished product exactly once per pass (the activity feed
+        # must only report work that actually happened).
+        if phase != last_step["phase"]:
+            last_step["phase"] = phase
+            last_step["done"] = 0
+        if done <= last_step["done"] or done > len(partial):
+            return
+        last_step["done"] = done
+        finished = partial[done - 1]
+        keywords = finished.get("seo_keywords") or []
+        append_job_event(
+            job_id,
+            "product_targeted" if phase == "targeting" else "product_content_ready",
+            {
+                "title": str(finished.get("product_title") or ""),
+                "keywords": len(keywords),
+                "real_keywords": sum(
+                    1
+                    for kw in keywords
+                    if isinstance(kw, dict)
+                    and kw.get("data_source") not in (None, "llm_estimated", "llm_proposed", "market_seed")
+                ),
+                "geo_questions": len(finished.get("geo_questions") or []),
+            },
         )
 
     # Mark the job queued, then block until a concurrency slot frees up so
@@ -347,6 +383,17 @@ def _run_analysis_background(
             total=active_count,
             progress=0,
             provider_status=early_provider_status,
+        )
+        append_job_event(
+            job_id,
+            "sources_connected",
+            {
+                "catalog": True,
+                "gsc": bool(gsc_query_rows or gsc_page_rows),
+                "ga4": bool(ga4_page_rows),
+                "dataforseo": bool(early_provider_status["dataforseo"]),
+                "competitor_crawl": bool(crawl_findings),
+            },
         )
 
         retired_labels = get_shop_retired_tags(shop_domain)
@@ -466,6 +513,20 @@ def _run_analysis_background(
                 business_profile=business_profile,
                 niche_hypothesis=niche_hypothesis,
             )
+        append_job_event(
+            job_id,
+            "analysis_completed",
+            {
+                "products": int(completed_data.get("analyzed_product_count") or 0),
+                "keywords_evaluated": sum(
+                    len(p.get("seo_keywords") or [])
+                    for p in completed_data.get("products") or []
+                    if isinstance(p, dict)
+                ),
+                "sources": len(completed_data.get("sources_used") or []),
+                "duration_s": int((datetime.now(UTC) - started_at).total_seconds()),
+            },
+        )
         update_job(job_id, **{k: v for k, v in completed_data.items() if k != "job_id"})
     except Exception as exc:
         import logging  # noqa: PLC0415

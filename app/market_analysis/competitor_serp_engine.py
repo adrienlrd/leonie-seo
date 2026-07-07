@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from statistics import mean
@@ -228,11 +229,25 @@ def _strength_label(strength: int) -> str:
 # ── Layer 2: enrichment (crawl 1 page + LLM synthesis) ────────────────────────
 
 
-def run_competitor_serp_crawl(shop: str, config: CompetitorCrawlConfig) -> dict[str, Any]:
-    """Aggregate, crawl one page per competitor, synthesize, and return the result."""
+def run_competitor_serp_crawl(
+    shop: str,
+    config: CompetitorCrawlConfig,
+    progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    """Aggregate, crawl one page per competitor, synthesize, and return the result.
+
+    ``progress_callback(code, params)`` narrates each real stage for the UI
+    activity feed (SERP aggregation, page fetches, per-competitor synthesis).
+    """
+
+    def _notify(code: str, params: dict[str, Any]) -> None:
+        if progress_callback is not None:
+            progress_callback(code, params)
+
     preview = aggregate_competitors_from_serp(shop)
     if preview.get("error") or not preview["competitors"]:
         return preview
+    _notify("serp_analysis", {"competitors": len(preview["competitors"])})
 
     # Preview lists all competitors (aligned with the home page); enrichment
     # (crawl + LLM) is capped to the strongest _MAX_ENRICH to bound cost.
@@ -248,6 +263,7 @@ def run_competitor_serp_crawl(shop: str, config: CompetitorCrawlConfig) -> dict[
         for c in to_enrich
         if c["top_page_url"]
     ]
+    _notify("competitor_pages_fetching", {"pages": len(targets)})
     crawl_results = fetch_competitor_targets(targets, config)
     features_by_domain: dict[str, dict[str, Any]] = {}
     for res in crawl_results:
@@ -272,6 +288,7 @@ def run_competitor_serp_crawl(shop: str, config: CompetitorCrawlConfig) -> dict[
                 "final_url": competitor["top_page_url"],
                 **features,
             })
+        _notify("synthesis_writing", {"domain": str(competitor.get("domain") or "")})
         competitor["synthesis"] = _synthesize_competitor(
             competitor, features, business_profile, llm_router
         )

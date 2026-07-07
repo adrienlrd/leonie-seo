@@ -36,9 +36,35 @@ def create_job(shop: str) -> str:
         "analyzed_product_count": 0,
         "total_opportunity_count": 0,
         "sources_used": [],
+        "events": [],
         "error": None,
     }
     return job_id
+
+
+_MAX_JOB_EVENTS = 50
+
+
+def append_job_event(job_id: str, code: str, params: dict[str, Any] | None = None) -> None:
+    """Append a progress event the UI narrates as a live activity feed.
+
+    ``code`` is a stable identifier translated client-side (i18n) — never put
+    display text here. The list is capped so a long analysis cannot grow the
+    in-memory job unboundedly.
+    """
+    job = _jobs.get(job_id)
+    if job is None:
+        return
+    events = job.setdefault("events", [])
+    events.append(
+        {
+            "at": datetime.now(UTC).isoformat(),
+            "code": code,
+            "params": params or {},
+        }
+    )
+    if len(events) > _MAX_JOB_EVENTS:
+        del events[: len(events) - _MAX_JOB_EVENTS]
 
 
 def get_job(job_id: str) -> dict[str, Any] | None:

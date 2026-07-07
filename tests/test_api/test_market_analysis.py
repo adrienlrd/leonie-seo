@@ -383,3 +383,59 @@ def test_apply_to_shopify_persists_applied_fields_with_timestamp() -> None:
     saved = patch_pack.call_args.args[2]
     assert set(saved["applied_fields"].keys()) == {"meta_title"}
     assert saved["applied_fields"]["meta_title"]  # ISO timestamp
+
+
+def test_analysis_background_narrates_progress_events() -> None:
+    """The job carries an honest activity feed: sources, per-product steps, recap."""
+    from app.market_analysis import jobs
+
+    job_id = jobs.create_job("events.myshopify.com")
+    product = {
+        "product_id": "gid://shopify/Product/1",
+        "product_title": "Harnais Haute Couture",
+        "seo_keywords": [
+            {"query": "harnais chien", "data_source": "gsc"},
+            {"query": "harnais cuir", "data_source": "llm_estimated"},
+        ],
+        "geo_questions": [{"question": "Quel harnais choisir ?"}],
+        "content_test_pack": {},
+    }
+
+    def fake_run(*args, **kwargs):
+        cb = kwargs["progress_callback"]
+        cb(1, 1, [product], "targeting")
+        cb(1, 1, [product], "content")
+        return {**_analysis_result(), "products": [product]}
+
+    with (
+        patch("app.api.market_analysis.run_market_analysis", side_effect=fake_run),
+        patch("app.api.market_analysis.save_latest_result"),
+    ):
+        _run_analysis_background(
+            job_id,
+            [],
+            "events.myshopify.com",
+            {"page": {}},
+            [{"query": "harnais chien"}],
+            {},
+            None,
+            None,
+        )
+
+    events = jobs.get_job(job_id)["events"]
+    codes = [e["code"] for e in events]
+    assert codes == [
+        "sources_connected",
+        "product_targeted",
+        "product_content_ready",
+        "analysis_completed",
+    ]
+    assert events[0]["params"]["gsc"] is True
+    targeted = events[1]["params"]
+    assert targeted["title"] == "Harnais Haute Couture"
+    assert targeted["keywords"] == 2
+    assert targeted["real_keywords"] == 1
+    recap = events[3]["params"]
+    assert recap["products"] == 1
+    assert recap["keywords_evaluated"] == 2
+    assert "duration_s" in recap

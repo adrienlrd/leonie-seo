@@ -72,3 +72,34 @@ def test_remove_products_no_op_when_empty_set(analysis_with_products):
 
     removed = jobs_mod.remove_products_from_analysis("shop.myshopify.com", set())
     assert removed == 0
+
+
+def test_append_job_event_records_code_params_and_timestamp():
+    from app.market_analysis import jobs
+
+    job_id = jobs.create_job("events.myshopify.com")
+    jobs.append_job_event(job_id, "sources_connected", {"gsc": True})
+    jobs.append_job_event(job_id, "product_targeted", {"title": "Harnais"})
+
+    events = jobs.get_job(job_id)["events"]
+    assert [e["code"] for e in events] == ["sources_connected", "product_targeted"]
+    assert events[0]["params"] == {"gsc": True}
+    assert events[0]["at"]  # ISO timestamp present
+
+
+def test_append_job_event_caps_the_list():
+    from app.market_analysis import jobs
+
+    job_id = jobs.create_job("events-cap.myshopify.com")
+    for i in range(jobs._MAX_JOB_EVENTS + 10):
+        jobs.append_job_event(job_id, "identification_chunk", {"done": i})
+
+    events = jobs.get_job(job_id)["events"]
+    assert len(events) == jobs._MAX_JOB_EVENTS
+    assert events[-1]["params"]["done"] == jobs._MAX_JOB_EVENTS + 9
+
+
+def test_append_job_event_ignores_unknown_job():
+    from app.market_analysis import jobs
+
+    jobs.append_job_event("nope", "sources_connected", {})  # must not raise

@@ -149,3 +149,22 @@ def test_synthesize_returns_none_without_router():
         "paa_questions": [],
     }
     assert engine._synthesize_competitor(competitor, None, None, None) is None
+
+
+def test_crawl_notifies_each_real_stage(monkeypatch):
+    monkeypatch.setattr(engine, "load_latest_result", lambda shop: _market_result())
+    monkeypatch.setattr(engine, "load_business_profile", lambda shop: None)
+    monkeypatch.setattr(engine.keyword_cache, "get_many", lambda *a, **k: _serp_cache())
+    monkeypatch.setattr(engine, "fetch_competitor_targets", lambda targets, config: [])
+    monkeypatch.setattr(engine, "_get_router_safe", lambda shop: None)
+
+    seen: list[tuple[str, dict]] = []
+    engine.run_competitor_serp_crawl(
+        "demo.myshopify.com", object(), progress_callback=lambda c, p: seen.append((c, p))
+    )
+
+    codes = [c for c, _ in seen]
+    assert codes[0] == "serp_analysis"
+    assert seen[0][1]["competitors"] == 2
+    assert "competitor_pages_fetching" in codes
+    assert codes.count("synthesis_writing") == 2  # one per enriched competitor
