@@ -66,7 +66,7 @@ import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { handleProductCardIntent } from "../lib/productCardActions.server";
 import { getLocale, loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
-import { AnalysisLoader } from "../components/AnalysisLoader";
+import { ResearchConsole } from "../components/ResearchConsole";
 import { ProductCard } from "../components/ProductCard";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
@@ -1096,7 +1096,8 @@ function ActiveProductsCard({
                       )}
                     </InlineStack>
                     {analyzingThis && (
-                      <AnalysisLoader
+                      <ResearchConsole
+                        locale={locale}
                         phrases={loaderPhrases(locale, "analysis")}
                         estimateMs={150_000}
                       />
@@ -2193,7 +2194,8 @@ export default function IndexPage() {
         {/* Banners */}
         {auditRunning && (
           <Banner tone="info">
-            <AnalysisLoader
+            <ResearchConsole
+              locale={locale}
               phrases={loaderPhrases(locale, "crawl")}
               estimateMs={25_000}
               title={t(locale, "dashboardRefreshing")}
@@ -2918,7 +2920,7 @@ function AnalysisSchedulePanels({
           )}
 
           {running && (
-            <AnalysisLoader phrases={loaderPhrases(locale, "analysis")} estimateMs={150_000} />
+            <ResearchConsole locale={locale} phrases={loaderPhrases(locale, "analysis")} estimateMs={150_000} />
           )}
           {!running && finished === "completed" && (
             <Banner tone="success">

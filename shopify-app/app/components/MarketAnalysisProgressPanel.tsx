@@ -12,7 +12,8 @@ import { Banner, BlockStack, Card, Text } from "@shopify/polaris";
 import { ChartHistogramGrowthIcon } from "@shopify/polaris-icons";
 import { loaderPhrases, t, type Locale } from "../lib/i18n";
 import { SectionTitle, type MarketJobState } from "../lib/marketAnalysisShared";
-import { AnalysisLoader } from "./AnalysisLoader";
+import { buildAnalysisCounters, buildAnalysisSteps } from "../lib/researchSteps";
+import { ResearchConsole } from "./ResearchConsole";
 
 type PollResponse = { type: "pollProductAnalysis"; job: MarketJobState | null; error: string | null };
 
@@ -80,11 +81,15 @@ export function MarketAnalysisProgressPanel({ locale, jobId, onComplete }: Marke
         )}
         {!error && (
           <Banner tone="info">
-            <AnalysisLoader
+            <ResearchConsole
+              locale={locale}
               phrases={loaderPhrases(locale, "analysis")}
               progress={total > 0 ? progressPct : undefined}
               estimateMs={420_000}
               title={t(locale, "dashboardProductAnalysisRunning")}
+              steps={buildAnalysisSteps(locale, job?.status ?? "running", job?.phase)}
+              events={job?.events}
+              counters={job ? buildAnalysisCounters(locale, job) : undefined}
             />
           </Banner>
         )}

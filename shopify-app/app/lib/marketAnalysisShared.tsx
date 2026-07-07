@@ -654,12 +654,15 @@ export function merchantAnswersFromPack(pack: ContentTestPack): Record<string, s
 
 export interface MarketJobState {
   status: "pending" | "running" | "completed" | "failed";
+  phase?: "targeting" | "content";
   products: ProductResult[];
   labels?: Record<string, string>;
   product_titles?: Record<string, string>;
   progress?: number;
   total?: number;
   analyzed_product_count?: number;
+  provider_status?: Record<string, unknown>;
+  events?: { at: string; code: string; params: Record<string, unknown> }[];
   error?: string | null;
 }
 

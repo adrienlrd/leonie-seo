@@ -12,8 +12,9 @@ import { useFetcher } from "@remix-run/react";
 import { Banner, BlockStack, Box, Button, Card, InlineStack, Text, TextField } from "@shopify/polaris";
 import { ProductIcon, RefreshIcon } from "@shopify/polaris-icons";
 import { loaderPhrases, t, type Locale } from "../lib/i18n";
-import { AnalysisLoader } from "./AnalysisLoader";
+import { ResearchConsole } from "./ResearchConsole";
 import { SectionTitle, type MarketJobState } from "../lib/marketAnalysisShared";
+import { buildIdentificationSteps } from "../lib/researchSteps";
 
 type StartResponse = { type: "startProductAnalysis"; jobId: string | null; error: string | null };
 type PollResponse = { type: "pollProductIdentification"; job: MarketJobState | null; error: string | null };
@@ -146,10 +147,13 @@ export function ProductIdentificationPanel({ locale, initialJobId, onSaved }: Pr
 
         {identifying && !labels && (
           <Banner tone="info">
-            <AnalysisLoader
+            <ResearchConsole
+              locale={locale}
               phrases={loaderPhrases(locale, "profile")}
               estimateMs={120_000}
               title={t(locale, "dashboardProductIdentificationRunning")}
+              steps={buildIdentificationSteps(locale, job?.status, job?.events)}
+              events={job?.events}
             />
           </Banner>
         )}

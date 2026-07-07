@@ -46,7 +46,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { callBackendForShop } from "../lib/api.server";
 import { handleShopifyFilesIntent } from "../lib/shopifyFiles.server";
 import { getLocale, loaderPhrases, type Locale } from "../lib/i18n";
-import { AnalysisLoader } from "../components/AnalysisLoader";
+import { ResearchConsole } from "../components/ResearchConsole";
 import { CoverImageModal, ShopifyImagePicker } from "../components/ShopifyImagePicker";
 import { scoreTone } from "../lib/marketAnalysisShared";
 import { authenticate } from "../shopify.server";
@@ -1407,7 +1407,8 @@ export default function BlogIndexPage() {
                       </Button>
                     </Form>
                     {isGeneratingArticle && (
-                      <AnalysisLoader
+                      <ResearchConsole
+                        locale={locale}
                         phrases={loaderPhrases(locale, "writing")}
                         estimateMs={90_000}
                         title={fr

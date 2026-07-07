@@ -21,7 +21,8 @@ import {
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, loaderPhrases, localizedPath, type Locale } from "../lib/i18n";
-import { AnalysisLoader } from "../components/AnalysisLoader";
+import { ResearchConsole, type ResearchJobEvent } from "../components/ResearchConsole";
+import { buildCrawlSteps } from "../lib/researchSteps";
 import type {
   CompetitorCrawlTopUrl,
   CompetitorProfile,
@@ -187,7 +188,8 @@ function SynthesisBlock({
     if (running) {
       return (
         <Box padding="300" background="bg-surface-secondary" borderRadius="200">
-          <AnalysisLoader
+          <ResearchConsole
+            locale={locale}
             phrases={loaderPhrases(locale, "crawl")}
             estimateMs={120_000}
             title={locale === "fr" ? "Analyse détaillée en cours…" : "Detailed analysis in progress…"}
@@ -462,6 +464,7 @@ export default function CompetitorCrawlPage() {
 
   const [result, setResult] = useState<CompetitorSerpResult | null>(() => mostRecent(preview, latest));
   const [jobStatus, setJobStatus] = useState<string | null>(null);
+  const [jobEvents, setJobEvents] = useState<ResearchJobEvent[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [domainFilter, setDomainFilter] = useState("all");
 
@@ -491,6 +494,7 @@ export default function CompetitorCrawlPage() {
 
   const handleEnrich = () => {
     setActionError(null);
+    setJobEvents([]);
     setJobStatus("pending");
     fetcher.submit({ intent: "start_job" }, { method: "post" });
   };
@@ -500,6 +504,9 @@ export default function CompetitorCrawlPage() {
   useEffect(() => {
     if (!fetcher.data) return;
     const data = fetcher.data as Record<string, unknown>;
+    if (Array.isArray(data.events)) {
+      setJobEvents(data.events as ResearchJobEvent[]);
+    }
 
     // Terminal states first: the completed/failed poll response also carries
     // job_id, so it must be handled before the "job started" branch below.
@@ -629,12 +636,15 @@ export default function CompetitorCrawlPage() {
 
         {isRunning && (
           <Banner tone="info">
-            <AnalysisLoader
+            <ResearchConsole
+              locale={locale}
               phrases={loaderPhrases(locale, "crawl")}
               estimateMs={30_000}
               title={locale === "fr"
                 ? "Génération de l'analyse détaillée — ~30 s. Les recommandations apparaîtront ci-dessous."
                 : "Generating detailed analysis — ~30s. Recommendations will appear below."}
+              steps={buildCrawlSteps(locale, jobStatus ?? undefined, jobEvents)}
+              events={jobEvents}
             />
           </Banner>
         )}

@@ -32,7 +32,7 @@ import {
 import { AlertTriangleIcon, CheckIcon } from "@shopify/polaris-icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { loaderPhrases, t, type Locale } from "../lib/i18n";
-import { AnalysisLoader } from "./AnalysisLoader";
+import { ResearchConsole } from "./ResearchConsole";
 
 // Days before GEO results are measurable after applying a field — matches the
 // J+28 milestone on the Measure page. Each applied field counts down from its
@@ -779,7 +779,8 @@ export function ProductContentProposals({
   // The regenerate button itself lives at the bottom of the "Améliorer le
   // contenu" panel (enrichmentBlock); here we only surface the progress loader.
   const regenerateAction = !editMode && isAnalyzing ? (
-    <AnalysisLoader
+    <ResearchConsole
+      locale={locale}
       phrases={loaderPhrases(locale, "analysis")}
       estimateMs={150_000}
     />

@@ -25,7 +25,8 @@ import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
-import { AnalysisLoader } from "../components/AnalysisLoader";
+import { ResearchConsole, type ResearchJobEvent } from "../components/ResearchConsole";
+import { buildAnalysisCounters, buildAnalysisSteps } from "../lib/researchSteps";
 import { ProductContentProposals, type FieldKey } from "../components/ProductContentProposals";
 import { ProductCard } from "../components/ProductCard";
 import { handleProductCardIntent } from "../lib/productCardActions.server";
@@ -337,6 +338,7 @@ interface JobState {
   current_business_profile_context?: BusinessProfileContextMeta;
   business_profile_context_status?: BusinessProfileContextStatus;
   reflection_test?: boolean;
+  events?: ResearchJobEvent[];
   error: string | null;
   // identification job fields
   labels?: Record<string, string>;
@@ -1894,25 +1896,20 @@ export default function ProductsPage() {
                     </Banner>
                   )}
                   {isRunning && job?.status !== "queued" && (
-                    <BlockStack gap="100">
-                      {job?.phase && (
-                        <Text as="p" variant="bodySm" tone="subdued">
-                          {job.phase === "targeting"
-                            ? t(locale, "marketAnalysisPhaseTargeting")
-                            : t(locale, "marketAnalysisPhaseContent")}
-                        </Text>
-                      )}
-                      <AnalysisLoader
-                        phrases={loaderPhrases(locale, "analysis")}
-                        progress={job && job.total > 0 ? progressPct : undefined}
-                        estimateMs={300_000}
-                        title={
-                          job && job.total > 0
-                            ? progressLabel(locale, job.progress, job.total)
-                            : t(locale, "marketAnalysisRunning")
-                        }
-                      />
-                    </BlockStack>
+                    <ResearchConsole
+                      locale={locale}
+                      phrases={loaderPhrases(locale, "analysis")}
+                      progress={job && job.total > 0 ? progressPct : undefined}
+                      estimateMs={300_000}
+                      title={
+                        job && job.total > 0
+                          ? progressLabel(locale, job.progress, job.total)
+                          : t(locale, "marketAnalysisRunning")
+                      }
+                      steps={buildAnalysisSteps(locale, job?.status, job?.phase)}
+                      events={job?.events}
+                      counters={job ? buildAnalysisCounters(locale, job) : undefined}
+                    />
                   )}
                 </BlockStack>
               </Card>
@@ -1924,6 +1921,28 @@ export default function ProductsPage() {
                 <Text as="p">{anyError}</Text>
               </Banner>
             )}
+
+            {/* Completion recap — the deep-research "here is what I did" line */}
+            {job?.status === "completed" &&
+              (() => {
+                const recap = (job.events ?? []).find((e) => e.code === "analysis_completed");
+                if (!recap) return null;
+                const p = recap.params;
+                const seconds = Number(p.duration_s ?? 0);
+                const duration =
+                  seconds >= 60 ? `${Math.round(seconds / 60)} min` : `${Math.max(seconds, 1)} s`;
+                return (
+                  <Banner tone="success">
+                    <Text as="p">
+                      {t(locale, "researchRecapAnalysis")
+                        .replace("{products}", String(p.products ?? 0))
+                        .replace("{keywords}", String(p.keywords_evaluated ?? 0))
+                        .replace("{sources}", String(p.sources ?? 0))
+                        .replace("{duration}", duration)}
+                    </Text>
+                  </Banner>
+                );
+              })()}
 
             {/* Summary + export */}
             {job && job.analyzed_product_count > 0 && (
