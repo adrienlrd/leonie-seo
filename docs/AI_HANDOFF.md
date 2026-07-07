@@ -10,6 +10,23 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-07
+- **Agent:** Claude (Fable 5)
+- **Goal:** "Deep research" experience — expert live narration of long-running analyses (labor-illusion / operational-transparency UX pattern from ChatGPT/Claude/Gemini deep research).
+- **Summary:**
+  1. **Backend event feed:** `append_job_event(job_id, code, params)` in `app/market_analysis/jobs.py` (capped at 50, codes only — text lives in i18n). The market-analysis job now emits `sources_connected` (start), `product_targeted` / `product_content_ready` per finished product (title + real-vs-total keyword counts + GEO questions), and `analysis_completed` (products, keywords, sources, duration). Identification emits `identification_chunk`/`identification_completed` (new `progress_callback` on `generate_product_labels`). Competitor SERP crawl emits `crawl_started`, `serp_analysis`, `competitor_pages_fetching`, `synthesis_writing` per domain, `crawl_completed` (new `progress_callback` on `run_competitor_serp_crawl` + local `_append_event` in `app/api/competitor_serp.py`). Golden rule: only real work is narrated.
+  2. **Frontend console:** new `shopify-app/app/components/ResearchConsole.tsx` (absorbs and replaces the deleted `AnalysisLoader.tsx`): named expert steps checked off live, timestamped activity feed (3 visible + Collapsible), effort counters (products / real keywords / AI questions / active sources), elapsed timer, pulsing "current thought" phrase. Step/counter derivation in `shopify-app/app/lib/researchSteps.ts`. Migrated all 9 call sites (products, onboarding panels, business profile, product proposals, dashboard ×3, blog, competitor crawl ×2). Completion recap banner on the products page from the `analysis_completed` event.
+  3. **i18n:** `research*` keys FR+EN (steps, event templates, counters, recap) and `LOADER_PHRASES` rewritten from vague ("Encore quelques instants…") to expert-but-accessible ("Croisement de vos requêtes Search Console avec les volumes de recherche France…", "Contrôle anti-cannibalisation entre vos pages…").
+- **Files created:** `shopify-app/app/components/ResearchConsole.tsx`, `shopify-app/app/lib/researchSteps.ts`.
+- **Files deleted:** `shopify-app/app/components/AnalysisLoader.tsx`.
+- **Files modified:** `app/market_analysis/{jobs,identifier,competitor_serp_engine}.py`, `app/api/{market_analysis,competitor_serp}.py`, `shopify-app/app/lib/{i18n.ts,marketAnalysisShared.tsx}`, `shopify-app/app/routes/{app.products,app._index,app.blog,app.competitor-crawl}.tsx`, `shopify-app/app/components/{MarketAnalysisProgressPanel,ProductIdentificationPanel,BusinessProfilePanel,ProductContentProposals}.tsx`, tests.
+- **Validations run:** `pytest` → **2031 passed, 174 skipped** ✅ · `ruff check .` ✅ · `npm run typecheck` ✅ · `npm run build` ✅.
+- **Validations skipped:** manual end-to-end run of an analysis in the embedded app (needs `npm run dev` + test store) — verify steps check off, feed shows real product titles, recap appears.
+- **Open issues:** blog generation has no pollable job, so its console runs in phrases-only mode; job `events` are in-memory only (lost on restart, like the rest of the job store).
+- **Next recommended action:** run a live analysis on the pilot store and validate the console visually; consider persisting the last event feed with the saved result if merchants ask for it.
+
+## Previous completed task
+
 - **Date:** 2026-07-06
 - **Agent:** Claude (Fable 5)
 - **Goal:** Audit of the pilot-shop reanalysis export (`Ananlyse_json/Export reanalyse 02 Juil 2026.json`) → fix the 8 quality gaps it revealed in the analysis/apply/measure pipeline.
