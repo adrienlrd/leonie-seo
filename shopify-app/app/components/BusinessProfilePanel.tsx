@@ -33,7 +33,7 @@ type PollResponse = {
   error: string | null;
 };
 type SaveResponse = {
-  type: "saveBusinessProfileAndStartIdentification";
+  type: "saveBusinessProfileAndStartIdentification" | "saveBusinessProfileOnly";
   profile: BusinessProfile | null;
   identifyJobId: string | null;
   error: string | null;
@@ -42,10 +42,20 @@ type SaveResponse = {
 interface BusinessProfilePanelProps {
   locale: Locale;
   initialProfile: BusinessProfile | null;
+  /** Pre-filled draft (e.g. from the onboarding discovery step) — skips the "run analysis" button. */
+  initialDraft?: BusinessProfile | null;
+  /** Save the profile without kicking product identification (onboarding reordered flow). */
+  saveOnly?: boolean;
   onValidated: (profile: BusinessProfile, identifyJobId: string | null) => void;
 }
 
-export function BusinessProfilePanel({ locale, initialProfile, onValidated }: BusinessProfilePanelProps) {
+export function BusinessProfilePanel({
+  locale,
+  initialProfile,
+  initialDraft,
+  saveOnly = false,
+  onValidated,
+}: BusinessProfilePanelProps) {
   const startFetcher = useFetcher<StartResponse>();
   const pollFetcher = useFetcher<PollResponse>();
   const saveFetcher = useFetcher<SaveResponse>();
@@ -53,7 +63,7 @@ export function BusinessProfilePanel({ locale, initialProfile, onValidated }: Bu
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [draft, setDraft] = useState<BusinessProfile | null>(
-    initialProfile && initialProfile.status !== "validated" ? initialProfile : null,
+    initialDraft ?? (initialProfile && initialProfile.status !== "validated" ? initialProfile : null),
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -115,7 +125,12 @@ export function BusinessProfilePanel({ locale, initialProfile, onValidated }: Bu
 
   useEffect(() => {
     const data = saveFetcher.data;
-    if (!data || data.type !== "saveBusinessProfileAndStartIdentification") return;
+    if (
+      !data ||
+      (data.type !== "saveBusinessProfileAndStartIdentification" &&
+        data.type !== "saveBusinessProfileOnly")
+    )
+      return;
     if (data.profile) {
       onValidated(data.profile, data.identifyJobId ?? null);
     } else if (data.error) {
@@ -128,7 +143,10 @@ export function BusinessProfilePanel({ locale, initialProfile, onValidated }: Bu
     if (!draft) return;
     setError(null);
     const fd = new FormData();
-    fd.set("intent", "saveBusinessProfileAndStartIdentification");
+    fd.set(
+      "intent",
+      saveOnly ? "saveBusinessProfileOnly" : "saveBusinessProfileAndStartIdentification",
+    );
     fd.set("profileJson", JSON.stringify(draft));
     saveFetcher.submit(fd, { method: "post" });
   };

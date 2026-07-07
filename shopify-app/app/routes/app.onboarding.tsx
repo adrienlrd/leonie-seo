@@ -10,6 +10,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   Banner,
   BlockStack,
+  Button,
+  InlineStack,
   Link,
   Page,
   Text,
@@ -25,9 +27,12 @@ import type { BusinessProfile, MarketJobState } from "../lib/marketAnalysisShare
 import {
   startBusinessAnalysis as startBusinessAnalysisAction,
   pollBusinessAnalysis as pollBusinessAnalysisAction,
+  saveBusinessProfile as saveBusinessProfileAction,
   saveBusinessProfileAndStartIdentification as saveBusinessProfileAndStartIdentificationAction,
   fetchLatestBusinessProfile,
 } from "../lib/businessProfileActions.server";
+import { OnboardingDiscoveryPanel } from "../components/OnboardingDiscoveryPanel";
+import { OnboardingFirstWinPanel } from "../components/OnboardingFirstWinPanel";
 import {
   startProductAnalysis as startProductAnalysisAction,
   pollProductIdentification as pollProductIdentificationAction,
@@ -41,6 +46,8 @@ import type {
   OnboardingActionData,
 } from "../components/onboarding/types";
 
+type OnboardingStep = 1 | 2 | 3 | 4 | 5;
+
 interface LoaderData {
   locale: Locale;
   shop: string;
@@ -48,7 +55,7 @@ interface LoaderData {
   ga4: GA4Status | null;
   ga4Properties: GA4Property[];
   businessProfile: BusinessProfile | null;
-  startStep: 1 | 2 | 3 | 4;
+  startStep: OnboardingStep;
 }
 
 async function fetchOk<T>(promise: Promise<Response>): Promise<T | null> {
@@ -76,20 +83,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     fetchOk<unknown>(be(`/api/shops/${shop}/market-analysis/latest`)),
   ]);
 
-  const gscConnected = Boolean(gsc?.connected);
   const profileValidated = businessProfile?.status === "validated";
 
   const url = new URL(request.url);
   const forcedStepParam = Number(url.searchParams.get("step"));
-  const forcedStep = forcedStepParam >= 1 && forcedStepParam <= 4 ? (forcedStepParam as 1 | 2 | 3 | 4) : null;
+  const forcedStep =
+    forcedStepParam >= 1 && forcedStepParam <= 5 ? (forcedStepParam as OnboardingStep) : null;
 
-  if (gscConnected && profileValidated && latestAnalysis && !forcedStep) {
+  // Google is optional in the reordered flow: onboarding is done once the
+  // merchant validated the profile and a market analysis exists.
+  if (profileValidated && latestAnalysis && !forcedStep) {
     return redirect(localizedPath("/app", locale));
   }
 
-  let startStep: 1 | 2 | 3 | 4 = 1;
-  if (gscConnected) startStep = 2;
-  if (gscConnected && profileValidated) startStep = 3;
+  // Value-first order: discovery (1) → profile validation (2) → Google (3)
+  // → identification + deep analysis (4) → first win (5).
+  let startStep: OnboardingStep = 1;
+  if (businessProfile && !profileValidated) startStep = 2;
+  if (profileValidated) startStep = 3;
   if (forcedStep) startStep = forcedStep;
 
   // GA4 authorized but no property selected → fetch the property list so the
@@ -167,6 +178,76 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
       if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
       return json<OnboardingActionData>({ ga4PropertySaved: true });
+    }
+
+    if (intent === "startDiscovery") {
+      // Kick the catalog crawl so the discovery analysis has a fresh snapshot.
+      // Deduplicated backend-side (enqueue_unique); a failure is non-fatal —
+      // the profile analysis tolerates a missing snapshot.
+      const resp = await be("/api/jobs", {
+        method: "POST",
+        body: JSON.stringify({ queue: "seo_audit" }),
+      });
+      if (!resp.ok) {
+        return json({ type: "startDiscovery", crawlJobId: null, error: `${resp.status}` });
+      }
+      const data = (await resp.json()) as { job_id: string };
+      return json({ type: "startDiscovery", crawlJobId: data.job_id, error: null });
+    }
+
+    if (intent === "pollCrawlJob") {
+      const crawlJobId = String(form.get("crawlJobId") ?? "");
+      const resp = await be(`/api/jobs/${crawlJobId}`);
+      if (!resp.ok) {
+        // Treat a vanished job as done so the discovery flow moves on.
+        return json({ type: "pollCrawlJob", status: "completed", error: null });
+      }
+      const data = (await resp.json()) as { status?: string };
+      return json({ type: "pollCrawlJob", status: data.status ?? "running", error: null });
+    }
+
+    if (intent === "saveBusinessProfileOnly") {
+      const profileJson = form.get("profileJson") as string;
+      try {
+        const profileData = JSON.parse(profileJson) as BusinessProfile;
+        const result = await saveBusinessProfileAction(
+          session.shop,
+          session.accessToken,
+          profileData,
+        );
+        return json({ type: "saveBusinessProfileOnly", identifyJobId: null, ...result });
+      } catch (err) {
+        return json({
+          type: "saveBusinessProfileOnly",
+          profile: null,
+          identifyJobId: null,
+          error: String(err),
+        });
+      }
+    }
+
+    if (intent === "applyFirstWin") {
+      const productId = String(form.get("productId") ?? "");
+      const resp = await be(
+        `/api/shops/${shop}/market-analysis/proposals/${encodeURIComponent(productId)}/apply-to-shopify`,
+        {
+          method: "POST",
+          body: JSON.stringify({ fields: ["meta_title"], confirm_live_write: true }),
+        },
+      );
+      if (!resp.ok) {
+        const txt = await resp.text();
+        return json({ type: "applyFirstWin", ok: false, error: `HTTP ${resp.status}: ${txt}` });
+      }
+      const data = (await resp.json()) as {
+        results?: Record<string, { applied?: boolean; error?: string | null }>;
+      };
+      const outcome = data.results?.meta_title;
+      return json({
+        type: "applyFirstWin",
+        ok: Boolean(outcome?.applied),
+        error: outcome?.applied ? null : (outcome?.error ?? "not applied"),
+      });
     }
 
     if (intent === "startBusinessAnalysis") {
@@ -279,9 +360,10 @@ export default function Onboarding() {
   const legacyActionData: OnboardingActionData | undefined =
     actionData && !("type" in actionData) ? actionData : undefined;
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(startStep);
-  const [identifyJobId, setIdentifyJobId] = useState<string | null>(null);
+  const [step, setStep] = useState<OnboardingStep>(startStep);
+  const [discoveredProfile, setDiscoveredProfile] = useState<BusinessProfile | null>(null);
   const [productJobId, setProductJobId] = useState<string | null>(null);
+  const [completedJob, setCompletedJob] = useState<MarketJobState | null>(null);
 
   // Auto-open Google's consent screen in a centered popup when the action returns
   // an authorization URL. The OAuth callback posts a "leonie-google-oauth" message
@@ -320,22 +402,30 @@ export default function Onboarding() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [legacyActionData?.disconnected]);
 
-  // Auto-advance from step 1 to step 2 once Google Search Console connects.
+  // Auto-advance from the Google step once Search Console connects (OAuth popup).
   useEffect(() => {
-    if (step === 1 && gsc?.connected) setStep(2);
+    if (step === 3 && gsc?.connected) setStep(4);
   }, [step, gsc?.connected]);
 
-  const handleProfileValidated = (_profile: BusinessProfile, identifyJobId: string | null) => {
-    setIdentifyJobId(identifyJobId);
+  const handleDiscoveryConfirmed = (profile: BusinessProfile) => {
+    setDiscoveredProfile(profile);
+    setStep(2);
+  };
+
+  const handleProfileValidated = (_profile: BusinessProfile, _identifyJobId: string | null) => {
     setStep(3);
   };
 
   const handleProductsSaved = (jobId: string) => {
     setProductJobId(jobId);
-    setStep(4);
   };
 
-  const handleAnalysisComplete = (_job: MarketJobState) => {
+  const handleAnalysisComplete = (job: MarketJobState) => {
+    setCompletedJob(job);
+    setStep(5);
+  };
+
+  const handleFinish = () => {
     navigate(localizedPath("/app", locale));
   };
 
@@ -376,6 +466,24 @@ export default function Onboarding() {
         )}
 
         {step === 1 && (
+          <OnboardingDiscoveryPanel
+            locale={locale}
+            existingProfile={businessProfile}
+            onConfirm={handleDiscoveryConfirmed}
+          />
+        )}
+
+        {step === 2 && (
+          <BusinessProfilePanel
+            locale={locale}
+            initialProfile={businessProfile}
+            initialDraft={discoveredProfile}
+            saveOnly
+            onValidated={handleProfileValidated}
+          />
+        )}
+
+        {step === 3 && (
           <GoogleConnectionsCard
             locale={locale}
             gsc={gsc}
@@ -384,22 +492,32 @@ export default function Onboarding() {
             legacyActionData={legacyActionData}
             title={t(locale, "onboardingStepGoogleTitle")}
             description={t(locale, "onboardingStepGoogleBody")}
-            onContinue={() => setStep(2)}
+            onContinue={() => setStep(4)}
+            footer={
+              <BlockStack gap="200">
+                <Text as="p" variant="bodySm" fontWeight="semibold">
+                  {t(locale, "onboardingGoogleExampleTitle")}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t(locale, "onboardingGoogleExampleEstimated")}
+                </Text>
+                <Text as="p" variant="bodySm">
+                  {t(locale, "onboardingGoogleExampleMeasured")}
+                </Text>
+                <InlineStack align="end">
+                  <Button variant="tertiary" onClick={() => setStep(4)}>
+                    {t(locale, "onboardingGoogleSkip")}
+                  </Button>
+                </InlineStack>
+              </BlockStack>
+            }
           />
         )}
 
-        {step === 2 && (
-          <BusinessProfilePanel
-            locale={locale}
-            initialProfile={businessProfile}
-            onValidated={handleProfileValidated}
-          />
-        )}
-
-        {step === 3 && (
+        {step === 4 && !productJobId && (
           <ProductIdentificationPanel
             locale={locale}
-            initialJobId={identifyJobId}
+            initialJobId={null}
             onSaved={handleProductsSaved}
           />
         )}
@@ -410,6 +528,16 @@ export default function Onboarding() {
             jobId={productJobId}
             onComplete={handleAnalysisComplete}
           />
+        )}
+
+        {step === 5 && completedJob && (
+          <OnboardingFirstWinPanel locale={locale} job={completedJob} onDone={handleFinish} />
+        )}
+        {step === 5 && !completedJob && (
+          // Forced ?step=5 without a fresh analysis in memory — nothing to apply.
+          <Banner tone="info">
+            <Text as="p">{t(locale, "marketAnalysisEmpty")}</Text>
+          </Banner>
         )}
       </BlockStack>
     </Page>
