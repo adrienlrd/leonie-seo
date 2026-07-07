@@ -12,6 +12,25 @@
 
 - **Date:** 2026-07-07
 - **Agent:** Claude (Fable 5)
+- **Goal:** Value-first onboarding reorder — wow before friction (5 steps: auto discovery → profile validation → optional Google → identification + deep analysis → applied first win).
+- **Summary:**
+  1. **Step 1 (new `OnboardingDiscoveryPanel.tsx`):** zero-click on mount — kicks the `seo_audit` crawl (`POST /api/jobs`, deduped), polls it (90 s fail-open timeout), chains the business-profile analysis, all narrated in the ResearchConsole; ends on a "mirror" card (brand, niche, top-3 competitors/themes) with a confirm button.
+  2. **Step 2:** `BusinessProfilePanel` gains `initialDraft` (pre-filled from step 1, no re-run button) and `saveOnly` (new `saveBusinessProfileOnly` intent → existing `saveBusinessProfile` helper — profile validation is decoupled from identification).
+  3. **Step 3:** Google moved after value, reframed "estimated → measured" (new copy + static example in the card `footer`) and **skippable** (skip button); auto-advance on OAuth success now 3→4.
+  4. **Step 4:** identification panel then MarketAnalysisProgressPanel in the same step; completion goes to step 5 instead of the dashboard.
+  5. **Step 5 (new `OnboardingFirstWinPanel.tsx`):** picks the highest-opportunity product whose `proposed_meta_title` differs from current, shows before/after + top keyword (volume badge), one-click apply via new `applyFirstWin` intent (`apply-to-shopify`, `fields:["meta_title"]`, `confirm_live_write:true`), success banner with the 28-day measurement promise; "Later" skip; auto-skips to dashboard when no candidate.
+  6. **Loader logic:** exit condition no longer requires GSC (`profileValidated && latestAnalysis`); `startStep` derives from profile state (1 no profile / 2 draft / 3 validated); `?step=` accepts 1–5.
+- **Files created:** `shopify-app/app/components/{OnboardingDiscoveryPanel,OnboardingFirstWinPanel}.tsx`.
+- **Files modified:** `shopify-app/app/routes/app.onboarding.tsx`, `shopify-app/app/components/BusinessProfilePanel.tsx`, `shopify-app/app/lib/i18n.ts` (renumbered step titles to /5 + `onboardingDiscovery*`, `onboardingGoogle{Skip,Example*}`, `onboardingFirstWin*` FR/EN).
+- **Validations run:** `npm run typecheck` ✅ · `npm run build` ✅. Backend untouched (all endpoints pre-existed, incl. `GET /api/jobs/{id}`).
+- **Validations skipped:** manual walk-through of the 5 steps on the test store (needs `npm run dev`); live apply of the first win against Shopify.
+- **Open issues:** step 4 requires one click to start identification (button kept for merchant pacing); `?step=5` without an in-memory completed job shows an informational empty state.
+- **Next recommended action:** reset the test shop (Danger Zone) and walk the full onboarding: discovery starts alone, mirror card correct, profile save, Google skip works, deep analysis, first-win applies a real meta title (check in Shopify admin), landing on dashboard.
+
+## Previous completed task
+
+- **Date:** 2026-07-07
+- **Agent:** Claude (Fable 5)
 - **Goal:** "Deep research" experience — expert live narration of long-running analyses (labor-illusion / operational-transparency UX pattern from ChatGPT/Claude/Gemini deep research).
 - **Summary:**
   1. **Backend event feed:** `append_job_event(job_id, code, params)` in `app/market_analysis/jobs.py` (capped at 50, codes only — text lives in i18n). The market-analysis job now emits `sources_connected` (start), `product_targeted` / `product_content_ready` per finished product (title + real-vs-total keyword counts + GEO questions), and `analysis_completed` (products, keywords, sources, duration). Identification emits `identification_chunk`/`identification_completed` (new `progress_callback` on `generate_product_labels`). Competitor SERP crawl emits `crawl_started`, `serp_analysis`, `competitor_pages_fetching`, `synthesis_writing` per domain, `crawl_completed` (new `progress_callback` on `run_competitor_serp_crawl` + local `_append_event` in `app/api/competitor_serp.py`). Golden rule: only real work is narrated.
