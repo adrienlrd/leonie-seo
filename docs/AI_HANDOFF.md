@@ -11,6 +11,20 @@
 ## Last completed task
 
 - **Date:** 2026-07-07
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Branding "Organically" dans la copie UI + disclaimer publication auto déplacé dans un tooltip « ? ».
+- **Summary:**
+  1. **Rename "l'IA" → "Organically"** dans `shopify-app/app/lib/i18n.ts` — uniquement là où c'est **notre app** qui agit (identifie/analyse/génère/propose/comprend), FR (élision `ce qu'Organically`) + EN (20 remplacements). Les mentions d'IA tierces sont **conservées** : ChatGPT/Gemini/moteurs de réponse IA (l.682 FR, l.1578 EN) et fichiers llms.txt ("AI files").
+  2. **Disclaimer publication automatique en tooltip :** dans le panneau "Analyse automatique ✦" (`app._index.tsx`), la boîte noire de texte est supprimée et remplacée par une icône « ? » (`QuestionCircleIcon` + `Tooltip` Polaris) alignée à droite du titre ; au survol elle affiche le texte détaillé complet (clé `publishModeAutoDisclaimer`, remise en version longue FR + EN). La ligne desc condensée (`publishModeAutoDesc`) reste visible.
+- **Files modified:** `shopify-app/app/lib/i18n.ts`, `shopify-app/app/routes/app._index.tsx`.
+- **Validations run:** `npm run typecheck` ✅ · `npm run build` ✅.
+- **Validations skipped:** revue visuelle du tooltip sur le store de test (needs `npm run dev`).
+- **Open issues:** commentaires de code internes (`BusinessProfilePanel.tsx`, `ProductIdentificationPanel.tsx`, `LlmsTxtPanel.tsx`) disent encore "the AI" — laissés tels quels (techniques, non visibles marchand).
+- **Next recommended action:** reprendre le parcours onboarding value-first ci-dessous ; vérifier visuellement le tooltip « ? » du panneau publication auto.
+
+## Previous completed task (value-first onboarding)
+
+- **Date:** 2026-07-07
 - **Agent:** Claude (Fable 5)
 - **Goal:** Value-first onboarding reorder — wow before friction (5 steps: auto discovery → profile validation → optional Google → identification + deep analysis → applied first win).
 - **Summary:**

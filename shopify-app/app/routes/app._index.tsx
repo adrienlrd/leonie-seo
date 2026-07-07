@@ -1404,6 +1404,13 @@ function PublishModeCard({
                   {t(locale, "publishModeAutoTitle")}{" "}
                   <span style={{ color: "#4285F4" }} aria-hidden="true">✦</span>
                 </Text>
+                <span style={{ marginLeft: "auto", flex: "0 0 auto", display: "inline-flex" }}>
+                  <Tooltip content={t(locale, "publishModeAutoDisclaimer")}>
+                    <span style={{ display: "inline-flex", cursor: "help" }}>
+                      <Icon source={QuestionCircleIcon} />
+                    </span>
+                  </Tooltip>
+                </span>
               </div>
               <Text as="p" variant="bodySm" tone="subdued">
                 {t(locale, "publishModeAutoDesc")}
@@ -1451,24 +1458,6 @@ function PublishModeCard({
             </div>
           </div>
         </InlineGrid>
-        <div
-          style={{
-            background: "#000",
-            color: "#fff",
-            borderRadius: "var(--p-border-radius-200)",
-            padding: "var(--p-space-300)",
-            display: "flex",
-            gap: "var(--p-space-200)",
-            alignItems: "flex-start",
-          }}
-        >
-          <span style={{ flex: "0 0 auto", display: "inline-flex", marginTop: "0.1rem" }}>
-            <RocketIcon size={18} />
-          </span>
-          <p style={{ margin: 0, fontSize: "0.8125rem", lineHeight: 1.4 }}>
-            {t(locale, "publishModeAutoDisclaimer")}
-          </p>
-        </div>
     </BlockStack>
   );
 
