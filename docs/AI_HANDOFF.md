@@ -10,6 +10,17 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-08
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Le panneau d'analyse de l'accueil affichait "Aucune analyse pour le moment" alors qu'une analyse auto avait tourné à l'onboarding (résultats présents → bouton "publier les résultats").
+- **Summary:** Le panneau `AnalysisSchedulePanels` ne lisait que `agent-schedule/status` (ré-analyse programmée 28 j), pas l'analyse de marché initiale. Le loader remonte désormais `analyzed_at` de `market-analysis/latest` via un nouveau champ `latestAnalysisAt` ; le panneau calcule `effectiveLastAnalysisIso = last_reanalysis_at ?? latestAnalysisAt` et l'utilise pour la ligne "Dernière analyse complète", le point du calendrier, la date projetée de prochaine analyse et la suppression de l'état vide.
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`.
+- **Validations run:** `npm run typecheck` ✅ · `npm run build` ✅.
+- **Open issues:** le gate "trop tôt pour re-lancer" (`tooSoon`) reste basé sur le scheduler uniquement (volontaire — le marchand peut re-lancer juste après l'onboarding).
+- **Next recommended action:** vérifier visuellement après onboarding que la date d'analyse et le point calendrier s'affichent.
+
+## Previous completed task (branding + tooltip)
+
 - **Date:** 2026-07-07
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Branding "Organically" dans la copie UI + disclaimer publication auto déplacé dans un tooltip « ? ».

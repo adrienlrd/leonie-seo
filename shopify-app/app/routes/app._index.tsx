@@ -173,6 +173,7 @@ interface LoaderData {
   themeExt: ThemeExtStatus | null;
   learningMode: "semi_auto" | "auto_apply";
   scheduleStatus: ScheduleStatus | null;
+  latestAnalysisAt: string | null;
   error: string | null;
 }
 
@@ -229,6 +230,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let themeExt: ThemeExtStatus | null = null;
   let learningMode: "semi_auto" | "auto_apply" = "semi_auto";
   let scheduleStatus: ScheduleStatus | null = null;
+  // Timestamp of the last completed market analysis (incl. the one auto-run at
+  // onboarding, which is NOT a scheduler run). Used as a fallback so the analysis
+  // panel shows results instead of "no analysis yet" before the first scheduled tick.
+  let latestAnalysisAt: string | null = null;
 
   try {
     // Bound every backend call so a cold/slow backend cannot hang the page
@@ -325,7 +330,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         const job = (await marketResp.value.json()) as {
           products?: Array<ProductResult & { product_title?: string; content_test_pack?: { proposed_blog_ideas?: Array<{ title?: string }> } }>;
           competitor_signals?: { domain?: string }[];
+          analyzed_at?: string | null;
         };
+        latestAnalysisAt = job.analyzed_at ?? null;
         for (const result of job.products ?? []) {
           if (result.product_id) productResults[result.product_id] = result;
           if (result.product_handle) productResults[result.product_handle] = result;
@@ -385,6 +392,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         themeExt,
         learningMode,
         scheduleStatus,
+        latestAnalysisAt,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
       });
     }
@@ -395,7 +403,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirectToOnboarding();
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, scheduleStatus, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, scheduleStatus, latestAnalysisAt, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -413,6 +421,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       themeExt,
       learningMode,
       scheduleStatus,
+      latestAnalysisAt,
       error: err instanceof Error ? err.message : "Network error",
     });
   }
@@ -1985,7 +1994,7 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, scheduleStatus, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, scheduleStatus, latestAnalysisAt, error } = useLoaderData<typeof loader>() as LoaderData;
   // OAuth status is authoritative; fall back to the per-product flag (GSC data
   // file present) only when the status call itself failed.
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
@@ -2304,6 +2313,7 @@ export default function IndexPage() {
                 analysisPanels={
                   <AnalysisSchedulePanels
                     scheduleStatus={scheduleStatus}
+                    latestAnalysisAt={latestAnalysisAt}
                     locale={locale}
                     productResults={productPacks}
                     learningMode={learningMode}
@@ -2332,6 +2342,7 @@ export default function IndexPage() {
             analysisPanels={
               <AnalysisSchedulePanels
                 scheduleStatus={scheduleStatus}
+                latestAnalysisAt={latestAnalysisAt}
                 locale={locale}
                 productResults={productPacks}
                 learningMode={learningMode}
@@ -2569,6 +2580,7 @@ function reanalysisResultMessage(
 
 function AnalysisSchedulePanels({
   scheduleStatus,
+  latestAnalysisAt,
   locale,
   productResults,
   learningMode,
@@ -2577,6 +2589,7 @@ function AnalysisSchedulePanels({
   geoLevel,
 }: {
   scheduleStatus: ScheduleStatus | null;
+  latestAnalysisAt: string | null;
   locale: Locale;
   productResults: Record<string, ProductResult>;
   learningMode: "semi_auto" | "auto_apply";
@@ -2594,30 +2607,34 @@ function AnalysisSchedulePanels({
       : d.toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" });
   };
 
-  // Next full analysis = last re-analysis + frequency (shown even when the daily
+  // Effective "last analysis" = the scheduled re-analysis if one ran, otherwise the
+  // last market analysis (e.g. the one auto-run at onboarding, which is not a
+  // scheduler run). Lets the panel show results before the first scheduled tick.
+  const effectiveLastAnalysisIso = scheduleStatus?.last_reanalysis_at ?? latestAnalysisAt ?? null;
+  const frequencyDays = scheduleStatus?.reanalysis_frequency_days ?? 28;
+
+  // Next full analysis = last analysis + frequency (shown even when the daily
   // agent is off, so the merchant sees the projected result date), falling back to
   // the next agent run. Drives both the "upcoming" line and the calendar highlight.
   const nextFull = useMemo<Date | null>(() => {
-    if (!scheduleStatus) return null;
-    if (scheduleStatus.last_reanalysis_at) {
-      const last = new Date(scheduleStatus.last_reanalysis_at);
+    if (effectiveLastAnalysisIso) {
+      const last = new Date(effectiveLastAnalysisIso);
       if (!Number.isNaN(last.getTime())) {
-        return new Date(last.getTime() + scheduleStatus.reanalysis_frequency_days * 86_400_000);
+        return new Date(last.getTime() + frequencyDays * 86_400_000);
       }
     }
-    if (scheduleStatus.enabled && scheduleStatus.next_run_at) {
+    if (scheduleStatus?.enabled && scheduleStatus.next_run_at) {
       const next = new Date(scheduleStatus.next_run_at);
       if (!Number.isNaN(next.getTime())) return next;
     }
     return null;
-  }, [scheduleStatus]);
+  }, [scheduleStatus, effectiveLastAnalysisIso, frequencyDays]);
 
   const lastAnalysis = useMemo<Date | null>(() => {
-    const iso = scheduleStatus?.last_reanalysis_at;
-    if (!iso) return null;
-    const d = new Date(iso);
+    if (!effectiveLastAnalysisIso) return null;
+    const d = new Date(effectiveLastAnalysisIso);
     return Number.isNaN(d.getTime()) ? null : d;
-  }, [scheduleStatus]);
+  }, [effectiveLastAnalysisIso]);
 
   const calendarTarget = nextFull ?? new Date();
   const [{ month, year }, setCalendar] = useState({
@@ -2859,11 +2876,11 @@ function AnalysisSchedulePanels({
           <Text as="h3" variant="headingSm">{t(locale, "analysisPanelTitle")}</Text>
 
           <BlockStack gap="200">
-            {scheduleStatus?.last_reanalysis_at && (
+            {effectiveLastAnalysisIso && (
               <InlineStack align="space-between" blockAlign="center">
                 <Text as="span" tone="subdued">{t(locale, "lastFullAnalysis")}</Text>
                 <InlineStack gap="100" blockAlign="center">
-                  <Text as="span">{fmt(scheduleStatus.last_reanalysis_at)}</Text>
+                  <Text as="span">{fmt(effectiveLastAnalysisIso)}</Text>
                   {hasAnyApplied && (
                     <Tooltip content={t(locale, "appliedIconTooltip")}>
                       <Button
@@ -2885,7 +2902,7 @@ function AnalysisSchedulePanels({
                 </InlineStack>
               ))
             ) : (
-              !scheduleStatus?.last_reanalysis_at && (
+              !effectiveLastAnalysisIso && (
                 <Text as="p" tone="subdued">{t(locale, "analysisHistoryEmpty")}</Text>
               )
             )}
