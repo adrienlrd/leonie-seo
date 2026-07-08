@@ -3099,7 +3099,9 @@ function AnalysisSchedulePanels({
                           {t(locale, "validateMoreDetails")}
                         </Button>
                       ) : (
-                        <Button url={localizedPath("/app/analyse", locale)}>
+                        <Button
+                          url={`${localizedPath("/app/products", locale)}&product=${encodeURIComponent(p.product_id)}`}
+                        >
                           {t(locale, "validateImproveCta")}
                         </Button>
                       )}
