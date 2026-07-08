@@ -844,6 +844,11 @@ function DataSourcesPanel({
   );
 }
 
+// Shared floor height so the two publish-mode panels line up with the analysis
+// calendar panel below (a 6-week month is ~296px). Applied to all three so the
+// dashboard row heights stay consistent regardless of the displayed month.
+const DASHBOARD_PANEL_MIN_HEIGHT = "300px";
+
 function Zone1({
   data,
   locale,
@@ -1341,13 +1346,14 @@ function PublishModeCard({
     <BlockStack gap="300">
       <InlineGrid columns={2} gap="300">
           {/* Publication manuelle — grisé quand l'auto est actif */}
-          <div style={{ opacity: isAuto ? 0.45 : 1, display: "flex", flexDirection: "column" }}>
+          <div style={{ opacity: isAuto ? 0.45 : 1, display: "flex", flexDirection: "column", minHeight: DASHBOARD_PANEL_MIN_HEIGHT }}>
             <Box
               padding="300"
               borderWidth="025"
               borderRadius="200"
               borderColor="border"
               background="bg-surface-secondary"
+              minHeight="100%"
             >
               <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)" }}>
                 <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem" }}>
@@ -1383,6 +1389,7 @@ function PublishModeCard({
               overflow: "hidden",
               display: "flex",
               alignItems: "stretch",
+              minHeight: DASHBOARD_PANEL_MIN_HEIGHT,
               ["--p-color-text"]: "#fff",
               ["--p-color-text-secondary"]: "#fff",
               ["--p-color-icon"]: "#fff",
@@ -3149,7 +3156,7 @@ function AnalysisSchedulePanels({
         </Modal.Section>
       </Modal>
 
-      <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+      <Box background="bg-surface-secondary" padding="300" borderRadius="200" minHeight={DASHBOARD_PANEL_MIN_HEIGHT}>
         <BlockStack gap="300">
           <Text as="h3" variant="headingSm">{t(locale, "analysisCalendarTitle")}</Text>
           <MiniCalendar
