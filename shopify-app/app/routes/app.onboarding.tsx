@@ -405,14 +405,17 @@ export default function Onboarding() {
   // Auto-advance from the Google step only on the connect transition (the OAuth
   // popup just completed), NOT when arriving with Search Console already connected
   // — otherwise the dashboard "Connect GA4" link (which forces ?step=3 to manage
-  // connections) would immediately skip past the Google step.
+  // connections) would immediately skip past the Google step. Also hold the step
+  // while GA4 is half-connected (authorized, property not chosen): advancing then
+  // would silently leave GA4 incomplete behind the merchant.
+  const ga4Pending = Boolean(ga4?.oauth_connected) && !ga4?.ready;
   const prevGscConnected = useRef(gsc?.connected ?? false);
   useEffect(() => {
     const now = gsc?.connected ?? false;
     const justConnected = now && !prevGscConnected.current;
     prevGscConnected.current = now;
-    if (step === 3 && justConnected) setStep(4);
-  }, [step, gsc?.connected]);
+    if (step === 3 && justConnected && !ga4Pending) setStep(4);
+  }, [step, gsc?.connected, ga4Pending]);
 
   const handleDiscoveryConfirmed = (profile: BusinessProfile) => {
     setDiscoveredProfile(profile);
@@ -502,15 +505,20 @@ export default function Onboarding() {
             onContinue={() => setStep(4)}
             footer={
               <BlockStack gap="200">
-                <Text as="p" variant="bodySm" fontWeight="semibold">
-                  {t(locale, "onboardingGoogleExampleTitle")}
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {t(locale, "onboardingGoogleExampleEstimated")}
-                </Text>
-                <Text as="p" variant="bodySm">
-                  {t(locale, "onboardingGoogleExampleMeasured")}
-                </Text>
+                {/* The estimated-vs-measured pitch only makes sense BEFORE connecting. */}
+                {!gsc?.connected && (
+                  <>
+                    <Text as="p" variant="bodySm" fontWeight="semibold">
+                      {t(locale, "onboardingGoogleExampleTitle")}
+                    </Text>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {t(locale, "onboardingGoogleExampleEstimated")}
+                    </Text>
+                    <Text as="p" variant="bodySm">
+                      {t(locale, "onboardingGoogleExampleMeasured")}
+                    </Text>
+                  </>
+                )}
                 <InlineStack align="end">
                   <Button variant="tertiary" onClick={() => setStep(4)}>
                     {t(locale, "onboardingGoogleSkip")}

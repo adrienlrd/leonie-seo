@@ -781,10 +781,9 @@ function DataSourcesPanel({
   themeExt: ThemeExtStatus | null;
 }) {
   const fr = locale === "fr";
-  // Force the onboarding Google step (3). Without it, an onboarded merchant
-  // (profile validated + analysis done) is redirected straight back to the
-  // dashboard, so the Connect buttons appear to do nothing.
-  const onboardingUrl = `${localizedPath("/app/onboarding", locale)}&step=3`;
+  // Post-onboarding, connections are managed in Réglages — sending an onboarded
+  // merchant back into the wizard (step framing + sales pitch) is jarring.
+  const connectionsUrl = localizedPath("/app/account", locale);
   const themeEnabled = themeExt?.available ? themeExt.enabled === true : null;
   const themeWhat = fr
     ? "Publie sur votre boutique la FAQ, les données structurées et le fil d'Ariane."
@@ -808,7 +807,7 @@ function DataSourcesPanel({
             {gscConnected ? (
               <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
             ) : (
-              <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
+              <Button url={connectionsUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
             )}
           </InlineStack>
 
@@ -817,7 +816,7 @@ function DataSourcesPanel({
             {ga4Connected ? (
               <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
             ) : (
-              <Button url={onboardingUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
+              <Button url={connectionsUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
             )}
           </InlineStack>
 
@@ -1243,8 +1242,9 @@ function Zone4({
   if (data.pending_steps.length === 0) return null;
 
   const stepHref: Record<string, string> = {
-    gsc: "/app/onboarding",
-    ga4: "/app/onboarding",
+    // Connections are managed in Réglages once onboarding is behind the merchant.
+    gsc: "/app/account",
+    ga4: "/app/account",
     niche: "/app/onboarding",
     plan: "/app/billing",
   };

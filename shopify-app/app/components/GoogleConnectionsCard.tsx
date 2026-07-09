@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Badge, BlockStack, Button, Card, Divider, InlineStack, Select, Text, Tooltip } from "@shopify/polaris";
 import { useNavigation, useRevalidator, useSubmit, type FetcherWithComponents } from "@remix-run/react";
 import { GlobeIcon, RefreshIcon } from "@shopify/polaris-icons";
@@ -55,6 +55,25 @@ export function GoogleConnectionsCard({
   const ga4Ready = Boolean(ga4?.ready);
   const ga4OauthPending = Boolean(ga4?.oauth_connected) && !ga4Ready;
 
+  // The GA4 API can return the same property several times (one per data
+  // stream/account link); duplicates make the picker ambiguous.
+  const uniqueProperties = useMemo(() => {
+    const seen = new Set<string>();
+    return ga4Properties.filter((p) => {
+      if (seen.has(p.property_id)) return false;
+      seen.add(p.property_id);
+      return true;
+    });
+  }, [ga4Properties]);
+  const labelCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of uniqueProperties) {
+      const label = p.account_name ? `${p.property_name} — ${p.account_name}` : p.property_name;
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+    return counts;
+  }, [uniqueProperties]);
+
   const submitIntent = (intent: string) => {
     if (fetcher) {
       const fd = new FormData();
@@ -68,8 +87,8 @@ export function GoogleConnectionsCard({
     );
   };
 
-  const submitGa4Property = () => {
-    const prop = ga4Properties.find((p) => p.property_id === selectedProperty);
+  const submitGa4Property = (propertyId?: string) => {
+    const prop = uniqueProperties.find((p) => p.property_id === (propertyId ?? selectedProperty));
     if (!prop) return;
     const payload = {
       intent: "ga4_select_property",
@@ -84,6 +103,16 @@ export function GoogleConnectionsCard({
     }
     submit(payload, actionPath ? { method: "post", action: actionPath } : { method: "post" });
   };
+
+  // One single GA4 property → nothing to choose: select it automatically so the
+  // connection completes without leaving GA4 half-connected behind the merchant.
+  const autoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (autoSelectedRef.current || !ga4OauthPending || uniqueProperties.length !== 1) return;
+    autoSelectedRef.current = true;
+    submitGa4Property(uniqueProperties[0].property_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ga4OauthPending, uniqueProperties]);
 
   // When using a fetcher (no full navigation), re-fetch status after saving the
   // GA4 property so the card flips to "connected" without a manual reload.
@@ -148,16 +177,22 @@ export function GoogleConnectionsCard({
               </Button>
             </InlineStack>
           ) : ga4OauthPending ? (
-            ga4Properties.length > 0 ? (
+            uniqueProperties.length > 1 ? (
               <InlineStack gap="200" blockAlign="end" wrap>
                 <Select
                   label={t(locale, "onboardingGA4PropertyPending")}
                   options={[
                     { label: t(locale, "ga4SelectPropertyPlaceholder"), value: "" },
-                    ...ga4Properties.map((p) => ({
-                      label: p.account_name ? `${p.property_name} — ${p.account_name}` : p.property_name,
-                      value: p.property_id,
-                    })),
+                    ...uniqueProperties.map((p) => {
+                      const base = p.account_name
+                        ? `${p.property_name} — ${p.account_name}`
+                        : p.property_name;
+                      // Same display name on several properties → append the id
+                      // so the merchant can tell them apart.
+                      const label =
+                        (labelCounts.get(base) ?? 0) > 1 ? `${base} (${p.property_id})` : base;
+                      return { label, value: p.property_id };
+                    }),
                   ]}
                   value={selectedProperty}
                   onChange={setSelectedProperty}
@@ -166,7 +201,7 @@ export function GoogleConnectionsCard({
                   variant="primary"
                   disabled={!selectedProperty}
                   loading={busy && submittingAction === "ga4_select_property"}
-                  onClick={submitGa4Property}
+                  onClick={() => submitGa4Property()}
                 >
                   {t(locale, "ga4SelectPropertyConfirm")}
                 </Button>
