@@ -11,6 +11,16 @@
 ## Last completed task
 
 - **Date:** 2026-07-09
+- **Agent:** Claude (Fable 5)
+- **Goal:** Fix the orphaned GA4 connection tail seen by the merchant (GA4 stayed "authorized but property-less" without anyone noticing; duplicate entries in the property picker; sales pitch shown after GSC already connected).
+- **Summary:** `GoogleConnectionsCard` now auto-selects the GA4 property when exactly one exists (post-dedupe), dedupes the picker by `property_id` and appends the id to same-name labels. The onboarding Google step keeps the transition-based auto-advance (see previous task) but additionally holds while GA4 is half-connected, and hides the estimated-vs-measured pitch once GSC is connected. Dashboard "Connecter" buttons (status strip + pending-steps card) now open `/app/account` (Réglages) instead of re-entering the onboarding wizard — this supersedes the `&step=3` link from the previous task.
+- **Files modified:** `shopify-app/app/components/GoogleConnectionsCard.tsx`, `shopify-app/app/routes/{app.onboarding,app._index}.tsx`.
+- **Validations run:** `npm run typecheck` ✅ · `npm run build` ✅. Manual GA4 reconnect on the pilot store not replayed.
+- **Next recommended action:** disconnect/reconnect Google on the pilot store and confirm GA4 lands "ready" without manual property selection.
+
+## Previous completed task (dashboard connect buttons)
+
+- **Date:** 2026-07-09
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Sur le dashboard, cliquer "Connecter" (GA4/GSC) ne faisait rien pour un marchand déjà onboardé.
 - **Summary:** Deux causes. (1) Le bouton pointait vers `/app/onboarding` sans `step`, or le loader d'onboarding redirige vers le dashboard quand profil validé + analyse existe → rebond immédiat. Corrigé : `DataSourcesPanel.onboardingUrl` force `&step=3` (étape Google), que le loader honore via `forcedStep`. (2) L'effet d'auto-avance de l'onboarding (`step === 3 && gsc?.connected → setStep(4)`) sautait GA4 dès l'arrivée quand GSC est déjà connecté. Corrigé : n'avance plus que sur la **transition** non-connecté→connecté (ref `prevGscConnected`), pas au montage. Le flux GA4 (intents `ga4_connect`/`ga4_select_property`) est géré par l'action onboarding et la carte `GoogleConnectionsCard`.
