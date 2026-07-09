@@ -10,6 +10,16 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-09
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Sur le dashboard, cliquer "Connecter" (GA4/GSC) ne faisait rien pour un marchand déjà onboardé.
+- **Summary:** Deux causes. (1) Le bouton pointait vers `/app/onboarding` sans `step`, or le loader d'onboarding redirige vers le dashboard quand profil validé + analyse existe → rebond immédiat. Corrigé : `DataSourcesPanel.onboardingUrl` force `&step=3` (étape Google), que le loader honore via `forcedStep`. (2) L'effet d'auto-avance de l'onboarding (`step === 3 && gsc?.connected → setStep(4)`) sautait GA4 dès l'arrivée quand GSC est déjà connecté. Corrigé : n'avance plus que sur la **transition** non-connecté→connecté (ref `prevGscConnected`), pas au montage. Le flux GA4 (intents `ga4_connect`/`ga4_select_property`) est géré par l'action onboarding et la carte `GoogleConnectionsCard`.
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`, `shopify-app/app/routes/app.onboarding.tsx`.
+- **Validations run:** `npm run typecheck` ✅ · `npm run build` ✅.
+- **Next recommended action:** vérifier manuellement : dashboard → "Connecter" GA4 → arrive sur l'étape Google (reste dessus car GSC connecté) → connexion GA4 + sélection de propriété fonctionnent.
+
+## Previous completed task (analysis panel empty state)
+
 - **Date:** 2026-07-08
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Le panneau d'analyse de l'accueil affichait "Aucune analyse pour le moment" alors qu'une analyse auto avait tourné à l'onboarding (résultats présents → bouton "publier les résultats").

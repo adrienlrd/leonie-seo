@@ -402,9 +402,16 @@ export default function Onboarding() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [legacyActionData?.disconnected]);
 
-  // Auto-advance from the Google step once Search Console connects (OAuth popup).
+  // Auto-advance from the Google step only on the connect transition (the OAuth
+  // popup just completed), NOT when arriving with Search Console already connected
+  // — otherwise the dashboard "Connect GA4" link (which forces ?step=3 to manage
+  // connections) would immediately skip past the Google step.
+  const prevGscConnected = useRef(gsc?.connected ?? false);
   useEffect(() => {
-    if (step === 3 && gsc?.connected) setStep(4);
+    const now = gsc?.connected ?? false;
+    const justConnected = now && !prevGscConnected.current;
+    prevGscConnected.current = now;
+    if (step === 3 && justConnected) setStep(4);
   }, [step, gsc?.connected]);
 
   const handleDiscoveryConfirmed = (profile: BusinessProfile) => {

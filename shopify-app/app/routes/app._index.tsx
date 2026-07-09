@@ -781,7 +781,10 @@ function DataSourcesPanel({
   themeExt: ThemeExtStatus | null;
 }) {
   const fr = locale === "fr";
-  const onboardingUrl = localizedPath("/app/onboarding", locale);
+  // Force the onboarding Google step (3). Without it, an onboarded merchant
+  // (profile validated + analysis done) is redirected straight back to the
+  // dashboard, so the Connect buttons appear to do nothing.
+  const onboardingUrl = `${localizedPath("/app/onboarding", locale)}&step=3`;
   const themeEnabled = themeExt?.available ? themeExt.enabled === true : null;
   const themeWhat = fr
     ? "Publie sur votre boutique la FAQ, les données structurées et le fil d'Ariane."
