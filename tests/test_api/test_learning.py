@@ -46,6 +46,7 @@ def client(monkeypatch: pytest.MonkeyPatch, db: Path) -> TestClient:
     with (
         patch("app.api.deps.get_token", return_value=None),
         patch("app.api.deps.get_plan_for_shop", return_value="pro"),
+        patch("app.api.learning.auto_analysis_allowed", return_value=True),
     ):
         yield TestClient(app)
 

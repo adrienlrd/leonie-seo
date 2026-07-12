@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 from typing import Annotated
@@ -19,6 +20,7 @@ from app.billing.client import (
     create_subscription,
     get_active_subscriptions,
 )
+from app.billing.quotas import get_quotas
 from app.billing.subscription_store import (
     get_plan_for_shop,
     get_subscription,
@@ -27,6 +29,7 @@ from app.billing.subscription_store import (
 )
 from app.oauth.token_store import get_token
 from app.safety import require_billing_write_allowed
+from app.shop_config_store import get_shop_config, set_shop_config
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,10 @@ router = APIRouter(prefix="/api/shops/{shop}", tags=["billing"])
 
 class SubscribeRequest(BaseModel):
     plan: str  # "pro" or "agency"
+
+
+class RedeemCodeRequest(BaseModel):
+    code: str
 
 
 def _billing_mode() -> str:
@@ -50,8 +57,9 @@ async def list_plans(shop: str) -> dict:
             "id": "free",
             "display_name": "Free",
             "price": 0,
-            "currency": "USD",
-            "features": ["Audit & detection", "SEO score", "1 store"],
+            "currency": "EUR",
+            "features": [],
+            "quotas": get_quotas("free"),
             "current": current_plan == "free",
         }
     ]
@@ -63,6 +71,7 @@ async def list_plans(shop: str) -> dict:
                 "price": float(cfg["price"]),
                 "currency": cfg["currency"],
                 "features": cfg["features"],
+                "quotas": get_quotas(plan_id),
                 "current": current_plan == plan_id,
             }
         )
@@ -111,9 +120,32 @@ async def billing_status(
     plan = get_plan_for_shop(ctx.shop)
     return {
         **plan_summary(plan),
+        "quotas": get_quotas(plan),
+        "override": get_shop_config(ctx.shop, "plan_override") is not None,
         "subscription_id": sub["subscription_id"] if sub else None,
         "subscription_status": sub["status"] if sub else None,
     }
+
+
+@router.post("/billing/redeem-code")
+async def redeem_code(
+    body: RedeemCodeRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Grant a plan via a partner access code (entitlement override, no charge)."""
+    submitted = body.code.strip().upper()
+    if not submitted:
+        raise HTTPException(status_code=400, detail="Empty code.")
+    codes = {
+        "pro": os.getenv("LEONIE_ACCESS_CODE_PRO", ""),
+        "agency": os.getenv("LEONIE_ACCESS_CODE_AGENCY", ""),
+    }
+    for plan, expected in codes.items():
+        if expected and hmac.compare_digest(submitted, expected.strip().upper()):
+            set_shop_config(ctx.shop, "plan_override", plan)
+            logger.info("billing.redeem: shop=%s granted plan=%s via access code", ctx.shop, plan)
+            return {"plan": plan, "override": True}
+    raise HTTPException(status_code=400, detail="Invalid code.")
 
 
 @router.post("/billing/cancel")

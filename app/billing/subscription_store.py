@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -79,6 +80,15 @@ def get_plan_for_shop(shop: str, db_path: Path | None = None) -> str:
     Returns:
         Plan name: "free", "pro", or "agency".
     """
+    from app.shop_config_store import get_shop_config
+
+    try:
+        override = get_shop_config(shop, "plan_override")
+    except sqlite3.Error:
+        # Global config DB not provisioned yet (fresh install, isolated tests).
+        override = None
+    if override in _VALID_PLANS:
+        return override
     sub = get_subscription(shop, db_path)
     if not sub or sub["status"] not in _ACTIVE_STATUSES:
         return "free"

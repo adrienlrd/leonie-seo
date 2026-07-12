@@ -29,6 +29,7 @@ from app.agent_schedule.store import (
     mark_run,
     upsert_schedule,
 )
+from app.billing.quotas import auto_analysis_allowed
 from app.learning.scheduler import run_learning_cycle
 from app.learning.store import get_settings, list_runs, update_settings
 from app.market_analysis.jobs import load_latest_result
@@ -182,6 +183,12 @@ def run_due_agent_schedules(
 
         if load_latest_result(shop) is None:
             skipped.append({"shop": shop, "reason": "no_market_analysis"})
+            continue
+
+        # Plan gate: auto-analysis is a paid feature; also catches downgrades
+        # that happen after the schedule was enabled.
+        if not auto_analysis_allowed(shop):
+            skipped.append({"shop": shop, "reason": "plan_free"})
             continue
 
         if shop in _RUNNING:

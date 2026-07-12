@@ -19,9 +19,10 @@ class PlanFeatures:
 
 
 _PLANS: dict[str, PlanFeatures] = {
+    # Free can apply manually; automation and reporting are the paid features.
     "free": PlanFeatures(
         max_shops=1,
-        can_apply=False,
+        can_apply=True,
         can_report=False,
         can_hreflang=False,
         can_alerts=False,

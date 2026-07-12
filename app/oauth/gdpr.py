@@ -75,6 +75,7 @@ _SHOP_SCOPED_TABLES = (
     "merchant_learning_settings",
     "agent_schedule_settings",
     "analysis_artifacts",
+    "usage_events",
 )
 
 # Tables kept during an in-app "reset to first-open" (Danger Zone). The OAuth

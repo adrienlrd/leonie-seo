@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from fastapi import HTTPException
 
 from app.agent_schedule import reanalysis, scheduler
@@ -16,6 +17,12 @@ from app.db import init_db
 from app.learning.store import update_settings
 
 SHOP = "store.myshopify.com"
+
+
+@pytest.fixture(autouse=True)
+def _paid_plan(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Auto-analysis is plan-gated; these tests exercise reanalysis, not billing."""
+    monkeypatch.setattr(scheduler, "auto_analysis_allowed", lambda shop: True)
 
 
 def _db(tmp_path: Path) -> Path:

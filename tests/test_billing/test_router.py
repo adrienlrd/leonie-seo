@@ -264,3 +264,65 @@ def test_subscription_webhook_invalid_hmac_returns_401(client):
         headers={"X-Shopify-Hmac-Sha256": "bad"},
     )
     assert resp.status_code == 401
+
+
+# ── POST /api/shops/{shop}/billing/redeem-code ───────────────────────────────
+
+
+def test_redeem_valid_pro_code_sets_override(client, monkeypatch):
+    monkeypatch.setenv("LEONIE_ACCESS_CODE_PRO", "GEO-PRO-TEST-CODE")
+    stored: dict = {}
+    monkeypatch.setattr(
+        "app.billing.router.set_shop_config",
+        lambda shop, key, value: stored.update({key: value}),
+    )
+    resp = client.post(
+        f"/api/shops/{SHOP}/billing/redeem-code", json={"code": "geo-pro-test-code"}
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"plan": "pro", "override": True}
+    assert stored["plan_override"] == "pro"
+
+
+def test_redeem_valid_agency_code_sets_override(client, monkeypatch):
+    monkeypatch.setenv("LEONIE_ACCESS_CODE_AGENCY", "GEO-STORE-TEST-CODE")
+    stored: dict = {}
+    monkeypatch.setattr(
+        "app.billing.router.set_shop_config",
+        lambda shop, key, value: stored.update({key: value}),
+    )
+    resp = client.post(
+        f"/api/shops/{SHOP}/billing/redeem-code", json={"code": "GEO-STORE-TEST-CODE"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["plan"] == "agency"
+
+
+def test_redeem_invalid_code_returns_400(client, monkeypatch):
+    monkeypatch.setenv("LEONIE_ACCESS_CODE_PRO", "GEO-PRO-TEST-CODE")
+    resp = client.post(f"/api/shops/{SHOP}/billing/redeem-code", json={"code": "WRONG"})
+    assert resp.status_code == 400
+
+
+def test_redeem_empty_code_returns_400(client):
+    resp = client.post(f"/api/shops/{SHOP}/billing/redeem-code", json={"code": "  "})
+    assert resp.status_code == 400
+
+
+def test_redeem_rejects_when_codes_not_configured(client, monkeypatch):
+    monkeypatch.delenv("LEONIE_ACCESS_CODE_PRO", raising=False)
+    monkeypatch.delenv("LEONIE_ACCESS_CODE_AGENCY", raising=False)
+    resp = client.post(f"/api/shops/{SHOP}/billing/redeem-code", json={"code": ""})
+    assert resp.status_code == 400
+
+
+def test_status_exposes_quotas_and_override_flag(client, monkeypatch):
+    monkeypatch.setattr("app.billing.router.get_plan_for_shop", lambda shop, **kw: "free")
+    monkeypatch.setattr("app.billing.router.get_subscription", lambda shop, **kw: None)
+    monkeypatch.setattr("app.billing.router.get_shop_config", lambda shop, key: None)
+    resp = client.get(f"/api/shops/{SHOP}/billing/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["quotas"]["blog"] == 3
+    assert data["quotas"]["auto_analysis"] is False
+    assert data["override"] is False

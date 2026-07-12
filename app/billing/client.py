@@ -7,30 +7,43 @@ import httpx
 _API_VERSION = "2025-01"
 
 # Pricing catalog — Free has no Shopify charge (default plan on install).
+# Prices are EUR; when the shop's billing currency is not EUR the Billing API
+# only accepts USD, so each plan carries a USD fallback (see _resolve_price).
+TRIAL_DAYS = 7
+
 BILLING_PLANS: dict[str, dict] = {
     "pro": {
-        "display_name": "Giulio Geo Pro",
-        "price": "29.00",
-        "currency": "USD",
+        "display_name": "GEO Pro",
+        "price": "18.99",
+        "currency": "EUR",
+        "price_usd": "21.99",
         "interval": "EVERY_30_DAYS",
-        "features": ["Audit", "Apply meta/alt", "Reports", "Email alerts", "1 store"],
+        "features": ["15 products", "5 analyses / 28 days", "20 blogs / 28 days", "Auto-analysis"],
     },
     "agency": {
-        "display_name": "Giulio Geo Agency",
-        "price": "99.00",
-        "currency": "USD",
+        "display_name": "GEO Grande boutique",
+        "price": "45.00",
+        "currency": "EUR",
+        "price_usd": "52.00",
         "interval": "EVERY_30_DAYS",
-        "features": ["All Pro features", "Unlimited stores", "Priority support"],
+        "features": ["35 products", "10 analyses / 28 days", "40 blogs / 28 days", "Auto-analysis"],
     },
 }
+
+_BILLING_PREFERENCES_QUERY = """
+query {
+  shopBillingPreferences { currency }
+}
+"""
 
 _CREATE_MUTATION = """
 mutation appSubscriptionCreate(
   $name: String!
   $returnUrl: String!
+  $trialDays: Int
   $lineItems: [AppSubscriptionLineItemInput!]!
 ) {
-  appSubscriptionCreate(name: $name, returnUrl: $returnUrl, lineItems: $lineItems) {
+  appSubscriptionCreate(name: $name, returnUrl: $returnUrl, trialDays: $trialDays, lineItems: $lineItems) {
     userErrors { field message }
     confirmationUrl
     appSubscription { id status }
@@ -75,6 +88,22 @@ def _graphql(shop: str, token: str, query: str, variables: dict | None = None) -
     return payload["data"]
 
 
+def _resolve_price(shop: str, access_token: str, cfg: dict) -> tuple[str, str]:
+    """Pick the charge amount/currency for a plan.
+
+    The Billing API only accepts the merchant's billing currency or USD, so we
+    charge EUR when the shop bills in EUR and fall back to USD otherwise.
+    """
+    try:
+        data = _graphql(shop, access_token, _BILLING_PREFERENCES_QUERY)
+        merchant_currency = (data.get("shopBillingPreferences") or {}).get("currency")
+    except (BillingError, httpx.HTTPError):
+        merchant_currency = None
+    if merchant_currency == cfg["currency"]:
+        return cfg["price"], cfg["currency"]
+    return cfg["price_usd"], "USD"
+
+
 def create_subscription(shop: str, access_token: str, plan: str, return_url: str) -> dict[str, str]:
     """Create a recurring app subscription and return confirmation details.
 
@@ -94,14 +123,16 @@ def create_subscription(shop: str, access_token: str, plan: str, return_url: str
         raise BillingError(f"Unknown plan '{plan}'. Must be one of: {list(BILLING_PLANS)}")
 
     cfg = BILLING_PLANS[plan]
+    amount, currency = _resolve_price(shop, access_token, cfg)
     variables = {
         "name": cfg["display_name"],
         "returnUrl": return_url,
+        "trialDays": TRIAL_DAYS,
         "lineItems": [
             {
                 "plan": {
                     "appRecurringPricingDetails": {
-                        "price": {"amount": cfg["price"], "currencyCode": cfg["currency"]},
+                        "price": {"amount": amount, "currencyCode": currency},
                         "interval": cfg["interval"],
                     }
                 }

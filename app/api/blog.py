@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_writer import ShopifyWriteError
+from app.billing.quotas import QuotaExceeded, check_quota, record_usage
 from app.blog.authors import delete_author, load_authors, save_author
 from app.blog.clusters import build_blog_idea_clusters
 from app.blog.idea_generator import build_blog_idea_suggestions
@@ -424,6 +425,10 @@ def create_blog_draft(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict[str, Any]:
     """Create a draft. Supply product_id to pre-populate from market analysis, or blog_title alone for a blank draft."""
+    try:
+        check_quota(ctx.shop, "blog")
+    except QuotaExceeded as exc:
+        raise HTTPException(status_code=402, detail=exc.payload()) from exc
     if body.product_id:
         draft = _draft_from_product(
             ctx.shop,
@@ -465,6 +470,7 @@ def create_blog_draft(
         }
     _apply_seo_score(draft)
     saved = save_draft(ctx.shop, draft)
+    record_usage(ctx.shop, "blog")
     return saved
 
 

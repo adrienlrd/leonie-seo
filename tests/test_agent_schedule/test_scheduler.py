@@ -7,6 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from app.agent_schedule import scheduler
 from app.agent_schedule.scheduler import (
     compute_next_run_at,
@@ -22,6 +24,12 @@ from app.db import init_db
 from app.learning.store import get_settings, update_settings
 
 SHOP = "store.myshopify.com"
+
+
+@pytest.fixture(autouse=True)
+def _paid_plan(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Auto-analysis is plan-gated; these tests exercise scheduling, not billing."""
+    monkeypatch.setattr(scheduler, "auto_analysis_allowed", lambda shop: True)
 
 
 def _db(tmp_path: Path) -> Path:
@@ -229,3 +237,19 @@ def test_run_due_executes_test_once_then_clears(tmp_path: Path) -> None:
     assert schedule.test_run_at is None
     # A disabled test run must not enable the daily agent.
     assert schedule.enabled is False
+
+
+def test_run_due_skips_free_plan_shops(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db = _db(tmp_path)
+    past = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
+    upsert_schedule(SHOP, {"enabled": True, "mode": "semi_auto", "next_run_at": past}, db_path=db)
+    monkeypatch.setattr(scheduler, "auto_analysis_allowed", lambda shop: False)
+
+    with (
+        patch.object(scheduler, "load_latest_result", return_value={"products": []}),
+        patch.object(scheduler, "run_learning_cycle") as run_cycle,
+    ):
+        result = run_due_agent_schedules(db_path=db)
+
+    run_cycle.assert_not_called()
+    assert {"shop": SHOP, "reason": "plan_free"} in result["skipped"]

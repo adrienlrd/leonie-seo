@@ -71,6 +71,12 @@ _SQLITE_DDL = [
         created_at      TEXT NOT NULL,
         updated_at      TEXT NOT NULL
     )""",
+    """CREATE TABLE IF NOT EXISTS usage_events (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        shop       TEXT NOT NULL,
+        kind       TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""",
     # LLM meta suggestions (Phase 7, task 60)
     """CREATE TABLE IF NOT EXISTS meta_suggestions (
         id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -590,6 +596,12 @@ _PG_DDL = [
         status          TEXT NOT NULL DEFAULT 'pending',
         created_at      TEXT NOT NULL,
         updated_at      TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS usage_events (
+        id         SERIAL PRIMARY KEY,
+        shop       TEXT NOT NULL,
+        kind       TEXT NOT NULL,
+        created_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS content_actions (
         action_id       TEXT PRIMARY KEY,

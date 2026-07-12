@@ -12,6 +12,18 @@
 
 - **Date:** 2026-07-12
 - **Agent:** Claude (Fable 5)
+- **Goal:** Billing v2 — 3 plans (Free / Pro €18.99 / Grande boutique €45), real quotas, auto-analysis gating, partner access codes, conversion-oriented pricing page.
+- **Summary:** Backend: `BILLING_PLANS` repriced (EUR with USD fallback via `shopBillingPreferences`, 7-day `trialDays`); new `app/billing/quotas.py` (`PLAN_QUOTAS` free 3 products/1 analysis/3 blogs per 28d, pro 15/5/20, agency 35/10/40; `usage_events` table; `QuotaExceeded` → HTTP 402 payload). Enforcement: blog draft creation (`app/api/blog.py`), market-analysis job start + product cap (`app/api/market_analysis.py`), AUTO_APPLY refused for free (`app/api/learning.py`) and skipped in the scheduler (`app/agent_schedule/scheduler.py`, reason `plan_free`). Access codes: `POST /billing/redeem-code` compares against env `LEONIE_ACCESS_CODE_PRO`/`LEONIE_ACCESS_CODE_AGENCY` (constant-time), stores `plan_override` in `shop_config`; `get_plan_for_shop` honors the override first. Frontend: `app.billing.tsx` rebuilt (3 cards, Pro highlighted "Most popular", 7-day-trial badges, quota checklists, reassurance strip, collapsible partner-code redeem, FR/EN); dashboard `PublishModeCard` locks auto-analysis for free plans ("Débloquer avec Pro" → /app/billing); 402 quota banners with upgrade CTA on Blog and Products pages. Free plan `can_apply` set to True (manual publishing allowed on free).
+- **Files created:** `app/billing/quotas.py`, `tests/test_billing/test_quotas.py`.
+- **Files modified:** `app/billing/{client,router,subscription_store}.py`, `app/api/{blog,market_analysis,learning,plans}.py`, `app/agent_schedule/scheduler.py`, `app/db.py`, `.env.example`, `shopify-app/app/routes/{app.billing,app._index,app.blog,app.products}.tsx`, `tests/test_billing/test_router.py`.
+- **Validations run:** `pytest` full suite ✅ · `ruff check` ✅ · `npm run typecheck` ✅ · `npm run build` ✅.
+- **Open issues:** access-code env values must be set on Render before codes work; billing stays gated by `LEONIE_BILLING_MODE`. Legacy `?plan=` query param on the dashboard is untouched.
+- **Next recommended action:** set the two access-code env vars on Render, test the redeem flow on the pilot store, then a test subscription with `LEONIE_BILLING_MODE=live` + Shopify test charge.
+
+## Previous completed task (Measure page removal)
+
+- **Date:** 2026-07-12
+- **Agent:** Claude (Fable 5)
 - **Goal:** Remove the Measure page (confusing for merchants, duplicated the Analyse page).
 - **Summary:** Deleted `app.measure.tsx` (display-only: GET endpoints, no action — the 28-day backend loop in `app/agent_schedule/` is untouched). Removed the nav link (`app.tsx`), the secondary action on Analyse, re-pointed the dashboard Zone3 CTA and the education-modal CTA to `/app/analyse`. Purged ~128 dead `measure*` i18n keys, keeping `measureColClicks`/`measureColPosition` (used by Analyse). Backend endpoints (`progress-curve`, `impact-report`, …) remain available via API if a control screen is needed later.
 - **Files modified:** deleted `shopify-app/app/routes/app.measure.tsx`; `shopify-app/app/routes/{app.tsx,app.analyse.tsx,app._index.tsx}`, `shopify-app/app/lib/i18n.ts`.

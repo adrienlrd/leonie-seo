@@ -17,6 +17,7 @@ from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_da
 from app.api.deps import ShopContext, get_shop_context
 from app.apply.apply_faq import apply_schema_facts_to_shopify
 from app.apply.shopify_writer import ShopifyWriter
+from app.billing.quotas import QuotaExceeded, check_quota, product_cap, record_usage
 from app.blog.auto_draft import auto_create_orphan_drafts
 from app.blog.store import list_drafts
 from app.business_profile.context import (
@@ -660,6 +661,10 @@ async def start_market_analysis_job(
     reflection_test: bool = Query(default=True),
 ) -> dict[str, Any]:
     """Start an async market analysis job. Uses saved identifications if available."""
+    try:
+        check_quota(ctx.shop, "analysis")
+    except QuotaExceeded as exc:
+        raise HTTPException(status_code=402, detail=exc.payload()) from exc
     snapshot = _load_snapshot(ctx)
     products = snapshot.get("products", [])
     persist = True
@@ -667,6 +672,7 @@ async def start_market_analysis_job(
         pid_set = set(product_ids)
         products = [p for p in products if str(p.get("id", "")) in pid_set]
         persist = False
+    products = products[: product_cap(ctx.shop)]
     shop_info = snapshot.get("shop")
     shop_domain = shop_info.get("domain", ctx.shop) if isinstance(shop_info, dict) else ctx.shop
 
@@ -694,6 +700,7 @@ async def start_market_analysis_job(
     business_profile = load_business_profile(ctx.shop)
 
     job_id = create_job(ctx.shop)
+    record_usage(ctx.shop, "analysis")
 
     background_tasks.add_task(
         _run_analysis_background,

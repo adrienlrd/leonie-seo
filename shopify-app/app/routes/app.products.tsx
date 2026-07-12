@@ -1916,11 +1916,23 @@ export default function ProductsPage() {
             )}
 
             {/* Error */}
-            {anyError && (
+            {anyError && String(anyError).includes("402") && String(anyError).includes("quota_exceeded") ? (
+              <Banner
+                tone="warning"
+                title={locale === "fr" ? "Limite d'analyses atteinte pour ce cycle de 28 jours" : "Analysis limit reached for this 28-day cycle"}
+                action={{ content: locale === "fr" ? "Voir les plans" : "See plans", url: "/app/billing" }}
+              >
+                <Text as="p">
+                  {locale === "fr"
+                    ? "Passez au plan supérieur pour lancer plus d'analyses et couvrir plus de produits."
+                    : "Upgrade your plan to run more analyses and cover more products."}
+                </Text>
+              </Banner>
+            ) : anyError ? (
               <Banner tone="critical">
                 <Text as="p">{anyError}</Text>
               </Banner>
-            )}
+            ) : null}
 
             {/* Completion recap — the deep-research "here is what I did" line */}
             {job?.status === "completed" &&

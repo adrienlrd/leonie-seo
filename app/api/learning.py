@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.api.deps import ShopContext, get_shop_context, require_internal_secret
+from app.billing.quotas import auto_analysis_allowed
 from app.db_adapter import DB_PATH
 from app.learning.approvals import (
     apply_approval,
@@ -130,6 +131,16 @@ async def put_learning_settings(
 ) -> dict[str, Any]:
     """Update merchant learning settings."""
     patch = body.model_dump(exclude_none=True)
+    if patch.get("mode") == LearningMode.AUTO_APPLY and not auto_analysis_allowed(ctx.shop):
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "quota_exceeded",
+                "kind": "auto_analysis",
+                "plan": "free",
+                "upgrade": "pro",
+            },
+        )
     settings = update_settings(ctx.shop, patch, db_path=DB_PATH)
     return {"shop": ctx.shop, "settings": _settings_payload(settings)}
 

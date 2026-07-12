@@ -1064,9 +1064,21 @@ export default function BlogIndexPage() {
         {error && (
           <Banner tone="critical"><p>{error}</p></Banner>
         )}
-        {actionData?.error && (
+        {actionData?.error === "402" ? (
+          <Banner
+            tone="warning"
+            title={fr ? "Limite d'articles atteinte pour ce cycle de 28 jours" : "Blog limit reached for this 28-day cycle"}
+            action={{ content: fr ? "Voir les plans" : "See plans", url: "/app/billing" }}
+          >
+            <p>
+              {fr
+                ? "Passez au plan Pro pour générer jusqu'à 20 articles tous les 28 jours."
+                : "Upgrade to Pro to generate up to 20 articles every 28 days."}
+            </p>
+          </Banner>
+        ) : actionData?.error ? (
           <Banner tone="critical"><p>{actionData.error}</p></Banner>
-        )}
+        ) : null}
         {fetcher.data?.error && !fetcher.data.ok && (
           <Banner tone="critical" title={fr ? "Publication échouée" : "Publish failed"}>
             <p style={{ whiteSpace: "pre-wrap" }}>{fetcher.data.error}</p>

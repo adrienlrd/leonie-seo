@@ -1,57 +1,83 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, useSubmit } from "@remix-run/react";
+import { useFetcher, useLoaderData, useSubmit } from "@remix-run/react";
 import {
   Badge,
+  Banner,
   BlockStack,
+  Box,
   Button,
   Card,
+  Collapsible,
+  Icon,
   InlineGrid,
+  InlineStack,
   Page,
   Text,
+  TextField,
 } from "@shopify/polaris";
+import { CheckCircleIcon, LockIcon } from "@shopify/polaris-icons";
+import { useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
+import { getLocale, type Locale } from "../lib/i18n";
+
+interface PlanQuotas {
+  products: number;
+  analysis: number;
+  blog: number;
+  auto_analysis: boolean;
+}
 
 interface Plan {
   id: string;
-  name: string;
+  display_name: string;
   price: number;
   currency: string;
-  interval: string;
   features: string[];
+  quotas: PlanQuotas;
   current: boolean;
 }
 
 interface LoaderData {
   shop: string;
+  locale: Locale;
   plans: Plan[];
   currentPlan: string;
+  override: boolean;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
+  const locale = getLocale(request);
 
   let plans: Plan[] = [];
   let currentPlan = "free";
+  let override = false;
   try {
-    const resp = await callBackendForShop(shop, `/api/shops/${shop}/billing/plans`, {
-      accessToken: session.accessToken,
-    });
-    if (resp.ok) {
-      const data = (await resp.json()) as {
-        plans: Plan[];
-        current_plan: string;
-      };
+    const [plansResp, statusResp] = await Promise.all([
+      callBackendForShop(shop, `/api/shops/${shop}/billing/plans`, {
+        accessToken: session.accessToken,
+      }),
+      callBackendForShop(shop, `/api/shops/${shop}/billing/status`, {
+        accessToken: session.accessToken,
+      }),
+    ]);
+    if (plansResp.ok) {
+      const data = (await plansResp.json()) as { plans: Plan[]; current_plan: string };
       plans = data.plans;
       currentPlan = data.current_plan ?? "free";
+    }
+    if (statusResp.ok) {
+      const status = (await statusResp.json()) as { override?: boolean };
+      override = Boolean(status.override);
     }
   } catch {
     // Python backend unavailable
   }
 
-  return json<LoaderData>({ shop, plans, currentPlan });
+  return json<LoaderData>({ shop, locale, plans, currentPlan, override });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -59,8 +85,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = session.shop;
 
   const formData = await request.formData();
-  const planId = formData.get("plan") as string;
   const intent = formData.get("intent") as string;
+
+  if (intent === "redeem") {
+    const code = String(formData.get("code") ?? "");
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/billing/redeem-code`, {
+      method: "POST",
+      accessToken: session.accessToken,
+      body: JSON.stringify({ code }),
+    });
+    if (resp.ok) {
+      const data = (await resp.json()) as { plan: string };
+      return json({ redeemed: data.plan, redeemError: false });
+    }
+    return json({ redeemed: null, redeemError: true });
+  }
 
   if (intent === "cancel") {
     await callBackendForShop(shop, `/api/shops/${shop}/billing/cancel`, {
@@ -70,16 +109,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return redirect("/app/billing");
   }
 
+  const planId = formData.get("plan") as string;
   try {
-    const resp = await callBackendForShop(
-      shop,
-      `/api/shops/${shop}/billing/subscribe`,
-      {
-        method: "POST",
-        accessToken: session.accessToken,
-        body: JSON.stringify({ plan: planId }),
-      }
-    );
+    const resp = await callBackendForShop(shop, `/api/shops/${shop}/billing/subscribe`, {
+      method: "POST",
+      accessToken: session.accessToken,
+      body: JSON.stringify({ plan: planId }),
+    });
     const data = (await resp.json()) as { confirmation_url: string };
     if (data.confirmation_url) {
       return redirect(data.confirmation_url);
@@ -90,74 +126,242 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return redirect("/app/billing");
 };
 
+function planCopy(plan: Plan, fr: boolean) {
+  const q = plan.quotas;
+  const per28 = fr ? "tous les 28 jours" : "every 28 days";
+  const lines: { text: string; included: boolean }[] = [
+    {
+      text: fr ? `${q.products} produits optimisés` : `${q.products} optimized products`,
+      included: true,
+    },
+    {
+      text: fr
+        ? `${q.analysis} analyse${q.analysis > 1 ? "s" : ""} ${per28}`
+        : `${q.analysis} analys${q.analysis > 1 ? "es" : "is"} ${per28}`,
+      included: true,
+    },
+    {
+      text: fr ? `${q.blog} articles de blog ${per28}` : `${q.blog} blog articles ${per28}`,
+      included: true,
+    },
+    {
+      text: fr ? "Analyse automatique (agent quotidien)" : "Auto-analysis (daily agent)",
+      included: q.auto_analysis,
+    },
+    {
+      text: fr ? "llms.txt + données structurées" : "llms.txt + structured data",
+      included: true,
+    },
+  ];
+  return lines;
+}
+
+const PLAN_LABELS: Record<string, { fr: string; en: string; taglineFr: string; taglineEn: string }> = {
+  free: {
+    fr: "Découverte",
+    en: "Starter",
+    taglineFr: "Pour tester la puissance du GEO",
+    taglineEn: "Try the power of GEO",
+  },
+  pro: {
+    fr: "Pro",
+    en: "Pro",
+    taglineFr: "Pour les boutiques qui veulent grandir",
+    taglineEn: "For stores ready to grow",
+  },
+  agency: {
+    fr: "Grande boutique",
+    en: "Large store",
+    taglineFr: "Pour les catalogues étendus",
+    taglineEn: "For larger catalogs",
+  },
+};
+
 export default function Billing() {
-  const { plans, currentPlan } = useLoaderData<typeof loader>();
+  const { locale, plans, currentPlan, override } = useLoaderData<typeof loader>();
+  const fr = locale === "fr";
   const submit = useSubmit();
+  const redeemFetcher = useFetcher<{ redeemed: string | null; redeemError: boolean }>();
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [code, setCode] = useState("");
+
+  const redeemed = redeemFetcher.data?.redeemed;
+  const redeemError = redeemFetcher.data?.redeemError;
+
+  const formatPrice = (plan: Plan) => {
+    if (plan.price === 0) return fr ? "0 €" : "€0";
+    const amount = plan.price.toLocaleString(fr ? "fr-FR" : "en-US", {
+      minimumFractionDigits: 2,
+    });
+    return plan.currency === "EUR" ? `${amount} €` : `$${amount}`;
+  };
 
   return (
     <Page
-      title="Facturation"
+      title={fr ? "Choisissez votre plan" : "Choose your plan"}
+      subtitle={
+        fr
+          ? "Plus de produits optimisés, plus de trafic. Changez ou annulez à tout moment."
+          : "More optimized products, more traffic. Change or cancel anytime."
+      }
     >
       <BlockStack gap="500">
-        <Text as="p" tone="subdued">
-          Plan actuel : <strong>{currentPlan}</strong>
-        </Text>
+        {redeemed && (
+          <Banner tone="success" title={fr ? "Accès partenaire activé" : "Partner access enabled"}>
+            <Text as="p">
+              {fr
+                ? `Votre boutique bénéficie maintenant du plan ${PLAN_LABELS[redeemed]?.fr ?? redeemed} — offert.`
+                : `Your store now has the ${PLAN_LABELS[redeemed]?.en ?? redeemed} plan — free of charge.`}
+            </Text>
+          </Banner>
+        )}
+        {override && !redeemed && (
+          <Banner tone="success" title={fr ? "Accès partenaire actif" : "Partner access active"} />
+        )}
 
-        <InlineGrid
-          columns={plans.length > 0 ? (String(plans.length) as "3") : "1"}
-          gap="400"
-        >
-          {plans.map((plan) => (
-            <Card key={plan.id}>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingMd">
-                  {plan.name}{" "}
-                  {plan.current && <Badge tone="success">Actuel</Badge>}
-                </Text>
-                <Text as="p" variant="headingLg">
-                  {plan.price === 0
-                    ? "Gratuit"
-                    : `${plan.price} ${plan.currency}/${plan.interval}`}
-                </Text>
-                <BlockStack gap="100">
-                  {(plan.features ?? []).map((f) => (
-                    <Text key={f} as="p" variant="bodySm">
-                      ✓ {f}
+        <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+          {plans.map((plan) => {
+            const labels = PLAN_LABELS[plan.id];
+            const isPro = plan.id === "pro";
+            const isPaid = plan.id !== "free";
+            return (
+              <div
+                key={plan.id}
+                style={
+                  isPro
+                    ? { outline: "2px solid var(--p-color-border-emphasis)", borderRadius: "12px" }
+                    : undefined
+                }
+              >
+                <Card>
+                  <BlockStack gap="300">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text as="h2" variant="headingMd">
+                        {labels ? (fr ? labels.fr : labels.en) : plan.display_name}
+                      </Text>
+                      {isPro && (
+                        <Badge tone="info">{fr ? "Le plus populaire" : "Most popular"}</Badge>
+                      )}
+                      {plan.current && (
+                        <Badge tone="success">{fr ? "Plan actuel" : "Current plan"}</Badge>
+                      )}
+                    </InlineStack>
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {labels ? (fr ? labels.taglineFr : labels.taglineEn) : ""}
                     </Text>
-                  ))}
-                </BlockStack>
-                {!plan.current && plan.id !== "free" && (
-                  <Button
-                    variant="primary"
-                    onClick={() => submit({ plan: plan.id }, { method: "post" })}
-                  >
-                    Choisir {plan.name}
-                  </Button>
-                )}
-                {plan.current && plan.id !== "free" && (
-                  <Button
-                    variant="plain"
-                    tone="critical"
-                    onClick={() =>
-                      submit({ intent: "cancel" }, { method: "post" })
-                    }
-                  >
-                    Annuler l&apos;abonnement
-                  </Button>
-                )}
-              </BlockStack>
-            </Card>
-          ))}
+                    <InlineStack gap="100" blockAlign="end">
+                      <Text as="p" variant="heading2xl" fontWeight="bold">
+                        {formatPrice(plan)}
+                      </Text>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {fr ? "/ mois" : "/ month"}
+                      </Text>
+                    </InlineStack>
+                    {isPaid && (
+                      <Badge tone="success">
+                        {fr ? "7 jours d'essai gratuit" : "7-day free trial"}
+                      </Badge>
+                    )}
+                    <BlockStack gap="150">
+                      {planCopy(plan, fr).map((line, i) => (
+                        <InlineStack key={i} gap="150" blockAlign="center" wrap={false}>
+                          <span style={{ opacity: line.included ? 1 : 0.35, display: "inline-flex" }}>
+                            <Icon
+                              source={line.included ? CheckCircleIcon : LockIcon}
+                              tone={line.included ? "success" : "subdued"}
+                            />
+                          </span>
+                          <Text
+                            as="p"
+                            variant="bodySm"
+                            tone={line.included ? undefined : "subdued"}
+                          >
+                            {line.text}
+                          </Text>
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
+                    {!plan.current && isPaid && (
+                      <Button
+                        variant={isPro ? "primary" : "secondary"}
+                        fullWidth
+                        onClick={() => submit({ plan: plan.id }, { method: "post" })}
+                      >
+                        {fr ? "Essayer 7 jours gratuitement" : "Start 7-day free trial"}
+                      </Button>
+                    )}
+                    {!plan.current && !isPaid && (
+                      <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+                        {fr ? "Inclus avec l'installation" : "Included with install"}
+                      </Text>
+                    )}
+                    {plan.current && isPaid && (
+                      <Button
+                        variant="plain"
+                        tone="critical"
+                        onClick={() => submit({ intent: "cancel" }, { method: "post" })}
+                      >
+                        {fr ? "Annuler l'abonnement" : "Cancel subscription"}
+                      </Button>
+                    )}
+                  </BlockStack>
+                </Card>
+              </div>
+            );
+          })}
         </InlineGrid>
+
+        {plans.length > 0 && (
+          <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+            <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+              {fr
+                ? "Facturation sécurisée gérée par Shopify · Aucun paiement pendant l'essai · Annulation en 1 clic"
+                : "Secure billing handled by Shopify · No charge during the trial · Cancel in 1 click"}
+            </Text>
+          </Box>
+        )}
 
         {plans.length === 0 && (
           <Card>
             <Text as="p" tone="subdued">
-              Impossible de charger les plans. Vérifiez que le moteur GEO est
-              démarré.
+              {fr
+                ? "Impossible de charger les plans. Réessayez dans un instant."
+                : "Could not load plans. Please try again shortly."}
             </Text>
           </Card>
         )}
+
+        <Card>
+          <BlockStack gap="200">
+            <Button variant="plain" onClick={() => setCodeOpen((v) => !v)} disclosure={codeOpen ? "up" : "down"}>
+              {fr ? "J'ai un code partenaire" : "I have a partner code"}
+            </Button>
+            <Collapsible id="partner-code" open={codeOpen}>
+              <InlineStack gap="200" blockAlign="end" wrap={false}>
+                <div style={{ flexGrow: 1 }}>
+                  <TextField
+                    label={fr ? "Code partenaire" : "Partner code"}
+                    labelHidden
+                    value={code}
+                    onChange={setCode}
+                    autoComplete="off"
+                    placeholder={fr ? "Entrez votre code" : "Enter your code"}
+                    error={redeemError ? (fr ? "Code invalide" : "Invalid code") : undefined}
+                  />
+                </div>
+                <Button
+                  onClick={() =>
+                    redeemFetcher.submit({ intent: "redeem", code }, { method: "post" })
+                  }
+                  loading={redeemFetcher.state !== "idle"}
+                  disabled={!code.trim()}
+                >
+                  {fr ? "Activer" : "Redeem"}
+                </Button>
+              </InlineStack>
+            </Collapsible>
+          </BlockStack>
+        </Card>
       </BlockStack>
     </Page>
   );

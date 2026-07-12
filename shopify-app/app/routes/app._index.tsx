@@ -51,6 +51,7 @@ import {
   NatureIcon,
   PersonIcon,
   InfoIcon,
+  LockIcon,
   QuestionCircleIcon,
   PhoneIcon,
   ProductIcon,
@@ -172,6 +173,7 @@ interface LoaderData {
   ga4Connected: boolean;
   themeExt: ThemeExtStatus | null;
   learningMode: "semi_auto" | "auto_apply";
+  autoAllowed: boolean;
   scheduleStatus: ScheduleStatus | null;
   latestAnalysisAt: string | null;
   error: string | null;
@@ -229,6 +231,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let ga4Connected = false;
   let themeExt: ThemeExtStatus | null = null;
   let learningMode: "semi_auto" | "auto_apply" = "semi_auto";
+  let autoAllowed = true;
   let scheduleStatus: ScheduleStatus | null = null;
   // Timestamp of the last completed market analysis (incl. the one auto-run at
   // onboarding, which is NOT a scheduler run). Used as a fallback so the analysis
@@ -242,7 +245,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // degrade to their default empty values on timeout via Promise.allSettled.
     const DASHBOARD_TIMEOUT_MS = 12_000;
     const SECONDARY_TIMEOUT_MS = 8_000;
-    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp, scheduleResp, ga4StatusResp, themeExtResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp, scheduleResp, ga4StatusResp, themeExtResp, billingResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken, signal: AbortSignal.timeout(DASHBOARD_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
@@ -254,7 +257,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       callBackendForShop(shop, `/api/shops/${shop}/agent-schedule/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/ga4/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/geo/theme-extension-status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/billing/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
     ]);
+
+    if (billingResp.status === "fulfilled" && billingResp.value.ok) {
+      try {
+        const data = (await billingResp.value.json()) as { quotas?: { auto_analysis?: boolean } };
+        autoAllowed = data.quotas?.auto_analysis !== false;
+      } catch (_parseErr) { /* ignore */ }
+    }
 
     if (gscStatusResp.status === "fulfilled" && gscStatusResp.value.ok) {
       try {
@@ -391,6 +402,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ga4Connected,
         themeExt,
         learningMode,
+        autoAllowed,
         scheduleStatus,
         latestAnalysisAt,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
@@ -403,7 +415,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirectToOnboarding();
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, scheduleStatus, latestAnalysisAt, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, scheduleStatus, latestAnalysisAt, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -420,6 +432,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ga4Connected,
       themeExt,
       learningMode,
+      autoAllowed,
       scheduleStatus,
       latestAnalysisAt,
       error: err instanceof Error ? err.message : "Network error",
@@ -1498,11 +1511,14 @@ function PublishModeCard({
   currentMode,
   locale,
   bare = false,
+  autoAllowed = true,
 }: {
   currentMode: "semi_auto" | "auto_apply";
   locale: Locale;
   /** When true, render the content without the outer Card (to embed inside another card). */
   bare?: boolean;
+  /** False when the shop's plan does not include auto-analysis (free plan). */
+  autoAllowed?: boolean;
 }) {
   const fetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const activateFetcher = useFetcher<{ type: string; ok: boolean; error: string | null; summary: { published?: number } | null }>();
@@ -1664,9 +1680,20 @@ function PublishModeCard({
                     ["--p-color-text-brand-on-bg-fill"]: "#000",
                   } as React.CSSProperties}
                 >
-                  <Button fullWidth variant="primary" onClick={handleActivateAuto}>
-                    {locale === "fr" ? "Activer" : "Activate"}
-                  </Button>
+                  {autoAllowed ? (
+                    <Button fullWidth variant="primary" onClick={handleActivateAuto}>
+                      {locale === "fr" ? "Activer" : "Activate"}
+                    </Button>
+                  ) : (
+                    <BlockStack gap="100">
+                      <Button fullWidth variant="primary" url={localizedPath("/app/billing", locale)} icon={LockIcon}>
+                        {locale === "fr" ? "Débloquer avec Pro" : "Unlock with Pro"}
+                      </Button>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {locale === "fr" ? "Essai gratuit 7 jours" : "7-day free trial"}
+                      </Text>
+                    </BlockStack>
+                  )}
                 </span>
               )}
             </div>
@@ -2199,7 +2226,7 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, scheduleStatus, latestAnalysisAt, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, scheduleStatus, latestAnalysisAt, error } = useLoaderData<typeof loader>() as LoaderData;
   // OAuth status is authoritative; fall back to the per-product flag (GSC data
   // file present) only when the status call itself failed.
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
@@ -2529,7 +2556,7 @@ export default function IndexPage() {
                     geoLevel={zone1.global_level}
                   />
                 }
-                publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare />}
+                publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare autoAllowed={autoAllowed} />}
               />
               </>
             }
@@ -2561,7 +2588,7 @@ export default function IndexPage() {
                 geoLevel={zone1.global_level}
               />
             }
-            publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare />}
+            publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare autoAllowed={autoAllowed} />}
           />
           </>
         )}
