@@ -665,6 +665,8 @@ async def start_market_analysis_job(
         check_quota(ctx.shop, "analysis")
     except QuotaExceeded as exc:
         raise HTTPException(status_code=402, detail=exc.payload()) from exc
+    # Counted immediately so parallel requests cannot all pass the check above.
+    record_usage(ctx.shop, "analysis")
     snapshot = _load_snapshot(ctx)
     products = snapshot.get("products", [])
     persist = True
@@ -700,7 +702,6 @@ async def start_market_analysis_job(
     business_profile = load_business_profile(ctx.shop)
 
     job_id = create_job(ctx.shop)
-    record_usage(ctx.shop, "analysis")
 
     background_tasks.add_task(
         _run_analysis_background,

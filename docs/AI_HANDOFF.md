@@ -12,6 +12,16 @@
 
 - **Date:** 2026-07-12
 - **Agent:** Claude (Fable 5)
+- **Goal:** Paywall-bypass audit + fixes on the new billing enforcement.
+- **Summary:** Closed 5 bypass vectors: (B1) `PUT /agent-schedule/settings` could enable the daily auto agent (incl. `auto_apply`) without plan check — now 402 for free (disable stays allowed); (B2) `POST /learning/run` executed a cycle directly — now 402 for free; (B3) `POST /agent-schedule/run-and-publish` ran unlimited full reanalyses + auto-publish — now plan-gated + counted against the analysis quota; (B4) quota race: `record_usage` now happens immediately after `check_quota` (blog + analysis) so parallel requests can't overshoot; (B5) redeem-code brute force — in-memory rate limit (10 failed attempts/shop/hour → 429). 10 new regression tests (free-plan 402s, disable allowed).
+- **Files modified:** `app/api/{agent_schedule,learning,blog,market_analysis}.py`, `app/billing/router.py`, `tests/test_api/{test_agent_schedule,test_learning}.py`.
+- **Validations run:** `pytest` 2054 passed ✅ · `ruff` ✅ · `npm run typecheck` + `build` ✅.
+- **Next recommended action:** same as billing task (Render env vars + live test charge).
+
+## Previous completed task (billing v2)
+
+- **Date:** 2026-07-12
+- **Agent:** Claude (Fable 5)
 - **Goal:** Billing v2 — 3 plans (Free / Pro €18.99 / Grande boutique €45), real quotas, auto-analysis gating, partner access codes, conversion-oriented pricing page.
 - **Summary:** Backend: `BILLING_PLANS` repriced (EUR with USD fallback via `shopBillingPreferences`, 7-day `trialDays`); new `app/billing/quotas.py` (`PLAN_QUOTAS` free 3 products/1 analysis/3 blogs per 28d, pro 15/5/20, agency 35/10/40; `usage_events` table; `QuotaExceeded` → HTTP 402 payload). Enforcement: blog draft creation (`app/api/blog.py`), market-analysis job start + product cap (`app/api/market_analysis.py`), AUTO_APPLY refused for free (`app/api/learning.py`) and skipped in the scheduler (`app/agent_schedule/scheduler.py`, reason `plan_free`). Access codes: `POST /billing/redeem-code` compares against env `LEONIE_ACCESS_CODE_PRO`/`LEONIE_ACCESS_CODE_AGENCY` (constant-time), stores `plan_override` in `shop_config`; `get_plan_for_shop` honors the override first. Frontend: `app.billing.tsx` rebuilt (3 cards, Pro highlighted "Most popular", 7-day-trial badges, quota checklists, reassurance strip, collapsible partner-code redeem, FR/EN); dashboard `PublishModeCard` locks auto-analysis for free plans ("Débloquer avec Pro" → /app/billing); 402 quota banners with upgrade CTA on Blog and Products pages. Free plan `can_apply` set to True (manual publishing allowed on free).
 - **Files created:** `app/billing/quotas.py`, `tests/test_billing/test_quotas.py`.

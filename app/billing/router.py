@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import logging
 import os
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -42,6 +43,24 @@ class SubscribeRequest(BaseModel):
 
 class RedeemCodeRequest(BaseModel):
     code: str
+
+
+# Anti-brute-force on access codes: max failed attempts per shop per window.
+_REDEEM_MAX_FAILURES = 10
+_REDEEM_WINDOW_SECONDS = 3600
+_redeem_failures: dict[str, list[float]] = {}
+
+
+def _enforce_redeem_rate_limit(shop: str) -> None:
+    now = time.monotonic()
+    attempts = [t for t in _redeem_failures.get(shop, []) if now - t < _REDEEM_WINDOW_SECONDS]
+    _redeem_failures[shop] = attempts
+    if len(attempts) >= _REDEEM_MAX_FAILURES:
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again later.")
+
+
+def _record_redeem_failure(shop: str) -> None:
+    _redeem_failures.setdefault(shop, []).append(time.monotonic())
 
 
 def _billing_mode() -> str:
@@ -133,6 +152,7 @@ async def redeem_code(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict:
     """Grant a plan via a partner access code (entitlement override, no charge)."""
+    _enforce_redeem_rate_limit(ctx.shop)
     submitted = body.code.strip().upper()
     if not submitted:
         raise HTTPException(status_code=400, detail="Empty code.")
@@ -145,6 +165,7 @@ async def redeem_code(
             set_shop_config(ctx.shop, "plan_override", plan)
             logger.info("billing.redeem: shop=%s granted plan=%s via access code", ctx.shop, plan)
             return {"plan": plan, "override": True}
+    _record_redeem_failure(ctx.shop)
     raise HTTPException(status_code=400, detail="Invalid code.")
 
 

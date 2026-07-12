@@ -105,6 +105,16 @@ async def run_learning_for_shop(
     body: LearningRunRequest,
 ) -> dict[str, Any]:
     """Run one learning cycle for the authenticated shop."""
+    if not auto_analysis_allowed(ctx.shop):
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "quota_exceeded",
+                "kind": "auto_analysis",
+                "plan": "free",
+                "upgrade": "pro",
+            },
+        )
     result = await asyncio.to_thread(
         run_learning_cycle,
         ctx.shop,

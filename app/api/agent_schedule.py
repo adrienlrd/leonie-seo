@@ -28,6 +28,7 @@ from app.agent_schedule.scheduler import (
 )
 from app.agent_schedule.store import upsert_schedule
 from app.api.deps import ShopContext, get_shop_context, require_internal_secret
+from app.billing.quotas import QuotaExceeded, auto_analysis_allowed, check_quota, record_usage
 from app.db_adapter import DB_PATH
 from app.market_analysis.jobs import create_job, get_job, update_job
 
@@ -36,6 +37,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["agent-schedule"])
 
 _LOCAL_TIME_RE = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
+def _require_auto_analysis(shop: str) -> None:
+    """402 when the shop's plan does not include the automatic agent."""
+    if not auto_analysis_allowed(shop):
+        raise HTTPException(
+            status_code=402,
+            detail={"error": "quota_exceeded", "kind": "auto_analysis", "plan": "free", "upgrade": "pro"},
+        )
 
 
 class AgentScheduleSettingsRequest(BaseModel):
@@ -68,6 +78,7 @@ async def put_agent_schedule_settings(
     if not body.enabled:
         settings = disable(ctx.shop, db_path=DB_PATH)
     else:
+        _require_auto_analysis(ctx.shop)
         settings = enable_daily(
             ctx.shop,
             mode=body.mode,
@@ -94,6 +105,7 @@ async def test_agent_in_5_min(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict[str, Any]:
     """Queue a single test run ~5 minutes out. Does not enable the daily agent."""
+    _require_auto_analysis(ctx.shop)
     settings = schedule_test_in_5_min(ctx.shop, db_path=DB_PATH)
     return {"shop": ctx.shop, "schedule": settings.to_dict()}
 
@@ -108,6 +120,7 @@ async def test_agent_in_1h(
     Lets the merchant verify the whole automation loop without waiting for the
     recurring cadence. Does not enable the daily agent.
     """
+    _require_auto_analysis(ctx.shop)
     settings = schedule_test_in_1h(ctx.shop, db_path=DB_PATH)
     return {"shop": ctx.shop, "schedule": settings.to_dict()}
 
@@ -175,6 +188,12 @@ async def run_and_publish_now(
     """
     if not ctx.access_token:
         raise HTTPException(status_code=401, detail="Missing Shopify access token")
+    _require_auto_analysis(ctx.shop)
+    try:
+        check_quota(ctx.shop, "analysis")
+    except QuotaExceeded as exc:
+        raise HTTPException(status_code=402, detail=exc.payload()) from exc
+    record_usage(ctx.shop, "analysis")
     selection = body.selection if body is not None else None
     job_id = create_job(ctx.shop)
     update_job(job_id, status="running")

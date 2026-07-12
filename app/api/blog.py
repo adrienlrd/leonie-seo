@@ -429,6 +429,9 @@ def create_blog_draft(
         check_quota(ctx.shop, "blog")
     except QuotaExceeded as exc:
         raise HTTPException(status_code=402, detail=exc.payload()) from exc
+    # Counted before the (slow) generation so parallel requests cannot all pass
+    # the check above and overshoot the quota.
+    record_usage(ctx.shop, "blog")
     if body.product_id:
         draft = _draft_from_product(
             ctx.shop,
@@ -470,7 +473,6 @@ def create_blog_draft(
         }
     _apply_seo_score(draft)
     saved = save_draft(ctx.shop, draft)
-    record_usage(ctx.shop, "blog")
     return saved
 
 

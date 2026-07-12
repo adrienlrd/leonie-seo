@@ -44,6 +44,9 @@ def client(monkeypatch: pytest.MonkeyPatch, db: Path) -> TestClient:
     with (
         patch("app.api.deps.get_token", return_value=None),
         patch("app.api.deps.get_plan_for_shop", return_value="pro"),
+        patch("app.api.agent_schedule.auto_analysis_allowed", return_value=True),
+        patch("app.api.agent_schedule.check_quota", return_value=None),
+        patch("app.api.agent_schedule.record_usage", return_value=None),
     ):
         yield TestClient(app)
 
@@ -229,3 +232,49 @@ def test_internal_run_due_requires_secret(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert "ran" in body and "skipped" in body
+
+
+# ── Plan gating (paywall bypass regression tests) ────────────────────────────
+
+
+@pytest.fixture()
+def free_client(monkeypatch: pytest.MonkeyPatch, db: Path) -> TestClient:
+    for key, value in ENV.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr("app.api.agent_schedule.DB_PATH", db)
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps.get_plan_for_shop", return_value="free"),
+        patch("app.api.agent_schedule.auto_analysis_allowed", return_value=False),
+    ):
+        yield TestClient(app)
+
+
+def test_put_settings_enable_returns_402_for_free_plan(free_client: TestClient) -> None:
+    resp = free_client.put(
+        f"/api/shops/{SHOP}/agent-schedule/settings",
+        json={"enabled": True, "mode": "auto_apply"},
+    )
+    assert resp.status_code == 402
+
+
+def test_disable_still_allowed_for_free_plan(free_client: TestClient) -> None:
+    resp = free_client.put(
+        f"/api/shops/{SHOP}/agent-schedule/settings", json={"enabled": False}
+    )
+    assert resp.status_code == 200
+
+
+def test_test_in_5_min_returns_402_for_free_plan(free_client: TestClient) -> None:
+    resp = free_client.post(f"/api/shops/{SHOP}/agent-schedule/test-in-5-min")
+    assert resp.status_code == 402
+
+
+def test_test_in_1h_returns_402_for_free_plan(free_client: TestClient) -> None:
+    resp = free_client.post(f"/api/shops/{SHOP}/agent-schedule/test-in-1h")
+    assert resp.status_code == 402
+
+
+def test_run_and_publish_returns_402_for_free_plan(free_client: TestClient) -> None:
+    resp = free_client.post(f"/api/shops/{SHOP}/agent-schedule/run-and-publish")
+    assert resp.status_code == 402
