@@ -21,7 +21,7 @@ from app.billing.client import (
     create_subscription,
     get_active_subscriptions,
 )
-from app.billing.quotas import get_quotas
+from app.billing.quotas import get_quotas, get_usage
 from app.billing.subscription_store import (
     get_plan_for_shop,
     get_subscription,
@@ -140,6 +140,10 @@ async def billing_status(
     return {
         **plan_summary(plan),
         "quotas": get_quotas(plan),
+        "usage": {
+            "analysis": get_usage(ctx.shop, "analysis"),
+            "blog": get_usage(ctx.shop, "blog"),
+        },
         "override": get_shop_config(ctx.shop, "plan_override") is not None,
         "subscription_id": sub["subscription_id"] if sub else None,
         "subscription_status": sub["status"] if sub else None,

@@ -21,6 +21,7 @@ import { useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, type Locale } from "../lib/i18n";
+import { UsageMeter } from "../components/UsageMeter";
 
 interface PlanQuotas {
   products: number;
@@ -45,6 +46,7 @@ interface LoaderData {
   plans: Plan[];
   currentPlan: string;
   override: boolean;
+  usage: { analysis: number; blog: number } | null;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -55,6 +57,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let plans: Plan[] = [];
   let currentPlan = "free";
   let override = false;
+  let usage: LoaderData["usage"] = null;
   try {
     const [plansResp, statusResp] = await Promise.all([
       callBackendForShop(shop, `/api/shops/${shop}/billing/plans`, {
@@ -70,14 +73,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       currentPlan = data.current_plan ?? "free";
     }
     if (statusResp.ok) {
-      const status = (await statusResp.json()) as { override?: boolean };
+      const status = (await statusResp.json()) as {
+        override?: boolean;
+        usage?: { analysis: number; blog: number };
+      };
       override = Boolean(status.override);
+      usage = status.usage ?? null;
     }
   } catch {
     // Python backend unavailable
   }
 
-  return json<LoaderData>({ shop, locale, plans, currentPlan, override });
+  return json<LoaderData>({ shop, locale, plans, currentPlan, override, usage });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -149,7 +156,13 @@ function planCopy(plan: Plan, fr: boolean) {
       included: q.auto_analysis,
     },
     {
-      text: fr ? "llms.txt + données structurées" : "llms.txt + structured data",
+      text: fr
+        ? "Extension de thème (FAQ + données structurées)"
+        : "Theme extension (FAQ + structured data)",
+      included: plan.id !== "free",
+    },
+    {
+      text: fr ? "llms.txt + fichiers IA" : "llms.txt + AI files",
       included: true,
     },
   ];
@@ -166,19 +179,19 @@ const PLAN_LABELS: Record<string, { fr: string; en: string; taglineFr: string; t
   pro: {
     fr: "Pro",
     en: "Pro",
-    taglineFr: "Pour les boutiques qui veulent grandir",
-    taglineEn: "For stores ready to grow",
+    taglineFr: "Surfez sur les tendances et gardez une longueur d'avance sur vos concurrents",
+    taglineEn: "Ride the trends and stay one step ahead of your competitors",
   },
   agency: {
     fr: "Grande boutique",
     en: "Large store",
-    taglineFr: "Pour les catalogues étendus",
-    taglineEn: "For larger catalogs",
+    taglineFr: "Toute la puissance, à l'échelle de votre catalogue",
+    taglineEn: "Full power, at the scale of your catalog",
   },
 };
 
 export default function Billing() {
-  const { locale, plans, currentPlan, override } = useLoaderData<typeof loader>();
+  const { locale, plans, currentPlan, override, usage } = useLoaderData<typeof loader>();
   const fr = locale === "fr";
   const submit = useSubmit();
   const redeemFetcher = useFetcher<{ redeemed: string | null; redeemError: boolean }>();
@@ -219,6 +232,32 @@ export default function Billing() {
           <Banner tone="success" title={fr ? "Accès partenaire actif" : "Partner access active"} />
         )}
 
+        {usage && (
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingSm">
+                {fr ? "Votre consommation ce cycle" : "Your usage this cycle"}
+              </Text>
+              <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
+                <UsageMeter
+                  label={fr ? "Analyses" : "Analyses"}
+                  used={usage.analysis}
+                  quota={Number(plans.find((p) => p.current)?.quotas.analysis ?? 1)}
+                  locale={locale}
+                  showUpgrade={currentPlan !== "agency"}
+                />
+                <UsageMeter
+                  label={fr ? "Articles de blog" : "Blog articles"}
+                  used={usage.blog}
+                  quota={Number(plans.find((p) => p.current)?.quotas.blog ?? 3)}
+                  locale={locale}
+                  showUpgrade={currentPlan !== "agency"}
+                />
+              </InlineGrid>
+            </BlockStack>
+          </Card>
+        )}
+
         <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
           {plans.map((plan) => {
             const labels = PLAN_LABELS[plan.id];
@@ -227,13 +266,19 @@ export default function Billing() {
             return (
               <div
                 key={plan.id}
-                style={
-                  isPro
-                    ? { outline: "2px solid var(--p-color-border-emphasis)", borderRadius: "12px" }
-                    : undefined
-                }
+                style={{
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  background: "var(--p-color-bg-surface)",
+                  borderRadius: "var(--p-border-radius-300)",
+                  boxShadow: "var(--p-shadow-100)",
+                  padding: "var(--p-space-400)",
+                  ...(isPro
+                    ? { outline: "2px solid var(--p-color-border-emphasis)" }
+                    : undefined),
+                }}
               >
-                <Card>
                   <BlockStack gap="300">
                     <InlineStack align="space-between" blockAlign="center">
                       <Text as="h2" variant="headingMd">
@@ -281,31 +326,31 @@ export default function Billing() {
                         </InlineStack>
                       ))}
                     </BlockStack>
-                    {!plan.current && isPaid && (
-                      <Button
-                        variant={isPro ? "primary" : "secondary"}
-                        fullWidth
-                        onClick={() => submit({ plan: plan.id }, { method: "post" })}
-                      >
-                        {fr ? "Essayer 7 jours gratuitement" : "Start 7-day free trial"}
-                      </Button>
-                    )}
-                    {!plan.current && !isPaid && (
-                      <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-                        {fr ? "Inclus avec l'installation" : "Included with install"}
-                      </Text>
-                    )}
-                    {plan.current && isPaid && (
-                      <Button
-                        variant="plain"
-                        tone="critical"
-                        onClick={() => submit({ intent: "cancel" }, { method: "post" })}
-                      >
-                        {fr ? "Annuler l'abonnement" : "Cancel subscription"}
-                      </Button>
-                    )}
                   </BlockStack>
-                </Card>
+                  <div style={{ flexGrow: 1, minHeight: "var(--p-space-300)" }} />
+                  {!plan.current && isPaid && (
+                    <Button
+                      variant={isPro ? "primary" : "secondary"}
+                      fullWidth
+                      onClick={() => submit({ plan: plan.id }, { method: "post" })}
+                    >
+                      {fr ? "Essayer 7 jours gratuitement" : "Start 7-day free trial"}
+                    </Button>
+                  )}
+                  {!plan.current && !isPaid && (
+                    <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+                      {fr ? "Inclus avec l'installation" : "Included with install"}
+                    </Text>
+                  )}
+                  {plan.current && isPaid && (
+                    <Button
+                      variant="plain"
+                      tone="critical"
+                      onClick={() => submit({ intent: "cancel" }, { method: "post" })}
+                    >
+                      {fr ? "Annuler l'abonnement" : "Cancel subscription"}
+                    </Button>
+                  )}
               </div>
             );
           })}

@@ -47,6 +47,7 @@ import { callBackendForShop } from "../lib/api.server";
 import { handleShopifyFilesIntent } from "../lib/shopifyFiles.server";
 import { getLocale, loaderPhrases, type Locale } from "../lib/i18n";
 import { ResearchConsole } from "../components/ResearchConsole";
+import { UsageMeter } from "../components/UsageMeter";
 import { CoverImageModal, ShopifyImagePicker } from "../components/ShopifyImagePicker";
 import { scoreTone } from "../lib/marketAnalysisShared";
 import { authenticate } from "../shopify.server";
@@ -133,6 +134,7 @@ interface LoaderData {
   ideaSuggestions: BlogIdeaFlat[];
   keywordSuggestions: string[];
   pillarIdeaKeys: string[];
+  blogUsage: { used: number; quota: number; plan: string } | null;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -143,8 +145,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const prefillTitle = url.searchParams.get("title");
   const prefillCluster = url.searchParams.get("cluster");
 
-  // Drafts list and market analysis are independent — fetch them in parallel.
-  const [listRes, analysisRes] = await Promise.all([
+  // Drafts list, market analysis and billing usage are independent — parallel.
+  const [listRes, analysisRes, billingRes] = await Promise.all([
     callBackendForShop(
       session.shop,
       `/api/shops/${session.shop}/blog/drafts`,
@@ -155,7 +157,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       `/api/shops/${session.shop}/market-analysis/latest`,
       { accessToken: session.accessToken },
     ).catch(() => null),
+    callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/billing/status`,
+      { accessToken: session.accessToken, signal: AbortSignal.timeout(5_000) },
+    ).catch(() => null),
   ]);
+  let blogUsage: { used: number; quota: number; plan: string } | null = null;
+  if (billingRes && billingRes.ok) {
+    try {
+      const status = (await billingRes.json()) as {
+        plan?: string;
+        quotas?: { blog?: number };
+        usage?: { blog?: number };
+      };
+      if (status.quotas?.blog !== undefined && status.usage?.blog !== undefined) {
+        blogUsage = { used: status.usage.blog, quota: status.quotas.blog, plan: status.plan ?? "free" };
+      }
+    } catch { /* ignore */ }
+  }
   const listData = listRes.ok ? ((await listRes.json()) as { drafts: Draft[] }) : { drafts: [] };
   const drafts = listData.drafts ?? [];
 
@@ -270,6 +290,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ideaSuggestions,
     keywordSuggestions,
     pillarIdeaKeys,
+    blogUsage,
   });
 };
 
@@ -718,7 +739,7 @@ function buildSavePayload(d: Draft): Record<string, unknown> {
 }
 
 export default function BlogIndexPage() {
-  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas, ideaSuggestions, keywordSuggestions, pillarIdeaKeys } = useLoaderData<typeof loader>();
+  const { locale, shop, drafts, selected, error, prefillTitle, prefillCluster, blogIdeas, ideaSuggestions, keywordSuggestions, pillarIdeaKeys, blogUsage } = useLoaderData<typeof loader>();
   const pillarIdeaKeySet = useMemo(() => new Set(pillarIdeaKeys), [pillarIdeaKeys]);
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
@@ -1063,6 +1084,15 @@ export default function BlogIndexPage() {
       <BlockStack gap="400">
         {error && (
           <Banner tone="critical"><p>{error}</p></Banner>
+        )}
+        {blogUsage && !selected && (
+          <UsageMeter
+            label={fr ? "Articles générés ce cycle" : "Articles generated this cycle"}
+            used={blogUsage.used}
+            quota={blogUsage.quota}
+            locale={locale}
+            showUpgrade={blogUsage.plan !== "agency"}
+          />
         )}
         {actionData?.error === "402" ? (
           <Banner

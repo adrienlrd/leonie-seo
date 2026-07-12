@@ -12,6 +12,17 @@
 
 - **Date:** 2026-07-12
 - **Agent:** Claude (Fable 5)
+- **Goal:** Usage counters everywhere limits can be hit + free→paid conversion mechanics (SaaS-style).
+- **Summary:** Backend `GET /billing/status` now returns `usage: {analysis, blog}` (28-day window). New `UsageMeter` component (ChatGPT-style X/Y meter, tone shifts near limit, "Passer à la vitesse supérieure" CTA at 100%). Meters shown on: Blog page (articles this cycle), Products page (analyses this cycle + product-cap box "3 produits sur N — vos concurrents n'attendent pas"), Billing page ("Votre consommation ce cycle"), and dashboard `FreePlanUpsell` card (free plan only: meters + locked perks 🔒 + "Essayer Pro 7 jours"). Nav: "Forfaits" entry (→ /app/billing) visible only for free-plan shops (app.tsx loader checks billing status, fail-closed hidden). Billing page: cards now equal height (flex, CTA pinned bottom), theme extension listed as Pro/Grande boutique feature (🔒 free), Pro tagline "Surfez sur les tendances…". Dashboard: theme-extension row shows a 🔒 Pro button for free plans. EducationPanel: "n°1 sur les IA" card refocused on structured content + FAQ (removed "réponse directe"/"faits vérifiables"), keywords card gets "longueur d'avance" framing.
+- **Files created:** `shopify-app/app/components/UsageMeter.tsx`.
+- **Files modified:** `app/billing/router.py`, `shopify-app/app/routes/{app.tsx,app.billing,app._index,app.blog,app.products}.tsx`.
+- **Validations run:** `pytest` 2054 passed ✅ · `ruff` ✅ · `npm run typecheck` + `build` ✅. Visual pass in the embedded app not done.
+- **Next recommended action:** visual check on the pilot store (free plan): dashboard upsell card, meters, Forfaits nav entry.
+
+## Previous completed task (paywall audit)
+
+- **Date:** 2026-07-12
+- **Agent:** Claude (Fable 5)
 - **Goal:** Paywall-bypass audit + fixes on the new billing enforcement.
 - **Summary:** Closed 5 bypass vectors: (B1) `PUT /agent-schedule/settings` could enable the daily auto agent (incl. `auto_apply`) without plan check — now 402 for free (disable stays allowed); (B2) `POST /learning/run` executed a cycle directly — now 402 for free; (B3) `POST /agent-schedule/run-and-publish` ran unlimited full reanalyses + auto-publish — now plan-gated + counted against the analysis quota; (B4) quota race: `record_usage` now happens immediately after `check_quota` (blog + analysis) so parallel requests can't overshoot; (B5) redeem-code brute force — in-memory rate limit (10 failed attempts/shop/hour → 429). 10 new regression tests (free-plan 402s, disable allowed).
 - **Files modified:** `app/api/{agent_schedule,learning,blog,market_analysis}.py`, `app/billing/router.py`, `tests/test_api/{test_agent_schedule,test_learning}.py`.

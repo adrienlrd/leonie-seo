@@ -11,6 +11,7 @@ import {
   Card,
   Collapsible,
   Icon,
+  InlineGrid,
   InlineStack,
   Modal,
   Page,
@@ -26,6 +27,7 @@ import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
 import { ResearchConsole, type ResearchJobEvent } from "../components/ResearchConsole";
+import { UsageMeter } from "../components/UsageMeter";
 import { buildAnalysisCounters, buildAnalysisSteps } from "../lib/researchSteps";
 import { ProductContentProposals, type FieldKey } from "../components/ProductContentProposals";
 import { ProductCard } from "../components/ProductCard";
@@ -369,6 +371,7 @@ interface LoaderData {
   newProducts: ActiveProduct[];
   /** Product IDs present in the latest analysis but no longer active. */
   removedProductIds: string[];
+  analysisUsage: { used: number; quota: number; productCap: number; plan: string } | null;
 }
 
 // ── Revalidation guard — polling actions must not re-run the loader ───────────
@@ -389,7 +392,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const fetchOpt = { accessToken: session.accessToken, method: "GET" as const };
 
-  const [latestJobResp, identifyResp, gscResp, ga4Resp, activeProductsResp, activeJobResp] = await Promise.allSettled([
+  const [latestJobResp, identifyResp, gscResp, ga4Resp, activeProductsResp, activeJobResp, billingResp] = await Promise.allSettled([
     callBackendForShop(session.shop, `/api/shops/${session.shop}/market-analysis/latest`, {
       ...fetchOpt,
       signal: AbortSignal.timeout(5_000),
@@ -414,7 +417,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ...fetchOpt,
       signal: AbortSignal.timeout(5_000),
     }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/billing/status`, {
+      ...fetchOpt,
+      signal: AbortSignal.timeout(5_000),
+    }),
   ]);
+
+  let analysisUsage: { used: number; quota: number; productCap: number; plan: string } | null = null;
+  if (billingResp.status === "fulfilled" && billingResp.value.ok) {
+    try {
+      const status = (await billingResp.value.json()) as {
+        plan?: string;
+        quotas?: { analysis?: number; products?: number };
+        usage?: { analysis?: number };
+      };
+      if (status.quotas?.analysis !== undefined && status.usage?.analysis !== undefined) {
+        analysisUsage = {
+          used: status.usage.analysis,
+          quota: status.quotas.analysis,
+          productCap: status.quotas.products ?? 3,
+          plan: status.plan ?? "free",
+        };
+      }
+    } catch { /* ignore */ }
+  }
 
   let latestJob: JobState | null = null;
   if (latestJobResp.status === "fulfilled" && latestJobResp.value.ok) {
@@ -472,7 +498,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .map((p) => p.product_id);
   }
 
-  return json({ locale, shop: session.shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds });
+  return json({ locale, shop: session.shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds, analysisUsage });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -1183,7 +1209,7 @@ function CannibalizationBanner({
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
-  const { locale, shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds } =
+  const { locale, shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds, analysisUsage } =
     useLoaderData<LoaderData>();
 
   const revalidator = useRevalidator();
@@ -1640,6 +1666,34 @@ export default function ProductsPage() {
       subtitle={t(locale, "marketAnalysisSubtitle")}
     >
       <BlockStack gap="400">
+        {analysisUsage && (
+          <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
+            <UsageMeter
+              label={locale === "fr" ? "Analyses ce cycle" : "Analyses this cycle"}
+              used={analysisUsage.used}
+              quota={analysisUsage.quota}
+              locale={locale}
+              showUpgrade={analysisUsage.plan !== "agency"}
+            />
+            {activeHandles.length > analysisUsage.productCap && (
+              <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+                <BlockStack gap="150">
+                  <Text as="p" variant="bodySm" fontWeight="medium">
+                    {locale === "fr" ? "Produits couverts par votre forfait" : "Products covered by your plan"}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {locale === "fr"
+                      ? `${analysisUsage.productCap} produits optimisés sur ${activeHandles.length} dans votre catalogue. Passez au forfait supérieur pour couvrir les ${activeHandles.length - analysisUsage.productCap} restants — vos concurrents n'attendent pas.`
+                      : `${analysisUsage.productCap} products optimized out of ${activeHandles.length} in your catalog. Upgrade to cover the remaining ${activeHandles.length - analysisUsage.productCap} — your competitors aren't waiting.`}
+                  </Text>
+                  <Button url="/app/billing" variant="plain" size="slim">
+                    {locale === "fr" ? "Voir les forfaits →" : "See plans →"}
+                  </Button>
+                </BlockStack>
+              </Box>
+            )}
+          </InlineGrid>
+        )}
         {gscReauthRequired ? (
           <Banner
             tone="critical"

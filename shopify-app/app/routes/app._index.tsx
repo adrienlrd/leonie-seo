@@ -71,6 +71,7 @@ import { ResearchConsole } from "../components/ResearchConsole";
 import { ProductCard } from "../components/ProductCard";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
+import { UsageMeter } from "../components/UsageMeter";
 import {
   linesFromText,
   qualityWarningText,
@@ -156,6 +157,12 @@ interface DashboardData {
   generated_at: string;
 }
 
+interface BillingInfo {
+  plan: string;
+  quotas: { analysis: number; blog: number; products: number };
+  usage: { analysis: number; blog: number };
+}
+
 interface LoaderData {
   shop: string;
   locale: Locale;
@@ -174,6 +181,7 @@ interface LoaderData {
   themeExt: ThemeExtStatus | null;
   learningMode: "semi_auto" | "auto_apply";
   autoAllowed: boolean;
+  billing: BillingInfo | null;
   scheduleStatus: ScheduleStatus | null;
   latestAnalysisAt: string | null;
   error: string | null;
@@ -232,6 +240,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let themeExt: ThemeExtStatus | null = null;
   let learningMode: "semi_auto" | "auto_apply" = "semi_auto";
   let autoAllowed = true;
+  let billing: BillingInfo | null = null;
   let scheduleStatus: ScheduleStatus | null = null;
   // Timestamp of the last completed market analysis (incl. the one auto-run at
   // onboarding, which is NOT a scheduler run). Used as a fallback so the analysis
@@ -262,8 +271,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (billingResp.status === "fulfilled" && billingResp.value.ok) {
       try {
-        const data = (await billingResp.value.json()) as { quotas?: { auto_analysis?: boolean } };
+        const data = (await billingResp.value.json()) as {
+          plan?: string;
+          quotas?: { auto_analysis?: boolean; analysis?: number; blog?: number; products?: number };
+          usage?: { analysis?: number; blog?: number };
+        };
         autoAllowed = data.quotas?.auto_analysis !== false;
+        if (data.plan && data.quotas && data.usage) {
+          billing = {
+            plan: data.plan,
+            quotas: {
+              analysis: data.quotas.analysis ?? 1,
+              blog: data.quotas.blog ?? 3,
+              products: data.quotas.products ?? 3,
+            },
+            usage: { analysis: data.usage.analysis ?? 0, blog: data.usage.blog ?? 0 },
+          };
+        }
       } catch (_parseErr) { /* ignore */ }
     }
 
@@ -403,6 +427,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         themeExt,
         learningMode,
         autoAllowed,
+        billing,
         scheduleStatus,
         latestAnalysisAt,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
@@ -415,7 +440,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirectToOnboarding();
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, scheduleStatus, latestAnalysisAt, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, billing, scheduleStatus, latestAnalysisAt, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -433,6 +458,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       themeExt,
       learningMode,
       autoAllowed,
+      billing,
       scheduleStatus,
       latestAnalysisAt,
       error: err instanceof Error ? err.message : "Network error",
@@ -787,11 +813,14 @@ function DataSourcesPanel({
   gscConnected,
   ga4Connected,
   themeExt,
+  themeExtLocked = false,
 }: {
   locale: Locale;
   gscConnected: boolean;
   ga4Connected: boolean;
   themeExt: ThemeExtStatus | null;
+  /** True on the free plan: the theme extension is a Pro feature. */
+  themeExtLocked?: boolean;
 }) {
   const fr = locale === "fr";
   // Post-onboarding, connections are managed in Réglages — sending an onboarded
@@ -840,7 +869,11 @@ function DataSourcesPanel({
                 <Icon source={QuestionCircleIcon} tone="subdued" />
               </span>
             </Tooltip>
-            {themeEnabled === true ? (
+            {themeExtLocked ? (
+              <Button url={localizedPath("/app/billing", locale)} size="micro" icon={LockIcon}>
+                Pro
+              </Button>
+            ) : themeEnabled === true ? (
               <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
             ) : themeEnabled === false ? (
               <Badge tone="critical">{fr ? "Non activée" : "Not enabled"}</Badge>
@@ -907,17 +940,17 @@ function EducationPanel({ locale }: { locale: Locale }) {
       icon: StarFilledIcon,
       question: fr ? "Comment être numéro 1 sur les IA ?" : "How do I rank #1 on AI?",
       lead: fr
-        ? "Être 1er sur Google ne suffit plus : moins de 20 % des sources citées par les IA viennent du top Google. C'est un nouveau jeu, avec de nouvelles règles."
-        : "Ranking #1 on Google is no longer enough: less than 20% of AI-cited sources come from Google's top results. It's a new game with new rules.",
+        ? "Être 1er sur Google ne suffit plus : moins de 20 % des sources citées par les IA viennent du top Google. Le classement se rejoue — et les premiers arrivés prennent la place."
+        : "Ranking #1 on Google is no longer enough: less than 20% of AI-cited sources come from Google's top results. The rankings are being reshuffled — and early movers take the spot.",
       steps: fr
-        ? ["Réponse directe en haut de page", "Contenu structuré et FAQ", "Faits vérifiables et à jour"]
-        : ["Direct answer at the top of the page", "Structured content and FAQ", "Verifiable, up-to-date facts"],
+        ? ["Contenu structuré, lisible par les IA", "FAQ qui répond aux vraies questions clients", "Les IA vous citent comme référence"]
+        : ["Structured content AIs can read", "FAQ answering real customer questions", "AIs cite you as the reference"],
       stat: fr
-        ? "Les IA privilégient les réponses extractibles : l'essentiel doit tenir dans les 200 premiers mots."
-        : "AIs favor extractable answers: the essentials must fit in the first 200 words.",
+        ? "Le contenu structuré + FAQ est le format que les IA extraient et citent le plus volontiers."
+        : "Structured content + FAQ is the format AIs extract and cite the most.",
       close: fr
-        ? "L'app applique ces règles automatiquement sur chaque page produit."
-        : "The app applies these rules automatically on every product page.",
+        ? "L'app structure vos pages et génère vos FAQ automatiquement — pendant que vos concurrents optimisent encore pour l'ancien Google."
+        : "The app structures your pages and generates your FAQs automatically — while your competitors still optimize for the old Google.",
       cta: { label: fr ? "Lancer une analyse" : "Run an analysis", url: localizedPath("/app/analyse", locale) },
     },
     {
@@ -970,8 +1003,8 @@ function EducationPanel({ locale }: { locale: Locale }) {
         ? "Une boutique moyenne se positionne sur ~1 800 mots-clés : chacun est une porte d'entrée."
         : "An average store ranks for ~1,800 keywords: each one is a door into your shop.",
       close: fr
-        ? "L'app s'appuie sur vos données réelles, pas sur des estimations."
-        : "The app relies on your real data, not guesses.",
+        ? "L'app s'appuie sur vos données réelles, pas sur des estimations — et vous donne une longueur d'avance sur les tendances avant vos concurrents."
+        : "The app relies on your real data, not guesses — and puts you one step ahead of the trends before your competitors.",
       cta: { label: fr ? "Explorer mes mots-clés" : "Explore my keywords", url: localizedPath("/app/market-analysis", locale) },
     },
     {
@@ -1066,6 +1099,73 @@ function EducationPanel({ locale }: { locale: Locale }) {
           </Modal.Section>
         )}
       </Modal>
+    </Card>
+  );
+}
+
+function FreePlanUpsell({ billing, locale }: { billing: BillingInfo; locale: Locale }) {
+  const fr = locale === "fr";
+  if (billing.plan !== "free") return null;
+  const lockedPerks: string[] = fr
+    ? [
+        "Analyse automatique — votre SEO progresse même quand vous dormez",
+        "15 produits couverts au lieu de 3",
+        "Extension de thème : FAQ + données structurées sur votre boutique",
+        "Une longueur d'avance sur les mots-clés et les tendances de votre niche",
+      ]
+    : [
+        "Auto-analysis — your SEO keeps improving while you sleep",
+        "15 products covered instead of 3",
+        "Theme extension: FAQ + structured data on your storefront",
+        "Stay ahead on the keywords and trends of your niche",
+      ];
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <InlineStack align="space-between" blockAlign="center" gap="200">
+          <Text as="h2" variant="headingMd">
+            {fr ? "Passez à la vitesse supérieure" : "Move up a gear"}
+          </Text>
+          <Badge>{fr ? "Plan Découverte" : "Starter plan"}</Badge>
+        </InlineStack>
+        <Text as="p" variant="bodySm" tone="subdued">
+          {fr
+            ? "Vos concurrents n'attendent pas. Pro analyse, publie et mesure pour vous — en continu."
+            : "Your competitors aren't waiting. Pro analyzes, publishes and measures for you — continuously."}
+        </Text>
+        <InlineGrid columns={{ xs: 1, sm: 2 }} gap="200">
+          <UsageMeter
+            label={fr ? "Analyses ce cycle" : "Analyses this cycle"}
+            used={billing.usage.analysis}
+            quota={billing.quotas.analysis}
+            locale={locale}
+            showUpgrade={false}
+          />
+          <UsageMeter
+            label={fr ? "Articles de blog ce cycle" : "Blog articles this cycle"}
+            used={billing.usage.blog}
+            quota={billing.quotas.blog}
+            locale={locale}
+            showUpgrade={false}
+          />
+        </InlineGrid>
+        <BlockStack gap="100">
+          {lockedPerks.map((perk, i) => (
+            <InlineStack key={i} gap="150" blockAlign="center" wrap={false}>
+              <span style={{ display: "inline-flex", opacity: 0.5 }}>
+                <Icon source={LockIcon} tone="subdued" />
+              </span>
+              <Text as="p" variant="bodySm" tone="subdued">{perk}</Text>
+            </InlineStack>
+          ))}
+        </BlockStack>
+        <Button url={localizedPath("/app/billing", locale)} variant="primary" fullWidth>
+          {fr ? "Essayer Pro 7 jours gratuitement" : "Try Pro free for 7 days"}
+        </Button>
+        <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+          {fr ? "Sans engagement · Annulation en 1 clic" : "No commitment · Cancel in 1 click"}
+        </Text>
+      </BlockStack>
     </Card>
   );
 }
@@ -2226,7 +2326,7 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, scheduleStatus, latestAnalysisAt, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, billing, scheduleStatus, latestAnalysisAt, error } = useLoaderData<typeof loader>() as LoaderData;
   // OAuth status is authoritative; fall back to the per-product flag (GSC data
   // file present) only when the status call itself failed.
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
@@ -2532,6 +2632,7 @@ export default function IndexPage() {
             afterRow1={
               <>
               <EducationPanel locale={locale} />
+              {billing && <FreePlanUpsell billing={billing} locale={locale} />}
               <Zone1
                 data={zone1}
                 locale={locale}
@@ -2542,6 +2643,7 @@ export default function IndexPage() {
                     gscConnected={gscConnected}
                     ga4Connected={ga4Connected}
                     themeExt={themeExt}
+                    themeExtLocked={billing?.plan === "free"}
                   />
                 }
                 analysisPanels={
@@ -2564,6 +2666,7 @@ export default function IndexPage() {
         ) : (
           <>
           <EducationPanel locale={locale} />
+          {billing && <FreePlanUpsell billing={billing} locale={locale} />}
           <Zone1
             data={zone1}
             locale={locale}
@@ -2574,6 +2677,7 @@ export default function IndexPage() {
                 gscConnected={gscConnected}
                 ga4Connected={ga4Connected}
                 themeExt={themeExt}
+                themeExtLocked={billing?.plan === "free"}
               />
             }
             analysisPanels={
