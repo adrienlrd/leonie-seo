@@ -855,6 +855,208 @@ function DataSourcesPanel({
   );
 }
 
+interface EduTopic {
+  id: string;
+  icon: IconSource;
+  question: string;
+  lead: string;
+  steps: string[];
+  stat: string;
+  close: string;
+  cta?: { label: string; url: string };
+}
+
+function EducationPanel({ locale }: { locale: Locale }) {
+  const fr = locale === "fr";
+  const [openTopic, setOpenTopic] = useState<EduTopic | null>(null);
+
+  const topics: EduTopic[] = [
+    {
+      id: "improve-geo",
+      icon: GlobeIcon,
+      question: fr ? "Comment améliorer son GEO ?" : "How do I improve my GEO?",
+      lead: fr
+        ? "ChatGPT, Perplexity ou Gemini recommandent les boutiques qu'ils comprennent le mieux. Des pages claires, factuelles et structurées font toute la différence."
+        : "ChatGPT, Perplexity and Gemini recommend the stores they understand best. Clear, factual, well-structured pages make all the difference.",
+      steps: fr
+        ? ["Un client pose une question à l'IA", "L'IA lit vos pages produits", "Elle recommande votre boutique"]
+        : ["A customer asks the AI a question", "The AI reads your product pages", "It recommends your store"],
+      stat: fr
+        ? "Un contenu riche en faits augmente la visibilité dans les réponses IA jusqu'à +40 %."
+        : "Fact-rich content boosts visibility in AI answers by up to +40%.",
+      close: fr
+        ? "L'app optimise vos titres, descriptions et données structurées pour que les IA vous choisissent."
+        : "The app optimizes your titles, descriptions and structured data so AIs pick you.",
+      cta: { label: fr ? "Voir mes optimisations" : "See my optimizations", url: localizedPath("/app/analyse", locale) },
+    },
+    {
+      id: "number-one",
+      icon: StarFilledIcon,
+      question: fr ? "Comment être numéro 1 sur les IA ?" : "How do I rank #1 on AI?",
+      lead: fr
+        ? "Être 1er sur Google ne suffit plus : moins de 20 % des sources citées par les IA viennent du top Google. C'est un nouveau jeu, avec de nouvelles règles."
+        : "Ranking #1 on Google is no longer enough: less than 20% of AI-cited sources come from Google's top results. It's a new game with new rules.",
+      steps: fr
+        ? ["Réponse directe en haut de page", "Contenu structuré et FAQ", "Faits vérifiables et à jour"]
+        : ["Direct answer at the top of the page", "Structured content and FAQ", "Verifiable, up-to-date facts"],
+      stat: fr
+        ? "Les IA privilégient les réponses extractibles : l'essentiel doit tenir dans les 200 premiers mots."
+        : "AIs favor extractable answers: the essentials must fit in the first 200 words.",
+      close: fr
+        ? "L'app applique ces règles automatiquement sur chaque page produit."
+        : "The app applies these rules automatically on every product page.",
+      cta: { label: fr ? "Lancer une analyse" : "Run an analysis", url: localizedPath("/app/analyse", locale) },
+    },
+    {
+      id: "why-28-days",
+      icon: CalendarIcon,
+      question: fr ? "Pourquoi attendre 28 jours ?" : "Why wait 28 days?",
+      lead: fr
+        ? "Google mesure l'impact d'un changement SEO sur une fenêtre d'environ 28 jours. Réagir avant, c'est décider sans données."
+        : "Google measures the impact of an SEO change over a ~28-day window. Reacting sooner means deciding without data.",
+      steps: fr
+        ? ["J0 : optimisation publiée", "J+14 : premier signal", "J+28 : verdict fiable", "On garde ce qui marche"]
+        : ["Day 0: change published", "Day 14: first signal", "Day 28: reliable verdict", "Keep what works"],
+      stat: fr
+        ? "L'app mesure chaque optimisation à J+14, J+28 et J+60 avec vos vraies données Google."
+        : "The app measures every change at day 14, 28 and 60 with your real Google data.",
+      close: fr
+        ? "Chaque cycle améliore le précédent, sans jamais dégrader ce qui fonctionne."
+        : "Each cycle improves on the last, without ever degrading what works.",
+      cta: { label: fr ? "Suivre mes résultats" : "Track my results", url: localizedPath("/app/measure", locale) },
+    },
+    {
+      id: "llms-txt",
+      icon: ContentIcon,
+      question: fr ? "L'importance du llms.txt ?" : "Why does llms.txt matter?",
+      lead: fr
+        ? "Le llms.txt est le panneau d'accueil de votre boutique pour les IA : un fichier qu'elles lisent pour comprendre vos produits et vous citer correctement."
+        : "llms.txt is your store's welcome sign for AIs: a file they read to understand your products and cite you correctly.",
+      steps: fr
+        ? ["L'app génère votre llms.txt", "Publié en 1 clic sur votre boutique", "Les IA vous lisent et vous citent"]
+        : ["The app generates your llms.txt", "Published to your store in 1 click", "AIs read you and cite you"],
+      stat: fr
+        ? "Seulement ~10 % des sites en ont un : un vrai avantage de pionnier."
+        : "Only ~10% of websites have one: a real first-mover advantage.",
+      close: fr
+        ? "Pendant que vos concurrents attendent, les IA apprennent à vous connaître."
+        : "While your competitors wait, AIs are getting to know you.",
+      cta: { label: fr ? "Publier mon llms.txt" : "Publish my llms.txt", url: localizedPath("/app/geo-llms-txt", locale) },
+    },
+    {
+      id: "keywords",
+      icon: CompassIcon,
+      question: fr ? "L'importance des mots-clés ?" : "Why do keywords matter?",
+      lead: fr
+        ? "53 % du trafic web vient de la recherche organique. Les bons mots-clés, placés au bon endroit, amènent des clients — pas juste des visiteurs."
+        : "53% of web traffic comes from organic search. The right keywords, in the right place, bring customers — not just visitors.",
+      steps: fr
+        ? ["Vraies données Google (GSC)", "Volumes et difficulté réels", "Injectés au bon endroit"]
+        : ["Real Google data (GSC)", "Real volumes and difficulty", "Placed where they count"],
+      stat: fr
+        ? "Une boutique moyenne se positionne sur ~1 800 mots-clés : chacun est une porte d'entrée."
+        : "An average store ranks for ~1,800 keywords: each one is a door into your shop.",
+      close: fr
+        ? "L'app s'appuie sur vos données réelles, pas sur des estimations."
+        : "The app relies on your real data, not guesses.",
+      cta: { label: fr ? "Explorer mes mots-clés" : "Explore my keywords", url: localizedPath("/app/market-analysis", locale) },
+    },
+    {
+      id: "auto-analysis",
+      icon: AutomationIcon,
+      question: fr ? "Comment l'Analyse automatique améliore mon ranking ?" : "How does Auto-analysis improve my ranking?",
+      lead: fr
+        ? "Un agent travaille pour vous chaque jour : il optimise, publie, mesure, puis recommence — uniquement sur les champs que vous avez validés."
+        : "An agent works for you every day: it optimizes, publishes, measures, then repeats — only on the fields you approved.",
+      steps: fr
+        ? ["Analyser", "Publier", "Mesurer (28 j)", "Améliorer ↺"]
+        : ["Analyze", "Publish", "Measure (28 d)", "Improve ↺"],
+      stat: fr
+        ? "Tous les 28 jours, vos produits sont réanalysés et seules les versions qui performent mieux sont conservées."
+        : "Every 28 days your products are re-analyzed, and only better-performing versions are kept.",
+      close: fr
+        ? "Votre SEO progresse en continu, même quand vous dormez. Activez-la dans « Mode de publication » ci-dessous."
+        : "Your SEO keeps improving, even while you sleep. Enable it in “Publish mode” below.",
+    },
+  ];
+
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <BlockStack gap="100">
+          <SectionTitle source={QuestionCircleIcon}>
+            {fr ? "Comprendre le GEO en 2 minutes" : "Understand GEO in 2 minutes"}
+          </SectionTitle>
+          <Text as="p" variant="bodySm" tone="subdued">
+            {fr
+              ? "Pourquoi votre boutique va gagner du trafic — expliqué simplement."
+              : "Why your store is going to win more traffic — explained simply."}
+          </Text>
+        </BlockStack>
+        <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="200">
+          {topics.map((topic) => (
+            <button
+              key={topic.id}
+              type="button"
+              onClick={() => setOpenTopic(topic)}
+              style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}
+            >
+              <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                <InlineStack align="space-between" blockAlign="center" wrap={false} gap="200">
+                  <InlineStack gap="200" blockAlign="center" wrap={false}>
+                    <Icon source={topic.icon} tone="subdued" />
+                    <Text as="h3" variant="bodySm" fontWeight="medium">{topic.question}</Text>
+                  </InlineStack>
+                  <Icon source={ChevronRightIcon} tone="subdued" />
+                </InlineStack>
+              </Box>
+            </button>
+          ))}
+        </InlineGrid>
+      </BlockStack>
+      <Modal
+        open={openTopic !== null}
+        onClose={() => setOpenTopic(null)}
+        title={openTopic?.question ?? ""}
+        primaryAction={
+          openTopic?.cta
+            ? { content: openTopic.cta.label, url: openTopic.cta.url }
+            : { content: fr ? "Compris" : "Got it", onAction: () => setOpenTopic(null) }
+        }
+        secondaryActions={
+          openTopic?.cta ? [{ content: fr ? "Fermer" : "Close", onAction: () => setOpenTopic(null) }] : []
+        }
+      >
+        {openTopic && (
+          <Modal.Section>
+            <BlockStack gap="400">
+              <Text as="p" variant="bodyMd">{openTopic.lead}</Text>
+              <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+                <InlineStack gap="200" blockAlign="center" align="center" wrap>
+                  {openTopic.steps.map((step, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && (
+                        <Text as="span" variant="bodyMd" tone="subdued">→</Text>
+                      )}
+                      <Box background="bg-surface" padding="200" borderRadius="200" borderWidth="025" borderColor="border">
+                        <Text as="p" variant="bodySm" fontWeight="medium" alignment="center">{step}</Text>
+                      </Box>
+                    </React.Fragment>
+                  ))}
+                </InlineStack>
+              </Box>
+              <Box background="bg-surface-info" padding="300" borderRadius="200">
+                <Text as="p" variant="bodySm" fontWeight="medium">{openTopic.stat}</Text>
+              </Box>
+              <Text as="p" variant="bodyMd" tone="subdued">{openTopic.close}</Text>
+            </BlockStack>
+          </Modal.Section>
+        )}
+      </Modal>
+    </Card>
+  );
+}
+
 function Zone1({
   data,
   locale,
@@ -2301,6 +2503,8 @@ export default function IndexPage() {
             locale={locale}
             variant="top"
             afterRow1={
+              <>
+              <EducationPanel locale={locale} />
               <Zone1
                 data={zone1}
                 locale={locale}
@@ -2327,9 +2531,12 @@ export default function IndexPage() {
                 }
                 publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare />}
               />
+              </>
             }
           />
         ) : (
+          <>
+          <EducationPanel locale={locale} />
           <Zone1
             data={zone1}
             locale={locale}
@@ -2356,6 +2563,7 @@ export default function IndexPage() {
             }
             publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare />}
           />
+          </>
         )}
 
         {/* Zone 2 — Active products */}

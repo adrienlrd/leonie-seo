@@ -10,6 +10,16 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-12
+- **Agent:** Claude (Fable 5)
+- **Goal:** Add an educational "Understand GEO in 2 minutes" panel on the home dashboard, above the GEO Score section, to sell the app's value to merchants.
+- **Summary:** New `EducationPanel` component in `app._index.tsx`: a Card with 6 question buttons (improve GEO, rank #1 on AI, why 28 days, llms.txt, keywords, auto-analysis). Each opens a Polaris Modal with a short lead, a step-flow schema (boxes + arrows), a highlighted stat (sourced from GEO research: +40% fact density, <20% Google/AI overlap, ~10% llms.txt adoption, 53% organic traffic), a closing benefit line and a CTA to the relevant page (`/app/analyse`, `/app/measure`, `/app/geo-llms-txt`, `/app/market-analysis`). Copy is inline FR/EN (accepted dashboard pattern). Rendered above `Zone1` in both branches (validated-profile `afterRow1` and fallback).
+- **Files modified:** `shopify-app/app/routes/app._index.tsx`.
+- **Validations run:** `npm run typecheck` ✅ · `npm run build` ✅. Visual check in embedded app not done.
+- **Next recommended action:** open the dashboard on the pilot store, check panel placement/modals in FR and EN.
+
+## Previous completed task (GA4 connection tail)
+
 - **Date:** 2026-07-09
 - **Agent:** Claude (Fable 5)
 - **Goal:** Fix the orphaned GA4 connection tail seen by the merchant (GA4 stayed "authorized but property-less" without anyone noticing; duplicate entries in the property picker; sales pitch shown after GSC already connected).
