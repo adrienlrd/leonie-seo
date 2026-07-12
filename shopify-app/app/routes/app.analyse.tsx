@@ -424,9 +424,6 @@ export default function AnalysePage() {
     <Page
       title={t(locale, "analyseTitle")}
       subtitle={t(locale, "analyseSubtitle")}
-      secondaryActions={[
-        { content: t(locale, "measureNav"), url: localizedPath("/app/measure", locale) },
-      ]}
     >
       <BlockStack gap="400">
         <Card>

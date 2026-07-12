@@ -45,7 +45,6 @@ export default function App() {
         {!onOnboarding && <a href={localizedPath("/app/products", locale)}>{t(locale, "navProducts")}</a>}
         {!onOnboarding && <a href={localizedPath("/app/blog", locale)}>Blog</a>}
         {!onOnboarding && <a href={localizedPath("/app/analyse", locale)}>{t(locale, "analyseNav")}</a>}
-        {!onOnboarding && <a href={localizedPath("/app/measure", locale)}>{t(locale, "measureNav")}</a>}
         {!onOnboarding && <a href={localizedPath("/app/geo-llms-txt", locale)}>{t(locale, "llmsTxtTitle")}</a>}
         {!onOnboarding && <a href={localizedPath("/app/account", locale)}>{t(locale, "settings")}</a>}
       </NavMenu>

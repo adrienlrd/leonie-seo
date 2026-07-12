@@ -12,6 +12,16 @@
 
 - **Date:** 2026-07-12
 - **Agent:** Claude (Fable 5)
+- **Goal:** Remove the Measure page (confusing for merchants, duplicated the Analyse page).
+- **Summary:** Deleted `app.measure.tsx` (display-only: GET endpoints, no action — the 28-day backend loop in `app/agent_schedule/` is untouched). Removed the nav link (`app.tsx`), the secondary action on Analyse, re-pointed the dashboard Zone3 CTA and the education-modal CTA to `/app/analyse`. Purged ~128 dead `measure*` i18n keys, keeping `measureColClicks`/`measureColPosition` (used by Analyse). Backend endpoints (`progress-curve`, `impact-report`, …) remain available via API if a control screen is needed later.
+- **Files modified:** deleted `shopify-app/app/routes/app.measure.tsx`; `shopify-app/app/routes/{app.tsx,app.analyse.tsx,app._index.tsx}`, `shopify-app/app/lib/i18n.ts`.
+- **Validations run:** `npm run typecheck` ✅ · `npm run build` ✅ · grep: no remaining `/app/measure` reference.
+- **Next recommended action:** none specific; pilot monitoring of trends now only via backend API if needed.
+
+## Previous completed task (education panel)
+
+- **Date:** 2026-07-12
+- **Agent:** Claude (Fable 5)
 - **Goal:** Add an educational "Understand GEO in 2 minutes" panel on the home dashboard, above the GEO Score section, to sell the app's value to merchants.
 - **Summary:** New `EducationPanel` component in `app._index.tsx`: a Card with 6 question buttons (improve GEO, rank #1 on AI, why 28 days, llms.txt, keywords, auto-analysis). Each opens a Polaris Modal with a short lead, a step-flow schema (boxes + arrows), a highlighted stat (sourced from GEO research: +40% fact density, <20% Google/AI overlap, ~10% llms.txt adoption, 53% organic traffic), a closing benefit line and a CTA to the relevant page (`/app/analyse`, `/app/measure`, `/app/geo-llms-txt`, `/app/market-analysis`). Copy is inline FR/EN (accepted dashboard pattern). Rendered above `Zone1` in both branches (validated-profile `afterRow1` and fallback).
 - **Files modified:** `shopify-app/app/routes/app._index.tsx`.

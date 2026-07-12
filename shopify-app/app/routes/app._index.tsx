@@ -923,7 +923,7 @@ function EducationPanel({ locale }: { locale: Locale }) {
       close: fr
         ? "Chaque cycle améliore le précédent, sans jamais dégrader ce qui fonctionne."
         : "Each cycle improves on the last, without ever degrading what works.",
-      cta: { label: fr ? "Suivre mes résultats" : "Track my results", url: localizedPath("/app/measure", locale) },
+      cta: { label: fr ? "Suivre mes résultats" : "Track my results", url: localizedPath("/app/analyse", locale) },
     },
     {
       id: "llms-txt",
@@ -1422,7 +1422,7 @@ function Zone3({
                 </Text>
               </InlineStack>
             )}
-            <Button url={localizedPath("/app/measure", locale)} variant="secondary" size="slim">
+            <Button url={localizedPath("/app/analyse", locale)} variant="secondary" size="slim">
               {t(locale, "dashboardZone3Cta")}
             </Button>
           </>
