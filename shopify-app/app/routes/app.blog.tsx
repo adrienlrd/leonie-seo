@@ -788,6 +788,7 @@ export default function BlogIndexPage() {
   const [showArticlePicker, setShowArticlePicker] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [showPublishUpsell, setShowPublishUpsell] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
   const [showPublished, setShowPublished] = useState(false);
   const [showDrafts, setShowDrafts] = useState(false);
@@ -881,9 +882,13 @@ export default function BlogIndexPage() {
       // Sync the saved baseline so auto-save doesn't immediately re-fire.
       lastSavedRef.current = JSON.stringify(buildSavePayload(d.draft as Draft));
       setDraft(d.draft as Draft);
-      if (d.type === "publishDraft") setPublishOpen(false);
+      if (d.type === "publishDraft") {
+        setPublishOpen(false);
+        // Post-success upsell at the moment of realized value (free plan only).
+        if (blogUsage?.plan === "free") setShowPublishUpsell(true);
+      }
     }
-  }, [fetcher.data]);
+  }, [fetcher.data, blogUsage?.plan]);
 
   // Auto-load internal-link / cluster suggestions when a draft opens so the merchant
   // immediately sees which sibling/pillar articles they should link to (and which
@@ -1084,6 +1089,23 @@ export default function BlogIndexPage() {
       <BlockStack gap="400">
         {error && (
           <Banner tone="critical"><p>{error}</p></Banner>
+        )}
+        {showPublishUpsell && (
+          <Banner
+            tone="success"
+            title={fr ? "Article publié — belle progression !" : "Article published — great progress!"}
+            action={{
+              content: fr ? "Essayer Pro 7 jours gratuitement" : "Try Pro free for 7 days",
+              url: "/app/billing",
+            }}
+            onDismiss={() => setShowPublishUpsell(false)}
+          >
+            <p>
+              {fr
+                ? "Chaque article publié est une porte d'entrée de plus vers votre boutique. Avec Pro, générez jusqu'à 20 articles tous les 28 jours et laissez l'agent optimiser le reste."
+                : "Every published article is one more door into your store. With Pro, generate up to 20 articles every 28 days and let the agent optimize the rest."}
+            </p>
+          </Banner>
         )}
         {blogUsage && !selected && (
           <UsageMeter

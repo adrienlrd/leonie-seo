@@ -1384,14 +1384,18 @@ export default function ProductsPage() {
   // completion instead of the generic analysis-done toast.
   const enrichTriggeredRef = useRef(false);
   const prevJobStatusForToast = useRef<string | undefined>(undefined);
+  const [showSuccessUpsell, setShowSuccessUpsell] = useState(false);
   useEffect(() => {
     const prev = prevJobStatusForToast.current;
     if (job?.status === "completed" && prev && prev !== "completed") {
       (window as unknown as { shopify?: { toast?: { show: (m: string) => void } } }).shopify
         ?.toast?.show(t(locale, "marketAnalysisDoneToast"));
+      // Post-success upsell: the moment of realized value is the natural
+      // breaking point where free merchants convert best.
+      if (analysisUsage?.plan === "free") setShowSuccessUpsell(true);
     }
     prevJobStatusForToast.current = job?.status;
-  }, [job?.status, locale]);
+  }, [job?.status, locale, analysisUsage?.plan]);
 
   // saveOnly — labels saved, go back to step 2
   useEffect(() => {
@@ -1666,6 +1670,23 @@ export default function ProductsPage() {
       subtitle={t(locale, "marketAnalysisSubtitle")}
     >
       <BlockStack gap="400">
+        {showSuccessUpsell && (
+          <Banner
+            tone="success"
+            title={locale === "fr" ? "Belle progression !" : "Great progress!"}
+            action={{
+              content: locale === "fr" ? "Essayer Pro 7 jours gratuitement" : "Try Pro free for 7 days",
+              url: "/app/billing",
+            }}
+            onDismiss={() => setShowSuccessUpsell(false)}
+          >
+            <Text as="p">
+              {locale === "fr"
+                ? "Votre analyse est terminée — c'était celle de votre cycle de 28 jours. Avec Pro, l'agent referait ce travail chaque jour, automatiquement, sur 15 produits."
+                : "Your analysis is done — that was the one in your 28-day cycle. With Pro, the agent would redo this work every day, automatically, across 15 products."}
+            </Text>
+          </Banner>
+        )}
         {analysisUsage && (
           <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
             <UsageMeter
