@@ -10,6 +10,16 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-14
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Turn the "Passez à la vitesse supérieure" panel into a ParcelWILL-style quick-setup guide at the top of the dashboard.
+- **Summary:** New `SetupGuide` component (replaces `FreePlanUpsell`) rendered at the very top of `app._index.tsx`, collapsible and open on load. 10 checklist rows, each with a done marker (check / dashed circle), a one-line "why it helps organic traffic", and a CTA: connect GSC, connect GA4, first analysis, improve products (answer questions), publish proposals, theme extension (paid), first blog, llms.txt, auto-analysis (paid), wait 28 days. Progress "X/10" + bar in the header. Paid features show a 🔒 lock (free plan, CTA → /app/billing) or a "Débloqué" ⭐ star (paid plans). Free plan keeps the 7-day-trial upsell CTA at the bottom. Done-status derived from loader signals; added a `blogPublished` signal (new `/blog/drafts` fetch, checks `published_to_shopify`) and derives firstAnalysis/improve/proposals from `productPacks` (`enrichment_questions`, `applied_fields`).
+- **Files modified:** `shopify-app/app/routes/app._index.tsx` (removed `FreePlanUpsell` + its `UsageMeter` import).
+- **Validations run:** `npm run typecheck` ✅ · `npm run build` ✅. Visual pass in the embedded app not done.
+- **Next recommended action:** visual check on the pilot store (free + paid): guide placement, collapse, lock/star markers, and that each step's done-state flips correctly.
+
+## Previous completed task (usage meters + upsell)
+
 - **Date:** 2026-07-12
 - **Agent:** Claude (Fable 5)
 - **Goal:** Usage counters everywhere limits can be hit + free→paid conversion mechanics (SaaS-style).

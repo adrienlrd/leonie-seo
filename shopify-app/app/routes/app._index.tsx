@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Collapsible,
   Divider,
   Icon,
   FormLayout,
@@ -71,7 +72,6 @@ import { ResearchConsole } from "../components/ResearchConsole";
 import { ProductCard } from "../components/ProductCard";
 import { Sparkline } from "../components/Sparkline";
 import { ProductContentProposals } from "../components/ProductContentProposals";
-import { UsageMeter } from "../components/UsageMeter";
 import {
   linesFromText,
   qualityWarningText,
@@ -182,6 +182,7 @@ interface LoaderData {
   learningMode: "semi_auto" | "auto_apply";
   autoAllowed: boolean;
   billing: BillingInfo | null;
+  blogPublished: boolean;
   scheduleStatus: ScheduleStatus | null;
   latestAnalysisAt: string | null;
   error: string | null;
@@ -241,6 +242,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let learningMode: "semi_auto" | "auto_apply" = "semi_auto";
   let autoAllowed = true;
   let billing: BillingInfo | null = null;
+  let blogPublished = false;
   let scheduleStatus: ScheduleStatus | null = null;
   // Timestamp of the last completed market analysis (incl. the one auto-run at
   // onboarding, which is NOT a scheduler run). Used as a fallback so the analysis
@@ -254,7 +256,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // degrade to their default empty values on timeout via Promise.allSettled.
     const DASHBOARD_TIMEOUT_MS = 12_000;
     const SECONDARY_TIMEOUT_MS = 8_000;
-    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp, scheduleResp, ga4StatusResp, themeExtResp, billingResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp, scheduleResp, ga4StatusResp, themeExtResp, billingResp, blogDraftsResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken, signal: AbortSignal.timeout(DASHBOARD_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
@@ -267,7 +269,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       callBackendForShop(shop, `/api/shops/${shop}/ga4/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/geo/theme-extension-status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/billing/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      callBackendForShop(shop, `/api/shops/${shop}/blog/drafts`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
     ]);
+
+    if (blogDraftsResp.status === "fulfilled" && blogDraftsResp.value.ok) {
+      try {
+        const data = (await blogDraftsResp.value.json()) as { drafts?: Array<{ status?: string }> };
+        blogPublished = (data.drafts ?? []).some((d) => d.status === "published_to_shopify");
+      } catch (_parseErr) { /* ignore */ }
+    }
 
     if (billingResp.status === "fulfilled" && billingResp.value.ok) {
       try {
@@ -428,6 +438,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         learningMode,
         autoAllowed,
         billing,
+        blogPublished,
         scheduleStatus,
         latestAnalysisAt,
         error: errStatus ? `HTTP ${errStatus}` : "Network error",
@@ -440,7 +451,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirectToOnboarding();
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, billing, scheduleStatus, latestAnalysisAt, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, billing, blogPublished, scheduleStatus, latestAnalysisAt, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -459,6 +470,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       learningMode,
       autoAllowed,
       billing,
+      blogPublished,
       scheduleStatus,
       latestAnalysisAt,
       error: err instanceof Error ? err.message : "Network error",
@@ -1103,68 +1115,285 @@ function EducationPanel({ locale }: { locale: Locale }) {
   );
 }
 
-function FreePlanUpsell({ billing, locale }: { billing: BillingInfo; locale: Locale }) {
+interface SetupSignals {
+  plan: string;
+  gscConnected: boolean;
+  ga4Connected: boolean;
+  themeEnabled: boolean | null;
+  llmsPublished: boolean;
+  autoActive: boolean;
+  blogPublished: boolean;
+  firstAnalysisDone: boolean;
+  improveDone: boolean;
+  proposalsPublished: boolean;
+  reanalysisDone: boolean;
+}
+
+interface GuideStep {
+  id: string;
+  label: string;
+  why: string;
+  done: boolean;
+  ctaLabel: string;
+  ctaUrl: string;
+  /** Paid feature: locked on free, marked unlocked (star) on paid plans. */
+  paid?: boolean;
+}
+
+/** Status marker: dashed circle (todo), check (done), lock (paid+free plan). */
+function StepMarker({ done, locked }: { done: boolean; locked: boolean }) {
+  if (locked) {
+    return (
+      <span style={{ display: "inline-flex", opacity: 0.55 }}>
+        <Icon source={LockIcon} tone="subdued" />
+      </span>
+    );
+  }
+  if (done) {
+    return (
+      <span style={{ display: "inline-flex" }}>
+        <Icon source={CheckCircleIcon} tone="success" />
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: "inline-block",
+        width: "18px",
+        height: "18px",
+        borderRadius: "50%",
+        border: "1.5px dashed var(--p-color-border)",
+        flex: "0 0 auto",
+      }}
+    />
+  );
+}
+
+/** Quick-setup guide (ParcelWILL-style): collapsible, open on load, one row per
+ * onboarding step with a done marker, a "why it helps organic traffic" line and
+ * a CTA. Paid features show a lock (free plan) or an "unlocked" star (paid). */
+function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale }) {
   const fr = locale === "fr";
-  if (billing.plan !== "free") return null;
-  const lockedPerks: string[] = fr
-    ? [
-        "Analyse automatique — votre SEO progresse même quand vous dormez",
-        "15 produits couverts au lieu de 3",
-        "Extension de thème : FAQ + données structurées sur votre boutique",
-        "Une longueur d'avance sur les mots-clés et les tendances de votre niche",
-      ]
-    : [
-        "Auto-analysis — your SEO keeps improving while you sleep",
-        "15 products covered instead of 3",
-        "Theme extension: FAQ + structured data on your storefront",
-        "Stay ahead on the keywords and trends of your niche",
-      ];
+  const isFree = signals.plan === "free";
+  const [open, setOpen] = useState(true);
+
+  const steps: GuideStep[] = [
+    {
+      id: "gsc",
+      label: fr ? "Connecter Google Search Console" : "Connect Google Search Console",
+      why: fr
+        ? "Donne à l'app vos vraies requêtes Google : les recommandations ciblent les mots-clés qui vous amènent déjà du trafic."
+        : "Gives the app your real Google queries so recommendations target the keywords already bringing you traffic.",
+      done: signals.gscConnected,
+      ctaLabel: fr ? "Connecter" : "Connect",
+      ctaUrl: localizedPath("/app/account", locale),
+    },
+    {
+      id: "ga4",
+      label: fr ? "Connecter Google Analytics 4" : "Connect Google Analytics 4",
+      why: fr
+        ? "Mesure les sessions organiques et les conversions : l'app sait quelles optimisations rapportent vraiment des ventes."
+        : "Tracks organic sessions and conversions so the app knows which optimizations actually drive sales.",
+      done: signals.ga4Connected,
+      ctaLabel: fr ? "Connecter" : "Connect",
+      ctaUrl: localizedPath("/app/account", locale),
+    },
+    {
+      id: "analysis",
+      label: fr ? "Faire la première analyse" : "Run your first analysis",
+      why: fr
+        ? "Détecte les mots-clés, questions clients et lacunes de chaque produit — la base de tout gain de trafic organique."
+        : "Finds the keywords, customer questions and gaps of each product — the foundation of every organic-traffic gain.",
+      done: signals.firstAnalysisDone,
+      ctaLabel: fr ? "Analyser" : "Analyze",
+      ctaUrl: localizedPath("/app/products", locale),
+    },
+    {
+      id: "improve",
+      label: fr ? "Améliorer les produits (répondre aux questions)" : "Improve products (answer the questions)",
+      why: fr
+        ? "Vos réponses nourrissent l'IA en faits vérifiables : des pages plus riches, mieux citées par Google et les IA."
+        : "Your answers feed the AI verifiable facts: richer pages, better cited by Google and AIs.",
+      done: signals.improveDone,
+      ctaLabel: fr ? "Compléter" : "Complete",
+      ctaUrl: localizedPath("/app/products", locale),
+    },
+    {
+      id: "proposals",
+      label: fr ? "Publier les propositions" : "Publish the proposals",
+      why: fr
+        ? "Applique sur Shopify les titres, méta-descriptions et textes optimisés : c'est ce qui fait grimper vos pages."
+        : "Pushes the optimized titles, meta descriptions and copy to Shopify: this is what lifts your pages.",
+      done: signals.proposalsPublished,
+      ctaLabel: fr ? "Publier" : "Publish",
+      ctaUrl: localizedPath("/app/analyse", locale),
+    },
+    {
+      id: "theme",
+      label: fr ? "Connecter l'extension de thème" : "Connect the theme extension",
+      why: fr
+        ? "Affiche FAQ et données structurées sur votre boutique : les IA et Google comprennent mieux vos pages et vous citent."
+        : "Shows FAQ and structured data on your storefront so AIs and Google understand and cite your pages.",
+      done: signals.themeEnabled === true,
+      ctaLabel: isFree ? (fr ? "Débloquer" : "Unlock") : (fr ? "Activer" : "Enable"),
+      ctaUrl: isFree ? localizedPath("/app/billing", locale) : localizedPath("/app/account", locale),
+      paid: true,
+    },
+    {
+      id: "blog",
+      label: fr ? "Publier le premier blog" : "Publish your first blog post",
+      why: fr
+        ? "Chaque article se positionne sur des requêtes que vos fiches produits ne couvrent pas : autant de portes d'entrée en plus."
+        : "Each article ranks for queries your product pages don't cover: that many more doors into your store.",
+      done: signals.blogPublished,
+      ctaLabel: fr ? "Rédiger" : "Write",
+      ctaUrl: localizedPath("/app/blog", locale),
+    },
+    {
+      id: "llms",
+      label: fr ? "Publier les llms.txt" : "Publish your llms.txt",
+      why: fr
+        ? "Le fichier que ChatGPT, Claude et Perplexity lisent pour comprendre votre boutique et vous recommander."
+        : "The file ChatGPT, Claude and Perplexity read to understand your store and recommend it.",
+      done: signals.llmsPublished,
+      ctaLabel: fr ? "Publier" : "Publish",
+      ctaUrl: "/app/geo-llms-txt",
+    },
+    {
+      id: "auto",
+      label: fr ? "Activer l'analyse automatique" : "Enable auto-analysis",
+      why: fr
+        ? "Un agent ré-analyse, publie et mesure tout seul : votre trafic organique progresse en continu, sans y penser."
+        : "An agent re-analyzes, publishes and measures on its own: your organic traffic keeps growing hands-free.",
+      done: signals.autoActive,
+      ctaLabel: isFree ? (fr ? "Débloquer" : "Unlock") : (fr ? "Activer" : "Enable"),
+      ctaUrl: isFree ? localizedPath("/app/billing", locale) : localizedPath("/app", locale),
+      paid: true,
+    },
+    {
+      id: "wait",
+      label: fr ? "Attendre 28 jours" : "Wait 28 days",
+      why: fr
+        ? "Google mesure l'impact d'un changement sur ~28 jours. L'app patiente, mesure, puis garde ce qui marche."
+        : "Google measures a change's impact over ~28 days. The app waits, measures, then keeps what works.",
+      done: signals.reanalysisDone,
+      ctaLabel: fr ? "Comprendre" : "Learn why",
+      ctaUrl: localizedPath("/app/analyse", locale),
+    },
+  ];
+
+  const doneCount = steps.filter((s) => s.done).length;
+  const pct = Math.round((doneCount / steps.length) * 100);
+
   return (
     <Card>
       <BlockStack gap="300">
-        <InlineStack align="space-between" blockAlign="center" gap="200">
-          <Text as="h2" variant="headingMd">
-            {fr ? "Passez à la vitesse supérieure" : "Move up a gear"}
-          </Text>
-          <Badge>{fr ? "Plan Découverte" : "Starter plan"}</Badge>
+        <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
+          <BlockStack gap="050">
+            <Text as="h2" variant="headingMd">
+              {fr ? "Passez à la vitesse supérieure" : "Move up a gear"}
+            </Text>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {fr
+                ? "Votre guide pas à pas pour booster votre trafic organique."
+                : "Your step-by-step guide to boost your organic traffic."}
+            </Text>
+          </BlockStack>
+          <InlineStack gap="200" blockAlign="center" wrap={false}>
+            <Text as="span" variant="bodySm" fontWeight="medium">
+              {doneCount}/{steps.length}
+            </Text>
+            <Button
+              variant="tertiary"
+              disclosure={open ? "up" : "down"}
+              onClick={() => setOpen((v) => !v)}
+              accessibilityLabel={open ? (fr ? "Réduire" : "Collapse") : (fr ? "Déplier" : "Expand")}
+            >
+              {open ? (fr ? "Réduire" : "Collapse") : (fr ? "Déplier" : "Expand")}
+            </Button>
+          </InlineStack>
         </InlineStack>
-        <Text as="p" variant="bodySm" tone="subdued">
-          {fr
-            ? "Vos concurrents n'attendent pas. Pro analyse, publie et mesure pour vous — en continu."
-            : "Your competitors aren't waiting. Pro analyzes, publishes and measures for you — continuously."}
-        </Text>
-        <InlineGrid columns={{ xs: 1, sm: 2 }} gap="200">
-          <UsageMeter
-            label={fr ? "Analyses ce cycle" : "Analyses this cycle"}
-            used={billing.usage.analysis}
-            quota={billing.quotas.analysis}
-            locale={locale}
-            showUpgrade={false}
-          />
-          <UsageMeter
-            label={fr ? "Articles de blog ce cycle" : "Blog articles this cycle"}
-            used={billing.usage.blog}
-            quota={billing.quotas.blog}
-            locale={locale}
-            showUpgrade={false}
-          />
-        </InlineGrid>
-        <BlockStack gap="100">
-          {lockedPerks.map((perk, i) => (
-            <InlineStack key={i} gap="150" blockAlign="center" wrap={false}>
-              <span style={{ display: "inline-flex", opacity: 0.5 }}>
-                <Icon source={LockIcon} tone="subdued" />
-              </span>
-              <Text as="p" variant="bodySm" tone="subdued">{perk}</Text>
-            </InlineStack>
-          ))}
-        </BlockStack>
-        <Button url={localizedPath("/app/billing", locale)} variant="primary" fullWidth>
-          {fr ? "Essayer Pro 7 jours gratuitement" : "Try Pro free for 7 days"}
-        </Button>
-        <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-          {fr ? "Sans engagement · Annulation en 1 clic" : "No commitment · Cancel in 1 click"}
-        </Text>
+
+        <ProgressBar progress={pct} size="small" tone="highlight" />
+
+        <Collapsible id="setup-guide" open={open}>
+          <BlockStack gap="200">
+            <div style={{ height: "var(--p-space-100)" }} />
+            {steps.map((step) => {
+              const locked = Boolean(step.paid) && isFree;
+              return (
+                <Box
+                  key={step.id}
+                  padding="300"
+                  background="bg-surface-secondary"
+                  borderRadius="200"
+                >
+                  <InlineStack gap="300" blockAlign="center" wrap={false} align="space-between">
+                    <InlineStack gap="300" blockAlign="center" wrap={false}>
+                      <StepMarker done={step.done} locked={locked} />
+                      <BlockStack gap="050">
+                        <InlineStack gap="150" blockAlign="center" wrap>
+                          <Text
+                            as="h3"
+                            variant="bodyMd"
+                            fontWeight="medium"
+                            tone={step.done ? "subdued" : undefined}
+                          >
+                            {step.label}
+                          </Text>
+                          {step.paid && !isFree && (
+                            <InlineStack gap="050" blockAlign="center" wrap={false}>
+                              <span style={{ display: "inline-flex" }}>
+                                <Icon source={StarFilledIcon} tone="magic" />
+                              </span>
+                              <Text as="span" variant="bodySm" tone="magic">
+                                {fr ? "Débloqué" : "Unlocked"}
+                              </Text>
+                            </InlineStack>
+                          )}
+                          {step.paid && isFree && (
+                            <Badge tone="attention">{fr ? "Pro" : "Pro"}</Badge>
+                          )}
+                        </InlineStack>
+                        <Text as="p" variant="bodySm" tone="subdued">{step.why}</Text>
+                      </BlockStack>
+                    </InlineStack>
+                    {!step.done && (
+                      <Button
+                        url={step.ctaUrl}
+                        size="slim"
+                        variant={locked ? "primary" : "secondary"}
+                        icon={locked ? LockIcon : undefined}
+                      >
+                        {step.ctaLabel}
+                      </Button>
+                    )}
+                  </InlineStack>
+                </Box>
+              );
+            })}
+
+            {isFree && (
+              <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+                <BlockStack gap="200">
+                  <Text as="p" variant="bodySm">
+                    {fr
+                      ? "Débloquez l'analyse automatique et l'extension de thème — vos concurrents n'attendent pas."
+                      : "Unlock auto-analysis and the theme extension — your competitors aren't waiting."}
+                  </Text>
+                  <Button url={localizedPath("/app/billing", locale)} variant="primary" fullWidth>
+                    {fr ? "Essayer Pro 7 jours gratuitement" : "Try Pro free for 7 days"}
+                  </Button>
+                  <Text as="p" variant="bodySm" tone="subdued" alignment="center">
+                    {fr ? "Sans engagement · Annulation en 1 clic" : "No commitment · Cancel in 1 click"}
+                  </Text>
+                </BlockStack>
+              </Box>
+            )}
+          </BlockStack>
+        </Collapsible>
       </BlockStack>
     </Card>
   );
@@ -2326,7 +2555,7 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, billing, scheduleStatus, latestAnalysisAt, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, billing, blogPublished, scheduleStatus, latestAnalysisAt, error } = useLoaderData<typeof loader>() as LoaderData;
   // OAuth status is authoritative; fall back to the per-product flag (GSC data
   // file present) only when the status call itself failed.
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
@@ -2518,9 +2747,32 @@ export default function IndexPage() {
 
   const { banners, zone1, zone3, zone4, zone5 } = dashboard;
 
+  const packList = Object.values(productPacks);
+  const firstAnalysisDone = latestAnalysisAt !== null || packList.length > 0;
+  const setupSignals: SetupSignals = {
+    plan: billing?.plan ?? "free",
+    gscConnected,
+    ga4Connected,
+    themeEnabled: themeExt?.available ? themeExt.enabled === true : null,
+    llmsPublished,
+    autoActive: learningMode === "auto_apply",
+    blogPublished,
+    firstAnalysisDone,
+    improveDone:
+      firstAnalysisDone &&
+      packList.every((p) => (p.content_test_pack?.enrichment_questions?.length ?? 0) === 0),
+    proposalsPublished: packList.some(
+      (p) => Object.keys(p.content_test_pack?.applied_fields ?? {}).length > 0,
+    ),
+    reanalysisDone: Boolean(scheduleStatus?.last_reanalysis_at),
+  };
+
   return (
     <Page title="GEO by Organically">
       <BlockStack gap="400">
+        {/* Quick-setup guide — top of page, expanded on load */}
+        <SetupGuide signals={setupSignals} locale={locale} />
+
         {/* Banners */}
         {auditRunning && (
           <Banner tone="info">
@@ -2632,7 +2884,6 @@ export default function IndexPage() {
             afterRow1={
               <>
               <EducationPanel locale={locale} />
-              {billing && <FreePlanUpsell billing={billing} locale={locale} />}
               <Zone1
                 data={zone1}
                 locale={locale}
@@ -2666,7 +2917,6 @@ export default function IndexPage() {
         ) : (
           <>
           <EducationPanel locale={locale} />
-          {billing && <FreePlanUpsell billing={billing} locale={locale} />}
           <Zone1
             data={zone1}
             locale={locale}
