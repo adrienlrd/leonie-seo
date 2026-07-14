@@ -1332,8 +1332,13 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
 
   const doneCount = steps.filter((s) => s.done).length;
   const pct = Math.round((doneCount / steps.length) * 100);
-  // Auto-collapse once the merchant is more than halfway through the guide.
-  const [open, setOpen] = useState(doneCount / steps.length <= 0.5);
+  // Auto-collapse once the merchant has completed the core action steps
+  // (first analysis, theme extension, publish proposals, first blog post).
+  const CORE_STEP_IDS = ["analysis", "theme", "proposals", "blog"];
+  const coreDone = steps
+    .filter((s) => CORE_STEP_IDS.includes(s.id))
+    .every((s) => s.done);
+  const [open, setOpen] = useState(!coreDone);
 
   return (
     <Card>
