@@ -1955,6 +1955,7 @@ function PublishModeCard({
               borderRadius="200"
               borderColor="border"
               background="bg-surface-secondary"
+              minHeight="100%"
             >
               <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)" }}>
                 <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem" }}>
@@ -3704,7 +3705,7 @@ function AnalysisSchedulePanels({
                   tone="warning"
                   action={{
                     content: t(locale, "validateImproveCta"),
-                    url: localizedPath("/app/analyse", locale),
+                    url: localizedPath("/app/products", locale),
                   }}
                 >
                   {t(locale, "validateImproveBanner")}
