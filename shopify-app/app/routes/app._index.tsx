@@ -1177,7 +1177,6 @@ function StepMarker({ done, locked }: { done: boolean; locked: boolean }) {
 function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale }) {
   const fr = locale === "fr";
   const isFree = signals.plan === "free";
-  const [open, setOpen] = useState(true);
 
   const steps: GuideStep[] = [
     {
@@ -1286,6 +1285,8 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
 
   const doneCount = steps.filter((s) => s.done).length;
   const pct = Math.round((doneCount / steps.length) * 100);
+  // Auto-collapse once the merchant is more than halfway through the guide.
+  const [open, setOpen] = useState(doneCount / steps.length <= 0.5);
 
   return (
     <Card>
@@ -2770,7 +2771,8 @@ export default function IndexPage() {
   return (
     <Page title="GEO by Organically">
       <BlockStack gap="400">
-        {/* Quick-setup guide — top of page, expanded on load */}
+        {/* Understand GEO, then the quick-setup guide — top of page */}
+        <EducationPanel locale={locale} />
         <SetupGuide signals={setupSignals} locale={locale} />
 
         {/* Banners */}
@@ -2883,7 +2885,6 @@ export default function IndexPage() {
             variant="top"
             afterRow1={
               <>
-              <EducationPanel locale={locale} />
               <Zone1
                 data={zone1}
                 locale={locale}
@@ -2916,7 +2917,6 @@ export default function IndexPage() {
           />
         ) : (
           <>
-          <EducationPanel locale={locale} />
           <Zone1
             data={zone1}
             locale={locale}
