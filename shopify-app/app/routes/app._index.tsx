@@ -2013,6 +2013,7 @@ function PublishModeCard({
   // ("Activation… en cours" → "Activée"), set the mode AND publish everything
   // currently checked now (the action chains both backend calls).
   const handleActivateAuto = () => {
+    setActivatedLocally(true);
     setSelected("auto_apply");
     setActivating(true);
     setActivateProgress(8);
@@ -2041,11 +2042,13 @@ function PublishModeCard({
 
   const busy = fetcher.state !== "idle";
   const isAuto = selected === "auto_apply";
-  // "Active" = the 28-day auto-analysis cycle is on (both publish modes keep it on).
   // Optimistic activation: flip to the "Actif" state on click instead of waiting for
   // the loader to revalidate scheduleStatus (which can lag or time out).
   const [activatedLocally, setActivatedLocally] = useState(false);
-  const active = scheduleEnabled || activatedLocally;
+  // The 28-day cycle is on when scheduleEnabled (loader) or just activated locally.
+  const cycleOn = scheduleEnabled || activatedLocally;
+  const manualActive = cycleOn && !isAuto;
+  const autoActive = cycleOn && isAuto;
   const handleActivateManual = () => {
     setActivatedLocally(true);
     handleToggle("semi_auto");
@@ -2054,7 +2057,43 @@ function PublishModeCard({
 
   const content = (
     <BlockStack gap="300">
-      <div>
+      <InlineGrid columns={["oneThird", "twoThirds"]} gap="300">
+          {/* Publication manuelle */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <Box
+              padding="300"
+              borderWidth="025"
+              borderRadius="200"
+              borderColor="border"
+              background="bg-surface-secondary"
+              minHeight="100%"
+            >
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)" }}>
+                <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
+                    <Icon source={ContentIcon} />
+                  </span>
+                  <Text as="p" variant="bodyMd" fontWeight="semibold">
+                    {t(locale, "publishModeManualTitle")}
+                  </Text>
+                </div>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t(locale, "publishModeManualDesc")}
+                </Text>
+                <div style={{ flex: "1 1 auto" }} />
+                {manualActive ? (
+                  <span style={{ fontWeight: 700, fontSize: "0.8125rem", color: "#000" }}>
+                    {locale === "fr" ? "Actif" : "Active"}
+                  </span>
+                ) : (
+                  <Button size="slim" loading={busy} onClick={handleActivateManual}>
+                    {locale === "fr" ? "Activer" : "Activate"}
+                  </Button>
+                )}
+              </div>
+            </Box>
+          </div>
+
           <div
             style={{
               background: "#000",
@@ -2101,54 +2140,25 @@ function PublishModeCard({
                   <Text as="p" variant="bodySm">{t(locale, "publishModeActivating")}</Text>
                   <ProgressBar progress={activateProgress} size="small" tone="highlight" />
                 </BlockStack>
-              ) : active ? (
-                <BlockStack gap="150">
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.375rem",
-                      alignSelf: "flex-start",
-                      background: "#fff",
-                      color: "#000",
-                      borderRadius: "999px",
-                      padding: "0.25rem 0.625rem",
-                      fontSize: "0.75rem",
-                      lineHeight: 1,
-                      fontWeight: 600,
-                    }}
-                  >
-                    <RocketIcon size={14} />
-                    {locale === "fr" ? "Actif" : "Active"}
-                  </span>
-                  {/* Native select styled explicitly so it stays dark-on-white on the
-                      black panel (Polaris Select inherits the panel's white text tokens). */}
-                  <select
-                    aria-label={t(locale, "publishModeSelectLabel")}
-                    value={selected}
-                    onChange={(e) =>
-                      e.target.value === "auto_apply" ? handleActivateAuto() : handleToggle("semi_auto")
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.5rem 0.625rem",
-                      borderRadius: "8px",
-                      border: "1px solid #8a8a8a",
-                      background: "#ffffff",
-                      color: "#303030",
-                      fontSize: "0.8125rem",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                    }}
-                  >
-                    <option value="semi_auto">
-                      {locale === "fr" ? "Publication manuelle" : "Manual publishing"}
-                    </option>
-                    <option value="auto_apply">
-                      {locale === "fr" ? "Publication automatique" : "Automatic publishing"}
-                    </option>
-                  </select>
-                </BlockStack>
+              ) : autoActive ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.375rem",
+                    alignSelf: "flex-start",
+                    background: "#fff",
+                    color: "#000",
+                    borderRadius: "999px",
+                    padding: "0.25rem 0.625rem",
+                    fontSize: "0.75rem",
+                    lineHeight: 1,
+                    fontWeight: 600,
+                  }}
+                >
+                  <RocketIcon size={14} />
+                  {locale === "fr" ? "Actif" : "Active"}
+                </span>
               ) : autoAllowed ? (
                 <span
                   style={{
@@ -2159,7 +2169,7 @@ function PublishModeCard({
                     ["--p-color-text-brand-on-bg-fill"]: "#000",
                   } as React.CSSProperties}
                 >
-                  <Button fullWidth variant="primary" loading={busy} onClick={handleActivateManual}>
+                  <Button fullWidth variant="primary" loading={busy} onClick={handleActivateAuto}>
                     {locale === "fr" ? "Activer" : "Activate"}
                   </Button>
                 </span>
@@ -2185,7 +2195,7 @@ function PublishModeCard({
               )}
             </div>
           </div>
-      </div>
+      </InlineGrid>
     </BlockStack>
   );
 
