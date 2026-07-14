@@ -775,7 +775,7 @@ export function ProductContentProposals({
                 disabled={analyzeDisabled}
                 onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
               >
-                {locale === "fr" ? "Régénérer avec mes réponses" : "Regenerate with my answers"}
+                {locale === "fr" ? "Améliorer le contenu avec mes réponses" : "Improve content with my answers"}
               </Button>
             </InlineStack>
           </BlockStack>

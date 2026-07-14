@@ -12,6 +12,17 @@
 
 - **Date:** 2026-07-14
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Per-product analysis quota + billing/setup-guide UI polish.
+- **Changes:**
+  - New `product_analysis` quota (free 1, pro 3, agency 5 per product / 28 j) in `app/billing/quotas.py` (`check_product_analysis_quota`, `record_product_analysis`, `product_analysis_quota`), enforced in `market-analysis/jobs` for targeted (product_ids) analyses; full-catalog analyses keep the `analysis` quota. Exposed via `get_quotas` → billing plans. Tests added in `tests/test_billing/test_quotas.py`.
+  - Billing page: title "Choisissez votre plan" → "Forfaits"; added per-product analysis feature line; reserved trial-badge height on free card so feature lists align across cards.
+  - Dashboard SetupGuide "improve" step: label "Compléter" → "Améliorer" (paid) / "Essayer" (free, primary + lock) / "Débloquer" (free once first analysis used, → billing).
+  - DataSourcesPanel theme-extension Pro lock now uses the black "Pro" pill (parity with the setup-guide badge).
+  - Product page button "Régénérer avec mes réponses" → "Améliorer le contenu avec mes réponses".
+- **Validations:** `ruff check .` OK; pytest test_billing + market_analysis + test_api + test_agent_schedule green; front `npm run typecheck` + `npm run build` green.
+
+## Previous task
+
 - **Goal:** Turn the "Passez à la vitesse supérieure" panel into a ParcelWILL-style quick-setup guide at the top of the dashboard.
 - **Summary:** New `SetupGuide` component (replaces `FreePlanUpsell`) rendered at the very top of `app._index.tsx`, collapsible and open on load. 10 checklist rows, each with a done marker (check / dashed circle), a one-line "why it helps organic traffic", and a CTA: connect GSC, connect GA4, first analysis, improve products (answer questions), publish proposals, theme extension (paid), first blog, llms.txt, auto-analysis (paid), wait 28 days. Progress "X/10" + bar in the header. Paid features show a 🔒 lock (free plan, CTA → /app/billing) or a "Débloqué" ⭐ star (paid plans). Free plan keeps the 7-day-trial upsell CTA at the bottom. Done-status derived from loader signals; added a `blogPublished` signal (new `/blog/drafts` fetch, checks `published_to_shopify`) and derives firstAnalysis/improve/proposals from `productPacks` (`enrichment_questions`, `applied_fields`).
 - **Files modified:** `shopify-app/app/routes/app._index.tsx` (removed `FreePlanUpsell` + its `UsageMeter` import).

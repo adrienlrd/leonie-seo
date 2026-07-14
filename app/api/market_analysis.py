@@ -17,7 +17,14 @@ from app.api.audit import _load_crawl_findings, _load_snapshot, _snapshot_age_da
 from app.api.deps import ShopContext, get_shop_context
 from app.apply.apply_faq import apply_schema_facts_to_shopify
 from app.apply.shopify_writer import ShopifyWriter
-from app.billing.quotas import QuotaExceeded, check_quota, product_cap, record_usage
+from app.billing.quotas import (
+    QuotaExceeded,
+    check_product_analysis_quota,
+    check_quota,
+    product_cap,
+    record_product_analysis,
+    record_usage,
+)
 from app.blog.auto_draft import auto_create_orphan_drafts
 from app.blog.store import list_drafts
 from app.business_profile.context import (
@@ -661,12 +668,23 @@ async def start_market_analysis_job(
     reflection_test: bool = Query(default=True),
 ) -> dict[str, Any]:
     """Start an async market analysis job. Uses saved identifications if available."""
+    # Targeted single/multi-product re-analysis is limited per product; a full
+    # catalog analysis is limited by the overall "analysis" quota.
+    targeted = list(product_ids) if product_ids else []
     try:
-        check_quota(ctx.shop, "analysis")
+        if targeted:
+            for pid in targeted:
+                check_product_analysis_quota(ctx.shop, pid)
+        else:
+            check_quota(ctx.shop, "analysis")
     except QuotaExceeded as exc:
         raise HTTPException(status_code=402, detail=exc.payload()) from exc
     # Counted immediately so parallel requests cannot all pass the check above.
-    record_usage(ctx.shop, "analysis")
+    if targeted:
+        for pid in targeted:
+            record_product_analysis(ctx.shop, pid)
+    else:
+        record_usage(ctx.shop, "analysis")
     snapshot = _load_snapshot(ctx)
     products = snapshot.get("products", [])
     persist = True

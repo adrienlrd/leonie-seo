@@ -10,9 +10,12 @@ from app.billing.quotas import (
     PLAN_QUOTAS,
     QuotaExceeded,
     auto_analysis_allowed,
+    check_product_analysis_quota,
     check_quota,
     get_usage,
+    product_analysis_quota,
     product_cap,
+    record_product_analysis,
     record_usage,
 )
 from app.billing.subscription_store import get_plan_for_shop, upsert_subscription
@@ -94,6 +97,25 @@ def test_product_cap_per_plan(db):
     assert product_cap(SHOP, db_path=db) == 15
     upsert_subscription(SHOP, "agency", "active", "gid://sub/2", db_path=db)
     assert product_cap(SHOP, db_path=db) == 35
+
+
+def test_product_analysis_quota_per_plan(db):
+    assert product_analysis_quota(SHOP, db_path=db) == 1
+    upsert_subscription(SHOP, "pro", "active", "gid://sub/1", db_path=db)
+    assert product_analysis_quota(SHOP, db_path=db) == 3
+    upsert_subscription(SHOP, "agency", "active", "gid://sub/2", db_path=db)
+    assert product_analysis_quota(SHOP, db_path=db) == 5
+
+
+def test_product_analysis_quota_is_per_product(db):
+    # Free plan: one analysis per product; a second on the same product is blocked.
+    check_product_analysis_quota(SHOP, "prod-A", db_path=db)
+    record_product_analysis(SHOP, "prod-A", db_path=db)
+    with pytest.raises(QuotaExceeded) as exc_info:
+        check_product_analysis_quota(SHOP, "prod-A", db_path=db)
+    assert exc_info.value.payload()["kind"] == "product_analysis"
+    # A different product still has its own budget.
+    check_product_analysis_quota(SHOP, "prod-B", db_path=db)
 
 
 def test_auto_analysis_gated_by_plan(db):

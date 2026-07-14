@@ -882,9 +882,22 @@ function DataSourcesPanel({
               </span>
             </Tooltip>
             {themeExtLocked ? (
-              <Button url={localizedPath("/app/billing", locale)} size="micro" icon={LockIcon}>
+              <a
+                href={localizedPath("/app/billing", locale)}
+                style={{
+                  background: "#000",
+                  color: "#fff",
+                  borderRadius: "6px",
+                  padding: "2px 8px",
+                  fontSize: "0.6875rem",
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  textDecoration: "none",
+                  flex: "0 0 auto",
+                }}
+              >
                 Pro
-              </Button>
+              </a>
             ) : themeEnabled === true ? (
               <Badge tone="info">{fr ? "Activée" : "Enabled"}</Badge>
             ) : themeEnabled === false ? (
@@ -1162,6 +1175,8 @@ interface GuideStep {
   onCta?: () => void;
   /** Paid feature: locked on free, marked unlocked (star) on paid plans. */
   paid?: boolean;
+  /** Quota-gated on free (lock + primary CTA) without being a paid-only feature. */
+  lockedForFree?: boolean;
 }
 
 /** Status marker: dashed circle (todo), check (done), lock (paid+free plan). */
@@ -1241,8 +1256,15 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
         ? "Vos réponses nourrissent l'IA en faits vérifiables : des pages plus riches, mieux citées par Google et les IA."
         : "Your answers feed the AI verifiable facts: richer pages, better cited by Google and AIs.",
       done: signals.improveDone,
-      ctaLabel: fr ? "Compléter" : "Complete",
-      ctaUrl: localizedPath("/app/products", locale),
+      // Free plans get a single product analysis; once used, improving requires an upgrade.
+      ctaLabel: isFree
+        ? (signals.firstAnalysisDone ? (fr ? "Débloquer" : "Unlock") : (fr ? "Essayer" : "Try"))
+        : (fr ? "Améliorer" : "Improve"),
+      ctaUrl:
+        isFree && signals.firstAnalysisDone
+          ? localizedPath("/app/billing", locale)
+          : localizedPath("/app/products", locale),
+      lockedForFree: true,
     },
     {
       id: "proposals",
@@ -1350,7 +1372,7 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
             <Divider />
             <BlockStack gap="200">
             {steps.map((step) => {
-              const locked = Boolean(step.paid) && isFree;
+              const locked = (Boolean(step.paid) || Boolean(step.lockedForFree)) && isFree;
               return (
                 <Box
                   key={step.id}

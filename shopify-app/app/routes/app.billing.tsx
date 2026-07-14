@@ -26,6 +26,7 @@ import { UsageMeter } from "../components/UsageMeter";
 interface PlanQuotas {
   products: number;
   analysis: number;
+  product_analysis: number;
   blog: number;
   auto_analysis: boolean;
 }
@@ -148,6 +149,12 @@ function planCopy(plan: Plan, fr: boolean) {
       included: true,
     },
     {
+      text: fr
+        ? `${q.product_analysis} analyse${q.product_analysis > 1 ? "s" : ""} par produit ${per28}`
+        : `${q.product_analysis} analys${q.product_analysis > 1 ? "es" : "is"} per product ${per28}`,
+      included: true,
+    },
+    {
       text: fr ? `${q.blog} articles de blog ${per28}` : `${q.blog} blog articles ${per28}`,
       included: true,
     },
@@ -211,7 +218,7 @@ export default function Billing() {
 
   return (
     <Page
-      title={fr ? "Choisissez votre plan" : "Choose your plan"}
+      title={fr ? "Forfaits" : "Plans"}
       subtitle={
         fr
           ? "Plus de produits optimisés, plus de trafic. Changez ou annulez à tout moment."
@@ -302,10 +309,16 @@ export default function Billing() {
                         {fr ? "/ mois" : "/ month"}
                       </Text>
                     </InlineStack>
-                    {isPaid && (
+                    {isPaid ? (
                       <Badge tone="success">
                         {fr ? "7 jours d'essai gratuit" : "7-day free trial"}
                       </Badge>
+                    ) : (
+                      <div style={{ visibility: "hidden" }} aria-hidden="true">
+                        <Badge tone="success">
+                          {fr ? "7 jours d'essai gratuit" : "7-day free trial"}
+                        </Badge>
+                      </div>
                     )}
                     <BlockStack gap="150">
                       {planCopy(plan, fr).map((line, i) => (

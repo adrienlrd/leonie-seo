@@ -13,12 +13,33 @@ WINDOW_DAYS = 28
 
 # kind → max events per rolling window; "products" is a cap, not an event count.
 PLAN_QUOTAS: dict[str, dict[str, int | bool]] = {
-    "free": {"products": 3, "analysis": 1, "blog": 3, "auto_analysis": False},
-    "pro": {"products": 15, "analysis": 5, "blog": 20, "auto_analysis": True},
-    "agency": {"products": 35, "analysis": 10, "blog": 40, "auto_analysis": True},
+    "free": {
+        "products": 3,
+        "analysis": 1,
+        "product_analysis": 1,
+        "blog": 3,
+        "auto_analysis": False,
+    },
+    "pro": {
+        "products": 15,
+        "analysis": 5,
+        "product_analysis": 3,
+        "blog": 20,
+        "auto_analysis": True,
+    },
+    "agency": {
+        "products": 35,
+        "analysis": 10,
+        "product_analysis": 5,
+        "blog": 40,
+        "auto_analysis": True,
+    },
 }
 
 _COUNTED_KINDS = frozenset({"analysis", "blog"})
+
+# Per-product analysis is tracked with a product-scoped kind: "product_analysis:{id}".
+_PRODUCT_ANALYSIS_PREFIX = "product_analysis:"
 
 
 class QuotaExceeded(Exception):
@@ -80,6 +101,32 @@ def check_quota(shop: str, kind: str, db_path: Path | None = None) -> None:
     used = get_usage(shop, kind, db_path)
     if used >= quota:
         raise QuotaExceeded(plan, kind, used, quota)
+
+
+def check_product_analysis_quota(
+    shop: str, product_id: str, db_path: Path | None = None
+) -> None:
+    """Raise QuotaExceeded when a single product has been analysed too many times.
+
+    The limit is per product over the rolling window: free 1, pro 3, agency 5.
+    """
+    plan = get_plan_for_shop(shop, db_path)
+    quota = int(get_quotas(plan)["product_analysis"])
+    kind = f"{_PRODUCT_ANALYSIS_PREFIX}{product_id}"
+    used = get_usage(shop, kind, db_path)
+    if used >= quota:
+        raise QuotaExceeded(plan, "product_analysis", used, quota)
+
+
+def record_product_analysis(shop: str, product_id: str, db_path: Path | None = None) -> None:
+    """Record one analysis event for a single product."""
+    record_usage(shop, f"{_PRODUCT_ANALYSIS_PREFIX}{product_id}", db_path)
+
+
+def product_analysis_quota(shop: str, db_path: Path | None = None) -> int:
+    """Max analyses allowed per product over the window for the shop's plan."""
+    plan = get_plan_for_shop(shop, db_path)
+    return int(get_quotas(plan)["product_analysis"])
 
 
 def product_cap(shop: str, db_path: Path | None = None) -> int:
