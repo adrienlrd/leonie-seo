@@ -2110,12 +2110,15 @@ function PublishModeCard({
                   <Text as="p" variant="bodySm">{t(locale, "publishModeActivating")}</Text>
                   <ProgressBar progress={activateProgress} size="small" tone="highlight" />
                 </BlockStack>
-              ) : autoAllowed ? (
+              ) : isAuto ? (
                 <div
                   style={{
-                    ["--p-color-text"]: "var(--p-color-text-secondary-experimental, #303030)",
+                    ["--p-color-text"]: "#303030",
                     ["--p-color-text-secondary"]: "#616161",
-                    ["--p-color-icon"]: "#616161",
+                    ["--p-color-icon"]: "#303030",
+                    ["--p-color-bg-surface"]: "#ffffff",
+                    ["--p-color-input-bg-surface"]: "#ffffff",
+                    ["--p-color-bg-surface-secondary"]: "#ffffff",
                   } as React.CSSProperties}
                 >
                   <Select
@@ -2131,6 +2134,20 @@ function PublishModeCard({
                     }
                   />
                 </div>
+              ) : autoAllowed ? (
+                <span
+                  style={{
+                    display: "block",
+                    ["--p-color-bg-fill-brand"]: "#fff",
+                    ["--p-color-bg-fill-brand-hover"]: "#f0f0f0",
+                    ["--p-color-bg-fill-brand-active"]: "#e0e0e0",
+                    ["--p-color-text-brand-on-bg-fill"]: "#000",
+                  } as React.CSSProperties}
+                >
+                  <Button fullWidth variant="primary" onClick={handleActivateAuto}>
+                    {locale === "fr" ? "Activer" : "Activate"}
+                  </Button>
+                </span>
               ) : (
                 <span
                   style={{
