@@ -275,6 +275,24 @@ def test_test_in_1h_returns_402_for_free_plan(free_client: TestClient) -> None:
     assert resp.status_code == 402
 
 
-def test_run_and_publish_returns_402_for_free_plan(free_client: TestClient) -> None:
+def test_run_and_publish_allowed_for_free_plan_within_quota(
+    free_client: TestClient, db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Manual "run now" is available on every plan, bounded by the analysis quota.
+    monkeypatch.setattr("app.billing.quotas.DB_PATH", db)
+    with patch("app.api.agent_schedule.run_scheduled_reanalysis", return_value={"status": "completed"}):
+        resp = free_client.post(f"/api/shops/{SHOP}/agent-schedule/run-and-publish")
+    assert resp.status_code == 200
+    assert resp.json()["job_id"]
+
+
+def test_run_and_publish_returns_402_when_free_quota_exhausted(
+    free_client: TestClient, db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.billing.quotas import record_usage
+
+    # Free analysis quota is 1 / 28 days; exhaust it, then the next run is blocked.
+    monkeypatch.setattr("app.billing.quotas.DB_PATH", db)
+    record_usage(SHOP, "analysis", db_path=db)
     resp = free_client.post(f"/api/shops/{SHOP}/agent-schedule/run-and-publish")
     assert resp.status_code == 402

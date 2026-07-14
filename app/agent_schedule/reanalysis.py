@@ -22,14 +22,16 @@ from fastapi import HTTPException
 from app.api.deps import _RAW_DIR, ShopContext
 from app.api.market_analysis import (
     _APPLYABLE_FIELDS,
+    _apply_retired_and_locked_keywords,
     _attach_business_profile_context_status,
     _auto_sync_schema_facts,
     _gather_analysis_inputs,
     auto_publish_checked_proposals,
 )
+from app.billing.quotas import product_cap
 from app.billing.subscription_store import get_plan_for_shop
 from app.blog.auto_draft import auto_create_orphan_drafts
-from app.geo.continuous_improvement import enrich_market_analysis_result
+from app.geo.continuous_improvement import enrich_market_analysis_result, get_shop_retired_tags
 from app.jobs.store import enqueue_unique
 from app.market_analysis.engine import _DEFAULT_BUDGET_USD, _PLAN_BUDGETS_USD, run_market_analysis
 from app.market_analysis.jobs import load_latest_result, save_latest_result
@@ -118,12 +120,17 @@ def run_market_reanalysis(
     plan: str = "free",
     db_path: Path | None = None,
     selection: dict[str, list[str]] | None = None,
+    progress_callback: Any | None = None,
+    reflection_test: bool = True,
 ) -> dict[str, Any]:
     """Run a full market re-analysis for `shop` and persist the result.
 
-    Mirrors the data gathering of the legacy `/market-analysis/run` endpoint and
-    the persistence of the async analysis job, but runs synchronously with no
-    FastAPI request context (called from the agent scheduler).
+    Uses the same rich inputs as the `/market-analysis/jobs` path (GA4, product
+    identification labels, published articles merged for internal linking, retired
+    tags and merchant-locked keywords) and the plan product cap, so a scheduled /
+    encart re-analysis is identical in precision to the products-page analysis.
+    Runs synchronously with no FastAPI request context (called from the scheduler);
+    an optional ``progress_callback`` streams per-product progress to a job store.
     """
     ctx = ShopContext(
         shop=shop,
@@ -140,23 +147,33 @@ def run_market_reanalysis(
     snapshot = inputs["snapshot"]
     business_profile = inputs["business_profile"]
     niche_hypothesis = inputs["niche_hypothesis"]
+    shop_domain = inputs["shop_domain"]
+    # Cap the catalog to the plan's product limit (parity with the /jobs path).
+    products = inputs["products"][: product_cap(shop, db_path)]
 
     result = run_market_analysis(
-        inputs["products"],
-        inputs["shop_domain"],
+        products,
+        shop_domain,
         inputs["gsc_page_rows"],
         inputs["gsc_query_rows"],
+        ga4_page_rows=inputs["ga4_page_rows"],
         niche_hypothesis=niche_hypothesis,
         crawl_findings=inputs["crawl_findings"] or None,
         max_products=0,
+        product_labels=inputs["identifications"] or None,
         plan=plan,
         merchant_facts_by_product=inputs["merchant_facts"] or None,
         retired_questions_by_product=inputs["retired_questions"] or None,
         business_profile=business_profile,
+        progress_callback=progress_callback,
         collections=snapshot.get("collections") or [],
-        articles=snapshot.get("articles") or [],
+        articles=inputs["merged_articles"],
         db_path=db_path,
+        reflection_test=reflection_test,
     )
+
+    retired_lower = {lbl.lower().strip() for lbl in get_shop_retired_tags(shop_domain)}
+    _apply_retired_and_locked_keywords(result, shop_domain, retired_lower)
 
     completed_data: dict[str, Any] = {
         "job_id": "scheduled-reanalysis",
@@ -203,6 +220,7 @@ def run_scheduled_reanalysis(
     access_token: str,
     db_path: Path | None = None,
     selection: dict[str, list[str]] | None = None,
+    progress_callback: Any | None = None,
 ) -> dict[str, Any]:
     """Run the heavy re-analysis pipeline for a due shop, respecting the LLM budget.
 
@@ -221,7 +239,12 @@ def run_scheduled_reanalysis(
     _enqueue_refresh_jobs(shop, access_token)
     try:
         result = run_market_reanalysis(
-            shop, access_token=access_token, plan=plan, db_path=db_path, selection=selection
+            shop,
+            access_token=access_token,
+            plan=plan,
+            db_path=db_path,
+            selection=selection,
+            progress_callback=progress_callback,
         )
     except HTTPException as exc:
         if exc.status_code == 404:

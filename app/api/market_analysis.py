@@ -307,6 +307,52 @@ def _auto_sync_schema_facts(shop: str, products: list[dict[str, Any]]) -> None:
             logger.warning("Auto schema-facts sync failed for %s/%s: %s", shop, pid, exc)
 
 
+def _apply_retired_and_locked_keywords(
+    result: dict[str, Any], shop_domain: str, retired_lower: set[str]
+) -> None:
+    """Drop retired keyword tags and re-inject merchant-locked keywords in place.
+
+    Ensures deliberately committed keywords survive re-analysis even if the LLM
+    didn't pick them, and that retired ones stay out. Shared by the /jobs path and
+    the scheduled re-analysis so both produce identical keyword sets.
+    """
+    if retired_lower:
+        for _p in result.get("products") or []:
+            _p["seo_keywords"] = [
+                kw for kw in (_p.get("seo_keywords") or [])
+                if kw.get("query", "").lower().strip() not in retired_lower
+            ]
+
+    for _p in result.get("products") or []:
+        pid = str(_p.get("product_id") or "")
+        if not pid:
+            continue
+        persisted_tags = get_product_locked_tags(shop_domain, pid)
+        existing_queries = {
+            kw.get("query", "").lower().strip()
+            for kw in (_p.get("seo_keywords") or [])
+        }
+        for _t in persisted_tags:
+            if (
+                _t.get("locked_by_merchant")
+                and _t.get("status") != "negative"
+                and _t.get("tag_type") == "keyword"
+                and str(_t.get("label") or "").lower().strip() not in existing_queries
+                and str(_t.get("label") or "").lower().strip() not in retired_lower
+            ):
+                _p.setdefault("seo_keywords", []).append({
+                    "query": _t["label"],
+                    "intent_type": "commercial",
+                    "demand_score": 50,
+                    "competition_score": 50,
+                    "product_fit_score": 80,
+                    "target_role": "secondary",
+                    "data_source": "merchant",
+                    "priority_score": 60,
+                    "locked": True,
+                })
+
+
 def _run_analysis_background(
     job_id: str,
     products: list[dict[str, Any]],
@@ -431,43 +477,7 @@ def _run_analysis_background(
             reflection_test=reflection_test,
         )
 
-        if retired_lower:
-            for _p in result.get("products") or []:
-                _p["seo_keywords"] = [
-                    kw for kw in (_p.get("seo_keywords") or [])
-                    if kw.get("query", "").lower().strip() not in retired_lower
-                ]
-
-        # Inject merchant-added keyword tags into seo_keywords if absent — ensures
-        # deliberately committed keywords survive re-analysis even if the LLM didn't pick them.
-        for _p in result.get("products") or []:
-            pid = str(_p.get("product_id") or "")
-            if not pid:
-                continue
-            persisted_tags = get_product_locked_tags(shop_domain, pid)
-            existing_queries = {
-                kw.get("query", "").lower().strip()
-                for kw in (_p.get("seo_keywords") or [])
-            }
-            for _t in persisted_tags:
-                if (
-                    _t.get("locked_by_merchant")
-                    and _t.get("status") != "negative"
-                    and _t.get("tag_type") == "keyword"
-                    and str(_t.get("label") or "").lower().strip() not in existing_queries
-                    and str(_t.get("label") or "").lower().strip() not in retired_lower
-                ):
-                    _p.setdefault("seo_keywords", []).append({
-                        "query": _t["label"],
-                        "intent_type": "commercial",
-                        "demand_score": 50,
-                        "competition_score": 50,
-                        "product_fit_score": 80,
-                        "target_role": "secondary",
-                        "data_source": "merchant",
-                        "priority_score": 60,
-                        "locked": True,
-                    })
+        _apply_retired_and_locked_keywords(result, shop_domain, retired_lower)
         completed_data: dict[str, Any] = {
             "job_id": job_id,
             "shop": shop_domain,
@@ -1549,9 +1559,14 @@ def _gather_analysis_inputs(ctx: ShopContext) -> dict[str, Any]:
             pass
 
     gsc_query_rows = _load_gsc_query_rows(ctx.shop)
+    ga4_page_rows = _load_ga4_page_rows(ctx.shop)
+    identifications = load_identifications(ctx.shop)  # {} if none saved yet
     merchant_facts = load_merchant_facts(ctx.shop)
     retired_questions = load_retired_questions(ctx.shop)
     business_profile = load_business_profile(ctx.shop)
+    # Merge snapshot articles with published blog articles so the internal-linking
+    # engine sees articles we've already published (parity with the /jobs path).
+    merged_articles = list(snapshot.get("articles") or []) + _published_articles_as_snapshot(shop_domain)
 
     return {
         "snapshot": snapshot,
@@ -1561,9 +1576,12 @@ def _gather_analysis_inputs(ctx: ShopContext) -> dict[str, Any]:
         "crawl_findings": crawl_findings,
         "gsc_page_rows": gsc_page_rows,
         "gsc_query_rows": gsc_query_rows,
+        "ga4_page_rows": ga4_page_rows,
+        "identifications": identifications,
         "merchant_facts": merchant_facts,
         "retired_questions": retired_questions,
         "business_profile": business_profile,
+        "merged_articles": merged_articles,
     }
 
 

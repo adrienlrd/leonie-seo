@@ -30,7 +30,7 @@ from app.agent_schedule.store import upsert_schedule
 from app.api.deps import ShopContext, get_shop_context, require_internal_secret
 from app.billing.quotas import QuotaExceeded, auto_analysis_allowed, check_quota, record_usage
 from app.db_adapter import DB_PATH
-from app.market_analysis.jobs import create_job, get_job, update_job
+from app.market_analysis.jobs import append_job_event, create_job, get_job, update_job
 
 logger = logging.getLogger(__name__)
 
@@ -141,9 +141,47 @@ def _run_reanalysis_job(
     re-analysis popup and decides what auto-publish writes; when absent the
     persisted per-product checkbox selection is honored instead.
     """
+    # Stream per-product progress into the (shared) job store so the dashboard
+    # analysis panel shows the same live narration as the products-page analysis.
+    last_step: dict[str, Any] = {"phase": None, "done": 0}
+
+    def _on_progress(
+        done: int, total: int, partial: list[dict[str, Any]], phase: str = "content"
+    ) -> None:
+        update_job(
+            job_id,
+            progress=done,
+            total=total,
+            status="running",
+            phase=phase,
+            products=list(partial),
+            analyzed_product_count=done,
+        )
+        if phase != last_step["phase"]:
+            last_step["phase"] = phase
+            last_step["done"] = 0
+        if done <= last_step["done"] or done > len(partial):
+            return
+        last_step["done"] = done
+        finished = partial[done - 1]
+        keywords = finished.get("seo_keywords") or []
+        append_job_event(
+            job_id,
+            "product_targeted" if phase == "targeting" else "product_content_ready",
+            {
+                "title": str(finished.get("product_title") or ""),
+                "keywords": len(keywords),
+                "geo_questions": len(finished.get("geo_questions") or []),
+            },
+        )
+
     try:
         outcome = run_scheduled_reanalysis(
-            shop, access_token=access_token, db_path=DB_PATH, selection=selection
+            shop,
+            access_token=access_token,
+            db_path=DB_PATH,
+            selection=selection,
+            progress_callback=_on_progress,
         )
         # Record the completion so the dashboard history + calendar reflect it
         # (mirrors the scheduled path in scheduler._maybe_run_reanalysis).
@@ -188,7 +226,9 @@ async def run_and_publish_now(
     """
     if not ctx.access_token:
         raise HTTPException(status_code=401, detail="Missing Shopify access token")
-    _require_auto_analysis(ctx.shop)
+    # Manual "run now" is available on every plan (incl. free), bounded by the
+    # global analysis quota. The automatic 28-day scheduler stays paid-only
+    # (gated by auto_analysis_allowed in scheduler.py).
     try:
         check_quota(ctx.shop, "analysis")
     except QuotaExceeded as exc:

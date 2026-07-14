@@ -636,6 +636,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const job = (await resp.json()) as {
         status?: string;
         error?: string | null;
+        progress?: number;
+        total?: number;
+        phase?: string;
         reanalysis_status?: string | null;
         reanalysis_reason?: string | null;
         auto_publish?: { mode?: string; published?: number; held?: number; skipped_reason?: string } | null;
@@ -3452,6 +3455,9 @@ function AnalysisSchedulePanels({
     type?: string;
     job?: {
       status?: string;
+      progress?: number;
+      total?: number;
+      phase?: string;
       reanalysis_status?: string | null;
       reanalysis_reason?: string | null;
       auto_publish?: { mode?: string; published?: number; held?: number; skipped_reason?: string } | null;
@@ -3735,7 +3741,30 @@ function AnalysisSchedulePanels({
           )}
 
           {running && (
-            <ResearchConsole locale={locale} phrases={loaderPhrases(locale, "analysis")} estimateMs={150_000} />
+            <BlockStack gap="200">
+              {(() => {
+                const job = pollFetcher.data?.job;
+                const total = job?.total ?? 0;
+                const done = job?.progress ?? 0;
+                if (total > 0) {
+                  const pct = Math.min(100, Math.round((done / total) * 100));
+                  const phaseLabel =
+                    job?.phase === "targeting"
+                      ? (locale === "fr" ? "Ciblage des mots-clés" : "Keyword targeting")
+                      : (locale === "fr" ? "Génération de contenu" : "Content generation");
+                  return (
+                    <BlockStack gap="100">
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {phaseLabel} — {done}/{total}
+                      </Text>
+                      <ProgressBar progress={pct} size="small" tone="highlight" />
+                    </BlockStack>
+                  );
+                }
+                return null;
+              })()}
+              <ResearchConsole locale={locale} phrases={loaderPhrases(locale, "analysis")} estimateMs={150_000} />
+            </BlockStack>
           )}
           {!running && finished === "completed" && (
             <Banner tone="success">

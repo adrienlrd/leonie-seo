@@ -10,7 +10,11 @@ import pytest
 from fastapi import HTTPException
 
 from app.agent_schedule import reanalysis, scheduler
-from app.agent_schedule.reanalysis import is_reanalysis_due, run_scheduled_reanalysis
+from app.agent_schedule.reanalysis import (
+    is_reanalysis_due,
+    run_market_reanalysis,
+    run_scheduled_reanalysis,
+)
 from app.agent_schedule.scheduler import run_due_agent_schedules
 from app.agent_schedule.store import get_schedule, upsert_schedule
 from app.db import init_db
@@ -75,6 +79,62 @@ def test_is_reanalysis_due_true_after_28_day_window() -> None:
 
 
 # ── run_scheduled_reanalysis ─────────────────────────────────────────────────
+
+
+def test_run_market_reanalysis_uses_rich_inputs_and_plan_cap(tmp_path: Path) -> None:
+    """Re-analysis feeds GA4 + labels and caps products to the plan (parity with /jobs)."""
+    db = _db(tmp_path)
+    captured: dict = {}
+
+    inputs = {
+        "snapshot": {"collections": [], "articles": []},
+        "products": [{"product_id": str(i)} for i in range(10)],
+        "shop_domain": SHOP,
+        "niche_hypothesis": {},
+        "crawl_findings": [],
+        "gsc_page_rows": {},
+        "gsc_query_rows": [],
+        "ga4_page_rows": {"p1": {"clicks": 5}},
+        "identifications": {"1": "label"},
+        "merchant_facts": {},
+        "retired_questions": {},
+        "business_profile": {},
+        "merged_articles": [{"id": "a1"}],
+    }
+
+    def _fake_run(*args, **kwargs):
+        captured["products"] = args[0]
+        captured["kwargs"] = kwargs
+        return {
+            "analyzed_at": "2026-06-10T00:00:00+00:00",
+            "active_product_count": 3,
+            "analyzed_product_count": 3,
+            "total_opportunity_count": 0,
+            "sources_used": [],
+            "products": [],
+        }
+
+    with (
+        patch.object(reanalysis, "_gather_analysis_inputs", return_value=inputs),
+        patch.object(reanalysis, "product_cap", return_value=3),
+        patch.object(reanalysis, "run_market_analysis", side_effect=_fake_run),
+        patch.object(reanalysis, "get_shop_retired_tags", return_value=[]),
+        patch.object(reanalysis, "_apply_retired_and_locked_keywords"),
+        patch.object(reanalysis, "_attach_business_profile_context_status", side_effect=lambda d, *a, **k: d),
+        patch.object(reanalysis, "enrich_market_analysis_result", side_effect=lambda s, d, *a, **k: d),
+        patch.object(reanalysis, "_carry_forward_auto_publish_selection"),
+        patch.object(reanalysis, "save_latest_result"),
+        patch.object(reanalysis, "_auto_sync_schema_facts"),
+        patch.object(reanalysis, "auto_create_orphan_drafts"),
+        patch.object(reanalysis, "auto_publish_checked_proposals", return_value={"published": 0}),
+    ):
+        run_market_reanalysis(SHOP, access_token="shpat_test", plan="free", db_path=db)
+
+    # Plan cap applied (10 products → 3) and rich inputs forwarded to the engine.
+    assert len(captured["products"]) == 3
+    assert captured["kwargs"]["ga4_page_rows"] == {"p1": {"clicks": 5}}
+    assert captured["kwargs"]["product_labels"] == {"1": "label"}
+    assert captured["kwargs"]["articles"] == [{"id": "a1"}]
 
 
 def test_run_scheduled_reanalysis_runs_pipeline_in_order(tmp_path: Path) -> None:

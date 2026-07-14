@@ -12,6 +12,18 @@
 
 - **Date:** 2026-07-14
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Unify the two analysis pipelines (products page vs encart/scheduler) onto one rich engine.
+- **Changes:**
+  - `_gather_analysis_inputs` now also returns GA4 rows, product identification labels, and merged published articles (parity with the `/jobs` path).
+  - Extracted `_apply_retired_and_locked_keywords` from `_run_analysis_background`; reused in the re-analysis path.
+  - `run_market_reanalysis` (agent_schedule/reanalysis.py) now feeds those rich inputs + applies `product_cap` + accepts `progress_callback`/`reflection_test` → scheduled & encart re-analysis are as precise as the products-page analysis.
+  - `run-and-publish`: removed `_require_auto_analysis` (manual "run now" is available on **free** too, bounded by the global `analysis` quota); the automatic 28-day scheduler stays paid (`auto_analysis_allowed` in scheduler.py). Added a `progress_callback` that streams `progress/total/phase/products` + events into the (shared) job store.
+  - Frontend encart (`AnalysisSchedulePanels`): real progress bar + phase label from the polled job.
+  - Kept `check_budget` (free $2 / pro $20 / agency $50), `last_reanalysis_at`, `_enqueue_refresh_jobs`, selection carry-forward. Both quotas unchanged (no Forfaits change). Auto-publish stays mode-gated (no-op in manual).
+- **Validations:** `ruff check .` OK; full `pytest` = 2064 passed / 174 skipped (new tests: rich-inputs + plan cap in `run_market_reanalysis`; free plan allowed within quota / 402 when exhausted); front typecheck + build green.
+
+## Task before that
+
 - **Goal:** Plan badge on every page, theme-activation popup, and 2-mode publishing consolidation.
 - **Changes:**
   - `PlanBadge` component (`app/components/PlanBadge.tsx`) reads plan from `routes/app` loader via `useRouteLoaderData`; added `titleMetadata={<PlanBadge/>}` to all 7 pages. `app.tsx` loader now returns `plan`.
