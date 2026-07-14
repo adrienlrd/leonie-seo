@@ -549,25 +549,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "setPublishMode") {
     const mode = formData.get("mode") as string;
     try {
+      // Both modes keep the 28-day auto-analysis cycle + learning running; the mode
+      // only decides whether safe changes are auto-published (auto_apply) or merely
+      // proposed for the merchant to validate (semi_auto). Enabling the agent schedule
+      // for both keeps "manual publishing" a live, learning state — not an off switch.
       const resp = await callBackendForShop(
         session.shop,
-        `/api/shops/${session.shop}/learning/settings`,
+        `/api/shops/${session.shop}/agent-schedule/settings`,
         {
           accessToken: session.accessToken,
           method: "PUT",
-          body: JSON.stringify({ mode }),
+          body: JSON.stringify({ enabled: true, mode }),
         },
       );
       if (!resp.ok) return json({ type: "setPublishMode", ok: false, error: `HTTP ${resp.status}` });
-      // Switching back to manual also turns off the daily/28-day autonomous agent
-      // so nothing is published or re-analysed in the background.
-      if (mode === "semi_auto") {
-        await callBackendForShop(
-          session.shop,
-          `/api/shops/${session.shop}/agent-schedule/disable`,
-          { accessToken: session.accessToken, method: "POST" },
-        ).catch(() => {});
-      }
       return json({ type: "setPublishMode", ok: true, error: null });
     } catch (err) {
       return json({ type: "setPublishMode", ok: false, error: String(err) });
@@ -1982,6 +1977,7 @@ function PublishModeCard({
   locale,
   bare = false,
   autoAllowed = true,
+  scheduleEnabled = false,
 }: {
   currentMode: "semi_auto" | "auto_apply";
   locale: Locale;
@@ -1989,6 +1985,8 @@ function PublishModeCard({
   bare?: boolean;
   /** False when the shop's plan does not include auto-analysis (free plan). */
   autoAllowed?: boolean;
+  /** True when the 28-day auto-analysis cycle is running (either publish mode). */
+  scheduleEnabled?: boolean;
 }) {
   const fetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const activateFetcher = useFetcher<{ type: string; ok: boolean; error: string | null; summary: { published?: number } | null }>();
@@ -2036,6 +2034,9 @@ function PublishModeCard({
 
   const busy = fetcher.state !== "idle";
   const isAuto = selected === "auto_apply";
+  // "Active" = the 28-day auto-analysis cycle is on (both publish modes keep it on).
+  const active = scheduleEnabled;
+  const handleActivateManual = () => handleToggle("semi_auto");
 
   const content = (
     <BlockStack gap="300">
@@ -2122,7 +2123,7 @@ function PublishModeCard({
                   <Text as="p" variant="bodySm">{t(locale, "publishModeActivating")}</Text>
                   <ProgressBar progress={activateProgress} size="small" tone="highlight" />
                 </BlockStack>
-              ) : isAuto ? (
+              ) : active ? (
                 <BlockStack gap="150">
                   <span
                     style={{
@@ -2140,7 +2141,7 @@ function PublishModeCard({
                     }}
                   >
                     <RocketIcon size={14} />
-                    {t(locale, "publishModeBoostedActive")}
+                    {locale === "fr" ? "Actif" : "Active"}
                   </span>
                   {/* Native select styled explicitly so it stays dark-on-white on the
                       black panel (Polaris Select inherits the panel's white text tokens). */}
@@ -2180,7 +2181,7 @@ function PublishModeCard({
                     ["--p-color-text-brand-on-bg-fill"]: "#000",
                   } as React.CSSProperties}
                 >
-                  <Button fullWidth variant="primary" onClick={handleActivateAuto}>
+                  <Button fullWidth variant="primary" loading={busy} onClick={handleActivateManual}>
                     {locale === "fr" ? "Activer" : "Activate"}
                   </Button>
                 </span>
@@ -3088,7 +3089,7 @@ export default function IndexPage() {
                     geoLevel={zone1.global_level}
                   />
                 }
-                publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare autoAllowed={autoAllowed} />}
+                publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare autoAllowed={autoAllowed} scheduleEnabled={scheduleStatus?.enabled === true} />}
               />
               </>
             }
@@ -3120,7 +3121,7 @@ export default function IndexPage() {
                 geoLevel={zone1.global_level}
               />
             }
-            publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare autoAllowed={autoAllowed} />}
+            publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare autoAllowed={autoAllowed} scheduleEnabled={scheduleStatus?.enabled === true} />}
           />
           </>
         )}
