@@ -1218,6 +1218,13 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
   const fr = locale === "fr";
   const isFree = signals.plan === "free";
   const eduOpener = useRef<((id: string) => void) | null>(null);
+  const autoFetcher = useFetcher();
+  const activateAuto = () => {
+    const fd = new FormData();
+    fd.set("intent", "setPublishMode");
+    fd.set("mode", "auto_apply");
+    autoFetcher.submit(fd, { method: "post" });
+  };
   const [showThemeHelp, setShowThemeHelp] = useState(false);
   // Deep link to the theme editor with our app embed pre-selected for activation.
   const themeEditorUrl = `https://${shop}/admin/themes/current/editor?context=apps&activateAppId=41c38ef1-2770-74ac-364b-b4cff7f918b20d1602f9/faq_embed`;
@@ -1320,7 +1327,8 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
         : "An agent re-analyzes, publishes and measures on its own: your organic traffic keeps growing hands-free.",
       done: signals.autoActive,
       ctaLabel: isFree ? (fr ? "Débloquer" : "Unlock") : (fr ? "Activer" : "Enable"),
-      ctaUrl: isFree ? localizedPath("/app/billing", locale) : localizedPath("/app", locale),
+      ctaUrl: isFree ? localizedPath("/app/billing", locale) : undefined,
+      onCta: isFree ? undefined : activateAuto,
       paid: true,
     },
     {
@@ -1482,8 +1490,12 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
         title={fr ? "Activer l'extension de thème" : "Enable the theme extension"}
         primaryAction={{
           content: fr ? "Ouvrir l'éditeur de thème" : "Open the theme editor",
-          url: themeEditorUrl,
-          external: true,
+          // Open at the top level in a new tab — the Shopify admin refuses to load
+          // inside the app's embedded iframe (X-Frame-Options).
+          onAction: () => {
+            window.open(themeEditorUrl, "_blank", "noopener,noreferrer");
+            setShowThemeHelp(false);
+          },
         }}
         secondaryActions={[{ content: fr ? "Fermer" : "Close", onAction: () => setShowThemeHelp(false) }]}
       >
