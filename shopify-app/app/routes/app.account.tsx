@@ -433,35 +433,6 @@ export default function AccountHub() {
           <BlockStack gap="300">
             <BlockStack gap="100">
               <Text as="h2" variant="headingMd">
-                {t(locale, "aiCrawlerVisibilityTitle")}
-              </Text>
-              <Text as="p" variant="bodySm" tone="subdued">
-                {t(locale, "aiCrawlerVisibilityBody")}
-              </Text>
-            </BlockStack>
-            <InlineStack align="space-between" blockAlign="center" wrap>
-              <InlineStack gap="200" blockAlign="center">
-                {llmsTxt?.divergent ? (
-                  <Badge tone="attention">{t(locale, "llmsTxtStatusDivergent")}</Badge>
-                ) : llmsTxt?.is_published ? (
-                  <Badge tone="success">{t(locale, "llmsTxtStatusPublished")}</Badge>
-                ) : (
-                  <Badge>{t(locale, "llmsTxtStatusNotPublished")}</Badge>
-                )}
-              </InlineStack>
-              <Button url={localizedPath("/app/geo-llms-txt", locale)} variant="plain">
-                {t(locale, "aiCrawlerVisibilityManage")}
-              </Button>
-            </InlineStack>
-          </BlockStack>
-        </Card>
-
-        <Divider />
-
-        <Card>
-          <BlockStack gap="300">
-            <BlockStack gap="100">
-              <Text as="h2" variant="headingMd">
                 {fr ? "Zone de danger" : "Danger zone"}
               </Text>
               <Text as="p" variant="bodySm" tone="subdued">

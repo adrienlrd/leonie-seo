@@ -2847,10 +2847,7 @@ export default function IndexPage() {
   return (
     <Page title="GEO by Organically">
       <BlockStack gap="400">
-        {/* Quick-setup guide (includes the GEO education) — top of page */}
-        <SetupGuide signals={setupSignals} locale={locale} />
-
-        {/* Banners */}
+        {/* Banners — kept above the setup guide so alerts (e.g. Google reconnect) are seen first */}
         {auditRunning && (
           <Banner tone="info">
             <ResearchConsole
@@ -2948,6 +2945,9 @@ export default function IndexPage() {
             </BlockStack>
           </Banner>
         ) : null}
+
+        {/* Quick-setup guide (includes the GEO education) — below alerts */}
+        <SetupGuide signals={setupSignals} locale={locale} />
 
         {/* Business profile — niche, brand, GEO score, personas, content style */}
         {businessProfile?.status === "validated" ? (
