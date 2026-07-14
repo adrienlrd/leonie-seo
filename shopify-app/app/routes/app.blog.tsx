@@ -40,6 +40,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
+import { PlanBadge } from "../components/PlanBadge";
 import { CheckIcon, EditIcon, ImageIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -1086,7 +1087,7 @@ export default function BlogIndexPage() {
 
   return (
     <>
-    <Page title="Blog" fullWidth>
+    <Page title="Blog" titleMetadata={<PlanBadge />} fullWidth>
       <BlockStack gap="400">
         {error && (
           <Banner tone="critical"><p>{error}</p></Banner>

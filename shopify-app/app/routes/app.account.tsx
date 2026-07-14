@@ -16,6 +16,7 @@ import {
   Select,
   Text,
 } from "@shopify/polaris";
+import { PlanBadge } from "../components/PlanBadge";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
@@ -113,10 +114,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "saveAutomation") {
     const automationMode = String(form.get("automation_mode") ?? "semi_auto");
-    // "manual" maps to enabled=false; the persisted `mode` then defaults back to
-    // semi_auto, so a merchant who switches manual -> auto_apply lands on semi_auto
-    // rather than their previous auto_apply choice. Acceptable simplification for
-    // a 3-way UI control over a 2-field backend model.
+    // Learning is always enabled; the mode only decides manual (semi_auto) vs
+    // automatic (auto_apply) publishing. There is no "no learning" state anymore.
     const resp = await callBackendForShop(
       session.shop,
       `/api/shops/${session.shop}/learning/settings`,
@@ -124,7 +123,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         method: "PUT",
         accessToken: session.accessToken,
         body: JSON.stringify({
-          enabled: automationMode !== "manual",
+          enabled: true,
           mode: automationMode === "auto_apply" ? "auto_apply" : "semi_auto",
           reanalysis_frequency_days: Number(form.get("reanalysis_frequency_days") ?? 28),
         }),
@@ -171,12 +170,11 @@ export default function AccountHub() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmResetAll, setConfirmResetAll] = useState(false);
 
-  const initialMode: "manual" | "semi_auto" | "auto_apply" = !learningSettings?.enabled
-    ? "manual"
-    : learningSettings.mode === "auto_apply"
-      ? "auto_apply"
-      : "semi_auto";
-  const [automationMode, setAutomationMode] = useState<"manual" | "semi_auto" | "auto_apply">(initialMode);
+  // Two publish modes only; learning + 28-day re-analysis are always on. A legacy
+  // enabled=false shop maps to manual publish (semi_auto) — never a "no learning" state.
+  const initialMode: "semi_auto" | "auto_apply" =
+    learningSettings?.mode === "auto_apply" ? "auto_apply" : "semi_auto";
+  const [automationMode, setAutomationMode] = useState<"semi_auto" | "auto_apply">(initialMode);
   const [reanalysisFrequency, setReanalysisFrequency] = useState(
     String(learningSettings?.reanalysis_frequency_days ?? 28),
   );
@@ -283,6 +281,7 @@ export default function AccountHub() {
   return (
     <Page
       title={t(locale, "hubSettings")}
+      titleMetadata={<PlanBadge />}
       subtitle={t(locale, "hubSettingsSubtitle")}
     >
       <BlockStack gap="600">
@@ -303,12 +302,11 @@ export default function AccountHub() {
               <Select
                 label={t(locale, "automationModeLabel")}
                 options={[
-                  { label: t(locale, "automationModeManual"), value: "manual" },
-                  { label: t(locale, "automationModeSemiAuto"), value: "semi_auto" },
+                  { label: t(locale, "automationModeManual"), value: "semi_auto" },
                   { label: t(locale, "automationModeAutoApply"), value: "auto_apply" },
                 ]}
                 value={automationMode}
-                onChange={(value) => setAutomationMode(value as "manual" | "semi_auto" | "auto_apply")}
+                onChange={(value) => setAutomationMode(value as "semi_auto" | "auto_apply")}
               />
               <Select
                 label={t(locale, "automationFrequencyLabel")}

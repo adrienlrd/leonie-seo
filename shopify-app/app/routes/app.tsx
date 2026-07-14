@@ -17,7 +17,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // "Forfaits" nav entry is shown only to free-plan merchants. Fail closed
   // (hidden) on backend timeout so the nav never nags paying merchants.
-  let isFreePlan = false;
+  let plan = "free";
   try {
     const resp = await callBackendForShop(session.shop, `/api/shops/${session.shop}/billing/status`, {
       accessToken: session.accessToken,
@@ -25,10 +25,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
     if (resp.ok) {
       const data = (await resp.json()) as { plan?: string };
-      isFreePlan = data.plan === "free";
+      plan = data.plan ?? "free";
     }
   } catch {
-    // backend unavailable → keep the link hidden
+    // backend unavailable → default to free (hides the Forfaits nag, shows Free badge)
   }
 
   return json({
@@ -37,7 +37,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Optional support-chat widget (e.g. a Tawk.to embed URL). Empty → no widget.
     supportChatSrc: process.env.LEONIE_SUPPORT_CHAT_SRC || "",
     shop: session.shop,
-    isFreePlan,
+    plan,
+    isFreePlan: plan === "free",
   });
 };
 
@@ -47,6 +48,7 @@ export default function App() {
     locale: Locale;
     supportChatSrc: string;
     shop: string;
+    plan: string;
     isFreePlan: boolean;
   };
 

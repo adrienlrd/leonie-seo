@@ -25,6 +25,7 @@ import {
   TextField,
   Tooltip,
 } from "@shopify/polaris";
+import { PlanBadge } from "../components/PlanBadge";
 import {
   AlertCircleIcon,
   AlertTriangleIcon,
@@ -1213,10 +1214,13 @@ function StepMarker({ done, locked }: { done: boolean; locked: boolean }) {
 /** Quick-setup guide (ParcelWILL-style): collapsible, open on load, one row per
  * onboarding step with a done marker, a "why it helps organic traffic" line and
  * a CTA. Paid features show a lock (free plan) or an "unlocked" star (paid). */
-function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale }) {
+function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: Locale; shop: string }) {
   const fr = locale === "fr";
   const isFree = signals.plan === "free";
   const eduOpener = useRef<((id: string) => void) | null>(null);
+  const [showThemeHelp, setShowThemeHelp] = useState(false);
+  // Deep link to the theme editor with our app embed pre-selected for activation.
+  const themeEditorUrl = `https://${shop}/admin/themes/current/editor?context=apps&activateAppId=41c38ef1-2770-74ac-364b-b4cff7f918b20d1602f9/faq_embed`;
 
   const steps: GuideStep[] = [
     {
@@ -1304,7 +1308,8 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
         : "Shows FAQ and structured data on your storefront so AIs and Google understand and cite your pages.",
       done: signals.themeEnabled === true,
       ctaLabel: isFree ? (fr ? "Débloquer" : "Unlock") : (fr ? "Activer" : "Enable"),
-      ctaUrl: isFree ? localizedPath("/app/billing", locale) : localizedPath("/app/account", locale),
+      ctaUrl: isFree ? localizedPath("/app/billing", locale) : undefined,
+      onCta: isFree ? undefined : () => setShowThemeHelp(true),
       paid: true,
     },
     {
@@ -1470,6 +1475,55 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
           </BlockStack>
         </Collapsible>
       </BlockStack>
+
+      <Modal
+        open={showThemeHelp}
+        onClose={() => setShowThemeHelp(false)}
+        title={fr ? "Activer l'extension de thème" : "Enable the theme extension"}
+        primaryAction={{
+          content: fr ? "Ouvrir l'éditeur de thème" : "Open the theme editor",
+          url: themeEditorUrl,
+          external: true,
+        }}
+        secondaryActions={[{ content: fr ? "Fermer" : "Close", onAction: () => setShowThemeHelp(false) }]}
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            <Text as="p">
+              {fr
+                ? "L'extension affiche la FAQ, les données structurées et le fil d'Ariane sur votre boutique — ce qui aide les IA et Google à comprendre et citer vos pages."
+                : "The extension shows the FAQ, structured data and breadcrumb on your storefront — helping AIs and Google understand and cite your pages."}
+            </Text>
+            <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+              <BlockStack gap="150">
+                <Text as="p" variant="bodySm" fontWeight="medium">
+                  {fr ? "Comment faire :" : "How to do it:"}
+                </Text>
+                <Text as="p" variant="bodySm">
+                  {fr
+                    ? "1. Cliquez sur « Ouvrir l'éditeur de thème » ci-dessous."
+                    : "1. Click “Open the theme editor” below."}
+                </Text>
+                <Text as="p" variant="bodySm">
+                  {fr
+                    ? "2. Dans le panneau qui s'ouvre, activez « GEO by Organically »."
+                    : "2. In the panel that opens, toggle on “GEO by Organically”."}
+                </Text>
+                <Text as="p" variant="bodySm">
+                  {fr
+                    ? "3. Cliquez sur « Enregistrer » en haut à droite."
+                    : "3. Click “Save” at the top right."}
+                </Text>
+              </BlockStack>
+            </Box>
+            <Text as="p" variant="bodySm" tone="subdued">
+              {fr
+                ? "L'éditeur s'ouvre dans un nouvel onglet. Vous pouvez aussi y accéder via Boutique en ligne → Personnaliser → Intégrations d'app."
+                : "The editor opens in a new tab. You can also reach it via Online Store → Customize → App embeds."}
+            </Text>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
     </Card>
   );
 }
@@ -2056,25 +2110,27 @@ function PublishModeCard({
                   <Text as="p" variant="bodySm">{t(locale, "publishModeActivating")}</Text>
                   <ProgressBar progress={activateProgress} size="small" tone="highlight" />
                 </BlockStack>
-              ) : isAuto ? (
-                <span
+              ) : autoAllowed ? (
+                <div
                   style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.375rem",
-                    alignSelf: "flex-start",
-                    background: "#fff",
-                    color: "#000",
-                    borderRadius: "999px",
-                    padding: "0.25rem 0.625rem",
-                    fontSize: "0.75rem",
-                    lineHeight: 1,
-                    fontWeight: 600,
-                  }}
+                    ["--p-color-text"]: "var(--p-color-text-secondary-experimental, #303030)",
+                    ["--p-color-text-secondary"]: "#616161",
+                    ["--p-color-icon"]: "#616161",
+                  } as React.CSSProperties}
                 >
-                  <RocketIcon size={14} />
-                  {t(locale, "publishModeBoostedActive")}
-                </span>
+                  <Select
+                    label={t(locale, "publishModeSelectLabel")}
+                    labelHidden
+                    options={[
+                      { label: locale === "fr" ? "Publication manuelle" : "Manual publishing", value: "semi_auto" },
+                      { label: locale === "fr" ? "Publication automatique" : "Automatic publishing", value: "auto_apply" },
+                    ]}
+                    value={selected}
+                    onChange={(value) =>
+                      value === "auto_apply" ? handleActivateAuto() : handleToggle("semi_auto")
+                    }
+                  />
+                </div>
               ) : (
                 <span
                   style={{
@@ -2085,20 +2141,14 @@ function PublishModeCard({
                     ["--p-color-text-brand-on-bg-fill"]: "#000",
                   } as React.CSSProperties}
                 >
-                  {autoAllowed ? (
-                    <Button fullWidth variant="primary" onClick={handleActivateAuto}>
-                      {locale === "fr" ? "Activer" : "Activate"}
+                  <BlockStack gap="100">
+                    <Button fullWidth variant="primary" url={localizedPath("/app/billing", locale)} icon={LockIcon}>
+                      {locale === "fr" ? "Débloquer avec Pro" : "Unlock with Pro"}
                     </Button>
-                  ) : (
-                    <BlockStack gap="100">
-                      <Button fullWidth variant="primary" url={localizedPath("/app/billing", locale)} icon={LockIcon}>
-                        {locale === "fr" ? "Débloquer avec Pro" : "Unlock with Pro"}
-                      </Button>
-                      <Text as="p" variant="bodySm" tone="subdued">
-                        {locale === "fr" ? "Essai gratuit 7 jours" : "7-day free trial"}
-                      </Text>
-                    </BlockStack>
-                  )}
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      {locale === "fr" ? "Essai gratuit 7 jours" : "7-day free trial"}
+                    </Text>
+                  </BlockStack>
                 </span>
               )}
             </div>
@@ -2813,7 +2863,7 @@ export default function IndexPage() {
 
   if (error || !dashboard) {
     return (
-      <Page title="GEO by Organically">
+      <Page title="GEO by Organically" titleMetadata={<PlanBadge />}>
         <Banner tone="critical" title={t(locale, "systemStatus")}>
           <p>{error ?? t(locale, "systemUnavailable")}</p>
         </Banner>
@@ -2845,7 +2895,7 @@ export default function IndexPage() {
   };
 
   return (
-    <Page title="GEO by Organically">
+    <Page title="GEO by Organically" titleMetadata={<PlanBadge />}>
       <BlockStack gap="400">
         {/* Banners — kept above the setup guide so alerts (e.g. Google reconnect) are seen first */}
         {auditRunning && (
@@ -2947,7 +2997,7 @@ export default function IndexPage() {
         ) : null}
 
         {/* Quick-setup guide (includes the GEO education) — below alerts */}
-        <SetupGuide signals={setupSignals} locale={locale} />
+        <SetupGuide signals={setupSignals} locale={locale} shop={shop} />
 
         {/* Business profile — niche, brand, GEO score, personas, content style */}
         {businessProfile?.status === "validated" ? (

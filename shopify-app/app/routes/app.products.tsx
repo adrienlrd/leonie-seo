@@ -20,6 +20,7 @@ import {
   TextField,
   Tooltip,
 } from "@shopify/polaris";
+import { PlanBadge } from "../components/PlanBadge";
 import { AlertTriangleIcon, CheckIcon, RefreshIcon } from "@shopify/polaris-icons";
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
@@ -1667,6 +1668,7 @@ export default function ProductsPage() {
   return (
     <Page
       title={t(locale, "navProducts")}
+      titleMetadata={<PlanBadge />}
       subtitle={t(locale, "marketAnalysisSubtitle")}
     >
       <BlockStack gap="400">

@@ -20,6 +20,7 @@ import {
   Thumbnail,
   Tooltip,
 } from "@shopify/polaris";
+import { PlanBadge } from "../components/PlanBadge";
 import { AlertTriangleIcon, LightbulbIcon, ViewIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
@@ -423,6 +424,7 @@ export default function AnalysePage() {
   return (
     <Page
       title={t(locale, "analyseTitle")}
+      titleMetadata={<PlanBadge />}
       subtitle={t(locale, "analyseSubtitle")}
     >
       <BlockStack gap="400">

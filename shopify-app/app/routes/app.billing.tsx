@@ -16,6 +16,7 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
+import { PlanBadge } from "../components/PlanBadge";
 import { CheckCircleIcon, LockIcon } from "@shopify/polaris-icons";
 import { useState } from "react";
 import { authenticate } from "../shopify.server";
@@ -219,6 +220,7 @@ export default function Billing() {
   return (
     <Page
       title={fr ? "Forfaits" : "Plans"}
+      titleMetadata={<PlanBadge />}
       subtitle={
         fr
           ? "Plus de produits optimisés, plus de trafic. Changez ou annulez à tout moment."

@@ -12,6 +12,16 @@
 
 - **Date:** 2026-07-14
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Plan badge on every page, theme-activation popup, and 2-mode publishing consolidation.
+- **Changes:**
+  - `PlanBadge` component (`app/components/PlanBadge.tsx`) reads plan from `routes/app` loader via `useRouteLoaderData`; added `titleMetadata={<PlanBadge/>}` to all 7 pages. `app.tsx` loader now returns `plan`.
+  - SetupGuide "theme" step (paid): "Activer" opens a Modal explaining how to enable the app embed + a deep-link button to the theme editor (`activateAppId=<uuid>/faq_embed`), instead of redirecting.
+  - Publishing modes reduced from 3 to 2 everywhere: Settings Select and dashboard auto-panel now offer only **Publication manuelle** (`semi_auto`) / **Publication automatique** (`auto_apply`). Learning + 28-day re-analysis always on (`enabled=true` forced from UI; legacy `enabled=false` maps to semi_auto). Dashboard auto-panel shows a `<Select>` when unlocked, keeps "Débloquer" when free.
+  - i18n: `automationMode*` + `publishModeSelectLabel` (FR + EN).
+- **Validations:** front typecheck + build green; `pytest tests/test_learning tests/test_agent_schedule tests/test_api` → 332 passed (contrat learning-settings inchangé).
+
+## Task before that
+
 - **Goal:** Fix theme-extension entitlement leak on plan downgrade + setup-guide collapse rule.
 - **Changes:**
   - New `app/apply/theme_entitlement.py` `set_theme_entitlement(shop, entitled)` → shop metafield `leonie.theme_entitled` (boolean). Wired at every plan transition: billing confirm (grant), cancel (revoke), redeem-code (grant), and the `app_subscriptions/update` webhook (recompute plan → grant/revoke). Best-effort (never breaks the webhook).

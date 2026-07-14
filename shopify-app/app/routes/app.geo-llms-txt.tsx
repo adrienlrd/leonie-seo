@@ -15,6 +15,7 @@ import {
   Page,
   Text,
 } from "@shopify/polaris";
+import { PlanBadge } from "../components/PlanBadge";
 import { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
@@ -224,7 +225,7 @@ export default function LlmsTxtPage() {
       : t(locale, "llmsTxtPublishCta");
 
   return (
-    <Page title={t(locale, "llmsTxtTitle")}>
+    <Page title={t(locale, "llmsTxtTitle")} titleMetadata={<PlanBadge />}>
       <BlockStack gap="400">
         <Card>
           <BlockStack gap="300">
