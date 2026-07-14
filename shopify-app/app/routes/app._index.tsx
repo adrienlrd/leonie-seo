@@ -2038,51 +2038,19 @@ function PublishModeCard({
   const busy = fetcher.state !== "idle";
   const isAuto = selected === "auto_apply";
   // "Active" = the 28-day auto-analysis cycle is on (both publish modes keep it on).
-  const active = scheduleEnabled;
+  // Optimistic activation: flip to the "Actif" state on click instead of waiting for
+  // the loader to revalidate scheduleStatus (which can lag or time out).
+  const [activatedLocally, setActivatedLocally] = useState(false);
+  const active = scheduleEnabled || activatedLocally;
   const handleActivateManual = () => {
+    setActivatedLocally(true);
     handleToggle("semi_auto");
     onActivate?.();
   };
 
   const content = (
     <BlockStack gap="300">
-      <InlineGrid columns={["oneThird", "twoThirds"]} gap="300">
-          {/* Publication manuelle — grisé quand l'auto est actif */}
-          <div style={{ opacity: isAuto ? 0.45 : 1, display: "flex", flexDirection: "column" }}>
-            <Box
-              padding="300"
-              borderWidth="025"
-              borderRadius="200"
-              borderColor="border"
-              background="bg-surface-secondary"
-              minHeight="100%"
-            >
-              <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)" }}>
-                <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem" }}>
-                  <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
-                    <Icon source={ContentIcon} />
-                  </span>
-                  <Text as="p" variant="bodyMd" fontWeight="semibold">
-                    {t(locale, "publishModeManualTitle")}
-                  </Text>
-                </div>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {t(locale, "publishModeManualDesc")}
-                </Text>
-                <div style={{ flex: "1 1 auto" }} />
-                {!isAuto ? (
-                  <span style={{ fontWeight: 700, fontSize: "0.8125rem", color: "#000" }}>
-                    {locale === "fr" ? "Actif" : "Active"}
-                  </span>
-                ) : (
-                  <Button size="slim" onClick={() => handleToggle("semi_auto")} loading={busy}>
-                    {locale === "fr" ? "Activer" : "Activate"}
-                  </Button>
-                )}
-              </div>
-            </Box>
-          </div>
-
+      <div>
           <div
             style={{
               background: "#000",
@@ -2213,7 +2181,7 @@ function PublishModeCard({
               )}
             </div>
           </div>
-        </InlineGrid>
+      </div>
     </BlockStack>
   );
 
