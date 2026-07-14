@@ -789,6 +789,7 @@ export default function BlogIndexPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [showPublishUpsell, setShowPublishUpsell] = useState(false);
+  const [showBlogEdu, setShowBlogEdu] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState("");
   const [showPublished, setShowPublished] = useState(false);
   const [showDrafts, setShowDrafts] = useState(false);
@@ -1116,6 +1117,67 @@ export default function BlogIndexPage() {
             showUpgrade={blogUsage.plan !== "agency"}
           />
         )}
+        {!selected && (
+          <button
+            type="button"
+            onClick={() => setShowBlogEdu(true)}
+            style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}
+          >
+            <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+              <InlineStack align="space-between" blockAlign="center" wrap={false} gap="200">
+                <InlineStack gap="200" blockAlign="center" wrap={false}>
+                  <Icon source={QuestionCircleIcon} tone="subdued" />
+                  <Text as="h3" variant="bodySm" fontWeight="medium">
+                    {fr
+                      ? "Comment les blogs améliorent significativement le référencement ?"
+                      : "How blogs significantly improve your ranking?"}
+                  </Text>
+                </InlineStack>
+                <Icon source={CheckIcon} tone="subdued" />
+              </InlineStack>
+            </Box>
+          </button>
+        )}
+        <Modal
+          open={showBlogEdu}
+          onClose={() => setShowBlogEdu(false)}
+          title={fr ? "Comment les blogs améliorent significativement le référencement ?" : "How blogs significantly improve your ranking"}
+          primaryAction={{ content: fr ? "Compris" : "Got it", onAction: () => setShowBlogEdu(false) }}
+        >
+          <Modal.Section>
+            <BlockStack gap="400">
+              <Text as="p" variant="bodyMd">
+                {fr
+                  ? "Le blog est l'outil le plus puissant de votre arsenal SEO/GEO. Vos fiches produits ciblent l'intention d'achat ; le blog, lui, capte toutes les questions que vos clients se posent avant d'acheter — et multiplie vos portes d'entrée sur Google et dans les réponses des IA."
+                  : "The blog is the most powerful tool in your SEO/GEO arsenal. Product pages target buying intent; the blog captures every question customers ask before buying — multiplying your doors into Google and AI answers."}
+              </Text>
+              <Box background="bg-surface-secondary" padding="300" borderRadius="200">
+                <BlockStack gap="150">
+                  <Text as="p" variant="bodySm" fontWeight="semibold">
+                    {fr ? "Basé sur des faits réels que les gens recherchent" : "Grounded in real facts people actually search"}
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {fr
+                      ? "Un bon article part de vraies requêtes (données Google, tendances de votre niche) et y répond avec des faits vérifiables — pas du remplissage. C'est ce que Google classe et ce que les IA citent."
+                      : "A good article starts from real queries (Google data, niche trends) and answers them with verifiable facts — not filler. That's what Google ranks and AIs cite."}
+                  </Text>
+                </BlockStack>
+              </Box>
+              <Box background="bg-surface-info" padding="300" borderRadius="200">
+                <Text as="p" variant="bodySm" fontWeight="medium">
+                  {fr
+                    ? "Comptez 10 à 15 articles avant de générer un trafic significatif : le blog se construit comme une bibliothèque, chaque article renforce les autres."
+                    : "Expect 10 to 15 articles before meaningful traffic: a blog builds like a library, each article reinforcing the others."}
+                </Text>
+              </Box>
+              <Text as="p" variant="bodyMd" tone="subdued">
+                {fr
+                  ? "Soyez patient : contrairement à une fiche produit optimisée qui peut bouger en quelques semaines, un blog met 3 à 6 mois à donner sa pleine mesure. Mais une fois lancé, c'est le canal qui compose dans le temps — il travaille pour vous pendant des années."
+                  : "Be patient: unlike an optimized product page that can move within weeks, a blog takes 3 to 6 months to reach full effect. But once it takes off, it's the channel that compounds — working for you for years."}
+              </Text>
+            </BlockStack>
+          </Modal.Section>
+        </Modal>
         {actionData?.error === "402" ? (
           <Banner
             tone="warning"
