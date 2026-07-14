@@ -924,45 +924,36 @@ interface EduTopic {
   cta?: { label: string; url: string };
 }
 
-function EducationPanel({ locale, bare = false }: { locale: Locale; bare?: boolean }) {
+function EducationPanel({
+  locale,
+  bare = false,
+  openerRef,
+}: {
+  locale: Locale;
+  bare?: boolean;
+  /** Lets a parent open a specific topic modal by id (e.g. the setup guide). */
+  openerRef?: React.MutableRefObject<((id: string) => void) | null>;
+}) {
   const fr = locale === "fr";
   const [openTopic, setOpenTopic] = useState<EduTopic | null>(null);
 
   const topics: EduTopic[] = [
     {
-      id: "improve-geo",
-      icon: GlobeIcon,
-      question: fr ? "Comment améliorer son GEO ?" : "How do I improve my GEO?",
-      lead: fr
-        ? "ChatGPT, Perplexity ou Gemini recommandent les boutiques qu'ils comprennent le mieux. Des pages claires, factuelles et structurées font toute la différence."
-        : "ChatGPT, Perplexity and Gemini recommend the stores they understand best. Clear, factual, well-structured pages make all the difference.",
-      steps: fr
-        ? ["Un client pose une question à l'IA", "L'IA lit vos pages produits", "Elle recommande votre boutique"]
-        : ["A customer asks the AI a question", "The AI reads your product pages", "It recommends your store"],
-      stat: fr
-        ? "Un contenu riche en faits augmente la visibilité dans les réponses IA jusqu'à +40 %."
-        : "Fact-rich content boosts visibility in AI answers by up to +40%.",
-      close: fr
-        ? "L'app optimise vos titres, descriptions et données structurées pour que les IA vous choisissent."
-        : "The app optimizes your titles, descriptions and structured data so AIs pick you.",
-      cta: { label: fr ? "Voir mes optimisations" : "See my optimizations", url: localizedPath("/app/analyse", locale) },
-    },
-    {
       id: "number-one",
       icon: StarFilledIcon,
       question: fr ? "Comment être numéro 1 sur les IA ?" : "How do I rank #1 on AI?",
       lead: fr
-        ? "Être 1er sur Google ne suffit plus : moins de 20 % des sources citées par les IA viennent du top Google. Le classement se rejoue — et les premiers arrivés prennent la place."
-        : "Ranking #1 on Google is no longer enough: less than 20% of AI-cited sources come from Google's top results. The rankings are being reshuffled — and early movers take the spot.",
+        ? "Être 1er sur Google ne suffit plus : moins de 20 % des sources citées par les IA viennent du top Google. ChatGPT, Perplexity ou Gemini recommandent les boutiques qu'ils comprennent le mieux — des pages claires, factuelles et structurées font toute la différence."
+        : "Ranking #1 on Google is no longer enough: less than 20% of AI-cited sources come from Google's top results. ChatGPT, Perplexity and Gemini recommend the stores they understand best — clear, factual, structured pages make all the difference.",
       steps: fr
-        ? ["Contenu structuré, lisible par les IA", "FAQ qui répond aux vraies questions clients", "Les IA vous citent comme référence"]
-        : ["Structured content AIs can read", "FAQ answering real customer questions", "AIs cite you as the reference"],
+        ? ["Un client pose une question à l'IA", "L'IA lit vos pages structurées + FAQ", "Elle vous recommande comme référence"]
+        : ["A customer asks the AI a question", "The AI reads your structured pages + FAQ", "It recommends you as the reference"],
       stat: fr
-        ? "Le contenu structuré + FAQ est le format que les IA extraient et citent le plus volontiers."
-        : "Structured content + FAQ is the format AIs extract and cite the most.",
+        ? "Un contenu riche en faits et structuré (FAQ, données structurées) augmente la visibilité dans les réponses IA jusqu'à +40 %."
+        : "Fact-rich, structured content (FAQ, structured data) boosts visibility in AI answers by up to +40%.",
       close: fr
-        ? "L'app structure vos pages et génère vos FAQ automatiquement — pendant que vos concurrents optimisent encore pour l'ancien Google."
-        : "The app structures your pages and generates your FAQs automatically — while your competitors still optimize for the old Google.",
+        ? "L'app optimise vos titres, descriptions, FAQ et données structurées pour que les IA vous choisissent — pendant que vos concurrents optimisent encore pour l'ancien Google."
+        : "The app optimizes your titles, descriptions, FAQ and structured data so AIs pick you — while your competitors still optimize for the old Google.",
       cta: { label: fr ? "Lancer une analyse" : "Run an analysis", url: localizedPath("/app/analyse", locale) },
     },
     {
@@ -1022,10 +1013,10 @@ function EducationPanel({ locale, bare = false }: { locale: Locale; bare?: boole
     {
       id: "auto-analysis",
       icon: AutomationIcon,
-      question: fr ? "Comment l'Analyse automatique améliore mon ranking ?" : "How does Auto-analysis improve my ranking?",
+      question: fr ? "L'importance de l'analyse automatique" : "Why auto-analysis matters",
       lead: fr
-        ? "Un agent travaille pour vous chaque jour : il optimise, publie, mesure, puis recommence — uniquement sur les champs que vous avez validés."
-        : "An agent works for you every day: it optimizes, publishes, measures, then repeats — only on the fields you approved.",
+        ? "Le SEO n'est jamais « fini » : les requêtes, les concurrents et les tendances bougent en permanence. L'analyse automatique fait travailler un agent pour vous chaque jour — il optimise, publie, mesure, puis recommence, uniquement sur les champs que vous avez validés."
+        : "SEO is never \"done\": queries, competitors and trends shift constantly. Auto-analysis puts an agent to work for you every day — it optimizes, publishes, measures, then repeats, only on the fields you approved.",
       steps: fr
         ? ["Analyser", "Publier", "Mesurer (28 j)", "Améliorer ↺"]
         : ["Analyze", "Publish", "Measure (28 d)", "Improve ↺"],
@@ -1037,6 +1028,10 @@ function EducationPanel({ locale, bare = false }: { locale: Locale; bare?: boole
         : "Your SEO keeps improving, even while you sleep. Enable it in “Publish mode” below.",
     },
   ];
+
+  if (openerRef) {
+    openerRef.current = (id: string) => setOpenTopic(topics.find((tpc) => tpc.id === id) ?? null);
+  }
 
   const grid = (
     <>
@@ -1130,7 +1125,10 @@ interface GuideStep {
   why: string;
   done: boolean;
   ctaLabel: string;
-  ctaUrl: string;
+  /** Navigation target; omit when using onCta. */
+  ctaUrl?: string;
+  /** In-page action (e.g. open a modal) instead of navigation. */
+  onCta?: () => void;
   /** Paid feature: locked on free, marked unlocked (star) on paid plans. */
   paid?: boolean;
 }
@@ -1172,6 +1170,7 @@ function StepMarker({ done, locked }: { done: boolean; locked: boolean }) {
 function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale }) {
   const fr = locale === "fr";
   const isFree = signals.plan === "free";
+  const eduOpener = useRef<((id: string) => void) | null>(null);
 
   const steps: GuideStep[] = [
     {
@@ -1222,18 +1221,7 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
         : "Pushes the optimized titles, meta descriptions and copy to Shopify: this is what lifts your pages.",
       done: signals.proposalsPublished,
       ctaLabel: fr ? "Publier" : "Publish",
-      ctaUrl: localizedPath("/app/analyse", locale),
-    },
-    {
-      id: "theme",
-      label: fr ? "Connecter l'extension de thème" : "Connect the theme extension",
-      why: fr
-        ? "Affiche FAQ et données structurées sur votre boutique : les IA et Google comprennent mieux vos pages et vous citent."
-        : "Shows FAQ and structured data on your storefront so AIs and Google understand and cite your pages.",
-      done: signals.themeEnabled === true,
-      ctaLabel: isFree ? (fr ? "Débloquer" : "Unlock") : (fr ? "Activer" : "Enable"),
-      ctaUrl: isFree ? localizedPath("/app/billing", locale) : localizedPath("/app/account", locale),
-      paid: true,
+      ctaUrl: `${localizedPath("/app", locale)}?panel=publish`,
     },
     {
       id: "blog",
@@ -1252,8 +1240,19 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
         ? "Le fichier que ChatGPT, Claude et Perplexity lisent pour comprendre votre boutique et vous recommander."
         : "The file ChatGPT, Claude and Perplexity read to understand your store and recommend it.",
       done: signals.llmsPublished,
-      ctaLabel: fr ? "Publier" : "Publish",
+      ctaLabel: fr ? "Fichiers IA" : "AI files",
       ctaUrl: "/app/geo-llms-txt",
+    },
+    {
+      id: "theme",
+      label: fr ? "Connecter l'extension de thème" : "Connect the theme extension",
+      why: fr
+        ? "Affiche FAQ et données structurées sur votre boutique : les IA et Google comprennent mieux vos pages et vous citent."
+        : "Shows FAQ and structured data on your storefront so AIs and Google understand and cite your pages.",
+      done: signals.themeEnabled === true,
+      ctaLabel: isFree ? (fr ? "Débloquer" : "Unlock") : (fr ? "Activer" : "Enable"),
+      ctaUrl: isFree ? localizedPath("/app/billing", locale) : localizedPath("/app/account", locale),
+      paid: true,
     },
     {
       id: "auto",
@@ -1274,7 +1273,7 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
         : "Google measures a change's impact over ~28 days. The app waits, measures, then keeps what works.",
       done: signals.reanalysisDone,
       ctaLabel: fr ? "Comprendre" : "Learn why",
-      ctaUrl: localizedPath("/app/analyse", locale),
+      onCta: () => eduOpener.current?.("why-28-days"),
     },
   ];
 
@@ -1316,7 +1315,7 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
 
         <Collapsible id="setup-guide" open={open}>
           <BlockStack gap="300">
-            <EducationPanel locale={locale} bare />
+            <EducationPanel locale={locale} bare openerRef={eduOpener} />
             <Divider />
             <BlockStack gap="200">
             {steps.map((step) => {
@@ -1333,6 +1332,26 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
                       <StepMarker done={step.done} locked={locked} />
                       <BlockStack gap="050">
                         <InlineStack gap="150" blockAlign="center" wrap>
+                          {step.paid && isFree && (
+                            <span
+                              style={{
+                                background: "#000",
+                                color: "#fff",
+                                borderRadius: "6px",
+                                padding: "2px 8px",
+                                fontSize: "0.6875rem",
+                                fontWeight: 700,
+                                lineHeight: 1,
+                              }}
+                            >
+                              Pro
+                            </span>
+                          )}
+                          {step.paid && !isFree && (
+                            <span style={{ display: "inline-flex" }}>
+                              <Icon source={StarFilledIcon} tone="magic" />
+                            </span>
+                          )}
                           <Text
                             as="h3"
                             variant="bodyMd"
@@ -1341,32 +1360,30 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
                           >
                             {step.label}
                           </Text>
-                          {step.paid && !isFree && (
-                            <InlineStack gap="050" blockAlign="center" wrap={false}>
-                              <span style={{ display: "inline-flex" }}>
-                                <Icon source={StarFilledIcon} tone="magic" />
-                              </span>
-                              <Text as="span" variant="bodySm" tone="magic">
-                                {fr ? "Débloqué" : "Unlocked"}
-                              </Text>
-                            </InlineStack>
-                          )}
-                          {step.paid && isFree && (
-                            <Badge tone="attention">{fr ? "Pro" : "Pro"}</Badge>
-                          )}
                         </InlineStack>
                         <Text as="p" variant="bodySm" tone="subdued">{step.why}</Text>
                       </BlockStack>
                     </InlineStack>
                     {!step.done && (
-                      <Button
-                        url={step.ctaUrl}
-                        size="slim"
-                        variant={locked ? "primary" : "secondary"}
-                        icon={locked ? LockIcon : undefined}
-                      >
-                        {step.ctaLabel}
-                      </Button>
+                      step.onCta ? (
+                        <Button
+                          onClick={step.onCta}
+                          size="slim"
+                          variant={locked ? "primary" : "secondary"}
+                          icon={locked ? LockIcon : undefined}
+                        >
+                          {step.ctaLabel}
+                        </Button>
+                      ) : (
+                        <Button
+                          url={step.ctaUrl}
+                          size="slim"
+                          variant={locked ? "primary" : "secondary"}
+                          icon={locked ? LockIcon : undefined}
+                        >
+                          {step.ctaLabel}
+                        </Button>
+                      )
                     )}
                   </InlineStack>
                 </Box>
@@ -3361,6 +3378,14 @@ function AnalysisSchedulePanels({
 
   const [validateOpen, setValidateOpen] = useState(false);
   const [appliedOpen, setAppliedOpen] = useState(false);
+
+  // Deep-link from the setup guide: /app?panel=publish opens the publish modal.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("panel") === "publish") {
+      setValidateOpen(true);
+    }
+  }, []);
 
   // Per-product checked set (backend field names), seeded from auto_publish_fields
   // (or, absent any saved selection, every unapplied field that has a proposal).

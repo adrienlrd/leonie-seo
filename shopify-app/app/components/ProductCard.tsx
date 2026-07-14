@@ -709,7 +709,7 @@ export function ProductCard({
           applyAction={
             checkedApplyFields.size > 0 ? (
               <Button size="slim" variant="primary" loading={applyLoading} onClick={handleApplyProposals}>
-                {fr ? "Valider" : "Apply"}
+                {fr ? "Publier" : "Publish"}
               </Button>
             ) : null
           }

@@ -1,0 +1,4040 @@
+{
+  "exported_at": "2026-07-02T15:32:54.043448+00:00",
+  "shop": "287c4a-bb.myshopify.com",
+  "effectiveness": {
+    "shop": "287c4a-bb.myshopify.com",
+    "generated_at": "2026-07-02T15:32:54.043247+00:00",
+    "overall_verdict": "inconclusive",
+    "sample_size": 0,
+    "primary_window_sample": 0,
+    "avg_confidence": 0,
+    "min_sample_for_verdict": 3,
+    "primary_window_days": 28,
+    "seo": {
+      "verdict": "inconclusive",
+      "score": 0,
+      "sample": 0
+    },
+    "geo": {
+      "verdict": "inconclusive",
+      "score": 0,
+      "sample": 0
+    },
+    "verdict_distribution": {},
+    "by_field": [],
+    "proposals_count": 0,
+    "applied_count": 0,
+    "pending_approvals": 0,
+    "avg_content_quality": 0,
+    "recommendations": [
+      {
+        "code": "NO_RUNS",
+        "severity": "info",
+        "fr": "L'agent n'a encore jamais tourné. Activez l'agent quotidien ou lancez un test dans 5 minutes pour générer des propositions.",
+        "en": "The agent has never run yet. Enable the daily agent or run a 5-minute test to generate proposals."
+      }
+    ]
+  },
+  "settings": {
+    "schedule": {
+      "shop": "287c4a-bb.myshopify.com",
+      "enabled": true,
+      "mode": "auto_apply",
+      "frequency": "daily",
+      "local_time": "08:00",
+      "timezone": "Europe/Paris",
+      "next_run_at": "2026-07-03T06:00:00+00:00",
+      "last_run_at": null,
+      "last_run_id": null,
+      "test_run_at": null,
+      "last_reanalysis_at": "2026-07-02T15:30:14.785343+00:00",
+      "updated_at": "2026-07-02T15:30:14.798697+00:00"
+    },
+    "learning": {
+      "shop": "287c4a-bb.myshopify.com",
+      "enabled": true,
+      "mode": "auto_apply",
+      "allow_bulk_approval": true,
+      "max_auto_actions_per_cycle": 3,
+      "min_confidence_to_auto_apply": 80,
+      "min_confidence_to_suggest": 45,
+      "require_approval_for_medium_risk": true,
+      "reanalysis_frequency_days": 28,
+      "auto_publish_scopes": [
+        "meta_title",
+        "meta_description",
+        "alt_text"
+      ]
+    }
+  },
+  "summary": {
+    "total_events": 20,
+    "by_status": {
+      "applied": 20
+    },
+    "estimated_revenue": 0,
+    "observed_revenue": 0,
+    "measurement_note": "Observed impact is recorded after J+14/J+28 learning windows; J+60 is retained for long-term history.",
+    "products_tracked": 3,
+    "tags_total": 100,
+    "positive_tags": 37,
+    "negative_tags": 18,
+    "improved_elements": 27,
+    "total_elements": 27
+  },
+  "products": [
+    {
+      "product_id": "gid://shopify/Product/14904449466694",
+      "product_title": "Le pull pour chien Le Léonie",
+      "product_handle": "pull-pour-chien-en-cachemire",
+      "opportunity_score": 40,
+      "tags": [
+        {
+          "tag_id": "463b35c3964bbf7c",
+          "label": "Propriétaires d'animaux soucieux de la qualité et de l'élégance pour leurs compa",
+          "tag_type": "analysis_axis",
+          "status": "neutral",
+          "score": 60,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "6f817563254f5a91",
+          "label": "Propriétaires d'animaux soucieux de la qualité et de l'élégance, ainsi que des c",
+          "tag_type": "analysis_axis",
+          "status": "neutral",
+          "score": 60,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "a0d5f09bc7c9126d",
+          "label": "Achat de vêtements en cachemire pour animaux",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "ef6fb7eec0c82858",
+          "label": "Intérêt pour des produits de mode pour chiens",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "a8261cd6048762ab",
+          "label": "Recherche de vêtements pour animaux de compagnie",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "c7b239a8abddc08a",
+          "label": "acheter un pull pour chien",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "42932d99381d46eb",
+          "label": "commercial",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "e1b3541e6dd88f56",
+          "label": "rechercher des vêtements pour animaux",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "d29df761525a06ac",
+          "label": "rechercher des vêtements pour animaux de compagnie",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "de8cf7161239b44f",
+          "label": "rechercher des vêtements stylés pour animaux",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "1b18b953a57bb98a",
+          "label": "transactional",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "30ce2f1b99f43d6f",
+          "label": "trouver des produits en cachemire pour animaux",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "4a1ae63210d0323f",
+          "label": "trouver un pull en cachemire pour chien",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "45a1c4948fae4dc2",
+          "label": "pull cachemire chien",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "154c479faa983937",
+          "label": "pull chien acheter",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit"
+        },
+        {
+          "tag_id": "8f81fa7f645f5d2e",
+          "label": "pull chien cachemire",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Cible directement le produit en question."
+        },
+        {
+          "tag_id": "19488fb799831e0a",
+          "label": "pull chien commercial",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "b47a35a334c99f76",
+          "label": "pull chien léonie",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit"
+        },
+        {
+          "tag_id": "9f1b76e1406f5bf1",
+          "label": "pull chien recherche",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "f831e8f22ce2f0ea",
+          "label": "pull chien transactional",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "617c7fea571d3991",
+          "label": "pull chien vêtements",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "6c98a9069a67acb3",
+          "label": "pull en cachemire pour chien",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "google_suggest",
+          "locked_by_merchant": false,
+          "reason": "Cible directement le produit en question.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "c00c8e1a69d1b949",
+          "label": "pull pour chien",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 85,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Cible le type de produit général."
+        },
+        {
+          "tag_id": "302812c9578c591b",
+          "label": "pull pour chien acheter",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit"
+        },
+        {
+          "tag_id": "e1b033123e010a2a",
+          "label": "certifications",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "247b0c660a1a754b",
+          "label": "certifications: Certification or proof",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "0df13ba4cdc85d06",
+          "label": "materials",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "4d12be53ab87e127",
+          "label": "materials: Material or composition",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        },
+        {
+          "tag_id": "953c3ab1b1874269",
+          "label": "origins",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "1ee9f14846adf925",
+          "label": "origins: Manufacturing origin",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:13.957924+00:00",
+          "updated_at": "2026-07-02T15:30:13.957924+00:00"
+        }
+      ],
+      "elements": [
+        {
+          "key": "meta_title",
+          "label": "Meta title",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "meta_description",
+          "label": "Meta description",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "product_description",
+          "label": "Description produit",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "faq",
+          "label": "FAQ",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "geo_answer_block",
+          "label": "Bloc court GEO",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "blog",
+          "label": "Blog",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "image_alts",
+          "label": "Alt images",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "jsonld",
+          "label": "JSON-LD",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "internal_links",
+          "label": "Maillage interne",
+          "improved": true,
+          "status": "improved"
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/15035232911686",
+      "product_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "product_handle": "fontaine-smart-cordless",
+      "opportunity_score": 60,
+      "tags": [
+        {
+          "tag_id": "4a2c32b113d0ca13",
+          "label": "Propriétaires de chats soucieux de la qualité et du bien-être de leur animal, re",
+          "tag_type": "analysis_axis",
+          "status": "neutral",
+          "score": 60,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "5c2102fea3c91980",
+          "label": "achat d'une fontaine à eau sans fil",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "9e82e3edeeef1a30",
+          "label": "acheter une fontaine à eau pour chat",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "85daf7f5ba08ec6a",
+          "label": "besoin d'une solution d'hydratation pratique",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "926a9c3de8faf829",
+          "label": "commercial",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "44bb10b77205cb9a",
+          "label": "informational",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "9fabb6f03f0666fe",
+          "label": "intérêt pour des produits éco-responsables",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "9c2772cf6ec34e20",
+          "label": "recherche d'une fontaine à eau pour chat",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "dafa98b865e85016",
+          "label": "rechercher une fontaine à eau éco-responsable",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "493bbbba2184e218",
+          "label": "transactional",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "4ef05e45a4217d42",
+          "label": "trouver une fontaine à eau silencieuse",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "17bb6f9e697cc31e",
+          "label": "fontaine chat eau",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit"
+        },
+        {
+          "tag_id": "ec3c3a2c27fd0c21",
+          "label": "fontaine eau chat céramique",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 260 rech./mois"
+        },
+        {
+          "tag_id": "9b84961344685bac",
+          "label": "fontaine eau chat sans fil",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 880 rech./mois"
+        },
+        {
+          "tag_id": "e6e1ce31ba2c5e58",
+          "label": "fontaine eau chat silencieuse",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 260 rech./mois",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "021cfda23f1acb18",
+          "label": "fontaine eau fil",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "0df5448d750cf753",
+          "label": "fontaine smart cordless",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit"
+        },
+        {
+          "tag_id": "ba43b2d867e961ab",
+          "label": "fontaine à eau chat céramique",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 390 rech./mois",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "71c35f6d111ad462",
+          "label": "fontaine à eau pour chat sans électricité",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 480 rech./mois"
+        },
+        {
+          "tag_id": "31d938a4d6094d3d",
+          "label": "Care instructions",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "45ac2629fc9aca3a",
+          "label": "Manufacturing origin",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "08487cc362e6eaa9",
+          "label": "Warranty",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "f87c9b859c20bdff",
+          "label": "care",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "00acef73890fe377",
+          "label": "concurrents domaine absents",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "dae0e1278843f557",
+          "label": "dimensions",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "9cfb927f5603df46",
+          "label": "pas de PAA pour ce mot-clé",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        },
+        {
+          "tag_id": "e923014eb32d6601",
+          "label": "size_recommendation",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.042849+00:00",
+          "updated_at": "2026-07-02T15:30:14.042849+00:00"
+        }
+      ],
+      "elements": [
+        {
+          "key": "meta_title",
+          "label": "Meta title",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "meta_description",
+          "label": "Meta description",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "product_description",
+          "label": "Description produit",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "faq",
+          "label": "FAQ",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "geo_answer_block",
+          "label": "Bloc court GEO",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "blog",
+          "label": "Blog",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "image_alts",
+          "label": "Alt images",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "jsonld",
+          "label": "JSON-LD",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "internal_links",
+          "label": "Maillage interne",
+          "improved": true,
+          "status": "improved"
+        }
+      ]
+    },
+    {
+      "product_id": "gid://shopify/Product/9289598042438",
+      "product_title": "Le Harnais Haute Couture",
+      "product_handle": "le-harnais-tout-en-un",
+      "opportunity_score": 54,
+      "tags": [
+        {
+          "tag_id": "929f32d6a6815a9e",
+          "label": "Propriétaires d'animaux soucieux de la qualité et de l'esthétique, recherchant d",
+          "tag_type": "analysis_axis",
+          "status": "neutral",
+          "score": 60,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "27293798bf990779",
+          "label": "Propriétaires d'animaux soucieux de la qualité et de l'élégance, ainsi que les c",
+          "tag_type": "analysis_axis",
+          "status": "neutral",
+          "score": 60,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "7a72f5e1b3825a4e",
+          "label": "Propriétaires d'animaux soucieux de la qualité et du style, cherchant des produi",
+          "tag_type": "analysis_axis",
+          "status": "neutral",
+          "score": 60,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "65a7a237a76544c9",
+          "label": "Propriétaires d'animaux soucieux de la qualité et du style, recherchant des prod",
+          "tag_type": "analysis_axis",
+          "status": "neutral",
+          "score": 60,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "7ef315c555386699",
+          "label": "Propriétaires d'animaux soucieux de la qualité et du style, à la recherche d'un",
+          "tag_type": "analysis_axis",
+          "status": "neutral",
+          "score": 60,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "5f9b1b72f0d3db44",
+          "label": "Achat d'accessoires pour chiens",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "8caec162c063d543",
+          "label": "Achat d'un harnais durable et confortable",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "22bdcd6d66d42ba8",
+          "label": "Achat d'un harnais durable et stylé",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "19ee0925fc6fe39a",
+          "label": "Comparaison de différents types de harnais",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "c32167d33a0df911",
+          "label": "Intérêt pour des accessoires de mode pour animaux",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "25d7e0a73e319b27",
+          "label": "Intérêt pour des produits de mode pour animaux",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "a355aa75ee485063",
+          "label": "Intérêt pour des produits stylés pour animaux",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "57b7ee2112708d02",
+          "label": "Recherche d'un harnais de qualité",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "e89183fdc5ee6408",
+          "label": "Recherche d'un harnais de qualité pour chien",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "827ee52f3e68048c",
+          "label": "acheter un harnais pour chien",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "601720a0ba0d2454",
+          "label": "commercial",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "fc2ebd6a247888d3",
+          "label": "rechercher des accessoires pour animaux",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "2de492e4f533a614",
+          "label": "rechercher un harnais anti-traction",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "1a2c923a1c9328fd",
+          "label": "transactional",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "90779e8d2ad2a58c",
+          "label": "trouver un harnais de qualité",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "93661f1545770908",
+          "label": "trouver un harnais en cuir pour chien",
+          "tag_type": "content_axis",
+          "status": "neutral",
+          "score": 65,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "9c00389c966cbad0",
+          "label": "harnais anti traction chien",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Cible directement les harnais pour chiens avec une intention d'achat.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "5ce993c103a31c3f",
+          "label": "harnais anti traction gros chien",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 110 rech./mois",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "187a5b0974ac4d8c",
+          "label": "harnais anti traction pour chien",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 210 rech./mois",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "41323634d8e6c051",
+          "label": "harnais anti-traction gros chien",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 110 rech./mois",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "9556a93d4d969bf3",
+          "label": "harnais chaise haute",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 720 rech./mois"
+        },
+        {
+          "tag_id": "69be27d0aebbcccd",
+          "label": "harnais chaise haute bebe",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 170 rech./mois",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "8d868b3b02c62b6d",
+          "label": "harnais chaise haute chicco",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 320 rech./mois"
+        },
+        {
+          "tag_id": "f30079c3e16ced45",
+          "label": "harnais chien julius k9",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 260 rech./mois",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "1c53f9f66058bda1",
+          "label": "harnais couture chien",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit"
+        },
+        {
+          "tag_id": "4d7e67c0f36384c1",
+          "label": "harnais cuir véritable",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "e2b89d0af9c87196",
+          "label": "harnais haute couture",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "4b42a965e2e906df",
+          "label": "harnais haute couture acheter",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit"
+        },
+        {
+          "tag_id": "98423bed4cfa71d2",
+          "label": "harnais haute couture chien",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit"
+        },
+        {
+          "tag_id": "8c004bfce3287be0",
+          "label": "harnais haute couture commercial",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "f4f178f420b4ad5a",
+          "label": "harnais haute couture qualité",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "698c4089ecc1d8d7",
+          "label": "harnais haute couture recherche",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "1f73673662ddaa20",
+          "label": "harnais haute couture transactional",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 90,
+          "source": "market_seed",
+          "locked_by_merchant": false,
+          "reason": "Seed déterministe de catégorie produit",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "9829b00dda52945c",
+          "label": "harnais pour chien anti traction",
+          "tag_type": "keyword",
+          "status": "positive",
+          "score": 75,
+          "source": "dataforseo",
+          "locked_by_merchant": false,
+          "reason": "Suggestion DataForSEO — 170 rech./mois",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "6481894009216a90",
+          "label": "Certification or proof",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "a30237c8aa579b49",
+          "label": "Certifications or proof",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis.",
+          "last_seen_at": "2026-07-02T15:30:14.089037+00:00",
+          "updated_at": "2026-07-02T15:30:14.089037+00:00"
+        },
+        {
+          "tag_id": "103e61d9ea559c10",
+          "label": "Manufacturing origin",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        },
+        {
+          "tag_id": "57b6426862ede130",
+          "label": "Size recommendation",
+          "tag_type": "risk",
+          "status": "negative",
+          "score": 30,
+          "source": "market_analysis",
+          "locked_by_merchant": false,
+          "reason": "Derived from the latest market analysis."
+        }
+      ],
+      "elements": [
+        {
+          "key": "meta_title",
+          "label": "Meta title",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "meta_description",
+          "label": "Meta description",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "product_description",
+          "label": "Description produit",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "faq",
+          "label": "FAQ",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "geo_answer_block",
+          "label": "Bloc court GEO",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "blog",
+          "label": "Blog",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "image_alts",
+          "label": "Alt images",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "jsonld",
+          "label": "JSON-LD",
+          "improved": true,
+          "status": "improved"
+        },
+        {
+          "key": "internal_links",
+          "label": "Maillage interne",
+          "improved": true,
+          "status": "improved"
+        }
+      ]
+    }
+  ],
+  "tag_history": [],
+  "agent_runs": [],
+  "events": [
+    {
+      "id": 20,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-29T16:47:29.130128+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "alt_text",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 20,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-29T16:47:29.130128+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "alt_text",
+        "captured_at": "2026-06-29T16:47:29.115534+00:00",
+        "content": {
+          "alt_text": [
+            "Fontaine à eau sans fil pour chat en acier inoxydable Fontaine Smart 2,8L",
+            "Fontaine Smart sans fil rechargeable pour chat vue de dessus plateau inox",
+            "Fontaine Smart plateau acier inoxydable hygiénique anti-bactérien pour chat",
+            "Fontaine à eau chat sans fil grande capacité 2,8 litres 10 jours autonomie",
+            "Dimensions et design compact fontaine à eau sans fil Fontaine Smart chat",
+            "Fontaine Smart capteur de mouvement intégré eau fraîche automatique chat"
+          ]
+        },
+        "field": "alt_text",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "alt_text",
+        "value": [
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat sans fil",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine à eau pour chat sans électricité",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat céramique",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine smart cordless",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine chat eau",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine pour chat eau"
+        ]
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 19,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-29T16:47:25.565650+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "product_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 19,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-29T16:47:25.565650+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "product_description",
+        "captured_at": "2026-06-29T16:47:25.549458+00:00",
+        "content": {
+          "product_description": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle répond aux besoins de votre félin tout "
+        },
+        "field": "product_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "product_description",
+        "value": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle répond aux besoins de votre félin tout en garantissant son confort et sa santé. Son design élégant et moderne s'intègre parfaitement dans votre intérieur. Éco-responsable, cette fontaine est un choix idéal pour les propriétaires soucieux de l'environnement. Grâce à son fonctionnement silencieux, votre chat pourra s'hydrater sans être dérangé, favorisant ainsi une meilleure consommation d'eau. Pour maintenir la qualité de l'eau, il est recommandé de nettoyer régulièrement la fontaine. À retenir : Capacité de 2,8 litres ; Fabriquée en acier inoxydable ; Éco-responsable.\n\nRéponse courte : La Fontaine Smart est une fontaine à eau sans fil conçue pour l'hydratation optimale de votre chat, fabriquée en acier inoxydable et éco-responsable.\n\nLa Fontaine Smart est une fontaine à eau sans fil qui offre une hydratation optimale pour votre chat.\n\nÀ retenir : Capacité de 2,8 litres ; Fabriquée en acier inoxydable ; Éco-responsable.\n\nRepères comparatifs : Capacité: 2,8L ; Matériau: Acier inoxydable ; Garantie: 2 ans."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 18,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-29T16:47:24.294115+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 18,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-29T16:47:24.294115+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_description",
+        "captured_at": "2026-06-29T16:47:24.253084+00:00",
+        "content": {
+          "meta_description": "Découvrez la Fontaine Smart, une fontaine à eau sans fil en acier inoxydable, éco-responsable et silencieuse, idéale pour l'hydratation de votre chat."
+        },
+        "field": "meta_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_description",
+        "value": "Offrez à votre chat une hydratation optimale avec la Fontaine Smart, une fontaine à eau sans fil en acier inoxydable, éco-responsable et silencieuse."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 17,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-29T16:47:24.224670+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_title",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 17,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-29T16:47:24.224670+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_title",
+        "captured_at": "2026-06-29T16:47:24.210237+00:00",
+        "content": {
+          "meta_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat"
+        },
+        "field": "meta_title",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_title",
+        "value": "Fontaine à eau sans fil pour chat - La Fontaine Smart"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 16,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-29T16:47:23.228968+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "faq_metafield_sync",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 16,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-29T16:47:23.228968+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "faq_metafield_sync",
+        "captured_at": "2026-06-29T16:47:23.213430+00:00",
+        "content": {
+          "schema_facts": null
+        },
+        "field": "schema_facts",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "schema_facts",
+        "value": [
+          {
+            "confidence": "confirmed",
+            "key": "title",
+            "label": "Product title",
+            "source": "shopify_snapshot",
+            "value": "La Fontaine Smart - Fontaine à eau sans fil pour chat"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "handle",
+            "label": "Product handle",
+            "source": "shopify_snapshot",
+            "value": "fontaine-smart-cordless"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "description",
+            "label": "Description",
+            "source": "shopify_snapshot",
+            "value": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle répond aux besoins de votre félin tout en garantissant son confort et sa santé."
+          },
+          {
+            "confidence": "confirmed",
+            "key": "status",
+            "label": "Shopify status",
+            "source": "shopify_snapshot",
+            "value": "ACTIVE"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "price",
+            "label": "Price",
+            "source": "shopify_snapshot",
+            "value": "95.00"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "product_status",
+            "label": "Product status",
+            "source": "shopify_snapshot",
+            "value": "ACTIVE"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "materials",
+            "label": "Materials",
+            "source": "description_entities",
+            "value": [
+              "lin",
+              "metal"
+            ]
+          },
+          {
+            "confidence": "confirmed",
+            "key": "certifications",
+            "label": "Certifications",
+            "source": "description_entities",
+            "value": [
+              "éco-responsable"
+            ]
+          },
+          {
+            "confidence": "confirmed",
+            "key": "targets",
+            "label": "Recommended target",
+            "source": "description_entities",
+            "value": [
+              "chat"
+            ]
+          },
+          {
+            "confidence": "confirmed",
+            "key": "properties",
+            "label": "Product properties",
+            "source": "description_entities",
+            "value": [
+              "design",
+              "confortable"
+            ]
+          },
+          {
+            "confidence": "confirmed",
+            "key": "capacity",
+            "label": "Capacity",
+            "source": "description_entities",
+            "value": [
+              "2,8 litres",
+              "2,8L"
+            ]
+          },
+          {
+            "confidence": "confirmed",
+            "key": "warranty",
+            "label": "Warranty",
+            "source": "merchant_confirmation",
+            "value": "Garantie 2 ans"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "compatibility",
+            "label": "Compatibility",
+            "source": "merchant_confirmation",
+            "value": "Hydratation chat, canicule"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "use_cases",
+            "label": "Confirmed use cases",
+            "source": "merchant_confirmation",
+            "value": "Hydratation en continue, eau fraiche et propre. Incite le chat à boire"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "selection_criteria",
+            "label": "Selection criteria",
+            "source": "merchant_confirmation",
+            "value": "Grande capacité d'eau. Design. Filtrante"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "care",
+            "label": "Care instructions",
+            "source": "merchant_confirmation",
+            "value": "Changer les filtre tous les 2 mois, les éléments passes au lave vaisselle"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "size_recommendation",
+            "label": "Size recommendation",
+            "source": "merchant_confirmation",
+            "value": "La fontaine smart est taille unique, il faut une fontaine qui puisse tenir les besoin du chat sur une semaine"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "dimensions",
+            "label": "Dimensions",
+            "source": "merchant_confirmation",
+            "value": "20cm x 20 cm"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "origins",
+            "label": "Manufacturing origin",
+            "source": "merchant_confirmation",
+            "value": "Fabrication pensée pour le bien être du chat"
+          }
+        ]
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 15,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-27T10:44:30.984400+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614598836550",
+      "resource_title": "Comment choisir la meilleure fontaine à eau pour votre chat",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 15,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-27T10:44:30.984400+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-27T10:44:30.971094+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614598836550",
+        "resource_title": "Comment choisir la meilleure fontaine à eau pour votre chat",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Comment choisir la meilleure fontaine à eau pour votre chat"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 14,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-27T10:42:55.553473+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614598803782",
+      "resource_title": "Comparatif des meilleurs harnais anti-traction",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 14,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-27T10:42:55.553473+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-27T10:42:55.533621+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614598803782",
+        "resource_title": "Comparatif des meilleurs harnais anti-traction",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Comparatif des meilleurs harnais anti-traction"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 13,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-27T10:11:22.146203+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614598705478",
+      "resource_title": "Comment choisir le meilleur harnais pour votre chien",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 13,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-27T10:11:22.146203+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-27T10:11:22.131401+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614598705478",
+        "resource_title": "Comment choisir le meilleur harnais pour votre chien",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Comment choisir le meilleur harnais pour votre chien"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 12,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T16:04:13.284342+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614594871622",
+      "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 12,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T16:04:13.284342+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-26T16:04:13.269808+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614594871622",
+        "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 11,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T16:01:34.566151+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614594806086",
+      "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 11,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T16:01:34.566151+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-26T16:01:34.550153+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614594806086",
+        "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 10,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T15:59:23.639490+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614594773318",
+      "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 10,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T15:59:23.639490+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-26T15:59:23.625611+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614594773318",
+        "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 9,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T15:36:23.830608+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614594576710",
+      "resource_title": "Les avantages des harnais en cuir pour chiens",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 9,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T15:36:23.830608+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-26T15:36:23.814944+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614594576710",
+        "resource_title": "Les avantages des harnais en cuir pour chiens",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Les avantages des harnais en cuir pour chiens"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 8,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T06:32:20.698252+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "alt_text",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 8,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T06:32:20.698252+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "alt_text",
+        "captured_at": "2026-06-26T06:32:20.684358+00:00",
+        "content": {
+          "alt_text": [
+            "Fontaine à eau sans fil pour chat en acier inoxydable Fontaine Smart 2,8L",
+            "Fontaine Smart sans fil rechargeable pour chat vue de dessus plateau inox",
+            "Fontaine Smart plateau acier inoxydable hygiénique anti-bactérien pour chat",
+            "Fontaine à eau chat sans fil grande capacité 2,8 litres 10 jours autonomie",
+            "Dimensions et design compact fontaine à eau sans fil Fontaine Smart chat",
+            "Fontaine Smart capteur de mouvement intégré eau fraîche automatique chat"
+          ]
+        },
+        "field": "alt_text",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "alt_text",
+        "value": [
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat sans fil",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine à eau pour chat sans électricité",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat céramique",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau fil",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine smart cordless",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine chat eau"
+        ]
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 7,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T06:32:17.172102+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "product_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 7,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T06:32:17.172102+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "product_description",
+        "captured_at": "2026-06-26T06:32:17.158217+00:00",
+        "content": {
+          "product_description": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle s'adapte aux besoins de votre félin tou"
+        },
+        "field": "product_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "product_description",
+        "value": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle s'adapte aux besoins de votre félin tout en garantissant son confort et sa santé. Son design élégant et moderne s'intègre parfaitement dans votre intérieur. Éco-responsable, cette fontaine est un choix idéal pour les propriétaires soucieux de l'environnement. Grâce à son fonctionnement silencieux, votre chat pourra s'hydrater sans être dérangé, favorisant ainsi une meilleure consommation d'eau. Pour maintenir la qualité de l'eau, il est recommandé de nettoyer régulièrement la fontaine. À retenir : Capacité de 2,8 litres ; Fabriquée en acier inoxydable ; Éco-responsable.\n\nRéponse courte : La Fontaine Smart est une fontaine à eau sans fil qui offre une hydratation optimale pour votre chat grâce à son design pratique et élégant.\n\nLa Fontaine Smart est une fontaine à eau sans fil qui incite votre chat à boire davantage.\n\nÀ retenir : Capacité de 2,8 litres ; Fabriquée en acier inoxydable ; Éco-responsable.\n\nRepères comparatifs : Capacité: 2,8L ; Matériau: Acier inoxydable ; Garantie: 2 ans."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 6,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T06:32:15.976915+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 6,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T06:32:15.976915+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_description",
+        "captured_at": "2026-06-26T06:32:15.962133+00:00",
+        "content": {
+          "meta_description": ""
+        },
+        "field": "meta_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_description",
+        "value": "Offrez à votre chat une hydratation optimale avec la Fontaine Smart, une fontaine à eau sans fil en acier inoxydable, éco-responsable et silencieuse."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 5,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T06:32:15.933193+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_title",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 5,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T06:32:15.933193+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_title",
+        "captured_at": "2026-06-26T06:32:15.918846+00:00",
+        "content": {
+          "meta_title": "Fontaine à Eau Chat Céramique | Fontaine Smart Sans Fil"
+        },
+        "field": "meta_title",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_title",
+        "value": "La Fontaine Smart - Fontaine à eau sans fil pour chat"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 4,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-25T21:43:12.918605+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_title",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 4,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-25T21:43:12.918605+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_title",
+        "captured_at": "2026-06-25T21:43:12.903954+00:00",
+        "content": {
+          "meta_title": "Fontaine à Eau Chat Céramique | Fontaine Smart Sans Fil"
+        },
+        "field": "meta_title",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_title",
+        "value": "La Fontaine Smart - Fontaine à eau sans fil pour chat"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 3,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-25T20:55:46.853586+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "alt_text",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 3,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-25T20:55:46.853586+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "alt_text",
+        "captured_at": "2026-06-25T20:55:46.821701+00:00",
+        "content": {
+          "alt_text": [
+            "Fontaine à eau sans fil pour chat en acier inoxydable Fontaine Smart 2,8L",
+            "Fontaine Smart sans fil rechargeable pour chat vue de dessus plateau inox",
+            "Fontaine Smart plateau acier inoxydable hygiénique anti-bactérien pour chat",
+            "Fontaine à eau chat sans fil grande capacité 2,8 litres 10 jours autonomie",
+            "Dimensions et design compact fontaine à eau sans fil Fontaine Smart chat",
+            "Fontaine Smart capteur de mouvement intégré eau fraîche automatique chat"
+          ]
+        },
+        "field": "alt_text",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "alt_text",
+        "value": [
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat silencieuse",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat céramique",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat sans fil",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau fil",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine smart cordless",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine chat transactional"
+        ]
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 2,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-25T20:55:43.287441+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "product_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 2,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-25T20:55:43.287441+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "product_description",
+        "captured_at": "2026-06-25T20:55:43.273193+00:00",
+        "content": {
+          "product_description": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle s'adapte aux besoins de votre félin tou"
+        },
+        "field": "product_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "product_description",
+        "value": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle s'adapte aux besoins de votre félin tout en garantissant son confort et sa santé. Son design élégant et moderne s'intègre parfaitement dans votre intérieur. Éco-responsable, cette fontaine est un choix idéal pour les propriétaires soucieux de l'environnement. Grâce à son fonctionnement silencieux, votre chat pourra s'hydrater sans être dérangé, favorisant ainsi une meilleure consommation d'eau. Pour maintenir la qualité de l'eau, il est recommandé de nettoyer régulièrement la fontaine.\n\nRéponse courte : La Fontaine Smart est une fontaine à eau sans fil qui offre une hydratation optimale pour votre chat grâce à son design pratique et élégant.\n\nLa Fontaine Smart est une fontaine à eau sans fil qui hydrate efficacement votre chat.\n\nÀ retenir : Capacité de 2,8 litres ; Fabriquée en acier inoxydable ; Éco-responsable."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 1,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-25T20:48:44.572883+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 1,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-25T20:48:44.572883+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_description",
+        "captured_at": "2026-06-25T20:48:44.558666+00:00",
+        "content": {
+          "meta_description": ""
+        },
+        "field": "meta_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_description",
+        "value": "Offrez à votre chat une hydratation optimale avec la Fontaine Smart, une fontaine à eau silencieuse et éco-responsable en acier inoxydable."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    }
+  ],
+  "geo_events": [
+    {
+      "id": 20,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-29T16:47:29.130128+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "alt_text",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 20,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-29T16:47:29.130128+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "alt_text",
+        "captured_at": "2026-06-29T16:47:29.115534+00:00",
+        "content": {
+          "alt_text": [
+            "Fontaine à eau sans fil pour chat en acier inoxydable Fontaine Smart 2,8L",
+            "Fontaine Smart sans fil rechargeable pour chat vue de dessus plateau inox",
+            "Fontaine Smart plateau acier inoxydable hygiénique anti-bactérien pour chat",
+            "Fontaine à eau chat sans fil grande capacité 2,8 litres 10 jours autonomie",
+            "Dimensions et design compact fontaine à eau sans fil Fontaine Smart chat",
+            "Fontaine Smart capteur de mouvement intégré eau fraîche automatique chat"
+          ]
+        },
+        "field": "alt_text",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "alt_text",
+        "value": [
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat sans fil",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine à eau pour chat sans électricité",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat céramique",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine smart cordless",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine chat eau",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine pour chat eau"
+        ]
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 19,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-29T16:47:25.565650+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "product_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 19,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-29T16:47:25.565650+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "product_description",
+        "captured_at": "2026-06-29T16:47:25.549458+00:00",
+        "content": {
+          "product_description": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle répond aux besoins de votre félin tout "
+        },
+        "field": "product_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "product_description",
+        "value": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle répond aux besoins de votre félin tout en garantissant son confort et sa santé. Son design élégant et moderne s'intègre parfaitement dans votre intérieur. Éco-responsable, cette fontaine est un choix idéal pour les propriétaires soucieux de l'environnement. Grâce à son fonctionnement silencieux, votre chat pourra s'hydrater sans être dérangé, favorisant ainsi une meilleure consommation d'eau. Pour maintenir la qualité de l'eau, il est recommandé de nettoyer régulièrement la fontaine. À retenir : Capacité de 2,8 litres ; Fabriquée en acier inoxydable ; Éco-responsable.\n\nRéponse courte : La Fontaine Smart est une fontaine à eau sans fil conçue pour l'hydratation optimale de votre chat, fabriquée en acier inoxydable et éco-responsable.\n\nLa Fontaine Smart est une fontaine à eau sans fil qui offre une hydratation optimale pour votre chat.\n\nÀ retenir : Capacité de 2,8 litres ; Fabriquée en acier inoxydable ; Éco-responsable.\n\nRepères comparatifs : Capacité: 2,8L ; Matériau: Acier inoxydable ; Garantie: 2 ans."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 18,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-29T16:47:24.294115+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 18,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-29T16:47:24.294115+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_description",
+        "captured_at": "2026-06-29T16:47:24.253084+00:00",
+        "content": {
+          "meta_description": "Découvrez la Fontaine Smart, une fontaine à eau sans fil en acier inoxydable, éco-responsable et silencieuse, idéale pour l'hydratation de votre chat."
+        },
+        "field": "meta_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_description",
+        "value": "Offrez à votre chat une hydratation optimale avec la Fontaine Smart, une fontaine à eau sans fil en acier inoxydable, éco-responsable et silencieuse."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 17,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-29T16:47:24.224670+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_title",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 17,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-29T16:47:24.224670+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_title",
+        "captured_at": "2026-06-29T16:47:24.210237+00:00",
+        "content": {
+          "meta_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat"
+        },
+        "field": "meta_title",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_title",
+        "value": "Fontaine à eau sans fil pour chat - La Fontaine Smart"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 16,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-29T16:47:23.228968+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "faq_metafield_sync",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 16,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-29T16:47:23.228968+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "faq_metafield_sync",
+        "captured_at": "2026-06-29T16:47:23.213430+00:00",
+        "content": {
+          "schema_facts": null
+        },
+        "field": "schema_facts",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "schema_facts",
+        "value": [
+          {
+            "confidence": "confirmed",
+            "key": "title",
+            "label": "Product title",
+            "source": "shopify_snapshot",
+            "value": "La Fontaine Smart - Fontaine à eau sans fil pour chat"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "handle",
+            "label": "Product handle",
+            "source": "shopify_snapshot",
+            "value": "fontaine-smart-cordless"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "description",
+            "label": "Description",
+            "source": "shopify_snapshot",
+            "value": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle répond aux besoins de votre félin tout en garantissant son confort et sa santé."
+          },
+          {
+            "confidence": "confirmed",
+            "key": "status",
+            "label": "Shopify status",
+            "source": "shopify_snapshot",
+            "value": "ACTIVE"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "price",
+            "label": "Price",
+            "source": "shopify_snapshot",
+            "value": "95.00"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "product_status",
+            "label": "Product status",
+            "source": "shopify_snapshot",
+            "value": "ACTIVE"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "materials",
+            "label": "Materials",
+            "source": "description_entities",
+            "value": [
+              "lin",
+              "metal"
+            ]
+          },
+          {
+            "confidence": "confirmed",
+            "key": "certifications",
+            "label": "Certifications",
+            "source": "description_entities",
+            "value": [
+              "éco-responsable"
+            ]
+          },
+          {
+            "confidence": "confirmed",
+            "key": "targets",
+            "label": "Recommended target",
+            "source": "description_entities",
+            "value": [
+              "chat"
+            ]
+          },
+          {
+            "confidence": "confirmed",
+            "key": "properties",
+            "label": "Product properties",
+            "source": "description_entities",
+            "value": [
+              "design",
+              "confortable"
+            ]
+          },
+          {
+            "confidence": "confirmed",
+            "key": "capacity",
+            "label": "Capacity",
+            "source": "description_entities",
+            "value": [
+              "2,8 litres",
+              "2,8L"
+            ]
+          },
+          {
+            "confidence": "confirmed",
+            "key": "warranty",
+            "label": "Warranty",
+            "source": "merchant_confirmation",
+            "value": "Garantie 2 ans"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "compatibility",
+            "label": "Compatibility",
+            "source": "merchant_confirmation",
+            "value": "Hydratation chat, canicule"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "use_cases",
+            "label": "Confirmed use cases",
+            "source": "merchant_confirmation",
+            "value": "Hydratation en continue, eau fraiche et propre. Incite le chat à boire"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "selection_criteria",
+            "label": "Selection criteria",
+            "source": "merchant_confirmation",
+            "value": "Grande capacité d'eau. Design. Filtrante"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "care",
+            "label": "Care instructions",
+            "source": "merchant_confirmation",
+            "value": "Changer les filtre tous les 2 mois, les éléments passes au lave vaisselle"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "size_recommendation",
+            "label": "Size recommendation",
+            "source": "merchant_confirmation",
+            "value": "La fontaine smart est taille unique, il faut une fontaine qui puisse tenir les besoin du chat sur une semaine"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "dimensions",
+            "label": "Dimensions",
+            "source": "merchant_confirmation",
+            "value": "20cm x 20 cm"
+          },
+          {
+            "confidence": "confirmed",
+            "key": "origins",
+            "label": "Manufacturing origin",
+            "source": "merchant_confirmation",
+            "value": "Fabrication pensée pour le bien être du chat"
+          }
+        ]
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 15,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-27T10:44:30.984400+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614598836550",
+      "resource_title": "Comment choisir la meilleure fontaine à eau pour votre chat",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 15,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-27T10:44:30.984400+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-27T10:44:30.971094+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614598836550",
+        "resource_title": "Comment choisir la meilleure fontaine à eau pour votre chat",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Comment choisir la meilleure fontaine à eau pour votre chat"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 14,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-27T10:42:55.553473+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614598803782",
+      "resource_title": "Comparatif des meilleurs harnais anti-traction",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 14,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-27T10:42:55.553473+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-27T10:42:55.533621+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614598803782",
+        "resource_title": "Comparatif des meilleurs harnais anti-traction",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Comparatif des meilleurs harnais anti-traction"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 13,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-27T10:11:22.146203+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614598705478",
+      "resource_title": "Comment choisir le meilleur harnais pour votre chien",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 13,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-27T10:11:22.146203+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-27T10:11:22.131401+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614598705478",
+        "resource_title": "Comment choisir le meilleur harnais pour votre chien",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Comment choisir le meilleur harnais pour votre chien"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 12,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T16:04:13.284342+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614594871622",
+      "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 12,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T16:04:13.284342+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-26T16:04:13.269808+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614594871622",
+        "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 11,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T16:01:34.566151+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614594806086",
+      "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 11,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T16:01:34.566151+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-26T16:01:34.550153+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614594806086",
+        "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 10,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T15:59:23.639490+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614594773318",
+      "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 10,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T15:59:23.639490+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-26T15:59:23.625611+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614594773318",
+        "resource_title": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Guide d'Achat : Choisir le Meilleur Pull en Cachemire pour Votre Chien"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 9,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T15:36:23.830608+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "blog_post",
+      "resource_id": "gid://shopify/Article/614594576710",
+      "resource_title": "Les avantages des harnais en cuir pour chiens",
+      "action_type": "blog_publish",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 9,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T15:36:23.830608+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "blog_publish",
+        "captured_at": "2026-06-26T15:36:23.814944+00:00",
+        "content": {
+          "blog_post": null
+        },
+        "field": "blog_post",
+        "hypothesis": null,
+        "path": "",
+        "resource_id": "gid://shopify/Article/614594576710",
+        "resource_title": "Les avantages des harnais en cuir pour chiens",
+        "resource_type": "blog_post",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "blog_post",
+        "value": "Les avantages des harnais en cuir pour chiens"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 8,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T06:32:20.698252+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "alt_text",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 8,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T06:32:20.698252+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "alt_text",
+        "captured_at": "2026-06-26T06:32:20.684358+00:00",
+        "content": {
+          "alt_text": [
+            "Fontaine à eau sans fil pour chat en acier inoxydable Fontaine Smart 2,8L",
+            "Fontaine Smart sans fil rechargeable pour chat vue de dessus plateau inox",
+            "Fontaine Smart plateau acier inoxydable hygiénique anti-bactérien pour chat",
+            "Fontaine à eau chat sans fil grande capacité 2,8 litres 10 jours autonomie",
+            "Dimensions et design compact fontaine à eau sans fil Fontaine Smart chat",
+            "Fontaine Smart capteur de mouvement intégré eau fraîche automatique chat"
+          ]
+        },
+        "field": "alt_text",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "alt_text",
+        "value": [
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat sans fil",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine à eau pour chat sans électricité",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat céramique",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau fil",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine smart cordless",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine chat eau"
+        ]
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 7,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T06:32:17.172102+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "product_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 7,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T06:32:17.172102+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "product_description",
+        "captured_at": "2026-06-26T06:32:17.158217+00:00",
+        "content": {
+          "product_description": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle s'adapte aux besoins de votre félin tou"
+        },
+        "field": "product_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "product_description",
+        "value": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle s'adapte aux besoins de votre félin tout en garantissant son confort et sa santé. Son design élégant et moderne s'intègre parfaitement dans votre intérieur. Éco-responsable, cette fontaine est un choix idéal pour les propriétaires soucieux de l'environnement. Grâce à son fonctionnement silencieux, votre chat pourra s'hydrater sans être dérangé, favorisant ainsi une meilleure consommation d'eau. Pour maintenir la qualité de l'eau, il est recommandé de nettoyer régulièrement la fontaine. À retenir : Capacité de 2,8 litres ; Fabriquée en acier inoxydable ; Éco-responsable.\n\nRéponse courte : La Fontaine Smart est une fontaine à eau sans fil qui offre une hydratation optimale pour votre chat grâce à son design pratique et élégant.\n\nLa Fontaine Smart est une fontaine à eau sans fil qui incite votre chat à boire davantage.\n\nÀ retenir : Capacité de 2,8 litres ; Fabriquée en acier inoxydable ; Éco-responsable.\n\nRepères comparatifs : Capacité: 2,8L ; Matériau: Acier inoxydable ; Garantie: 2 ans."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 6,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T06:32:15.976915+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 6,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T06:32:15.976915+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_description",
+        "captured_at": "2026-06-26T06:32:15.962133+00:00",
+        "content": {
+          "meta_description": ""
+        },
+        "field": "meta_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_description",
+        "value": "Offrez à votre chat une hydratation optimale avec la Fontaine Smart, une fontaine à eau sans fil en acier inoxydable, éco-responsable et silencieuse."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 5,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-26T06:32:15.933193+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_title",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 5,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-26T06:32:15.933193+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_title",
+        "captured_at": "2026-06-26T06:32:15.918846+00:00",
+        "content": {
+          "meta_title": "Fontaine à Eau Chat Céramique | Fontaine Smart Sans Fil"
+        },
+        "field": "meta_title",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_title",
+        "value": "La Fontaine Smart - Fontaine à eau sans fil pour chat"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 4,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-25T21:43:12.918605+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_title",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 4,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-25T21:43:12.918605+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_title",
+        "captured_at": "2026-06-25T21:43:12.903954+00:00",
+        "content": {
+          "meta_title": "Fontaine à Eau Chat Céramique | Fontaine Smart Sans Fil"
+        },
+        "field": "meta_title",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_title",
+        "value": "La Fontaine Smart - Fontaine à eau sans fil pour chat"
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 3,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-25T20:55:46.853586+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "alt_text",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 3,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-25T20:55:46.853586+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "alt_text",
+        "captured_at": "2026-06-25T20:55:46.821701+00:00",
+        "content": {
+          "alt_text": [
+            "Fontaine à eau sans fil pour chat en acier inoxydable Fontaine Smart 2,8L",
+            "Fontaine Smart sans fil rechargeable pour chat vue de dessus plateau inox",
+            "Fontaine Smart plateau acier inoxydable hygiénique anti-bactérien pour chat",
+            "Fontaine à eau chat sans fil grande capacité 2,8 litres 10 jours autonomie",
+            "Dimensions et design compact fontaine à eau sans fil Fontaine Smart chat",
+            "Fontaine Smart capteur de mouvement intégré eau fraîche automatique chat"
+          ]
+        },
+        "field": "alt_text",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "alt_text",
+        "value": [
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat silencieuse",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat céramique",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau chat sans fil",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine eau fil",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine smart cordless",
+          "La Fontaine Smart - Fontaine à eau sans fil pour chat – fontaine chat transactional"
+        ]
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 2,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-25T20:55:43.287441+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "product_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 2,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-25T20:55:43.287441+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "product_description",
+        "captured_at": "2026-06-25T20:55:43.273193+00:00",
+        "content": {
+          "product_description": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle s'adapte aux besoins de votre félin tou"
+        },
+        "field": "product_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "product_description",
+        "value": "La Fontaine Smart est une fontaine à eau sans fil en acier inoxydable, conçue pour offrir une hydratation optimale à votre chat. Avec une capacité de 2,8L, elle s'adapte aux besoins de votre félin tout en garantissant son confort et sa santé. Son design élégant et moderne s'intègre parfaitement dans votre intérieur. Éco-responsable, cette fontaine est un choix idéal pour les propriétaires soucieux de l'environnement. Grâce à son fonctionnement silencieux, votre chat pourra s'hydrater sans être dérangé, favorisant ainsi une meilleure consommation d'eau. Pour maintenir la qualité de l'eau, il est recommandé de nettoyer régulièrement la fontaine.\n\nRéponse courte : La Fontaine Smart est une fontaine à eau sans fil qui offre une hydratation optimale pour votre chat grâce à son design pratique et élégant.\n\nLa Fontaine Smart est une fontaine à eau sans fil qui hydrate efficacement votre chat.\n\nÀ retenir : Capacité de 2,8 litres ; Fabriquée en acier inoxydable ; Éco-responsable."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    },
+    {
+      "id": 1,
+      "shop": "287c4a-bb.myshopify.com",
+      "created_at": "2026-06-25T20:48:44.572883+00:00",
+      "event_type": "applied_optimization",
+      "resource_type": "product",
+      "resource_id": "gid://shopify/Product/15035232911686",
+      "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+      "action_type": "meta_description",
+      "status": "applied",
+      "source": "auto_apply",
+      "job_id": null,
+      "snapshot_id": 1,
+      "hypothesis": null,
+      "score_before": null,
+      "score_after": null,
+      "measurement_status": "baseline_captured",
+      "status_history": [
+        {
+          "changed_at": "2026-06-25T20:48:44.572883+00:00",
+          "status": "applied"
+        }
+      ],
+      "before_snapshot": {
+        "action_type": "meta_description",
+        "captured_at": "2026-06-25T20:48:44.558666+00:00",
+        "content": {
+          "meta_description": ""
+        },
+        "field": "meta_description",
+        "hypothesis": null,
+        "path": "/products/fontaine-smart-cordless",
+        "resource_id": "gid://shopify/Product/15035232911686",
+        "resource_title": "La Fontaine Smart - Fontaine à eau sans fil pour chat",
+        "resource_type": "product",
+        "shop": "287c4a-bb.myshopify.com",
+        "source": "auto_apply"
+      },
+      "after_snapshot": {
+        "field": "meta_description",
+        "value": "Offrez à votre chat une hydratation optimale avec la Fontaine Smart, une fontaine à eau silencieuse et éco-responsable en acier inoxydable."
+      },
+      "metrics_before": {
+        "gsc": {
+          "clicks": 0,
+          "ctr": 0,
+          "impressions": 0,
+          "position": 0
+        },
+        "measurement_note": "Baseline metrics captured at apply time; learning compares J+14/J+28 windows and keeps J+60 as long-term history."
+      },
+      "metrics_after": null,
+      "estimated_impact": {},
+      "observed_impact": null,
+      "notes": null
+    }
+  ],
+  "learning_runs": [],
+  "pending_approvals": [],
+  "errors": []
+}
