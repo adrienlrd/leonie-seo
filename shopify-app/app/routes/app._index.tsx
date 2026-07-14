@@ -2014,12 +2014,11 @@ function PublishModeCard({
   // currently checked now (the action chains both backend calls).
   const handleActivateAuto = () => {
     setActivatedLocally(true);
-    setSelected("auto_apply");
-    setActivating(true);
-    setActivateProgress(8);
-    const fd = new FormData();
-    fd.set("intent", "activateAutoPublish");
-    activateFetcher.submit(fd, { method: "post" });
+    // Same flow as "Run analysis now": set auto mode, then run the re-analysis via
+    // the shared encart trigger so progress shows in the analysis panel (not a
+    // separate in-panel bar). run-and-publish auto-publishes because mode=auto_apply.
+    handleToggle("auto_apply");
+    onActivate?.();
   };
 
   useEffect(() => {
@@ -2141,24 +2140,52 @@ function PublishModeCard({
                   <ProgressBar progress={activateProgress} size="small" tone="highlight" />
                 </BlockStack>
               ) : autoActive ? (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.375rem",
-                    alignSelf: "flex-start",
-                    background: "#fff",
-                    color: "#000",
-                    borderRadius: "999px",
-                    padding: "0.25rem 0.625rem",
-                    fontSize: "0.75rem",
-                    lineHeight: 1,
-                    fontWeight: 600,
-                  }}
-                >
-                  <RocketIcon size={14} />
-                  {locale === "fr" ? "Actif" : "Active"}
-                </span>
+                <BlockStack gap="150">
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.375rem",
+                      alignSelf: "flex-start",
+                      background: "#fff",
+                      color: "#000",
+                      borderRadius: "999px",
+                      padding: "0.25rem 0.625rem",
+                      fontSize: "0.75rem",
+                      lineHeight: 1,
+                      fontWeight: 600,
+                    }}
+                  >
+                    <RocketIcon size={14} />
+                    {locale === "fr" ? "Actif" : "Active"}
+                  </span>
+                  {/* Native select styled explicitly so it stays dark-on-white on the black panel. */}
+                  <select
+                    aria-label={t(locale, "publishModeSelectLabel")}
+                    value={selected}
+                    onChange={(e) =>
+                      e.target.value === "auto_apply" ? handleActivateAuto() : handleActivateManual()
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "0.5rem 0.625rem",
+                      borderRadius: "8px",
+                      border: "1px solid #8a8a8a",
+                      background: "#ffffff",
+                      color: "#303030",
+                      fontSize: "0.8125rem",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="semi_auto">
+                      {locale === "fr" ? "Publication manuelle" : "Manual publishing"}
+                    </option>
+                    <option value="auto_apply">
+                      {locale === "fr" ? "Publication automatique" : "Automatic publishing"}
+                    </option>
+                  </select>
+                </BlockStack>
               ) : autoAllowed ? (
                 <span
                   style={{
