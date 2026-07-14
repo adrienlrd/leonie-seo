@@ -924,7 +924,7 @@ interface EduTopic {
   cta?: { label: string; url: string };
 }
 
-function EducationPanel({ locale }: { locale: Locale }) {
+function EducationPanel({ locale, bare = false }: { locale: Locale; bare?: boolean }) {
   const fr = locale === "fr";
   const [openTopic, setOpenTopic] = useState<EduTopic | null>(null);
 
@@ -1038,40 +1038,28 @@ function EducationPanel({ locale }: { locale: Locale }) {
     },
   ];
 
-  return (
-    <Card>
-      <BlockStack gap="300">
-        <BlockStack gap="100">
-          <SectionTitle source={QuestionCircleIcon}>
-            {fr ? "Comprendre le GEO en 2 minutes" : "Understand GEO in 2 minutes"}
-          </SectionTitle>
-          <Text as="p" variant="bodySm" tone="subdued">
-            {fr
-              ? "Pourquoi votre boutique va gagner du trafic — expliqué simplement."
-              : "Why your store is going to win more traffic — explained simply."}
-          </Text>
-        </BlockStack>
-        <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="200">
-          {topics.map((topic) => (
-            <button
-              key={topic.id}
-              type="button"
-              onClick={() => setOpenTopic(topic)}
-              style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}
-            >
-              <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
-                <InlineStack align="space-between" blockAlign="center" wrap={false} gap="200">
-                  <InlineStack gap="200" blockAlign="center" wrap={false}>
-                    <Icon source={topic.icon} tone="subdued" />
-                    <Text as="h3" variant="bodySm" fontWeight="medium">{topic.question}</Text>
-                  </InlineStack>
-                  <Icon source={ChevronRightIcon} tone="subdued" />
+  const grid = (
+    <>
+      <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="200">
+        {topics.map((topic) => (
+          <button
+            key={topic.id}
+            type="button"
+            onClick={() => setOpenTopic(topic)}
+            style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}
+          >
+            <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+              <InlineStack align="space-between" blockAlign="center" wrap={false} gap="200">
+                <InlineStack gap="200" blockAlign="center" wrap={false}>
+                  <Icon source={topic.icon} tone="subdued" />
+                  <Text as="h3" variant="bodySm" fontWeight="medium">{topic.question}</Text>
                 </InlineStack>
-              </Box>
-            </button>
-          ))}
-        </InlineGrid>
-      </BlockStack>
+                <Icon source={ChevronRightIcon} tone="subdued" />
+              </InlineStack>
+            </Box>
+          </button>
+        ))}
+      </InlineGrid>
       <Modal
         open={openTopic !== null}
         onClose={() => setOpenTopic(null)}
@@ -1111,6 +1099,13 @@ function EducationPanel({ locale }: { locale: Locale }) {
           </Modal.Section>
         )}
       </Modal>
+    </>
+  );
+
+  if (bare) return grid;
+  return (
+    <Card>
+      <BlockStack gap="300">{grid}</BlockStack>
     </Card>
   );
 }
@@ -1320,8 +1315,10 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
         <ProgressBar progress={pct} size="small" tone="highlight" />
 
         <Collapsible id="setup-guide" open={open}>
-          <BlockStack gap="200">
-            <div style={{ height: "var(--p-space-100)" }} />
+          <BlockStack gap="300">
+            <EducationPanel locale={locale} bare />
+            <Divider />
+            <BlockStack gap="200">
             {steps.map((step) => {
               const locked = Boolean(step.paid) && isFree;
               return (
@@ -1375,6 +1372,7 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
                 </Box>
               );
             })}
+            </BlockStack>
 
             {isFree && (
               <Box padding="300" background="bg-surface-secondary" borderRadius="200">
@@ -2771,8 +2769,7 @@ export default function IndexPage() {
   return (
     <Page title="GEO by Organically">
       <BlockStack gap="400">
-        {/* Understand GEO, then the quick-setup guide — top of page */}
-        <EducationPanel locale={locale} />
+        {/* Quick-setup guide (includes the GEO education) — top of page */}
         <SetupGuide signals={setupSignals} locale={locale} />
 
         {/* Banners */}
