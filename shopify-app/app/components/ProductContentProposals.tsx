@@ -143,6 +143,11 @@ export function ProductContentProposals({
   const generateAction = `/app/blog?productId=${encodeURIComponent(product.product_id)}`;
   const isGenerating =
     navigation.state !== "idle" && navigation.formAction === generateAction;
+  // Which blog idea is being generated, so only its button shows the loader
+  // while the others are disabled (greyed) until it finishes.
+  const generatingIndex = isGenerating
+    ? (navigation.formData?.get("blogIdeaIndex") as string | null)
+    : null;
 
   const packSignature = JSON.stringify(pack);
   useEffect(() => {
@@ -476,7 +481,13 @@ export function ProductContentProposals({
                         <Form method="post" action={generateAction}>
                           <input type="hidden" name="intent" value="createFromProduct" />
                           <input type="hidden" name="blogIdeaIndex" value={String(index)} />
-                          <Button size="slim" variant="primary" submit loading={isGenerating}>
+                          <Button
+                            size="slim"
+                            variant="primary"
+                            submit
+                            loading={generatingIndex === String(index)}
+                            disabled={isGenerating && generatingIndex !== String(index)}
+                          >
                             {locale === "fr" ? "Générer l'article" : "Generate article"}
                           </Button>
                         </Form>

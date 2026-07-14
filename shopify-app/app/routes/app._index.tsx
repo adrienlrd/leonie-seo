@@ -853,13 +853,13 @@ function DataSourcesPanel({
         <InlineStack gap="400" wrap>
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="bodySm">Shopify</Text>
-            <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
+            <Badge tone="info">{fr ? "Connecté" : "Connected"}</Badge>
           </InlineStack>
 
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="bodySm">Google Search Console</Text>
             {gscConnected ? (
-              <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
+              <Badge tone="info">{fr ? "Connecté" : "Connected"}</Badge>
             ) : (
               <Button url={connectionsUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
             )}
@@ -868,7 +868,7 @@ function DataSourcesPanel({
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="bodySm">Google Analytics 4</Text>
             {ga4Connected ? (
-              <Badge tone="success">{fr ? "Connecté" : "Connected"}</Badge>
+              <Badge tone="info">{fr ? "Connecté" : "Connected"}</Badge>
             ) : (
               <Button url={connectionsUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
             )}
@@ -886,7 +886,7 @@ function DataSourcesPanel({
                 Pro
               </Button>
             ) : themeEnabled === true ? (
-              <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
+              <Badge tone="info">{fr ? "Activée" : "Enabled"}</Badge>
             ) : themeEnabled === false ? (
               <Badge tone="critical">{fr ? "Non activée" : "Not enabled"}</Badge>
             ) : (
@@ -922,6 +922,9 @@ interface EduTopic {
   stat: string;
   close: string;
   cta?: { label: string; url: string };
+  /** Optional button in the modal that opens another topic (e.g. SEO vs GEO). */
+  relatedTopicId?: string;
+  relatedTopicLabel?: string;
 }
 
 function EducationPanel({
@@ -1015,8 +1018,8 @@ function EducationPanel({
       icon: AutomationIcon,
       question: fr ? "L'importance de l'analyse automatique" : "Why auto-analysis matters",
       lead: fr
-        ? "Le SEO n'est jamais « fini » : les requêtes, les concurrents et les tendances bougent en permanence. L'analyse automatique fait travailler un agent pour vous chaque jour — il optimise, publie, mesure, puis recommence, uniquement sur les champs que vous avez validés."
-        : "SEO is never \"done\": queries, competitors and trends shift constantly. Auto-analysis puts an agent to work for you every day — it optimizes, publishes, measures, then repeats, only on the fields you approved.",
+        ? "Le GEO n'est jamais « fini » : les requêtes, les concurrents et les tendances bougent en permanence. L'analyse automatique fait travailler un agent pour vous chaque jour — il optimise, publie, mesure, puis recommence, uniquement sur les champs que vous avez validés."
+        : "GEO is never \"done\": queries, competitors and trends shift constantly. Auto-analysis puts an agent to work for you every day — it optimizes, publishes, measures, then repeats, only on the fields you approved.",
       steps: fr
         ? ["Analyser", "Publier", "Mesurer (28 j)", "Améliorer ↺"]
         : ["Analyze", "Publish", "Measure (28 d)", "Improve ↺"],
@@ -1024,8 +1027,27 @@ function EducationPanel({
         ? "Tous les 28 jours, vos produits sont réanalysés et seules les versions qui performent mieux sont conservées."
         : "Every 28 days your products are re-analyzed, and only better-performing versions are kept.",
       close: fr
-        ? "Votre SEO progresse en continu, même quand vous dormez. Activez-la dans « Mode de publication » ci-dessous."
-        : "Your SEO keeps improving, even while you sleep. Enable it in “Publish mode” below.",
+        ? "Votre GEO progresse en continu, même quand vous dormez. Activez-la dans « Mode de publication » ci-dessous."
+        : "Your GEO keeps improving, even while you sleep. Enable it in “Publish mode” below.",
+      relatedTopicId: "seo-vs-geo",
+      relatedTopicLabel: fr ? "Différence entre SEO et GEO" : "SEO vs GEO",
+    },
+    {
+      id: "seo-vs-geo",
+      icon: CompassIcon,
+      question: fr ? "Différence entre SEO et GEO" : "SEO vs GEO",
+      lead: fr
+        ? "Le GEO, c'est le SEO en plus avancé. Le SEO fait remonter votre boutique dans les résultats Google ; le GEO fait citer votre boutique dans les réponses des IA (ChatGPT, Perplexity, Gemini)."
+        : "GEO is SEO taken further. SEO lifts your store in Google results; GEO gets your store cited inside AI answers (ChatGPT, Perplexity, Gemini).",
+      steps: fr
+        ? ["SEO : mieux classé sur Google", "GEO : cité par les IA", "Mêmes bases, IA plus exigeantes"]
+        : ["SEO: rank higher on Google", "GEO: cited by AIs", "Same basics, stricter AIs"],
+      stat: fr
+        ? "Les deux reposent sur les mêmes fondamentaux (clarté, autorité, structure) — un bon SEO vous met déjà à mi-chemin du GEO."
+        : "Both rely on the same fundamentals (clarity, authority, structure) — strong SEO gets you halfway to GEO.",
+      close: fr
+        ? "L'app couvre les deux : elle optimise pour Google ET structure vos pages pour que les IA vous choisissent."
+        : "The app covers both: it optimizes for Google AND structures your pages so AIs pick you.",
     },
   ];
 
@@ -1036,7 +1058,7 @@ function EducationPanel({
   const grid = (
     <>
       <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="200">
-        {topics.map((topic) => (
+        {topics.filter((topic) => topic.id !== "seo-vs-geo").map((topic) => (
           <button
             key={topic.id}
             type="button"
@@ -1064,9 +1086,18 @@ function EducationPanel({
             ? { content: openTopic.cta.label, url: openTopic.cta.url }
             : { content: fr ? "Compris" : "Got it", onAction: () => setOpenTopic(null) }
         }
-        secondaryActions={
-          openTopic?.cta ? [{ content: fr ? "Fermer" : "Close", onAction: () => setOpenTopic(null) }] : []
-        }
+        secondaryActions={[
+          ...(openTopic?.relatedTopicId
+            ? [{
+                content: openTopic.relatedTopicLabel ?? "",
+                onAction: () =>
+                  setOpenTopic(topics.find((tpc) => tpc.id === openTopic.relatedTopicId) ?? null),
+              }]
+            : []),
+          ...(openTopic?.cta
+            ? [{ content: fr ? "Fermer" : "Close", onAction: () => setOpenTopic(null) }]
+            : []),
+        ]}
       >
         {openTopic && (
           <Modal.Section>
@@ -1330,8 +1361,8 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
                   <InlineStack gap="300" blockAlign="center" wrap={false} align="space-between">
                     <InlineStack gap="300" blockAlign="center" wrap={false}>
                       <StepMarker done={step.done} locked={locked} />
-                      <BlockStack gap="050">
-                        <InlineStack gap="150" blockAlign="center" wrap>
+                      <BlockStack gap="050" inlineAlign="start">
+                        <InlineStack gap="150" blockAlign="center" align="start" wrap={false}>
                           {step.paid && isFree && (
                             <span
                               style={{
@@ -1342,13 +1373,14 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
                                 fontSize: "0.6875rem",
                                 fontWeight: 700,
                                 lineHeight: 1,
+                                flex: "0 0 auto",
                               }}
                             >
                               Pro
                             </span>
                           )}
                           {step.paid && !isFree && (
-                            <span style={{ display: "inline-flex" }}>
+                            <span style={{ display: "inline-flex", flex: "0 0 auto" }}>
                               <Icon source={StarFilledIcon} tone="magic" />
                             </span>
                           )}
@@ -1486,7 +1518,7 @@ function Zone1({
                   <Icon source={QuestionCircleIcon} tone="subdued" />
                 </span>
               </Tooltip>
-              <Badge tone={llmsPublished ? "success" : "critical"}>
+              <Badge tone={llmsPublished ? "info" : "critical"}>
                 {t(locale, llmsPublished ? "llmsTxtStatusPublished" : "llmsTxtStatusNotPublished")}
               </Badge>
             </InlineStack>
@@ -2345,7 +2377,7 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
             <Text as="p" tone="subdued">{profile.brand_voice}</Text>
             {(profile.content_style?.vocabulary_to_use ?? []).length > 0 && (
               <InlineStack gap="100" wrap>
-                {profile.content_style.vocabulary_to_use.map((v) => (<Badge key={v} tone="success">{v}</Badge>))}
+                {profile.content_style.vocabulary_to_use.map((v) => (<Badge key={v} tone="info">{v}</Badge>))}
                 {(profile.content_style?.vocabulary_to_avoid ?? []).map((v) => (<Badge key={v} tone="critical">{v}</Badge>))}
               </InlineStack>
             )}
