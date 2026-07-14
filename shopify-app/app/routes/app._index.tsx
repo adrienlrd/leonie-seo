@@ -2122,44 +2122,34 @@ function PublishModeCard({
                   <Text as="p" variant="bodySm">{t(locale, "publishModeActivating")}</Text>
                   <ProgressBar progress={activateProgress} size="small" tone="highlight" />
                 </BlockStack>
-              ) : isAuto ? (
-                <div
-                  style={{
-                    ["--p-color-text"]: "#303030",
-                    ["--p-color-text-secondary"]: "#616161",
-                    ["--p-color-icon"]: "#303030",
-                    ["--p-color-bg-surface"]: "#ffffff",
-                    ["--p-color-input-bg-surface"]: "#ffffff",
-                    ["--p-color-bg-surface-secondary"]: "#ffffff",
-                  } as React.CSSProperties}
-                >
-                  <Select
-                    label={t(locale, "publishModeSelectLabel")}
-                    labelHidden
-                    options={[
-                      { label: locale === "fr" ? "Publication manuelle" : "Manual publishing", value: "semi_auto" },
-                      { label: locale === "fr" ? "Publication automatique" : "Automatic publishing", value: "auto_apply" },
-                    ]}
-                    value={selected}
-                    onChange={(value) =>
-                      value === "auto_apply" ? handleActivateAuto() : handleToggle("semi_auto")
-                    }
-                  />
-                </div>
               ) : autoAllowed ? (
-                <span
+                // Native select styled explicitly so it stays dark-on-white on the
+                // black panel (Polaris Select inherits the panel's white text tokens).
+                <select
+                  aria-label={t(locale, "publishModeSelectLabel")}
+                  value={selected}
+                  onChange={(e) =>
+                    e.target.value === "auto_apply" ? handleActivateAuto() : handleToggle("semi_auto")
+                  }
                   style={{
-                    display: "block",
-                    ["--p-color-bg-fill-brand"]: "#fff",
-                    ["--p-color-bg-fill-brand-hover"]: "#f0f0f0",
-                    ["--p-color-bg-fill-brand-active"]: "#e0e0e0",
-                    ["--p-color-text-brand-on-bg-fill"]: "#000",
-                  } as React.CSSProperties}
+                    width: "100%",
+                    padding: "0.5rem 0.625rem",
+                    borderRadius: "8px",
+                    border: "1px solid #8a8a8a",
+                    background: "#ffffff",
+                    color: "#303030",
+                    fontSize: "0.8125rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
                 >
-                  <Button fullWidth variant="primary" onClick={handleActivateAuto}>
-                    {locale === "fr" ? "Activer" : "Activate"}
-                  </Button>
-                </span>
+                  <option value="semi_auto">
+                    {locale === "fr" ? "Publication manuelle" : "Manual publishing"}
+                  </option>
+                  <option value="auto_apply">
+                    {locale === "fr" ? "Publication automatique" : "Automatic publishing"}
+                  </option>
+                </select>
               ) : (
                 <span
                   style={{
