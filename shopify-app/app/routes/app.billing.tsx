@@ -298,9 +298,11 @@ export default function Billing() {
                         <Badge tone="success">{fr ? "Plan actuel" : "Current plan"}</Badge>
                       )}
                     </InlineStack>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {labels ? (fr ? labels.taglineFr : labels.taglineEn) : ""}
-                    </Text>
+                    <div style={{ minHeight: "2.5rem" }}>
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        {labels ? (fr ? labels.taglineFr : labels.taglineEn) : ""}
+                      </Text>
+                    </div>
                     <InlineStack gap="100" blockAlign="end">
                       <Text as="p" variant="heading2xl" fontWeight="bold">
                         {formatPrice(plan)}

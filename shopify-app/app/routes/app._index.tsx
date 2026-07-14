@@ -1390,7 +1390,7 @@ function SetupGuide({ signals, locale }: { signals: SetupSignals; locale: Locale
                       <StepMarker done={step.done} locked={locked} />
                       <BlockStack gap="050" inlineAlign="start">
                         <InlineStack gap="150" blockAlign="center" align="start" wrap={false}>
-                          {step.paid && isFree && (
+                          {(step.paid || step.lockedForFree) && isFree && (
                             <span
                               style={{
                                 background: "#000",
@@ -2836,6 +2836,7 @@ export default function IndexPage() {
     firstAnalysisDone,
     improveDone:
       firstAnalysisDone &&
+      packList.length > 0 &&
       packList.every((p) => (p.content_test_pack?.enrichment_questions?.length ?? 0) === 0),
     proposalsPublished: packList.some(
       (p) => Object.keys(p.content_test_pack?.applied_fields ?? {}).length > 0,
