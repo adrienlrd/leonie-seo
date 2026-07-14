@@ -7,7 +7,12 @@ import os
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
-from app.billing.subscription_store import update_subscription_status
+from app.apply.theme_entitlement import set_theme_entitlement
+from app.billing.subscription_store import (
+    get_plan_for_shop,
+    get_subscription_by_id,
+    update_subscription_status,
+)
 from app.oauth.hmac_validator import verify_webhook_hmac
 from app.oauth.token_store import delete_token
 
@@ -61,6 +66,20 @@ async def app_subscriptions_update(
 
     if subscription_gid and status:
         updated = update_subscription_status(subscription_gid, status)
+        _sync_theme_entitlement(subscription_gid)
         return {"updated": updated, "subscription_id": subscription_gid, "status": status}
 
     return {"updated": False}
+
+
+def _sync_theme_entitlement(subscription_gid: str) -> None:
+    """Grant or revoke the theme-extension entitlement after a status change.
+
+    Best-effort: a metafield write failure must not fail the webhook.
+    """
+    row = get_subscription_by_id(subscription_gid)
+    if not row:
+        return
+    shop = row["shop"]
+    plan = get_plan_for_shop(shop)
+    set_theme_entitlement(shop, plan != "free")

@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from app.api.deps import ShopContext, get_shop_context
 from app.api.plans import plan_summary
+from app.apply.theme_entitlement import set_theme_entitlement
 from app.billing.client import (
     BILLING_PLANS,
     BillingError,
@@ -167,6 +168,7 @@ async def redeem_code(
     for plan, expected in codes.items():
         if expected and hmac.compare_digest(submitted, expected.strip().upper()):
             set_shop_config(ctx.shop, "plan_override", plan)
+            set_theme_entitlement(ctx.shop, True)
             logger.info("billing.redeem: shop=%s granted plan=%s via access code", ctx.shop, plan)
             return {"plan": plan, "override": True}
     _record_redeem_failure(ctx.shop)
@@ -189,6 +191,7 @@ async def cancel(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     update_subscription_status(sub["subscription_id"], new_status)
+    set_theme_entitlement(ctx.shop, get_plan_for_shop(ctx.shop) != "free")
     return {"status": new_status, "plan": "free"}
 
 
@@ -258,5 +261,6 @@ async def billing_confirm(shop: str, charge_id: str | None = None) -> RedirectRe
         return RedirectResponse(url=f"{app_url}/?shop={shop}&billing=not_active")
 
     update_subscription_status(expected_id, "active")
+    set_theme_entitlement(shop, True)
     logger.info("billing.confirm: activated subscription %s for shop=%s", expected_id, shop)
     return RedirectResponse(url=f"{app_url}/?shop={shop}&billing=confirmed")

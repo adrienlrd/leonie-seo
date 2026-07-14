@@ -12,6 +12,17 @@
 
 - **Date:** 2026-07-14
 - **Agent:** Claude (Opus 4.8)
+- **Goal:** Fix theme-extension entitlement leak on plan downgrade + setup-guide collapse rule.
+- **Changes:**
+  - New `app/apply/theme_entitlement.py` `set_theme_entitlement(shop, entitled)` → shop metafield `leonie.theme_entitled` (boolean). Wired at every plan transition: billing confirm (grant), cancel (revoke), redeem-code (grant), and the `app_subscriptions/update` webhook (recompute plan → grant/revoke). Best-effort (never breaks the webhook).
+  - Theme block `faq_embed.liquid`: functional output wrapped in `{%- unless shop.metafields.leonie.theme_entitled.value == false -%}` (fail-open: absent flag keeps rendering; explicit false suppresses FAQ + JSON-LD + breadcrumb).
+  - **Scope change:** added `write_metafields` to `shopify.app.toml` + `.env.example` (+ local `.env`). ⚠️ Requires merchants to re-consent on next load, and a `shopify app deploy` to ship the extension + scope.
+  - Setup guide auto-collapse now keys on the 4 core action steps (analysis, theme, proposals, blog) all done — not a 50% threshold.
+  - Auto-analysis downgrade was already safe (`scheduler.py:190` re-checks plan each run).
+  - Tests: `tests/test_billing/test_theme_entitlement.py` (4) + 2 webhook tests. ruff + pytest green.
+
+## Task before that
+
 - **Goal:** Per-product analysis quota + billing/setup-guide UI polish.
 - **Changes:**
   - New `product_analysis` quota (free 1, pro 3, agency 5 per product / 28 j) in `app/billing/quotas.py` (`check_product_analysis_quota`, `record_product_analysis`, `product_analysis_quota`), enforced in `market-analysis/jobs` for targeted (product_ids) analyses; full-catalog analyses keep the `analysis` quota. Exposed via `get_quotas` → billing plans. Tests added in `tests/test_billing/test_quotas.py`.

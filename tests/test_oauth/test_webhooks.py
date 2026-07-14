@@ -69,3 +69,41 @@ def test_app_uninstalled_missing_shop_header_returns_400(client: TestClient):
     headers = {"X-Shopify-Hmac-Sha256": _sign(body)}
     resp = client.post("/shopify/webhooks/app/uninstalled", content=body, headers=headers)
     assert resp.status_code == 400
+
+
+def test_app_subscription_update_revokes_theme_on_downgrade(client: TestClient, mocker):
+    mocker.patch("app.oauth.webhooks.update_subscription_status", return_value=True)
+    mocker.patch(
+        "app.oauth.webhooks.get_subscription_by_id",
+        return_value={"shop": SHOP, "plan": "pro", "status": "cancelled"},
+    )
+    mocker.patch("app.oauth.webhooks.get_plan_for_shop", return_value="free")
+    mock_set = mocker.patch("app.oauth.webhooks.set_theme_entitlement")
+    body = b'{"admin_graphql_api_id":"gid://shopify/AppSubscription/1","status":"CANCELLED"}'
+    headers = {
+        "X-Shopify-Hmac-Sha256": _sign(body),
+        "X-Shopify-Shop-Domain": SHOP,
+        "Content-Type": "application/json",
+    }
+    resp = client.post("/shopify/webhooks/app_subscriptions/update", content=body, headers=headers)
+    assert resp.status_code == 200
+    mock_set.assert_called_once_with(SHOP, False)
+
+
+def test_app_subscription_update_grants_theme_on_activation(client: TestClient, mocker):
+    mocker.patch("app.oauth.webhooks.update_subscription_status", return_value=True)
+    mocker.patch(
+        "app.oauth.webhooks.get_subscription_by_id",
+        return_value={"shop": SHOP, "plan": "pro", "status": "active"},
+    )
+    mocker.patch("app.oauth.webhooks.get_plan_for_shop", return_value="pro")
+    mock_set = mocker.patch("app.oauth.webhooks.set_theme_entitlement")
+    body = b'{"admin_graphql_api_id":"gid://shopify/AppSubscription/1","status":"ACTIVE"}'
+    headers = {
+        "X-Shopify-Hmac-Sha256": _sign(body),
+        "X-Shopify-Shop-Domain": SHOP,
+        "Content-Type": "application/json",
+    }
+    resp = client.post("/shopify/webhooks/app_subscriptions/update", content=body, headers=headers)
+    assert resp.status_code == 200
+    mock_set.assert_called_once_with(SHOP, True)

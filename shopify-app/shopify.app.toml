@@ -4,7 +4,7 @@ application_url = "https://leonie-seo-pilot-web.onrender.com"
 embedded = true
 
 [access_scopes]
-scopes = "read_products,write_products,write_content,read_themes,write_themes"
+scopes = "read_products,write_products,write_content,read_themes,write_themes,write_metafields"
 
 [auth]
 redirect_urls = [

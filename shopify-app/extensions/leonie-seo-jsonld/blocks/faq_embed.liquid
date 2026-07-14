@@ -21,6 +21,12 @@
 {%- assign bc_sep = block.settings.separator | default: '›' -%}
 {%- assign bc_home = 'general.breadcrumbs.home' | t | default: 'Accueil' -%}
 
+{%- comment -%}
+  Paid-feature gate: the app sets shop metafield leonie.theme_entitled=false when a
+  merchant downgrades. Absent flag = fail-open (existing paid merchants keep rendering).
+{%- endcomment -%}
+{%- unless shop.metafields.leonie.theme_entitled.value == false -%}
+
 {%- comment -%} ── JSON-LD structured data ─────────────────────────────────── {%- endcomment -%}
 {%- if enable_jsonld -%}
   {%- if template contains 'product' and product -%}
@@ -480,6 +486,8 @@
 
 {%- endif -%}
 {%- endif -%}
+
+{%- endunless -%}
 
 {%- style -%}
 .leonie-bc-wrapper {
