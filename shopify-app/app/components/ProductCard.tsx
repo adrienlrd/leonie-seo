@@ -660,7 +660,7 @@ export function ProductCard({
               ) : null;
             }
             return (
-              <Button size="slim" pressed={enrichmentOpen} onClick={() => setEnrichmentOpen((v) => !v)}>
+              <Button size="slim" variant="primary" pressed={enrichmentOpen} onClick={() => setEnrichmentOpen((v) => !v)}>
                 {(fr ? "Améliorer" : "Improve") + ` (${activeCount})`}
               </Button>
             );
