@@ -1978,6 +1978,7 @@ function PublishModeCard({
   bare = false,
   autoAllowed = true,
   scheduleEnabled = false,
+  onActivate,
 }: {
   currentMode: "semi_auto" | "auto_apply";
   locale: Locale;
@@ -1987,6 +1988,8 @@ function PublishModeCard({
   autoAllowed?: boolean;
   /** True when the 28-day auto-analysis cycle is running (either publish mode). */
   scheduleEnabled?: boolean;
+  /** Kick a re-analysis (surfaced in the analysis panel) when the cycle is activated. */
+  onActivate?: () => void;
 }) {
   const fetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const activateFetcher = useFetcher<{ type: string; ok: boolean; error: string | null; summary: { published?: number } | null }>();
@@ -2036,7 +2039,10 @@ function PublishModeCard({
   const isAuto = selected === "auto_apply";
   // "Active" = the 28-day auto-analysis cycle is on (both publish modes keep it on).
   const active = scheduleEnabled;
-  const handleActivateManual = () => handleToggle("semi_auto");
+  const handleActivateManual = () => {
+    handleToggle("semi_auto");
+    onActivate?.();
+  };
 
   const content = (
     <BlockStack gap="300">
@@ -2736,6 +2742,9 @@ function BusinessProfileSummary({
 
 export default function IndexPage() {
   const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, billing, blogPublished, scheduleStatus, latestAnalysisAt, error } = useLoaderData<typeof loader>() as LoaderData;
+  // Imperative bridge: "Activer" in the auto panel triggers the same re-analysis
+  // as the "Run analysis now" button so progress shows in the analysis panel too.
+  const runReanalysisRef = useRef<(() => void) | null>(null);
   // OAuth status is authoritative; fall back to the per-product flag (GSC data
   // file present) only when the status call itself failed.
   const gscConnected = gscStatus ? gscStatus.connected : activeProducts.some((p) => p.gsc_connected);
@@ -3080,6 +3089,7 @@ export default function IndexPage() {
                 analysisPanels={
                   <AnalysisSchedulePanels
                     scheduleStatus={scheduleStatus}
+                    startRef={runReanalysisRef}
                     latestAnalysisAt={latestAnalysisAt}
                     locale={locale}
                     productResults={productPacks}
@@ -3089,7 +3099,7 @@ export default function IndexPage() {
                     geoLevel={zone1.global_level}
                   />
                 }
-                publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare autoAllowed={autoAllowed} scheduleEnabled={scheduleStatus?.enabled === true} />}
+                publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare autoAllowed={autoAllowed} scheduleEnabled={scheduleStatus?.enabled === true} onActivate={() => runReanalysisRef.current?.()} />}
               />
               </>
             }
@@ -3112,6 +3122,7 @@ export default function IndexPage() {
             analysisPanels={
               <AnalysisSchedulePanels
                 scheduleStatus={scheduleStatus}
+                    startRef={runReanalysisRef}
                 latestAnalysisAt={latestAnalysisAt}
                 locale={locale}
                 productResults={productPacks}
@@ -3121,7 +3132,7 @@ export default function IndexPage() {
                 geoLevel={zone1.global_level}
               />
             }
-            publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare autoAllowed={autoAllowed} scheduleEnabled={scheduleStatus?.enabled === true} />}
+            publishMode={<PublishModeCard currentMode={learningMode} locale={locale} bare autoAllowed={autoAllowed} scheduleEnabled={scheduleStatus?.enabled === true} onActivate={() => runReanalysisRef.current?.()} />}
           />
           </>
         )}
@@ -3358,6 +3369,7 @@ function AnalysisSchedulePanels({
   llmsPublished,
   geoScore,
   geoLevel,
+  startRef,
 }: {
   scheduleStatus: ScheduleStatus | null;
   latestAnalysisAt: string | null;
@@ -3367,6 +3379,8 @@ function AnalysisSchedulePanels({
   llmsPublished: boolean;
   geoScore: number | null;
   geoLevel: string | null;
+  /** Set by the panel so an external control (auto-panel "Activate") can start a run. */
+  startRef?: React.MutableRefObject<(() => void) | null>;
 }) {
   const isGreen = geoLevel ? LEVEL_TONES[geoLevel] === "success" : false;
   const dateLocale = locale === "fr" ? "fr-FR" : "en-US";
@@ -3436,6 +3450,13 @@ function AnalysisSchedulePanels({
   }>();
   const exportFetcher = useFetcher<{ type?: string; payload?: unknown; error?: string | null }>();
   const revalidator = useRevalidator();
+
+  // Expose a start trigger so the auto-panel "Activate" runs a re-analysis whose
+  // progress shows in this panel (same flow as "Run analysis now", full catalog).
+  if (startRef) {
+    startRef.current = () =>
+      startFetcher.submit({ intent: "startReanalysis", selection: "{}" }, { method: "post" });
+  }
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
