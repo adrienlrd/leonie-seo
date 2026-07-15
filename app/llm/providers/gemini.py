@@ -72,6 +72,14 @@ class GeminiProvider(LLMProvider):
             raise LLMRateLimitError(f"Gemini rate limit: {response.text}")
         if response.status_code >= 500:
             raise LLMUnavailableError(f"Gemini server error {response.status_code}: {response.text}")
+        if response.status_code == 400 and self._grounded and json_mode:
+            # Known API quirk: grounding + forced JSON output can be rejected
+            # together on some model versions. Treat as retryable so the
+            # router falls back to gpt-4o-mini instead of hard-failing the
+            # whole call — a grounded call must never break the feature.
+            raise LLMUnavailableError(
+                f"Gemini rejected grounded+json_mode combination: {response.text}"
+            )
         if not response.is_success:
             raise LLMError(f"Gemini error {response.status_code}: {response.text}")
 

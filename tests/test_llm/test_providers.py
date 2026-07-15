@@ -347,6 +347,37 @@ class TestGeminiProvider:
             with pytest.raises(LLMUnavailableError):
                 provider.complete("prompt")
 
+    def test_grounded_json_mode_400_is_retryable_not_hard_failure(self):
+        """Known API quirk: grounding + forced JSON can be rejected together.
+        Must map to LLMUnavailableError (retryable) so the router falls back
+        to gpt-4o-mini, never a hard LLMError that breaks the whole call."""
+        import httpx
+
+        provider = self._make_provider(grounded=True)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 400
+        mock_response.is_success = False
+        mock_response.text = "grounding and responseMimeType are incompatible"
+        with patch("httpx.post", return_value=mock_response):
+            with pytest.raises(LLMUnavailableError):
+                provider.complete("prompt", json_mode=True)
+
+    def test_ungrounded_400_is_a_hard_failure(self):
+        """A plain 400 (no grounding involved) is a real caller/request error
+        and must surface loudly (LLMError), not be silently retried
+        (LLMUnavailableError is a subclass of LLMError, so check the exact type)."""
+        import httpx
+
+        provider = self._make_provider(grounded=False)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 400
+        mock_response.is_success = False
+        mock_response.text = "invalid request"
+        with patch("httpx.post", return_value=mock_response):
+            with pytest.raises(LLMError) as exc_info:
+                provider.complete("prompt")
+        assert type(exc_info.value) is LLMError
+
     def test_complete_raises_on_empty_candidates(self):
         import httpx
 

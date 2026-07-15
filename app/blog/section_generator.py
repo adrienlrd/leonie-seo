@@ -12,6 +12,7 @@ import json
 import logging
 from typing import Any
 
+from app.billing.subscription_store import get_plan_for_shop
 from app.llm import LLMError, get_router
 
 logger = logging.getLogger(__name__)
@@ -103,10 +104,16 @@ def generate_section(
     keywords: str = "",
     shop: str | None = None,
 ) -> dict[str, Any]:
-    """Generate one blog section. Falls back to empty fields on any LLM/parse failure."""
-    fallback: dict[str, Any] = {"direct_answer": "", "body": "", "claims_used": []}
+    """Generate one blog section. Falls back to empty fields on any LLM/parse failure.
+
+    Grande boutique (agency) shops get a grounded call (Gemini + Google Search),
+    so factual claims can carry cited sources (`citations`). Every other plan
+    keeps the default gpt-4o-mini chain — `citations` is then always [].
+    """
+    fallback: dict[str, Any] = {"direct_answer": "", "body": "", "claims_used": [], "citations": []}
+    tier = "grounded" if shop and get_plan_for_shop(shop) == "agency" else "default"
     try:
-        router = get_router(shop=shop)
+        router = get_router(shop=shop, tier=tier)
     except LLMError:
         return fallback
 
@@ -136,6 +143,7 @@ def generate_section(
             "direct_answer": str(parsed.get("direct_answer", "") or ""),
             "body": str(parsed.get("body", "") or ""),
             "claims_used": [c for c in (parsed.get("claims_used") or []) if isinstance(c, dict)],
+            "citations": completion.citations,
         }
     except (json.JSONDecodeError, LLMError) as exc:
         logger.warning("Blog section generation failed for %r: %s", h2_question, exc)

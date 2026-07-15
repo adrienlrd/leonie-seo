@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.api.blog import (
+    BlogCitation,
     BlogSection,
     _assemble_body_html,
     _author_bio_html,
@@ -11,6 +12,7 @@ from app.api.blog import (
     _faq_html,
     _reading_time_html,
     _reading_time_minutes,
+    _sources_html,
     _toc_html,
     _truncate_clean,
 )
@@ -82,6 +84,58 @@ def test_assemble_body_html_no_numbering_by_default() -> None:
     html = _assemble_body_html("Intro", sections, [])
     assert "1. Titre" not in html
     assert '<h2 id="section-0">Titre</h2>' in html
+
+
+def test_sources_html_empty_without_citations() -> None:
+    sections = [BlogSection(h2="Titre", direct_answer="X", body="Y")]
+    assert _sources_html(sections) == ""
+
+
+def test_sources_html_lists_unique_citations_across_sections() -> None:
+    sections = [
+        BlogSection(
+            h2="A",
+            direct_answer="",
+            body="",
+            citations=[BlogCitation(url="https://meteo.fr/canicule", title="Météo France")],
+        ),
+        BlogSection(
+            h2="B",
+            direct_answer="",
+            body="",
+            # Same URL again — must be deduplicated.
+            citations=[
+                BlogCitation(url="https://meteo.fr/canicule", title="Météo France"),
+                BlogCitation(url="https://example.com/x", title=""),
+            ],
+        ),
+    ]
+    html = _sources_html(sections)
+    assert "Sources" in html
+    assert html.count("meteo.fr/canicule") == 1
+    assert 'href="https://example.com/x"' in html
+    # No title provided → falls back to the URL itself as the link label.
+    assert ">https://example.com/x<" in html
+
+
+def test_assemble_body_html_appends_sources_footer_when_citations_present() -> None:
+    sections = [
+        BlogSection(
+            h2="Titre",
+            direct_answer="X",
+            body="Y",
+            citations=[BlogCitation(url="https://meteo.fr/canicule", title="Météo France")],
+        )
+    ]
+    html = _assemble_body_html("Intro", sections, [])
+    assert "leonie-sources" in html
+    assert 'href="https://meteo.fr/canicule"' in html
+
+
+def test_assemble_body_html_no_sources_footer_for_free_pro_sections() -> None:
+    sections = [BlogSection(h2="Titre", direct_answer="X", body="Y")]
+    html = _assemble_body_html("Intro", sections, [])
+    assert "leonie-sources" not in html
 
 
 def test_howto_jsonld_from_numbered_sections() -> None:

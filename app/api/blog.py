@@ -72,12 +72,20 @@ class GenerateAllRequest(BaseModel):
     confirmed_facts: list[ConfirmedFact] = Field(default_factory=list)
 
 
+class BlogCitation(BaseModel):
+    url: str
+    title: str = ""
+
+
 class BlogSection(BaseModel):
     h2: str
     direct_answer: str
     body: str
     image_url: str = ""
     image_alt: str = ""
+    # Only populated for Grande boutique (agency) shops via grounded generation
+    # (see section_generator.generate_section) — empty on every other plan.
+    citations: list[BlogCitation] = Field(default_factory=list)
 
 
 class BlogInternalLink(BaseModel):
@@ -691,6 +699,36 @@ def _section_image_html(section: BlogSection) -> str:
     return f'<img src="{url}" alt="{alt}" style="max-width:100%;border-radius:8px;margin:12px 0;" />'
 
 
+def _sources_html(sections: list[BlogSection]) -> str:
+    """Render a "Sources" footer from every section's grounded citations.
+
+    Only ever non-empty for Grande boutique (agency) articles — every other
+    plan's sections carry no citations, so this is a no-op for them. Data-
+    transparency rule: a claim sourced by grounding must show where it came
+    from.
+    """
+    seen: set[str] = set()
+    links: list[str] = []
+    for section in sections:
+        for citation in section.citations or []:
+            url = (citation.url or "").strip()
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            label = (citation.title or url).strip()
+            links.append(
+                f'<li><a href="{html.escape(url, quote=True)}" target="_blank" '
+                f'rel="noopener noreferrer">{html.escape(label)}</a></li>'
+            )
+    if not links:
+        return ""
+    return (
+        '<div class="leonie-sources" style="margin:32px 0 0;padding-top:16px;'
+        'border-top:1px solid #E1E3E5;font-size:0.875em;color:#616161;">'
+        "<strong>Sources</strong><ul>" + "".join(links) + "</ul></div>"
+    )
+
+
 def _assemble_body_html(
     intro: str,
     sections: list[BlogSection],
@@ -730,6 +768,9 @@ def _assemble_body_html(
     links_html = render_internal_links_html(link_dicts)
     if links_html:
         parts.append(links_html)
+    sources_html = _sources_html(sections)
+    if sources_html:
+        parts.append(sources_html)
     return "\n".join(parts)
 
 
