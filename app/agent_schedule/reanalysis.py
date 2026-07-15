@@ -170,6 +170,9 @@ def run_market_reanalysis(
         articles=inputs["merged_articles"],
         db_path=db_path,
         reflection_test=reflection_test,
+        # Always a full-catalog run (never targeted), so fetch the real-time
+        # signal once per job — internally still gated to the agency plan.
+        fetch_realtime=True,
     )
 
     retired_lower = {lbl.lower().strip() for lbl in get_shop_retired_tags(shop_domain)}

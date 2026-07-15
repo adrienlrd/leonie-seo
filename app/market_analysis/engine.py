@@ -566,6 +566,46 @@ def _fetch_trends_once(
         return []
 
 
+def _fetch_realtime_signals_once(
+    shop: str,
+    niche_hypothesis: dict[str, Any] | None,
+    top_titles: list[str],
+    db_path: Path | None,
+) -> dict[str, Any] | None:
+    """Call the grounded real-time signal fetcher once per job. Fail-open.
+
+    Already gated to the "agency" plan + a configured GEMINI_API_KEY inside
+    `fetch_realtime_signals` itself — this wrapper only adds the same
+    exception safety net as `_fetch_trends_once` for the unlikely case of an
+    error the fetcher itself didn't already catch.
+    """
+    try:
+        from app.niche.signals.realtime_trends import fetch_realtime_signals  # noqa: PLC0415
+
+        return fetch_realtime_signals(
+            shop, niche_hypothesis, [t for t in top_titles if t], db_path=db_path
+        )
+    except Exception as exc:
+        logger.warning("Real-time signals unavailable: %s", exc)
+        return None
+
+
+def _format_realtime_signals(signals: dict[str, Any] | None) -> str:
+    """Render events + rising queries into one prompt-ready line, or "" if none."""
+    if not signals:
+        return ""
+    parts: list[str] = []
+    for event in signals.get("events") or []:
+        title = str((event or {}).get("title") or "").strip()
+        if title:
+            parts.append(title)
+    for query in signals.get("rising_queries") or []:
+        q = str((query or {}).get("query") or "").strip()
+        if q:
+            parts.append(q)
+    return ", ".join(parts)
+
+
 def _match_trends(
     product_title: str,
     all_trend_signals: list[Any],
@@ -623,6 +663,7 @@ def _build_pass1_prompt(
     business_context: str = "",
     candidate_pool: list[dict[str, Any]] | None = None,
     optimization_history_block: str = "",
+    realtime_text: str = "",
 ) -> str:
     queries_text = ", ".join(matched_queries[:5]) if matched_queries else "aucune donnée GSC"
     collections_text = ", ".join(collections) if collections else "aucune"
@@ -710,7 +751,8 @@ def _build_pass1_prompt(
         f"REQUÊTES GSC TOP: {queries_text}\n"
         f"GA4 (90 derniers jours): {ga4_text}\n"
         f"TENDANCES GOOGLE: {trend_text}\n"
-        f"STOCK: {stock_text}\n"
+        + (f"DONNÉES TEMPS RÉEL (sourcées, recherche web du jour): {realtime_text}\n" if realtime_text else "")
+        + f"STOCK: {stock_text}\n"
         f"SCORE OPPORTUNITÉ: {opportunity_score}/100\n"
         f"{pool_block}"
         f"{question_block}\n"
@@ -5483,6 +5525,7 @@ def run_market_analysis(
     articles: list[dict[str, Any]] | None = None,
     reflection_test: bool = False,
     db_path: Path | None = None,
+    fetch_realtime: bool = False,
 ) -> dict[str, Any]:
     """Run a two-pass SEO/GEO market analysis for active products.
 
@@ -5507,6 +5550,14 @@ def run_market_analysis(
             at most one targeted retry per product. Intended for experimental analysis.
         db_path: Optional override for the GEO ledger / learning store database path,
             used to surface past applied optimizations in the prompts (Task 6).
+        fetch_realtime: When true, fetch a grounded real-time market signal
+            (events, rising queries, competitor moves) once for this job.
+            Callers must set this only for full-catalog runs (never a
+            single/multi-product targeted analysis) — the signal is niche-wide,
+            not product-specific, so re-fetching it per targeted call would add
+            cost with no extra value. Still gated internally to the "agency"
+            plan and a configured GEMINI_API_KEY, so it is always a safe no-op
+            to pass True for a free/pro shop.
     """
     active_products = filter_products_by_scope(products, "active")
     opportunities = _score_active_products(active_products, gsc_query_rows, ga4_page_rows)
@@ -5547,6 +5598,13 @@ def run_market_analysis(
     trend_signals = _fetch_trends_once([t for t in top_titles if t], status_out=trends_status)
     if trend_signals:
         sources_used.append("trends")
+
+    realtime_signals: dict[str, Any] | None = None
+    if fetch_realtime:
+        realtime_signals = _fetch_realtime_signals_once(shop, niche_hypothesis, top_titles, db_path)
+    if realtime_signals:
+        sources_used.append("realtime_grounding")
+    realtime_text = _format_realtime_signals(realtime_signals)
 
     try:
         llm_router = get_router(shop=shop)
@@ -5633,6 +5691,7 @@ def run_market_analysis(
             business_context=business_context,
             candidate_pool=candidate_pool,
             optimization_history_block=optimization_history_block,
+            realtime_text=realtime_text,
         )
         fallback = _fallback_pack(
             fields["product_title"],

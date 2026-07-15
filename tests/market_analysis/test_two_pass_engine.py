@@ -1181,3 +1181,71 @@ def test_catalog_conflict_blocks_lower_priority_duplicate_target() -> None:
     assert first_quality["publish_ready"] is True
     assert second_quality["publish_ready"] is False
     assert "primary_target_cannibalization_risk" in second_quality["issues"]
+
+
+# ── Real-time grounding injection (fetch_realtime) ─────────────────────────
+
+
+def _run_with_realtime(router, *, fetch_realtime, realtime_signals):
+    budget = {
+        "over_budget": False,
+        "budget_usd": 20.0,
+        "spent_usd": 0.0,
+        "remaining_usd": 20.0,
+        "usage_pct": 0.0,
+        "alert": None,
+    }
+    with (
+        patch.object(engine, "get_router", return_value=router),
+        patch.object(engine, "check_budget", return_value=budget),
+        patch.object(engine, "_fetch_trends_once", return_value=[]),
+        patch.object(engine, "_fetch_realtime_signals_once", return_value=realtime_signals) as mock_fetch,
+        patch.object(engine, "fetch_suggestions_bulk", return_value=[]),
+        patch.object(engine, "DataForSEOProvider", return_value=_FakeDataForSEO()),
+    ):
+        result = engine.run_market_analysis(
+            [_product()],
+            _SHOP,
+            {},
+            [],
+            fetch_realtime=fetch_realtime,
+        )
+    return result, mock_fetch
+
+
+def test_fetch_realtime_false_never_calls_realtime_fetcher():
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    result, mock_fetch = _run_with_realtime(router, fetch_realtime=False, realtime_signals=None)
+    mock_fetch.assert_not_called()
+    assert "realtime_grounding" not in result["sources_used"]
+    pass1_prompt = router.complete.call_args_list[0].args[0]
+    assert "DONNÉES TEMPS RÉEL" not in pass1_prompt
+
+
+def test_fetch_realtime_true_with_signal_injects_prompt_and_source():
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    signals = {
+        "events": [{"title": "Canicule en France cette semaine"}],
+        "rising_queries": [{"query": "fontaine à eau chat canicule"}],
+        "competitor_moves": [],
+        "citations": [{"url": "https://meteo-france.fr/canicule", "title": "Météo France"}],
+        "fetched_at": "2026-07-15T00:00:00+00:00",
+    }
+    result, mock_fetch = _run_with_realtime(router, fetch_realtime=True, realtime_signals=signals)
+    mock_fetch.assert_called_once()
+    assert "realtime_grounding" in result["sources_used"]
+    pass1_prompt = router.complete.call_args_list[0].args[0]
+    assert "DONNÉES TEMPS RÉEL" in pass1_prompt
+    assert "Canicule en France cette semaine" in pass1_prompt
+    assert "fontaine à eau chat canicule" in pass1_prompt
+
+
+def test_fetch_realtime_true_without_signal_is_a_safe_no_op():
+    """Free/pro shop (or Gemini unavailable): fetcher returns None — the
+    analysis must proceed exactly as if fetch_realtime had been False."""
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    result, mock_fetch = _run_with_realtime(router, fetch_realtime=True, realtime_signals=None)
+    mock_fetch.assert_called_once()
+    assert "realtime_grounding" not in result["sources_used"]
+    pass1_prompt = router.complete.call_args_list[0].args[0]
+    assert "DONNÉES TEMPS RÉEL" not in pass1_prompt
