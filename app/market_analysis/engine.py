@@ -573,6 +573,7 @@ def _fetch_realtime_signals_once(
     db_path: Path | None,
     *,
     force: bool = False,
+    status_out: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Call the grounded real-time signal fetcher once per job. Fail-open.
 
@@ -580,17 +581,87 @@ def _fetch_realtime_signals_once(
     `fetch_realtime_signals` itself — this wrapper only adds the same
     exception safety net as `_fetch_trends_once` for the unlikely case of an
     error the fetcher itself didn't already catch. ``force`` bypasses the
-    plan gate (Pro/Grande boutique comparison tool only).
+    plan gate (Pro/Grande boutique comparison tool only). ``status_out``
+    (optional) is populated with why the call did or didn't run — so a
+    silent no-op (e.g. missing GEMINI_API_KEY) is diagnosable in the result
+    instead of just leaving `realtime_grounding` out of `sources_used`.
     """
     try:
         from app.niche.signals.realtime_trends import fetch_realtime_signals  # noqa: PLC0415
 
         return fetch_realtime_signals(
-            shop, niche_hypothesis, [t for t in top_titles if t], db_path=db_path, force=force
+            shop,
+            niche_hypothesis,
+            [t for t in top_titles if t],
+            db_path=db_path,
+            force=force,
+            status_out=status_out,
         )
     except Exception as exc:
         logger.warning("Real-time signals unavailable: %s", exc)
+        if status_out is not None:
+            status_out.update({"status": "llm_error", "detail": f"{type(exc).__name__}: {exc}"})
         return None
+
+
+def _verify_keywords_once(
+    shop: str,
+    keywords: list[str],
+    niche_summary: str,
+    *,
+    force: bool = False,
+    status_out: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]] | None:
+    """Call the grounded keyword-verification fetcher once per job. Fail-open,
+    same exception safety net as `_fetch_realtime_signals_once`.
+    """
+    try:
+        from app.niche.signals.realtime_trends import (
+            verify_keywords_against_market,  # noqa: PLC0415
+        )
+
+        return verify_keywords_against_market(
+            shop, keywords, niche_summary, force=force, status_out=status_out
+        )
+    except Exception as exc:
+        logger.warning("Keyword market verification unavailable: %s", exc)
+        if status_out is not None:
+            status_out.update({"status": "llm_error", "detail": f"{type(exc).__name__}: {exc}"})
+        return None
+
+
+def _apply_market_verification(
+    pass1_states: list[dict[str, Any]], verifications: dict[str, dict[str, Any]]
+) -> int:
+    """Write market-verification verdicts onto matching seo_keywords in place.
+
+    Bumps `demand_score` (+10 "rising", -10 "declining", capped 0-100) — the
+    field pass-1's own keyword items already carry and that downstream sorting
+    already reads as a priority signal (see `_repair_keyword_selection...`
+    and the candidate pool sort) — so the agency plan's real market signal
+    actually shifts keyword ranking, not just prompt context. Returns the
+    count of keywords annotated (surfaced as `keywords_with_market_verification`
+    in the plan-comparison diff summary).
+    """
+    annotated = 0
+    for state in pass1_states:
+        for kw in state["pack"].get("seo_keywords") or []:
+            if not isinstance(kw, dict):
+                continue
+            query = str(kw.get("query") or "").strip().lower()
+            verdict = verifications.get(query)
+            if not verdict:
+                continue
+            kw["market_verification"] = verdict
+            notes = kw.setdefault("notes", [])
+            if isinstance(notes, list):
+                notes.append("verified_by_market")
+            if verdict["evidence"] in ("rising", "declining"):
+                delta = 10 if verdict["evidence"] == "rising" else -10
+                base = float(kw.get("demand_score") or 0)
+                kw["demand_score"] = max(0.0, min(100.0, base + delta))
+            annotated += 1
+    return annotated
 
 
 def _format_realtime_signals(signals: dict[str, Any] | None) -> str:
@@ -5609,9 +5680,10 @@ def run_market_analysis(
         sources_used.append("trends")
 
     realtime_signals: dict[str, Any] | None = None
+    realtime_status: dict[str, Any] = {"status": "not_attempted", "detail": ""}
     if fetch_realtime:
         realtime_signals = _fetch_realtime_signals_once(
-            shop, niche_hypothesis, top_titles, db_path, force=fetch_realtime_force
+            shop, niche_hypothesis, top_titles, db_path, force=fetch_realtime_force, status_out=realtime_status
         )
     if realtime_signals:
         sources_used.append("realtime_grounding")
@@ -5910,6 +5982,33 @@ def run_market_analysis(
         }
         for state in pass1_states
     ]
+    # Cross-check the just-selected keywords against the real current market
+    # (agency plan, one grounded call for the whole job — never per product).
+    # This is the visible SEO effect of grounding: verified keywords get a
+    # market_verification verdict + a demand_score nudge, so the agency plan's
+    # output actually ranks differently, not just carries extra prompt context.
+    verify_status: dict[str, Any] = {"status": "not_attempted", "detail": ""}
+    keywords_verified_count = 0
+    if fetch_realtime:
+        all_keywords = [
+            str(kw.get("query") or "")
+            for view in pass1_product_views
+            for kw in (view.get("seo_keywords") or [])
+            if isinstance(kw, dict) and kw.get("query")
+        ]
+        verifications = _verify_keywords_once(
+            shop,
+            all_keywords,
+            niche_summary,
+            force=fetch_realtime_force,
+            status_out=verify_status,
+        )
+        if verifications:
+            keywords_verified_count = _apply_market_verification(pass1_states, verifications)
+            sources_used.append("realtime_market_verification")
+            # pass1_product_views mirrors pass1_states' seo_keywords by reference
+            # (same dicts), so the verdicts just written are already reflected.
+
     cannibalization_alerts = cn.detect_alerts(pass1_product_views)
     cannibalization_hints_by_product: dict[str, dict[str, Any]] = {}
     for state in pass1_states:
@@ -6145,4 +6244,11 @@ def run_market_analysis(
         "business_profile_context": business_profile_context,
         "products": product_results,
         "budget": budget_status,
+        # Real-time grounding (agency plan) diagnostics — always present so a
+        # silent no-op (missing key, wrong plan, LLM error) is inspectable
+        # instead of only showing up as an absence in `sources_used`.
+        "realtime_signals": realtime_signals,
+        "realtime_status": realtime_status,
+        "market_verification_status": verify_status,
+        "keywords_with_market_verification": keywords_verified_count,
     }

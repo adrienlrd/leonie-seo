@@ -30,16 +30,30 @@ def _inputs() -> dict:
 def _fake_run_market_analysis(products, *args, **kwargs):  # noqa: ARG001
     plan = kwargs["plan"]
     sources = ["shopify_snapshot"]
-    if kwargs.get("fetch_realtime") and kwargs.get("fetch_realtime_force"):
-        sources.append("realtime_grounding")
-    return {
+    grounded = bool(kwargs.get("fetch_realtime") and kwargs.get("fetch_realtime_force"))
+    result = {
         "shop": SHOP,
         "analyzed_at": "2026-07-15T00:00:00+00:00",
         "products": products,
         "sources_used": sources,
         "plan_seen": plan,
         "product_count_seen": len(products),
+        "realtime_signals": None,
+        "realtime_status": {"status": "not_attempted"},
+        "market_verification_status": {"status": "not_attempted"},
+        "keywords_with_market_verification": 0,
     }
+    if grounded:
+        sources.append("realtime_grounding")
+        sources.append("realtime_market_verification")
+        result["realtime_signals"] = {
+            "events": [{"title": "Canicule"}],
+            "rising_queries": [{"query": "fontaine à eau chat"}],
+        }
+        result["realtime_status"] = {"status": "ok"}
+        result["market_verification_status"] = {"status": "ok"}
+        result["keywords_with_market_verification"] = 3
+    return result
 
 
 def test_runs_pro_then_agency_on_shared_inputs() -> None:
@@ -86,6 +100,26 @@ def test_caps_products_per_plan_quota() -> None:
     # 40 seed products, capped to each plan's product quota (pro=15, agency=35).
     assert result["pro"]["product_count_seen"] == 15
     assert result["agency"]["product_count_seen"] == 35
+
+
+def test_diff_summary_shows_value_delta_between_plans() -> None:
+    with (
+        patch.object(plan_comparison, "_gather_analysis_inputs", return_value=_inputs()),
+        patch.object(
+            plan_comparison, "run_market_analysis", side_effect=_fake_run_market_analysis
+        ),
+    ):
+        result = plan_comparison.run_plan_comparison(SHOP, access_token="shpat_test")
+
+    diff = result["diff_summary"]
+    assert diff["pro"]["realtime_grounding_used"] is False
+    assert diff["pro"]["events_used"] == 0
+    assert diff["pro"]["keywords_with_market_verification"] == 0
+    assert diff["agency"]["realtime_grounding_used"] is True
+    assert diff["agency"]["realtime_status"] == "ok"
+    assert diff["agency"]["market_verification_status"] == "ok"
+    assert diff["agency"]["keywords_with_market_verification"] == 3
+    assert diff["agency"]["events_used"] == 2
 
 
 def test_never_persists_or_writes_to_shopify() -> None:

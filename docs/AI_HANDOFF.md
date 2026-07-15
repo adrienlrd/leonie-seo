@@ -12,6 +12,19 @@
 
 - **Date:** 2026-07-15
 - **Agent:** Claude (Sonnet 5)
+- **Goal:** Fix Gemini grounding value gap — `docs/GEMINI_VALUE_FIX_PLAN.md`, written after the Pro vs Grande boutique comparison showed identical output for both plans (`agency.realtime_grounding_used = False`; even when it ran, grounding only added one prompt context line — nothing verified, nothing traceable).
+- **Root cause (fixed by Adrien):** `GEMINI_API_KEY` was only in local `.env`, absent on Render — added to the Render API service env vars, redeployed.
+- **Changes:**
+  - **Diagnosability:** `fetch_realtime_signals` and the new `verify_keywords_against_market` both take `status_out` (`no_gemini_key`/`plan_not_agency`/`llm_error`/`parse_error`/`ok`). `run_market_analysis`'s return dict always carries `realtime_status`, `market_verification_status`, `realtime_signals` (full payload — previously only persisted to disk, invisible in exports), and `keywords_with_market_verification` — a silent no-op is now inspectable instead of guessable.
+  - **Market verification (the core ask):** new `verify_keywords_against_market()` (`app/niche/signals/realtime_trends.py`) — one grounded call per full-catalog job (capped at 30 keywords, agency-gated, fail-open), cross-checks the pass-1-selected keywords against the real current French market. Verified live: returns real confirmed/rising/declining verdicts with sourced URLs for up to 20 keywords with no truncation (raised `max_tokens=4096`, same fix as the earlier events-truncation bug).
+  - **Measurable effect:** `engine.py::_apply_market_verification` writes `market_verification: {evidence, note, source_url}` onto each matching `seo_keywords` item and bumps `demand_score` ±10 (capped 0-100) for rising/declining — `demand_score` already feeds pass-2's keyword sorting fallback, so the agency plan's output genuinely ranks differently, not just carries more prompt context.
+  - `plan_comparison.py` gained a `diff_summary` (`{pro, agency}` × `{realtime_grounding_used, realtime_status, market_verification_status, keywords_with_market_verification, events_used}`) so the next comparison JSON answers "did Gemini add value?" at a glance.
+  - Deliberately scoped out (documented, not silently dropped): pass-2 GEO-question event-angling instruction — would have required editing the heavily-tuned, extensively-tested pass-2 prompt body; the realtime context already reaches pass-1/geo_questions via the existing injected line, and the market-verification demand_score bump already flows into pass-2 keyword ordering. Revisit if Adrien wants the event angle more explicit.
+- **Validations:** `ruff check .` OK; full `pytest` = 2134 passed / 174 skipped (17 new tests: status_out reasons, verify_keywords_against_market parsing/cap/fail-open, demand_score bump math, diff_summary). Live-verified against the real Gemini API (not just mocks): both `fetch_realtime_signals` and `verify_keywords_against_market` return real, sourced, French-market data with `status: ok`.
+- **Open:** Adrien needs to re-click « Analyse test » (now that Render has the key) and confirm `agency.diff_summary.realtime_grounding_used = True` + `market_verification_status = "ok"` in the new export.
+
+## Task before that
+
 - **Goal:** Gemini 3.1 Flash-Lite + Google Search grounding — real-time market signals, agency plan only.
 - **Changes:**
   - `app/llm/providers/gemini.py` (new): httpx REST provider, optional `grounded=True` (adds `tools: [google_search]`). `CompletionResult` gains `citations`/`search_queries` (empty for every other provider). `get_router(shop=..., tier="grounded")` (`app/llm/__init__.py`) returns Gemini first, falling back to the existing default chain (gpt-4o-mini) when `GEMINI_API_KEY` is unset or Gemini fails — free/pro plans are never affected. A 400 from the documented grounding+json_mode API quirk is mapped retryable (`LLMUnavailableError`) instead of a hard failure.

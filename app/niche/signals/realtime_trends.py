@@ -85,6 +85,12 @@ def _parse_signals(text: str) -> dict[str, Any] | None:
     }
 
 
+def _set_status(status_out: dict[str, Any] | None, status: str, detail: str = "") -> None:
+    if status_out is not None:
+        status_out.clear()
+        status_out.update({"status": status, "detail": detail})
+
+
 def fetch_realtime_signals(
     shop: str,
     niche_hypothesis: dict[str, Any] | None,
@@ -92,6 +98,7 @@ def fetch_realtime_signals(
     *,
     db_path: Path | None = None,
     force: bool = False,
+    status_out: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Fetch and persist a real-time market signal snapshot for `shop`.
 
@@ -104,10 +111,17 @@ def fetch_realtime_signals(
     by the internal Pro/Grande boutique comparison tool so the agency branch
     is exercised even when the shop isn't actually on that plan. Never write
     the shop's real billing state.
+
+    ``status_out`` (optional), populated with why the call did or didn't run:
+    ``status`` one of ``no_gemini_key`` | ``plan_not_agency`` | ``llm_error`` |
+    ``parse_error`` | ``ok``, plus ``detail``. Lets callers (and the plan
+    comparison export) show *why* grounding was silent instead of guessing.
     """
     if not force and get_plan_for_shop(shop, db_path) != "agency":
+        _set_status(status_out, "plan_not_agency")
         return None
     if not os.getenv("GEMINI_API_KEY"):
+        _set_status(status_out, "no_gemini_key")
         return None
 
     niche_hypothesis = niche_hypothesis or {}
@@ -131,13 +145,16 @@ def fetch_realtime_signals(
         )
     except LLMError as exc:
         logger.warning("realtime_signals: LLM call failed for %s: %s", shop, exc)
+        _set_status(status_out, "llm_error", str(exc))
         return None
     except Exception as exc:  # noqa: BLE001 — this signal is optional, never fail the analysis job for it
         logger.warning("realtime_signals: unexpected error for %s: %s", shop, exc)
+        _set_status(status_out, "llm_error", str(exc))
         return None
 
     parsed = _parse_signals(result.text)
     if parsed is None:
+        _set_status(status_out, "parse_error")
         return None
 
     signals: dict[str, Any] = {
@@ -146,6 +163,7 @@ def fetch_realtime_signals(
         "fetched_at": datetime.now(UTC).isoformat(),
     }
     _persist(shop, signals, db_path=db_path)
+    _set_status(status_out, "ok")
     return signals
 
 
@@ -158,6 +176,129 @@ def _persist(shop: str, signals: dict[str, Any], *, db_path: Path | None = None)
         logger.error("realtime_signals: failed to write file for %s: %s", shop, exc)
     # DB mirror so the signal survives an ephemeral-disk restart (Render Free).
     save_artifact(shop, _ARTIFACT_TYPE, signals, db_path=db_path)
+
+
+_VERIFY_SYSTEM_PROMPT = (
+    "Tu es un analyste marché e-commerce. Pour chaque mot-clé, indique si une "
+    "recherche web récente confirme qu'il est réellement recherché/pertinent "
+    "sur le marché français en ce moment. Ne te base QUE sur des résultats de "
+    "recherche réels — jamais une estimation ou une intuition."
+)
+
+_MAX_VERIFY_KEYWORDS = 30
+
+
+def _build_verify_prompt(keywords: list[str], niche_summary: str) -> str:
+    kw_list = "\n".join(f"- {k}" for k in keywords)
+    return (
+        f"Niche : {niche_summary or 'non renseignée'}.\n"
+        f"Mots-clés à vérifier sur le marché français actuel :\n{kw_list}\n\n"
+        "Pour CHAQUE mot-clé de la liste, cherche sur le web et réponds en JSON "
+        "strict avec ce schéma exact :\n"
+        "{\n"
+        '  "verifications": [\n'
+        '    {"query": str, "market_evidence": "confirmed"|"rising"|"declining"|"no_signal", '
+        '"evidence_note": str, "source_url": str}\n'
+        "  ]\n"
+        "}\n\n"
+        "market_evidence :\n"
+        '- "confirmed" : recherche/intérêt réel et stable constaté.\n'
+        '- "rising" : tendance à la hausse constatée récemment.\n'
+        '- "declining" : intérêt en baisse constaté.\n'
+        '- "no_signal" : aucune preuve web trouvée — n\'invente RIEN dans ce cas, '
+        "laisse evidence_note et source_url vides.\n"
+        "Une entrée par mot-clé de la liste, dans le même ordre si possible."
+    )
+
+
+def _parse_verifications(text: str) -> dict[str, dict[str, Any]] | None:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`")
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:]
+    try:
+        parsed = json.loads(cleaned)
+    except json.JSONDecodeError:
+        logger.warning("verify_keywords_against_market: could not parse Gemini JSON response")
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    items = parsed.get("verifications")
+    if not isinstance(items, list):
+        return None
+    by_query: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        query = str(item.get("query") or "").strip().lower()
+        evidence = str(item.get("market_evidence") or "no_signal").strip().lower()
+        if not query or evidence not in {"confirmed", "rising", "declining", "no_signal"}:
+            continue
+        by_query[query] = {
+            "evidence": evidence,
+            "note": str(item.get("evidence_note") or ""),
+            "source_url": str(item.get("source_url") or ""),
+        }
+    return by_query
+
+
+def verify_keywords_against_market(
+    shop: str,
+    keywords: list[str],
+    niche_summary: str,
+    *,
+    db_path: Path | None = None,
+    force: bool = False,
+    status_out: dict[str, Any] | None = None,
+) -> dict[str, dict[str, Any]] | None:
+    """Cross-check a batch of target keywords against the real current market.
+
+    One grounded call per full-catalog job (never per product) — verifies, for
+    each keyword, whether real web search evidence confirms it's actually
+    searched/relevant right now, distinct from the LLM's own estimate. Returns
+    ``{query_lowercased: {evidence, note, source_url}}`` or None (fail-open:
+    gating, network, parsing — same guarantees as `fetch_realtime_signals`).
+
+    Capped at `_MAX_VERIFY_KEYWORDS` keywords to keep the call — and its
+    token cost — bounded regardless of catalog size.
+    """
+    if not force and get_plan_for_shop(shop, db_path) != "agency":
+        _set_status(status_out, "plan_not_agency")
+        return None
+    if not os.getenv("GEMINI_API_KEY"):
+        _set_status(status_out, "no_gemini_key")
+        return None
+
+    deduped = list(dict.fromkeys(k.strip() for k in keywords if k and k.strip()))[:_MAX_VERIFY_KEYWORDS]
+    if not deduped:
+        _set_status(status_out, "no_signal", "no keywords to verify")
+        return None
+
+    try:
+        router = get_router(shop=shop, tier="grounded")
+        result = router.complete(
+            _build_verify_prompt(deduped, niche_summary),
+            system=_VERIFY_SYSTEM_PROMPT,
+            max_tokens=4096,
+            temperature=0.2,
+            json_mode=True,
+        )
+    except LLMError as exc:
+        logger.warning("verify_keywords_against_market: LLM call failed for %s: %s", shop, exc)
+        _set_status(status_out, "llm_error", str(exc))
+        return None
+    except Exception as exc:  # noqa: BLE001 — optional signal, never fail the analysis job for it
+        logger.warning("verify_keywords_against_market: unexpected error for %s: %s", shop, exc)
+        _set_status(status_out, "llm_error", str(exc))
+        return None
+
+    verifications = _parse_verifications(result.text)
+    if verifications is None:
+        _set_status(status_out, "parse_error")
+        return None
+    _set_status(status_out, "ok")
+    return verifications
 
 
 def load_realtime_signals(shop: str, *, db_path: Path | None = None) -> dict[str, Any] | None:

@@ -11,7 +11,11 @@ import pytest
 from app.billing.subscription_store import upsert_subscription
 from app.db import init_db
 from app.llm.provider import CompletionResult, LLMError
-from app.niche.signals.realtime_trends import fetch_realtime_signals, load_realtime_signals
+from app.niche.signals.realtime_trends import (
+    fetch_realtime_signals,
+    load_realtime_signals,
+    verify_keywords_against_market,
+)
 
 SHOP = "store.myshopify.com"
 
@@ -171,3 +175,160 @@ def test_load_returns_none_when_nothing_persisted(
     db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     assert load_realtime_signals(SHOP, db_path=db) is None
+
+
+# ── status_out diagnostics (fetch_realtime_signals) ─────────────────────────
+
+
+def test_status_out_no_gemini_key(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _agency(db)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    status: dict = {}
+    fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+    assert status["status"] == "no_gemini_key"
+
+
+def test_status_out_plan_not_agency(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    status: dict = {}
+    fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+    assert status["status"] == "plan_not_agency"
+
+
+def test_status_out_ok(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
+        provider="gemini",
+        model="gemini-3.1-flash-lite",
+    )
+    status: dict = {}
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+    assert status["status"] == "ok"
+
+
+def test_status_out_llm_error(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    status: dict = {}
+    with patch(
+        "app.niche.signals.realtime_trends.get_router",
+        side_effect=LLMError("all providers failed"),
+    ):
+        fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+    assert status["status"] == "llm_error"
+
+
+def test_status_out_parse_error(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text="not json", provider="gemini", model="gemini-3.1-flash-lite"
+    )
+    status: dict = {}
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+    assert status["status"] == "parse_error"
+
+
+# ── verify_keywords_against_market ──────────────────────────────────────────
+
+
+def test_verify_returns_none_for_free_plan(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    with patch("app.niche.signals.realtime_trends.get_router") as mock_router:
+        result = verify_keywords_against_market(SHOP, ["fontaine à eau chat"], "accessoires pour chats", db_path=db)
+    assert result is None
+    mock_router.assert_not_called()
+
+
+def test_verify_returns_none_without_gemini_key(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _agency(db)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    with patch("app.niche.signals.realtime_trends.get_router") as mock_router:
+        result = verify_keywords_against_market(SHOP, ["fontaine à eau chat"], "accessoires pour chats", db_path=db)
+    assert result is None
+    mock_router.assert_not_called()
+
+
+def test_verify_parses_verifications_by_query(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text=json.dumps(
+            {
+                "verifications": [
+                    {
+                        "query": "Fontaine à eau chat",
+                        "market_evidence": "rising",
+                        "evidence_note": "Recherches en hausse pendant la canicule",
+                        "source_url": "https://example.com/trend",
+                    },
+                    {"query": "griffoir arbre à chat", "market_evidence": "no_signal"},
+                ]
+            }
+        ),
+        provider="gemini",
+        model="gemini-3.1-flash-lite",
+    )
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        result = verify_keywords_against_market(
+            SHOP, ["Fontaine à eau chat", "griffoir arbre à chat"], "accessoires pour chats", db_path=db
+        )
+    assert result is not None
+    assert result["fontaine à eau chat"]["evidence"] == "rising"
+    assert result["fontaine à eau chat"]["source_url"] == "https://example.com/trend"
+    assert result["griffoir arbre à chat"]["evidence"] == "no_signal"
+
+
+def test_verify_caps_keyword_list(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text=json.dumps({"verifications": []}), provider="gemini", model="gemini-3.1-flash-lite"
+    )
+    keywords = [f"kw{i}" for i in range(50)]
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        verify_keywords_against_market(SHOP, keywords, "niche", db_path=db)
+    prompt = mock_router.complete.call_args.args[0]
+    assert "kw29" in prompt
+    assert "kw30" not in prompt
+
+
+def test_verify_fail_open_when_llm_raises(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    with patch(
+        "app.niche.signals.realtime_trends.get_router",
+        side_effect=LLMError("all providers failed"),
+    ):
+        result = verify_keywords_against_market(SHOP, ["fontaine à eau chat"], "niche", db_path=db)
+    assert result is None
+
+
+def test_verify_force_bypasses_plan_gate(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    upsert_subscription(SHOP, "pro", "active", "gid://sub/1", db_path=db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text=json.dumps({"verifications": []}), provider="gemini", model="gemini-3.1-flash-lite"
+    )
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        result = verify_keywords_against_market(SHOP, ["fontaine à eau chat"], "niche", db_path=db, force=True)
+    assert result is not None

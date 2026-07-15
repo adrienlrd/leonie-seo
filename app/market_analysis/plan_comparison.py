@@ -58,6 +58,23 @@ def _run_one(
     return result
 
 
+def _plan_diff(result: dict[str, Any]) -> dict[str, Any]:
+    """Summarize whether/how grounding actually affected this plan's output —
+    answers "did Gemini add value?" without diffing the full result by hand.
+    """
+    events_used = 0
+    signals = result.get("realtime_signals")
+    if signals:
+        events_used = len(signals.get("events") or []) + len(signals.get("rising_queries") or [])
+    return {
+        "realtime_grounding_used": result.get("realtime_grounding_used", False),
+        "realtime_status": (result.get("realtime_status") or {}).get("status"),
+        "market_verification_status": (result.get("market_verification_status") or {}).get("status"),
+        "keywords_with_market_verification": result.get("keywords_with_market_verification", 0),
+        "events_used": events_used,
+    }
+
+
 def run_plan_comparison(
     shop: str,
     *,
@@ -118,4 +135,5 @@ def run_plan_comparison(
         "shop": shop,
         "pro": pro_result,
         "agency": agency_result,
+        "diff_summary": {"pro": _plan_diff(pro_result), "agency": _plan_diff(agency_result)},
     }

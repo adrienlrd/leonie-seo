@@ -1186,7 +1186,7 @@ def test_catalog_conflict_blocks_lower_priority_duplicate_target() -> None:
 # ── Real-time grounding injection (fetch_realtime) ─────────────────────────
 
 
-def _run_with_realtime(router, *, fetch_realtime, realtime_signals):
+def _run_with_realtime(router, *, fetch_realtime, realtime_signals, verifications=None):
     budget = {
         "over_budget": False,
         "budget_usd": 20.0,
@@ -1200,6 +1200,9 @@ def _run_with_realtime(router, *, fetch_realtime, realtime_signals):
         patch.object(engine, "check_budget", return_value=budget),
         patch.object(engine, "_fetch_trends_once", return_value=[]),
         patch.object(engine, "_fetch_realtime_signals_once", return_value=realtime_signals) as mock_fetch,
+        # Never let a real GEMINI_API_KEY in the test environment trigger a live
+        # HTTP call from this unrelated engine-level test — always mocked here.
+        patch.object(engine, "_verify_keywords_once", return_value=verifications) as mock_verify,
         patch.object(engine, "fetch_suggestions_bulk", return_value=[]),
         patch.object(engine, "DataForSEOProvider", return_value=_FakeDataForSEO()),
     ):
@@ -1210,12 +1213,12 @@ def _run_with_realtime(router, *, fetch_realtime, realtime_signals):
             [],
             fetch_realtime=fetch_realtime,
         )
-    return result, mock_fetch
+    return result, mock_fetch, mock_verify
 
 
 def test_fetch_realtime_false_never_calls_realtime_fetcher():
     router = _router(_PASS1_JSON, _PASS2_JSON)
-    result, mock_fetch = _run_with_realtime(router, fetch_realtime=False, realtime_signals=None)
+    result, mock_fetch, _mock_verify = _run_with_realtime(router, fetch_realtime=False, realtime_signals=None)
     mock_fetch.assert_not_called()
     assert "realtime_grounding" not in result["sources_used"]
     pass1_prompt = router.complete.call_args_list[0].args[0]
@@ -1231,7 +1234,7 @@ def test_fetch_realtime_true_with_signal_injects_prompt_and_source():
         "citations": [{"url": "https://meteo-france.fr/canicule", "title": "Météo France"}],
         "fetched_at": "2026-07-15T00:00:00+00:00",
     }
-    result, mock_fetch = _run_with_realtime(router, fetch_realtime=True, realtime_signals=signals)
+    result, mock_fetch, _mock_verify = _run_with_realtime(router, fetch_realtime=True, realtime_signals=signals)
     mock_fetch.assert_called_once()
     assert "realtime_grounding" in result["sources_used"]
     pass1_prompt = router.complete.call_args_list[0].args[0]
@@ -1244,11 +1247,88 @@ def test_fetch_realtime_true_without_signal_is_a_safe_no_op():
     """Free/pro shop (or Gemini unavailable): fetcher returns None — the
     analysis must proceed exactly as if fetch_realtime had been False."""
     router = _router(_PASS1_JSON, _PASS2_JSON)
-    result, mock_fetch = _run_with_realtime(router, fetch_realtime=True, realtime_signals=None)
+    result, mock_fetch, _mock_verify = _run_with_realtime(router, fetch_realtime=True, realtime_signals=None)
     mock_fetch.assert_called_once()
     assert "realtime_grounding" not in result["sources_used"]
     pass1_prompt = router.complete.call_args_list[0].args[0]
     assert "DONNÉES TEMPS RÉEL" not in pass1_prompt
+
+
+def test_fetch_realtime_false_result_carries_not_attempted_status():
+    """The new diagnostic fields must always be present, even when grounding
+    was never attempted, so a caller never needs to guess why."""
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    result, _mock_fetch, _mock_verify = _run_with_realtime(
+        router, fetch_realtime=False, realtime_signals=None
+    )
+    assert result["realtime_signals"] is None
+    assert result["realtime_status"]["status"] == "not_attempted"
+    assert result["market_verification_status"]["status"] == "not_attempted"
+    assert result["keywords_with_market_verification"] == 0
+
+
+def test_fetch_realtime_true_includes_realtime_signals_in_result():
+    """realtime_signals must be fully surfaced in the result, not just left
+    persisted to disk (previously invisible in exports)."""
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    signals = {
+        "events": [{"title": "Canicule en France cette semaine"}],
+        "rising_queries": [],
+        "competitor_moves": [],
+        "citations": [{"url": "https://meteo-france.fr/canicule", "title": "Météo France"}],
+        "fetched_at": "2026-07-15T00:00:00+00:00",
+    }
+    result, _mock_fetch, _mock_verify = _run_with_realtime(
+        router, fetch_realtime=True, realtime_signals=signals
+    )
+    assert result["realtime_signals"] == signals
+
+
+def test_market_verification_annotates_matching_keyword_and_bumps_demand_score():
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    verifications = {
+        "fontaine à chat": {
+            "evidence": "rising",
+            "note": "Recherches en hausse pendant la canicule",
+            "source_url": "https://example.com/trend",
+        }
+    }
+    result, _mock_fetch, mock_verify = _run_with_realtime(
+        router, fetch_realtime=True, realtime_signals=None, verifications=verifications
+    )
+    mock_verify.assert_called_once()
+    assert "realtime_market_verification" in result["sources_used"]
+    assert result["keywords_with_market_verification"] == 1
+    kw = result["products"][0]["seo_keywords"][0]
+    assert kw["market_verification"]["evidence"] == "rising"
+    base_demand_score = 75.0  # post-enrichment baseline (not the raw pass-1 fixture value)
+    assert kw["demand_score"] == base_demand_score + 10
+    assert "verified_by_market" in kw["notes"]
+
+
+def test_market_verification_declining_bumps_demand_score_down():
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    verifications = {
+        "fontaine à chat": {"evidence": "declining", "note": "", "source_url": ""}
+    }
+    result, _mock_fetch, _mock_verify = _run_with_realtime(
+        router, fetch_realtime=True, realtime_signals=None, verifications=verifications
+    )
+    kw = result["products"][0]["seo_keywords"][0]
+    base_demand_score = 75.0  # post-enrichment baseline (not the raw pass-1 fixture value)
+    assert kw["demand_score"] == base_demand_score - 10
+
+
+def test_market_verification_no_verifications_leaves_keywords_untouched():
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    result, _mock_fetch, mock_verify = _run_with_realtime(
+        router, fetch_realtime=True, realtime_signals=None, verifications=None
+    )
+    mock_verify.assert_called_once()
+    assert "realtime_market_verification" not in result["sources_used"]
+    assert result["keywords_with_market_verification"] == 0
+    kw = result["products"][0]["seo_keywords"][0]
+    assert "market_verification" not in kw
 
 
 def test_fetch_realtime_force_defaults_to_false_and_is_threaded_through():
