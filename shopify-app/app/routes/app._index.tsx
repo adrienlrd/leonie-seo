@@ -682,6 +682,45 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // ── Pro vs Grande boutique test comparison (async job + polling) ────
+  if (intent === "startPlanComparison") {
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/agent-schedule/test-compare`,
+        { accessToken: session.accessToken, method: "POST" },
+      );
+      if (!resp.ok) {
+        return json({ type: "startPlanComparison", jobId: null, error: `HTTP ${resp.status}` });
+      }
+      const data = (await resp.json()) as { job_id: string };
+      return json({ type: "startPlanComparison", jobId: data.job_id, error: null });
+    } catch (err) {
+      return json({ type: "startPlanComparison", jobId: null, error: String(err) });
+    }
+  }
+
+  if (intent === "pollPlanComparison") {
+    const jobId = formData.get("jobId") as string;
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/agent-schedule/test-compare/${jobId}`,
+        { accessToken: session.accessToken },
+      );
+      if (!resp.ok) return json({ type: "pollPlanComparison", job: null, error: `HTTP ${resp.status}` });
+      const job = (await resp.json()) as {
+        status?: string;
+        error?: string | null;
+        phase?: string;
+        result?: unknown;
+      };
+      return json({ type: "pollPlanComparison", job, error: null });
+    } catch (err) {
+      return json({ type: "pollPlanComparison", job: null, error: String(err) });
+    }
+  }
+
   if (intent === "exportReanalysis") {
     try {
       const resp = await callBackendForShop(
@@ -813,6 +852,8 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData }) => {
   if (intent === "startReanalysis") return false;
   if (intent === "pollReanalysis") return false;
   if (intent === "exportReanalysis") return false;
+  if (intent === "startPlanComparison") return false;
+  if (intent === "pollPlanComparison") return false;
   if (typeof intent === "string" && PRODUCT_CARD_MUTATION_INTENTS.has(intent)) return false;
   return true;
 };
@@ -3610,6 +3651,11 @@ function AnalysisSchedulePanels({
     } | null;
   }>();
   const exportFetcher = useFetcher<{ type?: string; payload?: unknown; error?: string | null }>();
+  const startCompareFetcher = useFetcher<{ type?: string; jobId?: string | null; error?: string | null }>();
+  const pollCompareFetcher = useFetcher<{
+    type?: string;
+    job?: { status?: string; error?: string | null; phase?: string; result?: unknown } | null;
+  }>();
   const revalidator = useRevalidator();
 
   // Expose a start trigger so the auto-panel "Activate" runs a re-analysis whose
@@ -3679,6 +3725,58 @@ function AnalysisSchedulePanels({
     a.remove();
     URL.revokeObjectURL(url);
   }, [exportFetcher.data]);
+
+  // ── Pro vs Grande boutique test comparison ──────────────────────────────
+  const [compareJobId, setCompareJobId] = useState<string | null>(null);
+  const [comparePhase, setComparePhase] = useState<string | null>(null);
+  const [compareError, setCompareError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (startCompareFetcher.data?.type !== "startPlanComparison") return;
+    if (startCompareFetcher.data.jobId) {
+      setCompareJobId(startCompareFetcher.data.jobId);
+      setComparePhase("pro");
+      setCompareError(null);
+    } else if (startCompareFetcher.data.error) {
+      setCompareError(startCompareFetcher.data.error);
+    }
+  }, [startCompareFetcher.data]);
+
+  useEffect(() => {
+    if (!compareJobId) return;
+    const tick = () =>
+      pollCompareFetcher.submit({ intent: "pollPlanComparison", jobId: compareJobId }, { method: "post" });
+    tick();
+    const id = setInterval(tick, 5_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compareJobId]);
+
+  useEffect(() => {
+    const job = pollCompareFetcher.data?.job;
+    if (!compareJobId || !job) return;
+    if (job.phase) setComparePhase(job.phase);
+    if (job.status === "completed" && job.result) {
+      setCompareJobId(null);
+      setComparePhase(null);
+      const blob = new Blob([JSON.stringify(job.result, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `plan-comparison-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } else if (job.status === "error") {
+      setCompareJobId(null);
+      setComparePhase(null);
+      setCompareError(job.error ?? "error");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pollCompareFetcher.data]);
+
+  const comparing = compareJobId !== null || startCompareFetcher.state !== "idle";
 
   const running = jobId !== null || startFetcher.state !== "idle";
   const exporting = exportFetcher.state !== "idle";
@@ -3945,6 +4043,18 @@ function AnalysisSchedulePanels({
           {exportFetcher.data?.type === "exportReanalysis" && exportFetcher.data.error && (
             <Banner tone="critical">{t(locale, "exportReanalysisError")}</Banner>
           )}
+          {compareError && (
+            <Banner tone="critical" onDismiss={() => setCompareError(null)}>
+              {t(locale, "planComparisonError")}
+            </Banner>
+          )}
+          {comparing && (
+            <Text as="p" variant="bodySm" tone="subdued">
+              {comparePhase === "agency"
+                ? t(locale, "planComparisonPhaseAgency")
+                : t(locale, "planComparisonPhasePro")}
+            </Text>
+          )}
 
           <div style={{ flex: "1 1 auto" }} />
 
@@ -3971,6 +4081,14 @@ function AnalysisSchedulePanels({
               onClick={() => exportFetcher.submit({ intent: "exportReanalysis" }, { method: "post" })}
             >
               {t(locale, "exportReanalysisButton")}
+            </Button>
+            <Button
+              fullWidth
+              loading={comparing}
+              disabled={running || comparing}
+              onClick={() => startCompareFetcher.submit({ intent: "startPlanComparison" }, { method: "post" })}
+            >
+              {t(locale, "planComparisonButton")}
             </Button>
           </BlockStack>
         </div>

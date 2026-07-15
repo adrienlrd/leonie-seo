@@ -23,6 +23,18 @@
   - `.env.example`: commented `GEMINI_API_KEY` / `GEMINI_MODEL`.
 - **Validations:** `ruff check .` OK; full `pytest` = 2104 passed / 174 skipped; front typecheck + build green.
 
+## Task after that
+
+- **Date:** 2026-07-15
+- **Agent:** Claude (Sonnet 5)
+- **Goal:** "Analyse test" button — run Pro vs Grande boutique analysis back to back for comparison, export as one JSON.
+- **Changes:**
+  - `fetch_realtime_signals(..., force=False)` (`app/niche/signals/realtime_trends.py`) and `run_market_analysis(..., fetch_realtime_force=False)` (`engine.py`): bypass the agency-plan gate for a single call, without ever writing the shop's real billing state. Default `False` everywhere — no behavior change for existing callers.
+  - New `app/market_analysis/plan_comparison.py::run_plan_comparison()`: gathers analysis inputs **once**, then calls `run_market_analysis` directly (not the persisting/publishing wrappers) twice — `plan="pro"` (no grounding, 15-product cap) then `plan="agency"` (grounding forced, 35-product cap). Zero Shopify writes, zero DB persistence, zero change to billing — purely diagnostic.
+  - New async job endpoints `POST`/`GET /agent-schedule/test-compare(/{job_id})` (`app/api/agent_schedule.py`), same job-store pattern as `run-and-publish`, no quota consumed.
+  - Dashboard: new "Analyse test (Pro vs Grande boutique)" button in the analysis panel, next to "Exporter JSON" — polls the job, downloads a single `plan-comparison-{date}.json` with both results side by side on completion.
+- **Validations:** `ruff check .` OK; full `pytest` = 2117 passed / 174 skipped (new: force-bypass gate tests, plan_comparison orchestration + "no side-effect import" test, API job tests including "consumes zero quota"); front typecheck + build green.
+
 ## Live smoke test (2026-07-15) — 3 real bugs found and fixed
 
 Adrien provided a real `GEMINI_API_KEY`; ran the actual pipeline against the live API (not mocks). Found and fixed:
