@@ -91,6 +91,7 @@ def fetch_realtime_signals(
     product_titles: list[str],
     *,
     db_path: Path | None = None,
+    force: bool = False,
 ) -> dict[str, Any] | None:
     """Fetch and persist a real-time market signal snapshot for `shop`.
 
@@ -98,8 +99,13 @@ def fetch_realtime_signals(
     immediately (no HTTP call, no cost) for every other shop. Fail-open on any
     error (network, parsing, missing grounding) so an analysis job never fails
     because this optional signal could not be fetched.
+
+    ``force`` skips the plan gate (still requires GEMINI_API_KEY) — used only
+    by the internal Pro/Grande boutique comparison tool so the agency branch
+    is exercised even when the shop isn't actually on that plan. Never write
+    the shop's real billing state.
     """
-    if get_plan_for_shop(shop, db_path) != "agency":
+    if not force and get_plan_for_shop(shop, db_path) != "agency":
         return None
     if not os.getenv("GEMINI_API_KEY"):
         return None

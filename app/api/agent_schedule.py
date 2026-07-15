@@ -31,6 +31,7 @@ from app.api.deps import ShopContext, get_shop_context, require_internal_secret
 from app.billing.quotas import QuotaExceeded, auto_analysis_allowed, check_quota, record_usage
 from app.db_adapter import DB_PATH
 from app.market_analysis.jobs import append_job_event, create_job, get_job, update_job
+from app.market_analysis.plan_comparison import run_plan_comparison
 
 logger = logging.getLogger(__name__)
 
@@ -248,6 +249,63 @@ async def get_run_and_publish_job(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict[str, Any]:
     """Return the status of a re-analysis job started via ``run-and-publish``."""
+    job = get_job(job_id)
+    if job is None or job.get("shop") != ctx.shop:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+def _run_plan_comparison_job(job_id: str, shop: str, access_token: str) -> None:
+    """Background worker for the Pro vs Grande boutique comparison tool.
+
+    Read-only diagnostic job: no persistence, no Shopify writes, no auto-publish
+    (see app.market_analysis.plan_comparison). Never fails the request — errors
+    surface to the poller via job status.
+    """
+    try:
+
+        def _on_phase(phase: str) -> None:
+            update_job(job_id, phase=phase)
+
+        result = run_plan_comparison(
+            shop, access_token=access_token, db_path=DB_PATH, on_phase=_on_phase
+        )
+        update_job(job_id, status="completed", result=result)
+    except Exception as exc:  # noqa: BLE001 — surface the failure to the poller
+        logger.exception("Plan comparison job %s failed for %s", job_id, shop)
+        update_job(job_id, status="error", error=str(exc))
+
+
+@router.post("/shops/{shop}/agent-schedule/test-compare")
+async def start_plan_comparison(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
+    """Start a Pro vs Grande boutique analysis comparison as a background job.
+
+    Internal diagnostic tool: runs the same rich pipeline once as "pro" and
+    once as "agency" (grounding forced on) on the same source data, so the
+    real-time grounding difference can be inspected directly. No quota
+    consumed, no persistence, no Shopify writes, no billing plan change —
+    see app.market_analysis.plan_comparison for the read-only guarantee.
+    Returns a ``job_id`` to poll via ``GET test-compare/{job_id}``.
+    """
+    if not ctx.access_token:
+        raise HTTPException(status_code=401, detail="Missing Shopify access token")
+    job_id = create_job(ctx.shop)
+    update_job(job_id, status="running", phase="pro")
+    background_tasks.add_task(_run_plan_comparison_job, job_id, ctx.shop, ctx.access_token)
+    return {"shop": ctx.shop, "job_id": job_id}
+
+
+@router.get("/shops/{shop}/agent-schedule/test-compare/{job_id}")
+async def get_plan_comparison_job(
+    shop: str,
+    job_id: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Return the status of a Pro vs Grande boutique comparison job."""
     job = get_job(job_id)
     if job is None or job.get("shop") != ctx.shop:
         raise HTTPException(status_code=404, detail="Job not found")

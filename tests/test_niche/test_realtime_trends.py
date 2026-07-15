@@ -51,6 +51,40 @@ def test_returns_none_for_pro_plan(db: Path, data_dir: Path, monkeypatch: pytest
     mock_router.assert_not_called()
 
 
+def test_force_bypasses_plan_gate_for_pro_plan(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """force=True (Pro/Grande boutique comparison tool only) must still exercise
+    the grounded call even on a non-agency plan, without touching the shop's
+    real billing state — this test never writes to the subscription store."""
+    upsert_subscription(SHOP, "pro", "active", "gid://sub/1", db_path=db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
+        provider="gemini",
+        model="gemini-3.1-flash-lite",
+    )
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, force=True)
+    assert result is not None
+    # Real plan is untouched — still "pro" in the subscription store.
+    from app.billing.subscription_store import get_plan_for_shop
+
+    assert get_plan_for_shop(SHOP, db_path=db) == "pro"
+
+
+def test_force_still_requires_gemini_key(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    upsert_subscription(SHOP, "pro", "active", "gid://sub/1", db_path=db)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    with patch("app.niche.signals.realtime_trends.get_router") as mock_router:
+        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, force=True)
+    assert result is None
+    mock_router.assert_not_called()
+
+
 def test_returns_none_without_gemini_key(
     db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

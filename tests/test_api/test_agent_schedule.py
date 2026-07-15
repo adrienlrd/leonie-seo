@@ -221,6 +221,73 @@ def test_run_and_publish_poll_unknown_job_returns_404(client: TestClient) -> Non
     assert response.status_code == 404
 
 
+# ── /agent-schedule/test-compare (Pro vs Grande boutique diagnostic) ───────────
+
+
+def test_plan_comparison_starts_job_and_poll_reflects_completion(client: TestClient) -> None:
+    with patch(
+        "app.api.agent_schedule.run_plan_comparison",
+        return_value={
+            "compared_at": "2026-07-15T00:00:00+00:00",
+            "shop": SHOP,
+            "pro": {"sources_used": ["shopify_snapshot"], "realtime_grounding_used": False},
+            "agency": {
+                "sources_used": ["shopify_snapshot", "realtime_grounding"],
+                "realtime_grounding_used": True,
+            },
+        },
+    ) as run_comparison:
+        start = client.post(f"/api/shops/{SHOP}/agent-schedule/test-compare")
+
+    assert start.status_code == 200
+    job_id = start.json()["job_id"]
+    assert job_id
+    run_comparison.assert_called_once()
+
+    poll = client.get(f"/api/shops/{SHOP}/agent-schedule/test-compare/{job_id}")
+    assert poll.status_code == 200
+    body = poll.json()
+    assert body["status"] == "completed"
+    assert body["result"]["agency"]["realtime_grounding_used"] is True
+    assert body["result"]["pro"]["realtime_grounding_used"] is False
+
+
+def test_plan_comparison_job_reports_error_on_failure(client: TestClient) -> None:
+    with patch(
+        "app.api.agent_schedule.run_plan_comparison",
+        side_effect=RuntimeError("boom"),
+    ):
+        start = client.post(f"/api/shops/{SHOP}/agent-schedule/test-compare")
+
+    job_id = start.json()["job_id"]
+    poll = client.get(f"/api/shops/{SHOP}/agent-schedule/test-compare/{job_id}")
+    assert poll.json()["status"] == "error"
+    assert "boom" in poll.json()["error"]
+
+
+def test_plan_comparison_poll_unknown_job_returns_404(client: TestClient) -> None:
+    response = client.get(f"/api/shops/{SHOP}/agent-schedule/test-compare/nope")
+    assert response.status_code == 404
+
+
+def test_plan_comparison_does_not_consume_analysis_quota(
+    free_client: TestClient, db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Internal diagnostic tool — never gated by plan or quota, unlike
+    run-and-publish. Runs even on the free plan without touching billing."""
+    monkeypatch.setattr("app.billing.quotas.DB_PATH", db)
+    with patch(
+        "app.api.agent_schedule.run_plan_comparison",
+        return_value={"compared_at": "x", "shop": SHOP, "pro": {}, "agency": {}},
+    ):
+        start = free_client.post(f"/api/shops/{SHOP}/agent-schedule/test-compare")
+    assert start.status_code == 200
+
+    from app.billing.quotas import get_usage
+
+    assert get_usage(SHOP, "analysis", db_path=db) == 0
+
+
 def test_internal_run_due_requires_secret(client: TestClient) -> None:
     unauth = client.post("/api/internal/agent-schedule/run-due")
     assert unauth.status_code == 403

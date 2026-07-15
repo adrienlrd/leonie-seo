@@ -1249,3 +1249,26 @@ def test_fetch_realtime_true_without_signal_is_a_safe_no_op():
     assert "realtime_grounding" not in result["sources_used"]
     pass1_prompt = router.complete.call_args_list[0].args[0]
     assert "DONNÉES TEMPS RÉEL" not in pass1_prompt
+
+
+def test_fetch_realtime_force_defaults_to_false_and_is_threaded_through():
+    """fetch_realtime_force must reach _fetch_realtime_signals_once's `force`
+    kwarg unchanged — used only by the Pro/Grande boutique comparison tool to
+    exercise the agency branch without touching the shop's real plan."""
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    budget = {
+        "over_budget": False, "budget_usd": 20.0, "spent_usd": 0.0,
+        "remaining_usd": 20.0, "usage_pct": 0.0, "alert": None,
+    }
+    with (
+        patch.object(engine, "get_router", return_value=router),
+        patch.object(engine, "check_budget", return_value=budget),
+        patch.object(engine, "_fetch_trends_once", return_value=[]),
+        patch.object(engine, "_fetch_realtime_signals_once", return_value=None) as mock_fetch,
+        patch.object(engine, "fetch_suggestions_bulk", return_value=[]),
+        patch.object(engine, "DataForSEOProvider", return_value=_FakeDataForSEO()),
+    ):
+        engine.run_market_analysis(
+            [_product()], _SHOP, {}, [], fetch_realtime=True, fetch_realtime_force=True,
+        )
+    assert mock_fetch.call_args.kwargs["force"] is True

@@ -571,19 +571,22 @@ def _fetch_realtime_signals_once(
     niche_hypothesis: dict[str, Any] | None,
     top_titles: list[str],
     db_path: Path | None,
+    *,
+    force: bool = False,
 ) -> dict[str, Any] | None:
     """Call the grounded real-time signal fetcher once per job. Fail-open.
 
     Already gated to the "agency" plan + a configured GEMINI_API_KEY inside
     `fetch_realtime_signals` itself — this wrapper only adds the same
     exception safety net as `_fetch_trends_once` for the unlikely case of an
-    error the fetcher itself didn't already catch.
+    error the fetcher itself didn't already catch. ``force`` bypasses the
+    plan gate (Pro/Grande boutique comparison tool only).
     """
     try:
         from app.niche.signals.realtime_trends import fetch_realtime_signals  # noqa: PLC0415
 
         return fetch_realtime_signals(
-            shop, niche_hypothesis, [t for t in top_titles if t], db_path=db_path
+            shop, niche_hypothesis, [t for t in top_titles if t], db_path=db_path, force=force
         )
     except Exception as exc:
         logger.warning("Real-time signals unavailable: %s", exc)
@@ -5526,6 +5529,7 @@ def run_market_analysis(
     reflection_test: bool = False,
     db_path: Path | None = None,
     fetch_realtime: bool = False,
+    fetch_realtime_force: bool = False,
 ) -> dict[str, Any]:
     """Run a two-pass SEO/GEO market analysis for active products.
 
@@ -5558,6 +5562,11 @@ def run_market_analysis(
             cost with no extra value. Still gated internally to the "agency"
             plan and a configured GEMINI_API_KEY, so it is always a safe no-op
             to pass True for a free/pro shop.
+        fetch_realtime_force: Bypasses the "agency" plan gate inside the
+            fetcher (still requires GEMINI_API_KEY). Only for the internal
+            Pro/Grande boutique comparison tool — never set this from a
+            regular analysis path, and it never touches the shop's real
+            billing state.
     """
     active_products = filter_products_by_scope(products, "active")
     opportunities = _score_active_products(active_products, gsc_query_rows, ga4_page_rows)
@@ -5601,7 +5610,9 @@ def run_market_analysis(
 
     realtime_signals: dict[str, Any] | None = None
     if fetch_realtime:
-        realtime_signals = _fetch_realtime_signals_once(shop, niche_hypothesis, top_titles, db_path)
+        realtime_signals = _fetch_realtime_signals_once(
+            shop, niche_hypothesis, top_titles, db_path, force=fetch_realtime_force
+        )
     if realtime_signals:
         sources_used.append("realtime_grounding")
     realtime_text = _format_realtime_signals(realtime_signals)
