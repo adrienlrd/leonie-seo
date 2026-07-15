@@ -52,6 +52,7 @@ def _build_prompt(
     target_customer: str,
     brand_voice: str,
     keywords: str = "",
+    grounded: bool = False,
 ) -> str:
     voice = f"TON DE MARQUE: {brand_voice}\n" if brand_voice else ""
     kw = (
@@ -59,6 +60,18 @@ def _build_prompt(
         if keywords.strip()
         else ""
     )
+    # Grounded calls (Gemini + Google Search) don't expose separate grounding
+    # metadata alongside a forced-JSON response (verified live: groundingMetadata
+    # is absent from the API response in that combination) — so sources must be
+    # requested directly in the JSON schema instead of read from a side channel.
+    sources_rule = (
+        "7. sources : liste d'objets {url, title}. Pour toute affirmation appuyée par "
+        "une recherche web réelle et récente, cite son URL et son titre exacts. "
+        "N'invente JAMAIS une URL : si tu n'as pas de source web vérifiable, liste vide.\n"
+        if grounded
+        else ""
+    )
+    keys_list = "direct_answer, body, claims_used" + (", sources" if grounded else "")
     return (
         f"TITRE BLOG: {blog_title}\n"
         f"H2 SECTION: {h2_question}\n"
@@ -88,8 +101,30 @@ def _build_prompt(
         "comme un défaut. Si un point d'attention factuel doit être nuancé (ex : entretien "
         "spécifique), formule-le de façon constructive, sans jamais dévaloriser le produit "
         "ni risquer de freiner la vente.\n\n"
-        "Réponds en JSON valide avec EXACTEMENT ces clés : direct_answer, body, claims_used."
+        f"{sources_rule}"
+        f"Réponds en JSON valide avec EXACTEMENT ces clés : {keys_list}."
     )
+
+
+def _merge_citations(
+    grounding_citations: list[dict[str, Any]], model_sources: Any
+) -> list[dict[str, Any]]:
+    """Combine groundingMetadata citations (side channel, currently always
+    empty when grounded+json_mode are combined — verified live) with sources
+    the model wrote directly into its own JSON output (`sources` field, only
+    requested when grounded). Deduplicated by URL.
+    """
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in list(grounding_citations or []) + list(model_sources or []):
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("url") or "").strip()
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        merged.append({"url": url, "title": str(item.get("title") or "")})
+    return merged
 
 
 def generate_section(
@@ -126,6 +161,7 @@ def generate_section(
         target_customer=target_customer,
         brand_voice=brand_voice,
         keywords=keywords,
+        grounded=(tier == "grounded"),
     )
 
     try:
@@ -143,7 +179,7 @@ def generate_section(
             "direct_answer": str(parsed.get("direct_answer", "") or ""),
             "body": str(parsed.get("body", "") or ""),
             "claims_used": [c for c in (parsed.get("claims_used") or []) if isinstance(c, dict)],
-            "citations": completion.citations,
+            "citations": _merge_citations(completion.citations, parsed.get("sources")),
         }
     except (json.JSONDecodeError, LLMError) as exc:
         logger.warning("Blog section generation failed for %r: %s", h2_question, exc)

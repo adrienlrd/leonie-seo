@@ -115,7 +115,11 @@ def fetch_realtime_signals(
         result = router.complete(
             _build_prompt(niche_summary, product_titles),
             system=_SYSTEM_PROMPT,
-            max_tokens=1024,
+            # Grounding redirect URLs (vertexaisearch.cloud.google.com/grounding-api-
+            # redirect/...) are ~150-200 chars each; up to 11 items (events + rising
+            # queries + competitor moves) each carrying one easily exceeds 1024 tokens
+            # and truncates the JSON mid-string — verified live. 4096 gives headroom.
+            max_tokens=4096,
             temperature=0.2,
             json_mode=True,
         )

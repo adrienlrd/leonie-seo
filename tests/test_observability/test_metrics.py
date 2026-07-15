@@ -61,6 +61,13 @@ def test_compute_cost_zero_tokens():
     assert compute_cost("gpt-4o-mini", 0, 0) == 0.0
 
 
+def test_compute_cost_gemini_flash_lite():
+    # 1000 input + 500 output tokens, rate 0.25/1M + 1.50/1M
+    cost = compute_cost("gemini-3.1-flash-lite", 1000, 500)
+    expected = (1000 * 0.25 + 500 * 1.50) / 1_000_000
+    assert abs(cost - expected) < 1e-9
+
+
 # ---------------------------------------------------------------------------
 # record_llm_call
 # ---------------------------------------------------------------------------

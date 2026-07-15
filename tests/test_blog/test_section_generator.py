@@ -82,6 +82,67 @@ def test_agency_shop_uses_grounded_tier_and_returns_citations():
     assert out["citations"] == [{"url": "https://example.com", "title": "Example"}]
 
 
+def test_agency_shop_reads_sources_the_model_wrote_into_its_own_json():
+    """Verified live: Gemini's groundingMetadata side-channel is absent when
+    grounding + forced JSON are combined, so `sources` must be requested
+    directly in the JSON schema and read from there (see _build_prompt's
+    `grounded` param). completion.citations (the side channel) stays empty
+    in this scenario but is still merged in case the API ever changes."""
+    router = MagicMock()
+    router.complete.return_value = CompletionResult(
+        text=json.dumps(
+            {
+                "direct_answer": "x",
+                "body": "y",
+                "claims_used": [],
+                "sources": [{"url": "https://meteo.fr/canicule", "title": "Météo France"}],
+            }
+        ),
+        provider="gemini",
+        model="gemini-3.1-flash-lite",
+        citations=[],
+    )
+    with (
+        patch("app.blog.section_generator.get_plan_for_shop", return_value="agency"),
+        patch("app.blog.section_generator.get_router", return_value=router),
+    ):
+        out = generate_section(
+            blog_title="x",
+            h2_question="y",
+            product_title="z",
+            product_summary="",
+            confirmed_facts=[],
+            shop="agency-shop.myshopify.com",
+        )
+    assert out["citations"] == [{"url": "https://meteo.fr/canicule", "title": "Météo France"}]
+    prompt = router.complete.call_args.args[0]
+    assert "sources" in prompt
+    assert "N'invente JAMAIS une URL" in prompt
+
+
+def test_free_shop_prompt_does_not_request_sources():
+    router = MagicMock()
+    router.complete.return_value = CompletionResult(
+        text=json.dumps({"direct_answer": "x", "body": "y", "claims_used": []}),
+        provider="openai",
+        model="gpt-4o-mini",
+    )
+    with (
+        patch("app.blog.section_generator.get_plan_for_shop", return_value="free"),
+        patch("app.blog.section_generator.get_router", return_value=router),
+    ):
+        generate_section(
+            blog_title="x",
+            h2_question="y",
+            product_title="z",
+            product_summary="",
+            confirmed_facts=[],
+            shop="free-shop.myshopify.com",
+        )
+    prompt = router.complete.call_args.args[0]
+    assert "sources" not in prompt
+
+
 def test_free_shop_uses_default_tier_and_has_no_citations():
     router = MagicMock()
     router.complete.return_value = CompletionResult(

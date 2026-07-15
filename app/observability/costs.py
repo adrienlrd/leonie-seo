@@ -20,6 +20,11 @@ _PRICING: dict[str, dict[str, float]] = {
     # Cloudflare Workers AI (free tier)
     "@cf/meta/llama-2-7b-chat-fp16": {"input": 0.0, "output": 0.0},
     "@cf/mistral/mistral-7b-instruct-v0.1": {"input": 0.0, "output": 0.0},
+    # Gemini (Grande boutique plan, Google Search grounding). Note: this only
+    # tracks token cost — the separate Google Search grounding fee (5,000
+    # free grounded prompts/month, then $14/1,000) is not token-based and has
+    # no tracking mechanism here; see docs/AI_HANDOFF.md.
+    "gemini-3.1-flash-lite": {"input": 0.25, "output": 1.50},
 }
 
 _UNKNOWN_PRICING: dict[str, float] = {"input": 0.0, "output": 0.0}

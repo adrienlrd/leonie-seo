@@ -22,7 +22,16 @@
   - Surfaced: `GET /geo/realtime-signals` (read-only), dashboard "Tendances temps réel" card (locked pill for free/pro, live events/queries/sources for agency), `app.billing.tsx::planCopy` new line (agency only).
   - `.env.example`: commented `GEMINI_API_KEY` / `GEMINI_MODEL`.
 - **Validations:** `ruff check .` OK; full `pytest` = 2104 passed / 174 skipped; front typecheck + build green.
-- **Open:** live smoke test still needed once Adrien pastes a real `GEMINI_API_KEY` (all current tests mock the HTTP layer).
+
+## Live smoke test (2026-07-15) — 3 real bugs found and fixed
+
+Adrien provided a real `GEMINI_API_KEY`; ran the actual pipeline against the live API (not mocks). Found and fixed:
+1. **Gemini cost was untracked**: `app/observability/costs.py` had no pricing entry for `gemini-3.1-flash-lite` → every grounded call was silently logged at $0.0, meaning `check_budget` never saw real Gemini spend. Added `{"input": 0.25, "output": 1.50}` + a test.
+2. **`groundingMetadata` is absent from the API response when grounding + forced JSON (`responseMimeType: application/json`) are combined** — confirmed by raw API calls, not documented anywhere. This meant `CompletionResult.citations` (populated from that field) was **always empty** for every grounded+json_mode call — i.e. always, since both `realtime_trends.py` and `section_generator.py` use `json_mode=True`.
+   - `realtime_trends.py` was already resilient to this: the prompt asks the model to embed `source_url` directly in each JSON item (events/rising_queries/competitor_moves) rather than relying on the side channel — verified live to return real, clean-domain sources (meteofrance.fr, spa.asso.fr, gouvernement.fr...).
+   - `section_generator.py` was **not** resilient — its citations were silently always `[]` in practice. Fixed by adding the same pattern: `_build_prompt(..., grounded=bool)` requests a `sources: [{url, title}]` key in the JSON schema only for grounded calls (explicit "N'invente JAMAIS une URL" instruction), merged with the (still-empty-in-practice, kept for forward-compat) `completion.citations` via a new `_merge_citations()` helper. Verified live: the model returns real sources when it actually knows one, and an honest empty list otherwise — never a fabricated URL.
+3. **`fetch_realtime_signals`'s `max_tokens=1024` silently truncated the JSON mid-string**: Gemini's Google Search grounding redirect URLs (`vertexaisearch.cloud.google.com/grounding-api-redirect/...`) run ~150-200 chars each; with up to 11 items each carrying one, the response blew past 1024 output tokens and `json.loads` failed (fail-open → `None`, so no analysis broke, but the feature silently never worked). Raised to 4096.
+- **Validations after live fixes:** `ruff check .` OK; full `pytest` = 2107 passed / 174 skipped. Live end-to-end verified: canicule (July 2026 heat wave) correctly detected, matched to "Fontaine à eau pour chat", real cited sources, blog idea generated with working `source_url`.
 
 ## Task before that
 
