@@ -10,8 +10,22 @@
 
 ## Last completed task
 
-- **Date:** 2026-07-14
-- **Agent:** Claude (Opus 4.8)
+- **Date:** 2026-07-15
+- **Agent:** Claude (Sonnet 5)
+- **Goal:** Gemini 3.1 Flash-Lite + Google Search grounding — real-time market signals, agency plan only.
+- **Changes:**
+  - `app/llm/providers/gemini.py` (new): httpx REST provider, optional `grounded=True` (adds `tools: [google_search]`). `CompletionResult` gains `citations`/`search_queries` (empty for every other provider). `get_router(shop=..., tier="grounded")` (`app/llm/__init__.py`) returns Gemini first, falling back to the existing default chain (gpt-4o-mini) when `GEMINI_API_KEY` is unset or Gemini fails — free/pro plans are never affected. A 400 from the documented grounding+json_mode API quirk is mapped retryable (`LLMUnavailableError`) instead of a hard failure.
+  - `app/niche/signals/realtime_trends.py` (new): `fetch_realtime_signals()` — one grounded call per full-catalog analysis, agency-gated + `GEMINI_API_KEY`-gated internally, fail-open on every error path. Persisted to `data/raw/{shop}/realtime_signals.json` + DB mirror.
+  - `app/market_analysis/engine.py`: `run_market_analysis(..., fetch_realtime=False)` — when true (wired for full-catalog runs only, never a targeted product re-analysis), injects a "DONNÉES TEMPS RÉEL (sourcées)" line into every product's pass-1 prompt, right after Google Trends.
+  - `app/blog/idea_generator.py`: new `_event_ideas` angle (events + rising queries, no extra LLM call), ranked first in `build_blog_idea_suggestions`. Falls back to the top-priority product when no literal keyword overlap exists (the grounded prompt already scopes events to the niche).
+  - `app/blog/section_generator.py`: agency shops get `tier="grounded"` sections with cited `citations`; every other plan unchanged. `app/api/blog.py`: `BlogSection.citations` + a deduplicated "Sources" footer in `_assemble_body_html` (only ever non-empty for agency articles).
+  - Surfaced: `GET /geo/realtime-signals` (read-only), dashboard "Tendances temps réel" card (locked pill for free/pro, live events/queries/sources for agency), `app.billing.tsx::planCopy` new line (agency only).
+  - `.env.example`: commented `GEMINI_API_KEY` / `GEMINI_MODEL`.
+- **Validations:** `ruff check .` OK; full `pytest` = 2104 passed / 174 skipped; front typecheck + build green.
+- **Open:** live smoke test still needed once Adrien pastes a real `GEMINI_API_KEY` (all current tests mock the HTTP layer).
+
+## Task before that
+
 - **Goal:** Unify the two analysis pipelines (products page vs encart/scheduler) onto one rich engine.
 - **Changes:**
   - `_gather_analysis_inputs` now also returns GA4 rows, product identification labels, and merged published articles (parity with the `/jobs` path).

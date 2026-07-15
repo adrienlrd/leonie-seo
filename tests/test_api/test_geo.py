@@ -949,3 +949,47 @@ def test_get_geo_faq_content_returns_content_items(client, tmp_path) -> None:
     assert "faq_jsonld" in item
     assert "quality_score" in item
     assert item["status"] in ("draft", "needs_review")
+
+
+# ── /geo/realtime-signals ────────────────────────────────────────────────────
+
+
+def test_realtime_signals_returns_null_for_free_plan(client) -> None:
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.billing.subscription_store.get_plan_for_shop", return_value="free"),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/realtime-signals")
+    assert resp.status_code == 200
+    assert resp.json() == {"shop": SHOP, "signals": None}
+
+
+def test_realtime_signals_loads_persisted_snapshot_for_agency_plan(client) -> None:
+    saved = {
+        "events": [{"title": "Canicule", "source_url": "https://meteo.fr"}],
+        "rising_queries": [],
+        "competitor_moves": [],
+        "citations": [{"url": "https://meteo.fr", "title": "Météo France"}],
+        "fetched_at": "2026-07-15T00:00:00+00:00",
+    }
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.billing.subscription_store.get_plan_for_shop", return_value="agency"),
+        patch("app.niche.signals.realtime_trends.load_realtime_signals", return_value=saved),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/realtime-signals")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["shop"] == SHOP
+    assert data["signals"]["events"][0]["title"] == "Canicule"
+
+
+def test_realtime_signals_agency_plan_without_snapshot_returns_null(client) -> None:
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.billing.subscription_store.get_plan_for_shop", return_value="agency"),
+        patch("app.niche.signals.realtime_trends.load_realtime_signals", return_value=None),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/realtime-signals")
+    assert resp.status_code == 200
+    assert resp.json() == {"shop": SHOP, "signals": None}

@@ -173,6 +173,12 @@ function planCopy(plan: Plan, fr: boolean) {
       text: fr ? "llms.txt + fichiers IA" : "llms.txt + AI files",
       included: true,
     },
+    {
+      text: fr
+        ? "Tendances temps réel + veille concurrents (sourcées)"
+        : "Real-time trends + competitor watch (sourced)",
+      included: plan.id === "agency",
+    },
   ];
   return lines;
 }

@@ -412,6 +412,25 @@ async def get_theme_extension_status_endpoint(
     return {"shop": ctx.shop, **status}
 
 
+@router.get("/shops/{shop}/geo/realtime-signals")
+async def get_realtime_signals_endpoint(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Last persisted real-time market signal snapshot (Grande boutique plan only).
+
+    Read-only — never triggers a new grounded call. Returns `signals: null` for
+    every other plan or before the first agency-plan analysis has run.
+    """
+    from app.billing.subscription_store import get_plan_for_shop  # noqa: PLC0415
+    from app.niche.signals.realtime_trends import load_realtime_signals  # noqa: PLC0415
+
+    if get_plan_for_shop(ctx.shop) != "agency":
+        return {"shop": ctx.shop, "signals": None}
+    signals = await asyncio.to_thread(load_realtime_signals, ctx.shop)
+    return {"shop": ctx.shop, "signals": signals}
+
+
 @router.get("/shops/{shop}/geo/progress-curve")
 async def get_geo_progress_curve(
     shop: str,

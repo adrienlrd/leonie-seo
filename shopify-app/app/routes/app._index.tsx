@@ -180,6 +180,7 @@ interface LoaderData {
   gscStatus: GscStatus | null;
   ga4Connected: boolean;
   themeExt: ThemeExtStatus | null;
+  realtimeSignals: RealtimeSignals | null;
   learningMode: "semi_auto" | "auto_apply";
   autoAllowed: boolean;
   billing: BillingInfo | null;
@@ -197,6 +198,14 @@ interface GscStatus {
 interface ThemeExtStatus {
   available?: boolean;
   enabled?: boolean | null;
+}
+
+interface RealtimeSignals {
+  events: Array<{ title?: string; description?: string; source_url?: string }>;
+  rising_queries: Array<{ query?: string; why?: string; source_url?: string }>;
+  competitor_moves: Array<{ summary?: string; source_url?: string }>;
+  citations: Array<{ url?: string; title?: string }>;
+  fetched_at?: string;
 }
 
 interface ScheduleStatus {
@@ -240,6 +249,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let gscStatus: GscStatus | null = null;
   let ga4Connected = false;
   let themeExt: ThemeExtStatus | null = null;
+  let realtimeSignals: RealtimeSignals | null = null;
   let learningMode: "semi_auto" | "auto_apply" = "semi_auto";
   let autoAllowed = true;
   let billing: BillingInfo | null = null;
@@ -261,7 +271,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // settings_data.json) and is often slower than 8 s; a tight timeout made it
     // resolve to null and wrongly show the extension as inactive on the dashboard.
     const THEME_TIMEOUT_MS = 14_000;
-    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp, scheduleResp, ga4StatusResp, themeExtResp, billingResp, blogDraftsResp] = await Promise.allSettled([
+    const [dashResp, productsResp, bizProfileResp, marketResp, competitorsResp, gscStatusResp, learningResp, suggResp, scheduleResp, ga4StatusResp, themeExtResp, billingResp, blogDraftsResp, realtimeSignalsResp] = await Promise.allSettled([
       callBackendForShop(shop, `/api/shops/${shop}/dashboard?plan=${plan}`, { accessToken: session.accessToken, signal: AbortSignal.timeout(DASHBOARD_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/products/active`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/business-profile/latest`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
@@ -275,6 +285,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       callBackendForShop(shop, `/api/shops/${shop}/geo/theme-extension-status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(THEME_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/billing/status`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
       callBackendForShop(shop, `/api/shops/${shop}/blog/drafts`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
+      // Read-only, gated server-side to the agency plan — cheap for everyone else.
+      callBackendForShop(shop, `/api/shops/${shop}/geo/realtime-signals`, { accessToken: session.accessToken, signal: AbortSignal.timeout(SECONDARY_TIMEOUT_MS) }),
     ]);
 
     if (blogDraftsResp.status === "fulfilled" && blogDraftsResp.value.ok) {
@@ -323,6 +335,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (themeExtResp.status === "fulfilled" && themeExtResp.value.ok) {
       try {
         themeExt = (await themeExtResp.value.json()) as ThemeExtStatus;
+      } catch (_parseErr) { /* ignore */ }
+    }
+
+    if (realtimeSignalsResp.status === "fulfilled" && realtimeSignalsResp.value.ok) {
+      try {
+        const data = (await realtimeSignalsResp.value.json()) as { signals?: RealtimeSignals | null };
+        realtimeSignals = data.signals ?? null;
       } catch (_parseErr) { /* ignore */ }
     }
 
@@ -440,6 +459,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         gscStatus,
         ga4Connected,
         themeExt,
+        realtimeSignals,
         learningMode,
         autoAllowed,
         billing,
@@ -456,7 +476,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return redirectToOnboarding();
     }
 
-    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, billing, blogPublished, scheduleStatus, latestAnalysisAt, error: null });
+    return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, realtimeSignals, learningMode, autoAllowed, billing, blogPublished, scheduleStatus, latestAnalysisAt, error: null });
   } catch (err) {
     return json<LoaderData>({
       shop, locale, plan,
@@ -472,6 +492,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       gscStatus,
       ga4Connected,
       themeExt,
+      realtimeSignals,
       learningMode,
       autoAllowed,
       billing,
@@ -936,6 +957,107 @@ function DataSourcesPanel({
             </a>
           </Text>
         )}
+      </BlockStack>
+    </Box>
+  );
+}
+
+function RealtimeSignalsCard({
+  locale,
+  locked,
+  signals,
+}: {
+  locale: Locale;
+  /** True on every plan except "agency" — this is a Grande boutique-only feature. */
+  locked: boolean;
+  signals: RealtimeSignals | null;
+}) {
+  const fr = locale === "fr";
+  const title = fr ? "Tendances temps réel" : "Real-time trends";
+
+  if (locked) {
+    return (
+      <Box background="bg-surface-secondary" padding="200" borderRadius="200">
+        <InlineStack gap="200" blockAlign="center" wrap={false}>
+          <Text as="span" variant="bodySm">{title}</Text>
+          <a
+            href={localizedPath("/app/billing", locale)}
+            style={{
+              background: "#000",
+              color: "#fff",
+              borderRadius: "6px",
+              padding: "2px 8px",
+              fontSize: "0.6875rem",
+              fontWeight: 700,
+              lineHeight: 1,
+              textDecoration: "none",
+              flex: "0 0 auto",
+            }}
+          >
+            {fr ? "Grande boutique" : "Large store"}
+          </a>
+          <Text as="span" variant="bodySm" tone="subdued">
+            {fr
+              ? "Événements et tendances du jour, avec sources — exclusif Grande boutique"
+              : "Today's events and trends, with sources — Large store exclusive"}
+          </Text>
+        </InlineStack>
+      </Box>
+    );
+  }
+
+  if (!signals || (signals.events.length === 0 && signals.rising_queries.length === 0)) {
+    return (
+      <Box background="bg-surface-secondary" padding="200" borderRadius="200">
+        <InlineStack gap="200" blockAlign="center">
+          <Text as="span" variant="bodySm">{title}</Text>
+          <Text as="span" variant="bodySm" tone="subdued">
+            {fr
+              ? "Disponible après votre prochaine analyse complète."
+              : "Available after your next full analysis."}
+          </Text>
+        </InlineStack>
+      </Box>
+    );
+  }
+
+  const fetchedAgo = (() => {
+    if (!signals.fetched_at) return "";
+    const hours = Math.max(0, Math.round((Date.now() - new Date(signals.fetched_at).getTime()) / 3_600_000));
+    if (hours < 1) return fr ? "à l'instant" : "just now";
+    if (hours < 24) return fr ? `il y a ${hours} h` : `${hours}h ago`;
+    const days = Math.round(hours / 24);
+    return fr ? `il y a ${days} j` : `${days}d ago`;
+  })();
+
+  return (
+    <Box background="bg-surface-secondary" padding="200" borderRadius="200">
+      <BlockStack gap="150">
+        <InlineStack gap="200" blockAlign="center">
+          <Text as="span" variant="bodySm" fontWeight="medium">{title}</Text>
+          {fetchedAgo && <Badge tone="info">{fetchedAgo}</Badge>}
+        </InlineStack>
+        {signals.events.slice(0, 3).map((event, idx) => (
+          <InlineStack key={`event-${idx}`} gap="100" blockAlign="center" wrap>
+            <Text as="span" variant="bodySm">{event.title}</Text>
+            {event.source_url && (
+              <a href={event.source_url} target="_blank" rel="noreferrer" style={{ fontSize: "0.75rem" }}>
+                {fr ? "source" : "source"}
+              </a>
+            )}
+          </InlineStack>
+        ))}
+        {signals.rising_queries.slice(0, 3).map((q, idx) => (
+          <InlineStack key={`rq-${idx}`} gap="100" blockAlign="center" wrap>
+            <Badge tone="success">↗</Badge>
+            <Text as="span" variant="bodySm">{q.query}</Text>
+            {q.source_url && (
+              <a href={q.source_url} target="_blank" rel="noreferrer" style={{ fontSize: "0.75rem" }}>
+                {fr ? "source" : "source"}
+              </a>
+            )}
+          </InlineStack>
+        ))}
       </BlockStack>
     </Box>
   );
@@ -2765,7 +2887,7 @@ function BusinessProfileSummary({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function IndexPage() {
-  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, billing, blogPublished, scheduleStatus, latestAnalysisAt, error } = useLoaderData<typeof loader>() as LoaderData;
+  const { shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, realtimeSignals, learningMode, autoAllowed, billing, blogPublished, scheduleStatus, latestAnalysisAt, error } = useLoaderData<typeof loader>() as LoaderData;
   // Imperative bridge: "Activer" in the auto panel triggers the same re-analysis
   // as the "Run analysis now" button so progress shows in the analysis panel too.
   const runReanalysisRef = useRef<(() => void) | null>(null);
@@ -3102,13 +3224,20 @@ export default function IndexPage() {
                 locale={locale}
                 llmsPublished={llmsPublished}
                 dataSources={
-                  <DataSourcesPanel
-                    locale={locale}
-                    gscConnected={gscConnected}
-                    ga4Connected={ga4Connected}
-                    themeExt={themeExt}
-                    themeExtLocked={billing?.plan === "free"}
-                  />
+                  <BlockStack gap="200">
+                    <DataSourcesPanel
+                      locale={locale}
+                      gscConnected={gscConnected}
+                      ga4Connected={ga4Connected}
+                      themeExt={themeExt}
+                      themeExtLocked={billing?.plan === "free"}
+                    />
+                    <RealtimeSignalsCard
+                      locale={locale}
+                      locked={billing?.plan !== "agency"}
+                      signals={realtimeSignals}
+                    />
+                  </BlockStack>
                 }
                 analysisPanels={
                   <AnalysisSchedulePanels

@@ -40,11 +40,11 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _build_prompt(niche_summary: str, brand_name: str, product_titles: list[str]) -> str:
+def _build_prompt(niche_summary: str, product_titles: list[str]) -> str:
     products_text = ", ".join(product_titles[:5]) if product_titles else "non renseigné"
     today = datetime.now(UTC).strftime("%d/%m/%Y")
     return (
-        f"Nous sommes le {today}. Boutique e-commerce française : {brand_name or 'non renseigné'}. "
+        f"Nous sommes le {today}. Boutique e-commerce française. "
         f"Niche : {niche_summary or 'non renseignée'}. Exemples de produits : {products_text}.\n\n"
         "Cherche sur le web francophone (France) et réponds en JSON strict avec ce schéma exact :\n"
         "{\n"
@@ -105,13 +105,15 @@ def fetch_realtime_signals(
         return None
 
     niche_hypothesis = niche_hypothesis or {}
-    niche_summary = str(niche_hypothesis.get("niche_summary") or niche_hypothesis.get("summary") or "")
-    brand_name = str(niche_hypothesis.get("brand_name") or "")
+    # "primary_niche" is the field engine.py itself reads off niche_hypothesis
+    # (see run_market_analysis's niche_summary local) — no separate brand_name
+    # field exists on this dict, so the prompt just omits it when absent.
+    niche_summary = str(niche_hypothesis.get("primary_niche") or "")
 
     try:
         router = get_router(shop=shop, tier="grounded")
         result = router.complete(
-            _build_prompt(niche_summary, brand_name, product_titles),
+            _build_prompt(niche_summary, product_titles),
             system=_SYSTEM_PROMPT,
             max_tokens=1024,
             temperature=0.2,
