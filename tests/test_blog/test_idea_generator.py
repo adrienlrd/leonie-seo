@@ -60,3 +60,49 @@ def test_trend_idea_from_rising_query() -> None:
 
 def test_empty_without_products() -> None:
     assert build_blog_idea_suggestions(products=[]) == []
+
+
+def _realtime_signals() -> dict:
+    return {
+        "events": [{"title": "Canicule cette semaine en France", "source_url": "https://meteo.fr/canicule"}],
+        "rising_queries": [{"query": "fontaine à eau chat canicule", "source_url": "https://trends.google.com/x"}],
+        "competitor_moves": [],
+        "citations": [{"url": "https://meteo.fr/canicule", "title": "Météo France"}],
+        "fetched_at": "2026-07-15T00:00:00+00:00",
+    }
+
+
+def test_event_ideas_ranked_first_when_realtime_signals_present() -> None:
+    ideas = build_blog_idea_suggestions(
+        products=_products(), realtime_signals=_realtime_signals(), now=datetime(2026, 7, 15)
+    )
+    assert ideas[0]["angle"] == "event"
+    assert ideas[0]["product_id"] == "gid://shopify/Product/1"
+    assert ideas[0]["source_url"] == "https://meteo.fr/canicule"
+
+
+def test_event_ideas_absent_without_realtime_signals() -> None:
+    ideas = build_blog_idea_suggestions(products=_products(), now=datetime(2026, 7, 15))
+    assert not any(i["angle"] == "event" for i in ideas)
+
+
+def test_event_idea_falls_back_to_top_product_when_no_keyword_matches() -> None:
+    """The grounded prompt already scopes events to the shop's niche/products
+    (see realtime_trends._build_prompt), so an event like "canicule" — which
+    shares no literal keyword with a "fontaine à eau" product — must still
+    produce an idea, tied to the top-priority product, not be dropped."""
+    signals = {
+        "events": [{"title": "Canicule cette semaine en France", "source_url": "https://meteo.fr/canicule"}],
+        "rising_queries": [],
+        "competitor_moves": [],
+        "citations": [],
+    }
+    ideas = build_blog_idea_suggestions(products=_products(), realtime_signals=signals, now=datetime(2026, 7, 15))
+    event_ideas = [i for i in ideas if i["angle"] == "event"]
+    assert len(event_ideas) == 1
+    assert event_ideas[0]["product_id"] == "gid://shopify/Product/1"
+
+
+def test_non_event_ideas_have_empty_source_url() -> None:
+    ideas = build_blog_idea_suggestions(products=_products(), now=datetime(2026, 3, 1))
+    assert all(i["source_url"] == "" for i in ideas if i["angle"] != "event")

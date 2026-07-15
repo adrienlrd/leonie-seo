@@ -18,6 +18,7 @@ from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_writer import ShopifyWriteError
 from app.billing.quotas import QuotaExceeded, check_quota, record_usage
+from app.billing.subscription_store import get_plan_for_shop
 from app.blog.authors import delete_author, load_authors, save_author
 from app.blog.clusters import build_blog_idea_clusters
 from app.blog.idea_generator import build_blog_idea_suggestions
@@ -372,9 +373,17 @@ def list_blog_idea_suggestions(
     LLM/network call. Empty until a market analysis has run.
     """
     latest = load_latest_result(ctx.shop) or {}
+    # Read-only: never triggers a new grounded call, and only ever populated
+    # for the agency plan (fetch_realtime_signals persists nothing otherwise).
+    realtime_signals = None
+    if get_plan_for_shop(ctx.shop) == "agency":
+        from app.niche.signals.realtime_trends import load_realtime_signals  # noqa: PLC0415
+
+        realtime_signals = load_realtime_signals(ctx.shop)
     suggestions = build_blog_idea_suggestions(
         products=latest.get("products") or [],
         competitor_signals=latest.get("competitor_signals") or [],
+        realtime_signals=realtime_signals,
     )
     return {"suggestions": suggestions}
 

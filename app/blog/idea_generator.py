@@ -60,6 +60,7 @@ def _idea(
     angle: str,
     source_label: str,
     product: dict[str, Any],
+    source_url: str = "",
 ) -> dict[str, Any]:
     return {
         "title": title,
@@ -68,6 +69,7 @@ def _idea(
         "outline": outline,
         "angle": angle,
         "source_label": source_label,
+        "source_url": source_url,
         "product_id": str(product.get("product_id") or ""),
         "product_title": str(product.get("product_title") or ""),
     }
@@ -125,6 +127,87 @@ def _trend_ideas(products: list[dict[str, Any]], limit: int) -> list[dict[str, A
             )
             if len(ideas) >= limit:
                 return ideas
+    return ideas
+
+
+def _event_ideas(
+    products: list[dict[str, Any]],
+    realtime_signals: dict[str, Any] | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Real-time events + rising queries (Gemini + Google Search grounding,
+    Grande boutique plan only — `realtime_signals` is None for every other
+    shop, so this is a no-op elsewhere). Deterministic assembly, no extra LLM
+    call here: matched to a product the same way `_seasonal_ideas` matches by
+    keyword overlap, so an idea only appears when it is actually sellable.
+    """
+    if not realtime_signals or not products:
+        return []
+    citations = realtime_signals.get("citations") or []
+    default_source_url = ""
+    if citations and isinstance(citations[0], dict):
+        default_source_url = str(citations[0].get("url") or "")
+
+    # The grounded prompt already asks for events/queries scoped to this shop's
+    # niche and products (see realtime_trends._build_prompt), so a literal
+    # keyword match is a nice-to-have, not a requirement: an event like "canicule"
+    # won't literally contain "fontaine", yet is exactly the case this feature
+    # exists for. Prefer a real keyword match; fall back to the top product
+    # (the seed list is already priority-ordered) so the idea is never dropped.
+    def _best_product(text: str) -> dict[str, Any]:
+        hay_words = [w for w in _norm(text).split() if len(w) > 3]
+        matched = next((p for p in products if any(w in _product_haystack(p) for w in hay_words)), None)
+        return matched or products[0]
+
+    ideas: list[dict[str, Any]] = []
+
+    for event in realtime_signals.get("events") or []:
+        title_text = str((event or {}).get("title") or "").strip()
+        if not title_text:
+            continue
+        product = _best_product(title_text)
+        p_title = product.get("product_title") or _primary_keyword(product)
+        source_url = str(event.get("source_url") or "") or default_source_url
+        ideas.append(
+            _idea(
+                title=f"{title_text} : {p_title.lower()}, la solution du moment",
+                target_keyword=_primary_keyword(product),
+                intro=f"{title_text}. Voici pourquoi {p_title.lower()} répond directement à ce besoin, maintenant.",
+                outline=[title_text, f"Comment {p_title.lower()} aide concrètement", "Conseils pratiques"],
+                angle="event",
+                source_label="Actualité en temps réel (sourcée)",
+                source_url=source_url,
+                product=product,
+            )
+        )
+        if len(ideas) >= limit:
+            return ideas
+
+    for query_item in realtime_signals.get("rising_queries") or []:
+        query = str((query_item or {}).get("query") or "").strip()
+        if not query:
+            continue
+        product = _best_product(query)
+        p_title = product.get("product_title") or _primary_keyword(product)
+        source_url = str(query_item.get("source_url") or "") or default_source_url
+        ideas.append(
+            _idea(
+                title=f"{query.capitalize()} : ce qu'il faut savoir maintenant",
+                target_keyword=query,
+                intro=f"« {query} » est en hausse en ce moment. Voici une réponse claire, avec {p_title.lower()}.",
+                outline=[
+                    f"Pourquoi « {query} » est recherché en ce moment",
+                    f"Comment {p_title.lower()} répond à ce besoin",
+                    "Nos recommandations",
+                ],
+                angle="event",
+                source_label="Tendance en temps réel (Google Search)",
+                source_url=source_url,
+                product=product,
+            )
+        )
+        if len(ideas) >= limit:
+            return ideas
     return ideas
 
 
@@ -212,15 +295,21 @@ def build_blog_idea_suggestions(
     *,
     products: list[dict[str, Any]],
     competitor_signals: list[dict[str, Any]] | None = None,
+    realtime_signals: dict[str, Any] | None = None,
     now: datetime | None = None,
     max_per_angle: int = 3,
 ) -> list[dict[str, Any]]:
-    """Return blog idea suggestions across seasonal, trend, competitor and advantage angles."""
+    """Return blog idea suggestions across event, seasonal, trend, competitor
+    and advantage angles. `realtime_signals` (Grande boutique plan only, None
+    everywhere else) is ranked first — it is the freshest, most time-sensitive
+    signal.
+    """
     products = [p for p in (products or []) if isinstance(p, dict) and p.get("product_title")]
     if not products:
         return []
     month = (now or datetime.now()).month
     suggestions: list[dict[str, Any]] = []
+    suggestions += _event_ideas(products, realtime_signals, max_per_angle)
     suggestions += _seasonal_ideas(products, month, max_per_angle)
     suggestions += _trend_ideas(products, max_per_angle)
     suggestions += _competitor_ideas(products, competitor_signals or [], max_per_angle)
