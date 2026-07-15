@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -13,6 +13,10 @@ class CompletionResult:
     model: str
     tokens_in: int = 0
     tokens_out: int = 0
+    # Populated only by grounded providers (e.g. Gemini + Google Search); every
+    # other provider leaves these empty, so existing callers are unaffected.
+    citations: list[dict] = field(default_factory=list)
+    search_queries: list[str] = field(default_factory=list)
 
 
 class LLMProvider(ABC):

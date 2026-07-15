@@ -16,12 +16,13 @@ from app.llm.router import LLMRouter
 __all__ = ["CompletionResult", "LLMError", "LLMProvider", "LLMRouter", "get_router", "reset_router"]
 
 
-# Module-level cache for the providers list. The list is expensive to build
-# (env reads, API client initialisation), so it is constructed once and reused
-# across every per-shop router instance. A fresh LLMRouter is built per call
-# so each call carries its own `shop` for metrics attribution — preventing the
-# cross-tenant leak that an `@lru_cache` on `get_router` itself would create.
-_PROVIDERS_CACHE: list[LLMProvider] | None = None
+# Module-level cache for provider lists, keyed by tier. Each list is expensive
+# to build (env reads, API client initialisation), so it is constructed once
+# per tier and reused across every per-shop router instance. A fresh LLMRouter
+# is built per call so each call carries its own `shop` for metrics attribution
+# — preventing the cross-tenant leak that an `@lru_cache` on `get_router` itself
+# would create.
+_PROVIDERS_CACHE: dict[str, list[LLMProvider]] = {}
 
 
 def _build_providers() -> list[LLMProvider]:
@@ -58,28 +59,49 @@ def _build_providers() -> list[LLMProvider]:
     return providers
 
 
-def get_router(*, shop: str | None = None) -> LLMRouter:
+def _build_grounded_providers() -> list[LLMProvider]:
+    """Build the "grounded" provider list: Gemini (Google Search grounding)
+    first, falling back to the default chain (gpt-4o-mini, etc.) so a
+    grounded call degrades gracefully if Gemini is unavailable or unconfigured.
+    """
+    from app.llm.providers.gemini import GeminiProvider  # noqa: PLC0415
+
+    providers: list[LLMProvider] = []
+    if key := os.getenv("GEMINI_API_KEY"):
+        model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+        providers.append(GeminiProvider(api_key=key, model=model, grounded=True, timeout=60.0))
+    providers.extend(_build_providers())
+    return providers
+
+
+def get_router(*, shop: str | None = None, tier: str = "default") -> LLMRouter:
     """Return an LLMRouter scoped to `shop` for metrics attribution.
 
-    The provider list is cached at module level (built once); only the thin
-    LLMRouter wrapper is constructed per call. Passing `shop` ensures every
-    LLM call this router makes is attributed to that tenant in `llm_metrics`.
-    Always pass `shop` in production code — `shop=None` is only acceptable
-    in tests or shopless admin tasks.
+    The provider list is cached at module level per `tier` (built once); only
+    the thin LLMRouter wrapper is constructed per call. Passing `shop` ensures
+    every LLM call this router makes is attributed to that tenant in
+    `llm_metrics`. Always pass `shop` in production code — `shop=None` is only
+    acceptable in tests or shopless admin tasks.
 
     Args:
         shop: Shopify shop domain (default None for shopless calls).
+        tier: "default" (gpt-4o-mini first) or "grounded" (Gemini + Google
+            Search grounding first, falling back to the default chain — e.g.
+            when GEMINI_API_KEY is unset, "grounded" behaves exactly like
+            "default"). Callers must gate "grounded" to the intended plan
+            themselves; this function does not check billing.
 
     Raises:
         LLMError: If no provider can be configured.
     """
     global _PROVIDERS_CACHE
-    if _PROVIDERS_CACHE is None:
-        _PROVIDERS_CACHE = _build_providers()
-    return LLMRouter(_PROVIDERS_CACHE, shop=shop)
+    if tier not in _PROVIDERS_CACHE:
+        builder = _build_grounded_providers if tier == "grounded" else _build_providers
+        _PROVIDERS_CACHE[tier] = builder()
+    return LLMRouter(_PROVIDERS_CACHE[tier], shop=shop)
 
 
 def reset_router() -> None:
-    """Clear the cached provider list (useful in tests)."""
+    """Clear the cached provider lists (useful in tests)."""
     global _PROVIDERS_CACHE
-    _PROVIDERS_CACHE = None
+    _PROVIDERS_CACHE = {}

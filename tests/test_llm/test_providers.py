@@ -193,6 +193,173 @@ class TestCloudflareProvider:
                 provider.complete("prompt")
 
 
+# ── Gemini ────────────────────────────────────────────────────────────────────
+
+
+class TestGeminiProvider:
+    def _make_provider(self, *, grounded: bool = False):
+        from app.llm.providers.gemini import GeminiProvider
+
+        return GeminiProvider(api_key="AIza-test", grounded=grounded)
+
+    def test_complete_returns_result_on_success(self):
+        import httpx
+
+        provider = self._make_provider()
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": "  Gemini response  "}]}}],
+            "usageMetadata": {"promptTokenCount": 12, "candidatesTokenCount": 5},
+        }
+        with patch("httpx.post", return_value=mock_response):
+            result = provider.complete("prompt")
+        assert result.text == "Gemini response"
+        assert result.provider == "gemini"
+        assert result.tokens_in == 12
+        assert result.tokens_out == 5
+        assert result.citations == []
+        assert result.search_queries == []
+
+    def test_grounded_request_includes_google_search_tool(self):
+        import httpx
+
+        provider = self._make_provider(grounded=True)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": "answer"}]}}],
+        }
+        with patch("httpx.post", return_value=mock_response) as mock_post:
+            provider.complete("prompt")
+        sent_payload = mock_post.call_args.kwargs["json"]
+        assert sent_payload["tools"] == [{"google_search": {}}]
+
+    def test_ungrounded_request_has_no_tools(self):
+        import httpx
+
+        provider = self._make_provider(grounded=False)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": "answer"}]}}],
+        }
+        with patch("httpx.post", return_value=mock_response) as mock_post:
+            provider.complete("prompt")
+        assert "tools" not in mock_post.call_args.kwargs["json"]
+
+    def test_json_mode_sets_response_mime_type(self):
+        import httpx
+
+        provider = self._make_provider()
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": "{}"}]}}],
+        }
+        with patch("httpx.post", return_value=mock_response) as mock_post:
+            provider.complete("prompt", json_mode=True)
+        config = mock_post.call_args.kwargs["json"]["generationConfig"]
+        assert config["responseMimeType"] == "application/json"
+
+    def test_grounding_metadata_populates_citations_and_queries(self):
+        import httpx
+
+        provider = self._make_provider(grounded=True)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {
+            "candidates": [
+                {
+                    "content": {"parts": [{"text": "canicule cette semaine"}]},
+                    "groundingMetadata": {
+                        "webSearchQueries": ["canicule france juillet 2026"],
+                        "groundingChunks": [
+                            {"web": {"uri": "https://meteo-france.fr/canicule", "title": "Météo France"}}
+                        ],
+                    },
+                }
+            ],
+        }
+        with patch("httpx.post", return_value=mock_response):
+            result = provider.complete("prompt")
+        assert result.search_queries == ["canicule france juillet 2026"]
+        assert result.citations == [
+            {"url": "https://meteo-france.fr/canicule", "title": "Météo France"}
+        ]
+
+    def test_malformed_grounding_metadata_does_not_raise(self):
+        """Grounding metadata is supplementary — a malformed chunk must never
+        break the completion itself."""
+        import httpx
+
+        provider = self._make_provider(grounded=True)
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {
+            "candidates": [
+                {
+                    "content": {"parts": [{"text": "answer"}]},
+                    "groundingMetadata": {"groundingChunks": [{"web": {}}, None, {}]},
+                }
+            ],
+        }
+        with patch("httpx.post", return_value=mock_response):
+            result = provider.complete("prompt")
+        assert result.text == "answer"
+        assert result.citations == []
+
+    def test_complete_raises_rate_limit_on_429(self):
+        import httpx
+
+        provider = self._make_provider()
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 429
+        mock_response.is_success = False
+        mock_response.text = "Too Many Requests"
+        with patch("httpx.post", return_value=mock_response):
+            with pytest.raises(LLMRateLimitError):
+                provider.complete("prompt")
+
+    def test_complete_raises_unavailable_on_5xx(self):
+        import httpx
+
+        provider = self._make_provider()
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 503
+        mock_response.is_success = False
+        mock_response.text = "Service Unavailable"
+        with patch("httpx.post", return_value=mock_response):
+            with pytest.raises(LLMUnavailableError):
+                provider.complete("prompt")
+
+    def test_complete_raises_unavailable_on_timeout(self):
+        import httpx
+
+        provider = self._make_provider()
+        with patch("httpx.post", side_effect=httpx.TimeoutException("timeout")):
+            with pytest.raises(LLMUnavailableError):
+                provider.complete("prompt")
+
+    def test_complete_raises_on_empty_candidates(self):
+        import httpx
+
+        provider = self._make_provider()
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.is_success = True
+        mock_response.json.return_value = {"candidates": []}
+        with patch("httpx.post", return_value=mock_response):
+            with pytest.raises(LLMError, match="no candidates"):
+                provider.complete("prompt")
+
+
 # ── get_router ────────────────────────────────────────────────────────────────
 
 
@@ -240,4 +407,52 @@ class TestGetRouter:
 
             router = get_router()
         assert any(p.name == "groq" for p in router.providers)
+        reset_router()
+
+    def test_grounded_tier_puts_gemini_first_when_key_set(self):
+        from app.llm import reset_router
+
+        reset_router()
+        env = {"OPENAI_API_KEY": "sk-test", "GEMINI_API_KEY": "AIza-test"}
+        with patch.dict("os.environ", env, clear=False), patch("openai.OpenAI"):
+            from app.llm import get_router
+
+            router = get_router(tier="grounded")
+        assert [p.name for p in router.providers[:2]] == ["gemini", "openai"]
+        reset_router()
+
+    def test_grounded_tier_falls_back_to_default_chain_without_gemini_key(self):
+        """No GEMINI_API_KEY → tier='grounded' behaves exactly like 'default',
+        never raises, never silently drops to zero providers."""
+        from app.llm import reset_router
+
+        reset_router()
+        import os
+
+        for k in ["GEMINI_API_KEY", "GROQ_API_KEY", "CF_ACCOUNT_ID", "CF_API_TOKEN"]:
+            os.environ.pop(k, None)
+        env = {"OPENAI_API_KEY": "sk-test"}
+        with patch.dict("os.environ", env, clear=False), patch("openai.OpenAI"):
+            from app.llm import get_router
+
+            router = get_router(tier="grounded")
+        assert [p.name for p in router.providers] == ["openai"]
+        reset_router()
+
+    def test_default_and_grounded_tiers_are_cached_separately(self):
+        from app.llm import reset_router
+
+        reset_router()
+        import os
+
+        for k in ["GROQ_API_KEY", "CF_ACCOUNT_ID", "CF_API_TOKEN"]:
+            os.environ.pop(k, None)
+        env = {"OPENAI_API_KEY": "sk-test", "GEMINI_API_KEY": "AIza-test"}
+        with patch.dict("os.environ", env, clear=False), patch("openai.OpenAI"):
+            from app.llm import get_router
+
+            default_router = get_router()
+            grounded_router = get_router(tier="grounded")
+        assert [p.name for p in default_router.providers] == ["openai"]
+        assert [p.name for p in grounded_router.providers] == ["gemini", "openai"]
         reset_router()
