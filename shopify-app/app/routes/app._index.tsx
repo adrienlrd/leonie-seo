@@ -614,6 +614,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           body: selectionRaw ? JSON.stringify({ selection: JSON.parse(selectionRaw) }) : undefined,
         },
       );
+      if (resp.status === 402) {
+        // Quota exhausted: surface the real reason + upgrade path, not a generic failure.
+        const detail = ((await resp.json().catch(() => ({}))) as {
+          detail?: { used?: number; quota?: number; plan?: string };
+        }).detail;
+        return json({
+          type: "startReanalysis",
+          jobId: null,
+          error: "quota",
+          quota: { used: detail?.used ?? 0, quota: detail?.quota ?? 0, plan: detail?.plan ?? "free" },
+        });
+      }
       if (!resp.ok) {
         return json({ type: "startReanalysis", jobId: null, error: `HTTP ${resp.status}` });
       }
@@ -3450,7 +3462,12 @@ function AnalysisSchedulePanels({
   const statusTone = (status?: string): "success" | "critical" | "attention" =>
     status === "completed" ? "success" : status === "error" ? "critical" : "attention";
 
-  const startFetcher = useFetcher<{ type?: string; jobId?: string | null; error?: string | null }>();
+  const startFetcher = useFetcher<{
+    type?: string;
+    jobId?: string | null;
+    error?: string | null;
+    quota?: { used: number; quota: number; plan: string } | null;
+  }>();
   const pollFetcher = useFetcher<{
     type?: string;
     job?: {
@@ -3475,7 +3492,7 @@ function AnalysisSchedulePanels({
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [finished, setFinished] = useState<null | "completed" | "error">(null);
+  const [finished, setFinished] = useState<null | "completed" | "error" | "quota">(null);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
 
   // Capture the job_id returned by the start action and begin polling.
@@ -3484,6 +3501,8 @@ function AnalysisSchedulePanels({
     if (startFetcher.data.jobId) {
       setJobId(startFetcher.data.jobId);
       setFinished(null);
+    } else if (startFetcher.data.error === "quota") {
+      setFinished("quota");
     } else if (startFetcher.data.error) {
       setFinished("error");
     }
@@ -3776,6 +3795,23 @@ function AnalysisSchedulePanels({
           )}
           {!running && finished === "error" && (
             <Banner tone="critical">{t(locale, "runReanalysisError")}</Banner>
+          )}
+          {!running && finished === "quota" && (
+            <Banner
+              tone="warning"
+              title={t(locale, "reanalysisQuotaTitle")}
+              action={
+                startFetcher.data?.quota?.plan !== "agency"
+                  ? { content: t(locale, "reanalysisQuotaCta"), url: localizedPath("/app/billing", locale) }
+                  : undefined
+              }
+            >
+              <Text as="p">
+                {t(locale, "reanalysisQuotaBody")
+                  .replace("{used}", String(startFetcher.data?.quota?.used ?? 0))
+                  .replace("{quota}", String(startFetcher.data?.quota?.quota ?? 0))}
+              </Text>
+            </Banner>
           )}
           {exportFetcher.data?.type === "exportReanalysis" && exportFetcher.data.error && (
             <Banner tone="critical">{t(locale, "exportReanalysisError")}</Banner>

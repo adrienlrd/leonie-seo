@@ -769,6 +769,10 @@ const FR: Dictionary = {
   publishModeAutoTitle: "Analyse automatique",
   publishModeAutoDesc: "Des agents gèrent vos analyses et votre contenu pour améliorer votre référencement.",
   publishModeSelectLabel: "Mode de publication",
+  reanalysisQuotaTitle: "Limite d'analyses atteinte",
+  reanalysisQuotaBody:
+    "Vous avez utilisé {used}/{quota} analyses sur ce cycle de 28 jours. Passez au forfait supérieur pour en lancer davantage.",
+  reanalysisQuotaCta: "Voir les forfaits",
   publishModeAutoDisclaimer: "En mode automatique, les champs cochés (titre GEO, méta-description, texte alt, description) sont publiés sur votre boutique Shopify. L'amélioration continue est activée : tous les 28 jours, l'app ré-analyse automatiquement tous vos produits en arrière-plan (sans ouvrir l'app), mesure l'effet de ce qui a été appliqué, et publie ce qui est meilleur. Les articles de blog et la FAQ ne sont pas concernés.",
   publishModeActivating: "Activation de la publication automatique en cours…",
   publishModeActivated: "Publication automatique activée",
@@ -1600,6 +1604,10 @@ const EN: Dictionary = {
   publishModeAutoTitle: "Automatic analysis",
   publishModeAutoDesc: "Agents manage your analyses and content to improve your search ranking.",
   publishModeSelectLabel: "Publishing mode",
+  reanalysisQuotaTitle: "Analysis limit reached",
+  reanalysisQuotaBody:
+    "You have used {used}/{quota} analyses in this 28-day cycle. Upgrade your plan to run more.",
+  reanalysisQuotaCta: "See plans",
   publishModeAutoDisclaimer: "In automatic mode, the checked fields (GEO title, meta description, alt text, description) are published to your Shopify store. Continuous improvement is on: every 28 days, the app automatically re-analyzes all your products in the background (without opening the app), measures the effect of what was applied, and publishes what performs better. Blog articles and the FAQ are not affected.",
   publishModeActivating: "Activating automatic publishing…",
   publishModeActivated: "Automatic publishing activated",
