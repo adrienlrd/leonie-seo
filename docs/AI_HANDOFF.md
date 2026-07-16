@@ -10,6 +10,19 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-17
+- **Agent:** Claude (Fable 5)
+- **Goal:** Fix follow-ups after Adrien's first live onboarding with managed products + new quota-code feature.
+- **Changes (5 commits):**
+  - **fix(reset):** the Danger Zone reset wiped `shop_config`, silently downgrading `plan_override` shops to free — plan_override now survives (test added). `redeemed_quota_codes` also preserved on reset (no un-burning codes) and purged on GDPR shop/redact.
+  - **feat(billing): quota reset codes** — `GEO-<BASE>-<SIG>` (SIG = HMAC-SHA256(BASE, `QUOTA_CODE_SECRET`)[:8]), minted offline via `scripts/generate_quota_code.py` (operator-only, secret in env), single-use globally (`redeemed_quota_codes` table), any plan. `POST /shops/{shop}/quota-code/redeem` wipes `analysis` + `product_analysis:*` usage events (blog quota untouched). Settings page: "Code promotionnel" card. 8 tests.
+  - **feat(products):** Add-product button moved into the "Analyse terminée" summary panel; it and "Modifier l'identification" use the default Shopify button style; modal rows show product thumbnails (onboarding design).
+  - **feat(analyse):** zero-state now explains publish-then-wait, why the 28-day window (re-crawl → re-index → enough impressions for a reliable before/after; matches the GSC window), and the SEO/indexation impact during the wait.
+- **Validations:** ruff OK, pytest 2167 passed / 174 skipped, typecheck + build OK.
+- **Open — onboarding bug NOT reproduced:** Adrien selected 2 products during onboarding but identification asked about only 1 (and, per him, analysis covered 1 — though his summary panel says "2 produits actifs analysés"). Local reproduction of PUT selection → identify returns exactly the 2 selected products (verified with TestClient). Reset now preserves nothing that could explain it; needs a fresh live retest post-deploy and, if it recurs, his export + Render logs.
+
+## Task before that
+
 - **Date:** 2026-07-16
 - **Agent:** Claude (Fable 5)
 - **Goal:** Managed-products selection — the merchant now explicitly picks which products the app manages (plan-capped: free 3 / pro 15 / agency 35), replacing the historical take-all-active-products + silent `[:product_cap]` head-slice. Approved plan; decisions by Adrien: scope = everywhere (all surfaces), migration = auto-inherit from last analysis, scheduler kept but restricted to the selection.
