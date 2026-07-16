@@ -12,6 +12,20 @@
 
 - **Date:** 2026-07-17
 - **Agent:** Claude (Fable 5)
+- **Goal:** UI cleanup batch + theme-embed fixes requested by Adrien after live testing.
+- **Changes (6 commits):**
+  - Products page: removed the "N produits ajoutés depuis la dernière analyse" delta banner (obsolete with managed products), the "Mode réflexion test" badge and the full-JSON export button.
+  - Quotas: new `QuotaPill` (UsageMeter.tsx) — discreet "Analyses : 1/10" in the title row (titleMetadata) of products + blog pages, replacing the big body meters. Billing page keeps the full meters.
+  - Réglages: removed the Settings-hub sub-page link, the publishing-mode select (frequency kept; saveAutomation still sends the stored mode), the continuous-improvement link + 1h test button, and the promo-code card. GEO- codes now redeem through the billing page's existing partner-code field (routed to /quota-code/redeem on the GEO- prefix).
+  - Theme embed: `_app_embed_enabled` now resolves `current` as a preset NAME (presets[name].blocks) — enabling the embed by hand finally shows as validated. Deep link switched to `admin.shopify.com/store/{handle}/themes/current/editor?context=apps&template=index&activateAppId={uid}/faq_embed`.
+  - Dashboard: RealtimeSignalsCard removed (incl. loader fetch). Verified: grounding source URLs are metadata only, never fetched by the pipeline — dead vertexaisearch redirect links have zero algorithmic impact.
+- **Validations:** ruff OK, pytest 2169 passed, typecheck + build OK.
+- **Open:** if the theme-editor deep link still lands on an empty apps panel after deploy, the deployed extension uuid must be compared against the toml uid (Partner Dashboard → app version → extension).
+
+## Task before that
+
+- **Date:** 2026-07-17
+- **Agent:** Claude (Fable 5)
 - **Goal:** Fix follow-ups after Adrien's first live onboarding with managed products + new quota-code feature.
 - **Changes (5 commits):**
   - **fix(reset):** the Danger Zone reset wiped `shop_config`, silently downgrading `plan_override` shops to free — plan_override now survives (test added). `redeemed_quota_codes` also preserved on reset (no un-burning codes) and purged on GDPR shop/redact.
