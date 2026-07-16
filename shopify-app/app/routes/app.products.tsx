@@ -18,10 +18,10 @@ import {
   Spinner,
   Text,
   TextField,
-  Tooltip,
+  Thumbnail,
 } from "@shopify/polaris";
 import { PlanBadge } from "../components/PlanBadge";
-import { AlertTriangleIcon, CheckIcon } from "@shopify/polaris-icons";
+import { AlertTriangleIcon, CheckIcon, ProductIcon as ProductAddIcon } from "@shopify/polaris-icons";
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
@@ -887,12 +887,14 @@ function SummaryCard({
   locale,
   onAnalyzeAll,
   onEditIdentification,
+  onAddProduct,
   analyzeDisabled,
 }: {
   job: JobState;
   locale: Locale;
   onAnalyzeAll?: () => void;
   onEditIdentification?: () => void;
+  onAddProduct?: () => void;
   analyzeDisabled?: boolean;
 }) {
   const contextStatus = job.business_profile_context_status;
@@ -914,15 +916,20 @@ function SummaryCard({
           ) : (
             <div />
           )}
-          {(onAnalyzeAll || onEditIdentification) && (
+          {(onAnalyzeAll || onEditIdentification || onAddProduct) && (
             <InlineStack gap="200">
               {onAnalyzeAll && (
                 <Button variant="primary" onClick={onAnalyzeAll} disabled={analyzeDisabled} loading={analyzeDisabled}>
                   {t(locale, "marketAnalysisAnalyzeAll")}
                 </Button>
               )}
+              {onAddProduct && (
+                <Button onClick={onAddProduct} disabled={analyzeDisabled}>
+                  {t(locale, "addProductAction")}
+                </Button>
+              )}
               {onEditIdentification && (
-                <Button variant="plain" onClick={onEditIdentification} disabled={analyzeDisabled}>
+                <Button onClick={onEditIdentification} disabled={analyzeDisabled}>
                   {t(locale, "marketAnalysisEditIdentification")}
                 </Button>
               )}
@@ -1985,8 +1992,15 @@ export default function ProductsPage() {
                             );
                           }
                           return addable.map((ap) => (
-                            <InlineStack key={ap.id} align="space-between" blockAlign="center">
-                              <Text as="span">{ap.title}</Text>
+                            <InlineStack key={ap.id} align="space-between" blockAlign="center" wrap={false}>
+                              <InlineStack gap="300" blockAlign="center" wrap={false}>
+                                <Thumbnail
+                                  source={ap.image_url || ProductAddIcon}
+                                  alt={ap.title}
+                                  size="small"
+                                />
+                                <Text as="span">{ap.title}</Text>
+                              </InlineStack>
                               <Button
                                 size="slim"
                                 loading={addProductFetcher.state !== "idle"}
@@ -2170,14 +2184,12 @@ export default function ProductsPage() {
                   <Button onClick={handleExportFull}>
                     {t(locale, "marketAnalysisExportFull")}
                   </Button>
-                  <Button onClick={openAddProductModal} variant="tertiary">
-                    {t(locale, "addProductAction")}
-                  </Button>
                 </InlineStack>
                 <SummaryCard
                   job={job}
                   locale={locale}
                   onAnalyzeAll={() => setShowRerunModal(true)}
+                  onAddProduct={openAddProductModal}
                   onEditIdentification={handleEditIdentification}
                   analyzeDisabled={isInProgress}
                 />
