@@ -11,7 +11,13 @@ from pydantic import BaseModel
 from app.api.deps import ShopContext, get_shop_context, require_internal_secret
 from app.api.plans import plan_summary
 from app.api.snapshot_store import load_snapshot_from_file_or_db
+from app.billing.quotas import product_cap
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
+from app.managed_products import (
+    ManagedProductsCapExceeded,
+    get_managed_product_ids,
+    set_managed_product_ids,
+)
 from app.oauth.token_store import list_tokens, save_token
 from app.safety import is_pilot_safe_mode
 from app.snapshot.scope import filter_products_by_scope
@@ -203,3 +209,47 @@ def _build_active_products(ctx: ShopContext) -> list[dict]:
             "gsc_issues": gsc_issues,
         })
     return result
+
+
+class ManagedProductsUpdate(BaseModel):
+    product_ids: list[str]
+
+
+@router.get("/shops/{shop}/managed-products")
+async def get_managed_products(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict:
+    """Return the merchant's managed-products selection + the pickable catalog.
+
+    `selected_ids` is null when never configured (legacy shop that hasn't gone
+    through selection yet) — the analysis pipeline then falls back to
+    inheriting the last analysis's products (see `filter_managed_products`).
+    """
+    available = await asyncio.to_thread(_build_active_products, ctx)
+    return {
+        "selected_ids": get_managed_product_ids(ctx.shop),
+        "cap": product_cap(ctx.shop),
+        "plan": ctx.plan,
+        "available_products": available,
+    }
+
+
+@router.put("/shops/{shop}/managed-products")
+async def put_managed_products(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    body: ManagedProductsUpdate,
+) -> dict:
+    """Persist the merchant's managed-products selection (plan-capped)."""
+    try:
+        set_managed_product_ids(ctx.shop, body.product_ids)
+    except ManagedProductsCapExceeded as exc:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "quota_exceeded",
+                "kind": "products",
+                "plan": ctx.plan,
+                "used": exc.requested,
+                "quota": exc.cap,
+                "upgrade": "pro" if ctx.plan == "free" else "agency",
+            },
+        ) from exc
+    return {"saved": True, "selected_ids": get_managed_product_ids(ctx.shop)}

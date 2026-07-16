@@ -180,3 +180,89 @@ def test_diagnose_tolerates_malformed_published_date():
     product["publishedAt"] = "not-a-date"
     # Should not raise; recently_published simply not flagged.
     assert "recently_published" not in _diagnose_visibility_issues(product)
+
+
+# ── managed-products selection endpoints ─────────────────────────────────────
+
+
+@pytest.fixture()
+def _managed_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    db = tmp_path / "test.db"
+    monkeypatch.setattr("app.shop_config_store.DB_PATH", db)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    init_db(db_path=db)
+    return db
+
+
+def _managed_snapshot(tmp_path: Path) -> Path:
+    snapshot = {
+        "products": [
+            {
+                "id": f"gid://shopify/Product/{i}",
+                "title": f"Produit {i}",
+                "handle": f"produit-{i}",
+                "status": "ACTIVE",
+                "publishedOnCurrentPublication": True,
+            }
+            for i in range(1, 4)
+        ],
+        "collections": [],
+        "shop": {"myshopifyDomain": "287c4a-bb.myshopify.com"},
+    }
+    snap_file = tmp_path / "shopify_snapshot.json"
+    snap_file.write_text(json.dumps(snapshot))
+    return snap_file
+
+
+def test_get_managed_products_returns_null_selection_and_catalog(
+    client: TestClient, tmp_path: Path, _managed_db
+):
+    snap_file = _managed_snapshot(tmp_path)
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", snap_file),
+    ):
+        resp = client.get("/api/shops/287c4a-bb.myshopify.com/managed-products")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["selected_ids"] is None
+    assert body["cap"] >= 1
+    assert len(body["available_products"]) == 3
+
+
+def test_put_managed_products_persists_selection(
+    client: TestClient, tmp_path: Path, _managed_db
+):
+    snap_file = _managed_snapshot(tmp_path)
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", snap_file),
+    ):
+        resp = client.put(
+            "/api/shops/287c4a-bb.myshopify.com/managed-products",
+            json={"product_ids": ["gid://shopify/Product/2"]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["selected_ids"] == ["gid://shopify/Product/2"]
+        resp2 = client.get("/api/shops/287c4a-bb.myshopify.com/managed-products")
+    assert resp2.json()["selected_ids"] == ["gid://shopify/Product/2"]
+
+
+def test_put_managed_products_over_cap_returns_402(
+    client: TestClient, tmp_path: Path, _managed_db
+):
+    snap_file = _managed_snapshot(tmp_path)
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.api.deps._SNAPSHOT_DEFAULT", snap_file),
+        patch("app.managed_products.product_cap", return_value=2),
+    ):
+        resp = client.put(
+            "/api/shops/287c4a-bb.myshopify.com/managed-products",
+            json={"product_ids": [f"gid://shopify/Product/{i}" for i in range(1, 4)]},
+        )
+    assert resp.status_code == 402
+    detail = resp.json()["detail"]
+    assert detail["error"] == "quota_exceeded"
+    assert detail["quota"] == 2
+    assert detail["used"] == 3
