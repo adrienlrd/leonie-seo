@@ -1052,6 +1052,7 @@ def _build_pass2_prompt(
     product_images: list[dict[str, Any]] | None = None,
     competitor_crawl_summary: str | None = None,
     optimization_history_block: str = "",
+    realtime_text: str = "",
 ) -> str:
     """Build the pass-2 (content) prompt with strict per-field rules.
 
@@ -1235,6 +1236,17 @@ def _build_pass2_prompt(
 
     if optimization_history_block:
         parts.append(optimization_history_block)
+
+    if realtime_text:
+        parts.append("\n=== ACTUALITÉ MARCHÉ (recherche web du jour, sourcée) ===")
+        parts.append(f"  {realtime_text}")
+        parts.append(
+            "  Exploite cette actualité comme angle éditorial quand elle est pertinente "
+            "pour ce produit : au moins une idée de proposed_blog_ideas (et le "
+            "proposed_blog_title si l'angle s'y prête) doit capitaliser sur un de ces "
+            "événements/tendances en cours (ex. saisonnalité, météo, réglementation). "
+            "N'invente aucun fait au-delà de ce qui est listé ici."
+        )
 
     if eeat_signals:
         from app.market_analysis import eeat as _eeat  # noqa: PLC0415
@@ -1975,6 +1987,7 @@ _SOURCE_PRIORITY = {
     "dataforseo": 4,
     "gsc": 3,
     "google_suggest": 2,
+    "realtime_grounding": 2,
     "trends": 1,
     "market_seed": 1,
     "llm_proposed": 0,
@@ -2236,6 +2249,46 @@ def _trend_candidates(
     return out
 
 
+def _realtime_rising_candidates(
+    signals: dict[str, Any] | None,
+    product_words: frozenset[str],
+) -> list[dict[str, Any]]:
+    """Grounded rising queries (web-sourced, THIS week) matched to the product.
+
+    These are the best-timed queries the analysis sees — until now they only
+    reached the pass-1 prompt as context and never competed as actual keyword
+    candidates, leaving immediate seasonal traffic on the table.
+    """
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in (signals or {}).get("rising_queries") or []:
+        query = str((item or {}).get("query") or "").strip()
+        key = query.lower()
+        if not query or key in seen or not (_content_words(query) & product_words):
+            continue
+        seen.add(key)
+        why = str(item.get("why") or "").strip()
+        source_url = str(item.get("source_url") or "").strip()
+        notes = ["Requête en hausse cette semaine (recherche web sourcée)"]
+        if source_url:
+            notes.append(source_url)
+        out.append(
+            {
+                "query": query,
+                "intent_type": "unknown",
+                "demand_score": 65,
+                "competition_score": 50,
+                "product_fit_score": 0,
+                "reason": why or "En hausse en ce moment (recherche web du jour)",
+                "data_source": "realtime_grounding",
+                "difficulty_source": "free_estimated",
+                "search_volume": None,
+                "notes": notes,
+            }
+        )
+    return out
+
+
 def _merge_pool_candidate(pool: dict[str, dict[str, Any]], cand: dict[str, Any]) -> None:
     """Insert a candidate into the pool, deduplicating by normalised query.
 
@@ -2378,7 +2431,7 @@ def _is_real_keyword(keyword: dict[str, Any]) -> bool:
     """True when a keyword is backed by observed demand, not an LLM estimate."""
     return (
         str(keyword.get("data_source", ""))
-        in ("gsc", "dataforseo", "google_ads", "google_suggest", "trends")
+        in ("gsc", "dataforseo", "google_ads", "google_suggest", "trends", "realtime_grounding")
         or bool(keyword.get("search_volume"))
         or bool(keyword.get("gsc_impressions"))
     )
@@ -5855,6 +5908,32 @@ def run_market_analysis(
                 per_product_realtime_signals.append(product_realtime_signal)
         realtime_text = _format_realtime_signals(product_realtime_signal)
 
+        # Grounded rising queries join the candidate pool as real, selectable
+        # keywords (not just prompt context) — best-timed traffic available.
+        if product_realtime_signal:
+            product_words = _content_words(
+                " ".join(
+                    [
+                        fields.get("source_product_text", "") or fields["product_title"],
+                        fields.get("merchant_label", ""),
+                        str(fields.get("handle", "")).replace("-", " "),
+                    ]
+                )
+            )
+            existing_queries = {
+                str(c.get("query", "")).strip().lower() for c in candidate_pool
+            }
+            rising_cands = [
+                c
+                for c in _realtime_rising_candidates(product_realtime_signal, product_words)
+                if c["query"].lower() not in existing_queries
+            ]
+            if rising_cands:
+                rising_cands = _enrich_keyword_dicts(
+                    rising_cands, free_provider, paid_providers, shop=shop
+                )
+                candidate_pool = candidate_pool + rising_cands
+
         prompt = _build_pass1_prompt(
             product_title=fields["product_title"],
             handle=fields["handle"],
@@ -5950,6 +6029,7 @@ def run_market_analysis(
                 "pack": pack,
                 "candidate_pool": candidate_pool,
                 "optimization_history_block": optimization_history_block,
+                "realtime_text": realtime_text,
             }
         )
 
@@ -6227,6 +6307,7 @@ def run_market_analysis(
                 product_images=fields.get("product_images", []),
                 competitor_crawl_summary=pack.get("competitor_crawl_summary"),
                 optimization_history_block=state.get("optimization_history_block", ""),
+                realtime_text=state.get("realtime_text", ""),
             )
             pack = _complete_json(
                 llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192

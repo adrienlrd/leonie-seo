@@ -11,6 +11,19 @@
 ## Last completed task
 
 - **Date:** 2026-07-16
+- **Agent:** Claude (Fable 5)
+- **Goal:** Extract more SEO traffic value from the (now per-product) Gemini grounding — 3 levers applied after analyzing the live 2026-07-16 plan-comparison export, plus the "confirmed" scoring fix.
+- **Changes (all in `app/market_analysis/engine.py` + prompts in `app/niche/signals/realtime_trends.py`):**
+  - **"confirmed" verdict now bumps demand_score +5** (rising +10 / declining -10 unchanged) — 17/21 live verdicts were "confirmed" but previously had zero ranking effect.
+  - **Lever 1 — rising queries become real keyword candidates:** new `_realtime_rising_candidates()` turns each product's grounded `rising_queries` (e.g. "fontaine à eau chat canicule") into candidate-pool keywords (`data_source: realtime_grounding`, priority 2 = same tier as google_suggest, demand_score 65, source URL in notes), filtered on product-word overlap and deduped against the existing pool, then enriched. Previously they were prompt context only — best-timed seasonal traffic was left on the table.
+  - **Lever 2 — full verification coverage:** `_build_verify_prompt` now REQUIRES one entry per submitted keyword (explicit `no_signal` instead of silently skipping) — distinguishes "checked, nothing found" from "not checked". Live export only had 6-8 verdicts per product out of 33-51 keywords.
+  - **Lever 3 — seasonal angle in Pass 2:** the per-product realtime signal (stored on `pass1_states.realtime_text`) now reaches `_build_pass2_prompt` as an "ACTUALITÉ MARCHÉ" block instructing at least one `proposed_blog_ideas` entry (and the blog title when relevant) to capitalize on a current event/trend.
+- **Validations:** `ruff check .` OK; full `pytest` = **2144 passed / 174 skipped** (4 new tests: confirmed +5, rising→candidate-pool with relevance filter, `_realtime_rising_candidates` shape/dedup/filter, pass-2 prompt carries the realtime block).
+- **Open:** re-run a live analysis to confirm (a) rising queries appear in `seo_keywords` with `data_source: realtime_grounding`, (b) verification coverage rises well above 6-8/product, (c) at least one blog idea per product uses the current event angle. Also noted (not yet done): the grounding prompts are hardcoded to the French market ("boutique française", "web francophone") — fine for now, must become dynamic before supporting non-FR shops.
+
+## Task before that
+
+- **Date:** 2026-07-16
 - **Agent:** Claude (Opus 4.8)
 - **Goal:** Move Gemini grounding from 2 calls per full catalog analysis to 2 calls **per product** (Adrien's explicit request, after being warned and accepting the volume: up to 70 grounded calls per full analysis at 35 products, vs 2 today). Goal: each product's own keywords, trends, and content proposal get individually verified against the real market, not a shared catalog-wide sample.
 - **Also researched (no forcing possible):** confirmed via official Gemini docs (Context7) that Google Search grounding cannot be force-triggered — no API parameter exists, it's a model judgment call. Compensated with stronger, more insistent prompts (`_SYSTEM_PROMPT`, `_VERIFY_SYSTEM_PROMPT` in `realtime_trends.py`) telling the model it MUST search live and never answer from training memory, with the exact current date repeated prominently — increases trigger rate, does not guarantee it.

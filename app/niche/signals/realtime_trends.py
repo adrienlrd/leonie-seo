@@ -235,7 +235,10 @@ def _build_verify_prompt(keywords: list[str], niche_summary: str) -> str:
         '- "declining" : intérêt en baisse constaté.\n'
         '- "no_signal" : aucune preuve web trouvée — n\'invente RIEN dans ce cas, '
         "laisse evidence_note et source_url vides.\n"
-        "Une entrée par mot-clé de la liste, dans le même ordre si possible."
+        "OBLIGATOIRE : renvoie UNE entrée pour CHAQUE mot-clé de la liste, "
+        "sans exception, dans le même ordre. Si tu n'as pas de preuve pour un "
+        'mot-clé, renvoie quand même son entrée avec "no_signal" — ne saute '
+        "JAMAIS un mot-clé."
     )
 
 

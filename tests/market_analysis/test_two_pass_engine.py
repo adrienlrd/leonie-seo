@@ -1487,6 +1487,69 @@ def test_realtime_signals_from_multiple_products_merge_and_dedupe():
     assert merged["fetched_at"] == "2026-07-16T00:00:00+00:00"
 
 
+def test_rising_queries_join_candidate_pool_as_selectable_keywords():
+    """Lever 1: grounded rising queries must become real keyword candidates
+    (data_source realtime_grounding), not just prompt context — only those
+    matching the product's own words."""
+    signals = {
+        "events": [],
+        "rising_queries": [
+            {"query": "fontaine à chat canicule", "why": "vague de chaleur", "source_url": "https://src.fr/a"},
+            {"query": "harnais rafraîchissant chien", "why": "", "source_url": ""},
+        ],
+        "competitor_moves": [],
+        "citations": [],
+        "fetched_at": "2026-07-16T00:00:00+00:00",
+    }
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    result, _mock_fetch, _mock_verify = _run_with_realtime(
+        router, fetch_realtime=True, realtime_signals=signals
+    )
+    pass1_prompt = router.complete.call_args_list[0].args[0]
+    # The product-relevant rising query is offered to the LLM as a candidate.
+    assert "fontaine à chat canicule" in pass1_prompt
+    # The unrelated (dog harness) query must not pollute this cat product.
+    kws = result["products"][0]["seo_keywords"]
+    assert not any(k.get("query") == "harnais rafraîchissant chien" for k in kws)
+
+
+def test_realtime_rising_candidates_shapes_and_filters():
+    signals = {
+        "rising_queries": [
+            {"query": "fontaine chat été", "why": "canicule", "source_url": "https://src.fr"},
+            {"query": "fontaine chat été", "why": "dup", "source_url": ""},
+            {"query": "collier gps chien", "why": "hors sujet", "source_url": ""},
+            {"query": "", "why": "", "source_url": ""},
+        ]
+    }
+    product_words = engine._content_words("fontaine à eau pour chat silencieuse été")
+    cands = engine._realtime_rising_candidates(signals, product_words)
+    assert len(cands) == 1
+    cand = cands[0]
+    assert cand["query"] == "fontaine chat été"
+    assert cand["data_source"] == "realtime_grounding"
+    assert cand["demand_score"] == 65
+    assert "https://src.fr" in cand["notes"]
+    assert engine._realtime_rising_candidates(None, product_words) == []
+
+
+def test_pass2_prompt_carries_realtime_market_context():
+    """Lever 3: the per-product realtime signal must reach the pass-2 content
+    prompt with the seasonal-angle instruction, not just pass 1."""
+    signals = {
+        "events": [{"title": "Canicule en France cette semaine"}],
+        "rising_queries": [],
+        "competitor_moves": [],
+        "citations": [],
+        "fetched_at": "2026-07-16T00:00:00+00:00",
+    }
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    _run_with_realtime(router, fetch_realtime=True, realtime_signals=signals)
+    pass2_prompt = router.complete.call_args_list[1].args[0]
+    assert "ACTUALITÉ MARCHÉ" in pass2_prompt
+    assert "Canicule en France cette semaine" in pass2_prompt
+
+
 def test_grounding_budget_exhausted_skips_every_product():
     """A catalog large enough to already be over the monthly LLM budget must
     skip ALL per-product grounded calls, not partially drain the budget."""
