@@ -211,6 +211,10 @@ _VERIFY_SYSTEM_PROMPT = (
 )
 
 _MAX_VERIFY_KEYWORDS = 30
+# Verified live (2026-07-16): a single 30-keyword call only ever came back
+# with ~6 verdicts — Gemini skips keywords its search found nothing for,
+# despite explicit instructions. Smaller batches get near-full coverage.
+_VERIFY_BATCH_SIZE = 10
 
 
 def _build_verify_prompt(keywords: list[str], niche_summary: str) -> str:
@@ -283,16 +287,16 @@ def verify_keywords_against_market(
     force: bool = False,
     status_out: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]] | None:
-    """Cross-check a batch of target keywords against the real current market.
+    """Cross-check a product's target keywords against the real current market.
 
-    One grounded call per full-catalog job (never per product) — verifies, for
-    each keyword, whether real web search evidence confirms it's actually
+    Runs one grounded call per batch of `_VERIFY_BATCH_SIZE` keywords (up to
+    `_MAX_VERIFY_KEYWORDS` total, so at most 3 calls per product) — verifies,
+    for each keyword, whether real web search evidence confirms it's actually
     searched/relevant right now, distinct from the LLM's own estimate. Returns
     ``{query_lowercased: {evidence, note, source_url}}`` or None (fail-open:
     gating, network, parsing — same guarantees as `fetch_realtime_signals`).
-
-    Capped at `_MAX_VERIFY_KEYWORDS` keywords to keep the call — and its
-    token cost — bounded regardless of catalog size.
+    Status is "ok" when every batch succeeded, "partial" when only some did,
+    and the last error status when none did.
     """
     if not force and get_plan_for_shop(shop, db_path) != "agency":
         _set_status(status_out, "plan_not_agency")
@@ -308,28 +312,47 @@ def verify_keywords_against_market(
 
     try:
         router = get_router(shop=shop, tier="grounded")
-        result = router.complete(
-            _build_verify_prompt(deduped, niche_summary),
-            system=_VERIFY_SYSTEM_PROMPT,
-            max_tokens=4096,
-            temperature=0.2,
-            json_mode=True,
-        )
     except LLMError as exc:
-        logger.warning("verify_keywords_against_market: LLM call failed for %s: %s", shop, exc)
-        _set_status(status_out, "llm_error", str(exc))
-        return None
-    except Exception as exc:  # noqa: BLE001 — optional signal, never fail the analysis job for it
-        logger.warning("verify_keywords_against_market: unexpected error for %s: %s", shop, exc)
+        logger.warning("verify_keywords_against_market: no router for %s: %s", shop, exc)
         _set_status(status_out, "llm_error", str(exc))
         return None
 
-    verifications = _parse_verifications(result.text)
-    if verifications is None:
-        _set_status(status_out, "parse_error")
+    merged: dict[str, dict[str, Any]] = {}
+    batches_ok = 0
+    batches_total = 0
+    last_error_status = "llm_error"
+    last_error_detail = ""
+    for start in range(0, len(deduped), _VERIFY_BATCH_SIZE):
+        batch = deduped[start : start + _VERIFY_BATCH_SIZE]
+        batches_total += 1
+        try:
+            result = router.complete(
+                _build_verify_prompt(batch, niche_summary),
+                system=_VERIFY_SYSTEM_PROMPT,
+                max_tokens=4096,
+                temperature=0.2,
+                json_mode=True,
+            )
+        except LLMError as exc:
+            logger.warning("verify_keywords_against_market: LLM call failed for %s: %s", shop, exc)
+            last_error_status, last_error_detail = "llm_error", str(exc)
+            continue
+        except Exception as exc:  # noqa: BLE001 — optional signal, never fail the analysis job for it
+            logger.warning("verify_keywords_against_market: unexpected error for %s: %s", shop, exc)
+            last_error_status, last_error_detail = "llm_error", str(exc)
+            continue
+        verifications = _parse_verifications(result.text)
+        if verifications is None:
+            last_error_status, last_error_detail = "parse_error", ""
+            continue
+        batches_ok += 1
+        merged.update(verifications)
+
+    if batches_ok == 0:
+        _set_status(status_out, last_error_status, last_error_detail)
         return None
-    _set_status(status_out, "ok")
-    return verifications
+    _set_status(status_out, "ok" if batches_ok == batches_total else "partial")
+    return merged
 
 
 def load_realtime_signals(shop: str, *, db_path: Path | None = None) -> dict[str, Any] | None:

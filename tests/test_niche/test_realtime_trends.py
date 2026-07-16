@@ -340,6 +340,66 @@ def test_verify_caps_keyword_list(db: Path, data_dir: Path, monkeypatch: pytest.
     assert "kw30" not in prompt
 
 
+def test_verify_batches_keywords_into_calls_of_ten_and_merges_results(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """25 keywords → 3 grounded calls (10+10+5), verdicts merged across batches.
+    Live finding (2026-07-16): one 30-keyword call only yielded ~6 verdicts."""
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.side_effect = [
+        CompletionResult(
+            text=json.dumps(
+                {"verifications": [{"query": f"kw{i}", "market_evidence": "confirmed"}]}
+            ),
+            provider="gemini",
+            model="gemini-3.1-flash-lite",
+        )
+        for i in (0, 10, 20)
+    ]
+    keywords = [f"kw{i}" for i in range(25)]
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        status: dict = {}
+        result = verify_keywords_against_market(
+            SHOP, keywords, "niche", db_path=db, status_out=status
+        )
+    assert mock_router.complete.call_count == 3
+    prompts = [c.args[0] for c in mock_router.complete.call_args_list]
+    assert "kw0" in prompts[0] and "kw10" not in prompts[0]
+    assert "kw10" in prompts[1] and "kw20" not in prompts[1]
+    assert "kw20" in prompts[2] and "kw24" in prompts[2]
+    assert result is not None
+    assert set(result) == {"kw0", "kw10", "kw20"}
+    assert status["status"] == "ok"
+
+
+def test_verify_partial_status_when_one_batch_fails(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.side_effect = [
+        CompletionResult(
+            text=json.dumps(
+                {"verifications": [{"query": "kw0", "market_evidence": "rising"}]}
+            ),
+            provider="gemini",
+            model="gemini-3.1-flash-lite",
+        ),
+        LLMError("boom"),
+    ]
+    keywords = [f"kw{i}" for i in range(15)]
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        status: dict = {}
+        result = verify_keywords_against_market(
+            SHOP, keywords, "niche", db_path=db, status_out=status
+        )
+    assert result == {"kw0": {"evidence": "rising", "note": "", "source_url": ""}}
+    assert status["status"] == "partial"
+
+
 def test_verify_fail_open_when_llm_raises(
     db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
