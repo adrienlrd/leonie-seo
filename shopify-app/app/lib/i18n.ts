@@ -751,6 +751,14 @@ const FR: Dictionary = {
   analyseTotalActions: "Actions appliquées",
   analyseActionsCount: "action(s)",
   analyseEmpty: "Aucune optimisation appliquée pour le moment.",
+  analyseEmptyPublishTitle: "Publiez vos résultats, puis laissez le temps agir",
+  analyseEmptyPublishBody:
+    "Cette page mesure l'effet réel de vos optimisations. Pour qu'elle se remplisse : publiez les propositions de l'analyse (fiches produits, FAQ, articles de blog) depuis la page Produits ou Blog, puis attendez.",
+  analyseEmptyWhy28Title: "Pourquoi 28 jours ?",
+  analyseEmptyWhy28Body:
+    "Google doit d'abord ré-explorer vos pages modifiées (quelques jours), les ré-indexer, puis accumuler assez d'impressions et de clics pour que la comparaison avant/après soit fiable. 28 jours couvrent un cycle complet — y compris les variations de week-end — et correspondent à la fenêtre de mesure de Search Console. Mesurer plus tôt donnerait des conclusions trompeuses.",
+  analyseEmptyImpactBody:
+    "Pendant ce délai, chaque contenu publié travaille déjà : les moteurs découvrent vos nouveaux mots-clés, les FAQ deviennent éligibles aux extraits enrichis et aux réponses IA, et les articles créent du maillage interne. Les premiers effets sont généralement visibles entre 2 et 6 semaines.",
   analyseAppliedAt: "Publié le",
   analyseClicksLabel: "clics",
   analyseClicksSince: "depuis le",
@@ -1605,6 +1613,14 @@ const EN: Dictionary = {
   analyseTotalActions: "Actions applied",
   analyseActionsCount: "action(s)",
   analyseEmpty: "No optimizations applied yet.",
+  analyseEmptyPublishTitle: "Publish your results, then let time work",
+  analyseEmptyPublishBody:
+    "This page measures the real effect of your optimizations. To fill it: publish the analysis proposals (product pages, FAQ, blog articles) from the Products or Blog page, then wait.",
+  analyseEmptyWhy28Title: "Why 28 days?",
+  analyseEmptyWhy28Body:
+    "Google first has to re-crawl your modified pages (a few days), re-index them, then accumulate enough impressions and clicks for a reliable before/after comparison. 28 days cover a full cycle — including weekend swings — and match Search Console's measurement window. Measuring earlier would give misleading conclusions.",
+  analyseEmptyImpactBody:
+    "Meanwhile, every published piece is already working: search engines discover your new keywords, FAQs become eligible for rich snippets and AI answers, and articles build internal linking. First effects usually show within 2 to 6 weeks.",
   analyseAppliedAt: "Published on",
   analyseClicksLabel: "clicks",
   analyseClicksSince: "since",

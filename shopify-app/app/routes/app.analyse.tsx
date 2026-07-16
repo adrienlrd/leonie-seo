@@ -454,7 +454,13 @@ export default function AnalysePage() {
 
         {products.length === 0 ? (
           <Card>
-            <Text as="p" tone="subdued">{t(locale, "analyseEmpty")}</Text>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingMd">{t(locale, "analyseEmptyPublishTitle")}</Text>
+              <Text as="p">{t(locale, "analyseEmptyPublishBody")}</Text>
+              <Text as="h3" variant="headingSm">{t(locale, "analyseEmptyWhy28Title")}</Text>
+              <Text as="p" tone="subdued">{t(locale, "analyseEmptyWhy28Body")}</Text>
+              <Text as="p" tone="subdued">{t(locale, "analyseEmptyImpactBody")}</Text>
+            </BlockStack>
           </Card>
         ) : (
           <>
