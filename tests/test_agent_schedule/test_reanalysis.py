@@ -82,7 +82,7 @@ def test_is_reanalysis_due_true_after_28_day_window() -> None:
 
 
 def test_run_market_reanalysis_uses_rich_inputs_and_plan_cap(tmp_path: Path) -> None:
-    """Re-analysis feeds GA4 + labels and caps products to the plan (parity with /jobs)."""
+    """Re-analysis feeds GA4 + labels and restricts to managed products (parity with /jobs)."""
     db = _db(tmp_path)
     captured: dict = {}
 
@@ -116,7 +116,11 @@ def test_run_market_reanalysis_uses_rich_inputs_and_plan_cap(tmp_path: Path) -> 
 
     with (
         patch.object(reanalysis, "_gather_analysis_inputs", return_value=inputs),
-        patch.object(reanalysis, "product_cap", return_value=3),
+        patch.object(
+            reanalysis,
+            "filter_managed_products",
+            side_effect=lambda shop, products, db_path=None: products[:3],
+        ),
         patch.object(reanalysis, "run_market_analysis", side_effect=_fake_run),
         patch.object(reanalysis, "get_shop_retired_tags", return_value=[]),
         patch.object(reanalysis, "_apply_retired_and_locked_keywords"),
@@ -130,7 +134,7 @@ def test_run_market_reanalysis_uses_rich_inputs_and_plan_cap(tmp_path: Path) -> 
     ):
         run_market_reanalysis(SHOP, access_token="shpat_test", plan="free", db_path=db)
 
-    # Plan cap applied (10 products → 3) and rich inputs forwarded to the engine.
+    # Managed selection applied (10 products → 3) and rich inputs forwarded to the engine.
     assert len(captured["products"]) == 3
     assert captured["kwargs"]["ga4_page_rows"] == {"p1": {"clicks": 5}}
     assert captured["kwargs"]["product_labels"] == {"1": "label"}

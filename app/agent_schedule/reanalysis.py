@@ -28,11 +28,11 @@ from app.api.market_analysis import (
     _gather_analysis_inputs,
     auto_publish_checked_proposals,
 )
-from app.billing.quotas import product_cap
 from app.billing.subscription_store import get_plan_for_shop
 from app.blog.auto_draft import auto_create_orphan_drafts
 from app.geo.continuous_improvement import enrich_market_analysis_result, get_shop_retired_tags
 from app.jobs.store import enqueue_unique
+from app.managed_products import filter_managed_products
 from app.market_analysis.engine import _DEFAULT_BUDGET_USD, _PLAN_BUDGETS_USD, run_market_analysis
 from app.market_analysis.jobs import load_latest_result, save_latest_result
 from app.observability.metrics import check_budget
@@ -148,8 +148,8 @@ def run_market_reanalysis(
     business_profile = inputs["business_profile"]
     niche_hypothesis = inputs["niche_hypothesis"]
     shop_domain = inputs["shop_domain"]
-    # Cap the catalog to the plan's product limit (parity with the /jobs path).
-    products = inputs["products"][: product_cap(shop, db_path)]
+    # Restrict to the merchant's managed selection (parity with the /jobs path).
+    products = filter_managed_products(shop, inputs["products"], db_path=db_path)
 
     result = run_market_analysis(
         products,

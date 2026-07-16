@@ -21,7 +21,6 @@ from app.billing.quotas import (
     QuotaExceeded,
     check_product_analysis_quota,
     check_quota,
-    product_cap,
     record_product_analysis,
     record_usage,
 )
@@ -46,6 +45,7 @@ from app.gsc.client import ensure_fresh_gsc
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.learning.models import PRIMARY_WINDOW_DAYS, LearningMode
 from app.learning.store import get_settings, record_run
+from app.managed_products import filter_managed_products
 from app.market_analysis.competitors import (
     load_competitors,
     load_excluded_competitors,
@@ -565,9 +565,11 @@ async def start_identification_job(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     background_tasks: BackgroundTasks,
 ) -> dict[str, Any]:
-    """Start an async job to generate AI short labels for all active products (step 1)."""
+    """Start an async job to generate AI short labels for the managed products (step 1)."""
     snapshot = _load_snapshot(ctx)
-    products = filter_products_by_scope(snapshot.get("products", []), "active")
+    products = filter_managed_products(
+        ctx.shop, filter_products_by_scope(snapshot.get("products", []), "active")
+    )
     niche_hypothesis = get_validated_niche_hypothesis(ctx.shop)
     niche_summary = niche_hypothesis.get("primary_niche", "") if niche_hypothesis else ""
     shop_info = snapshot.get("shop")
@@ -701,13 +703,14 @@ async def start_market_analysis_job(
     else:
         record_usage(ctx.shop, "analysis")
     snapshot = _load_snapshot(ctx)
-    products = snapshot.get("products", [])
+    products = filter_managed_products(ctx.shop, snapshot.get("products", []))
     persist = True
     if product_ids:
+        # Targeted re-analysis stays within the managed selection: filtering
+        # the already-filtered list guarantees an unmanaged ID is a no-op.
         pid_set = set(product_ids)
         products = [p for p in products if str(p.get("id", "")) in pid_set]
         persist = False
-    products = products[: product_cap(ctx.shop)]
     shop_info = snapshot.get("shop")
     shop_domain = shop_info.get("domain", ctx.shop) if isinstance(shop_info, dict) else ctx.shop
 
