@@ -15,6 +15,7 @@ import {
   Page,
   Select,
   Text,
+  TextField,
 } from "@shopify/polaris";
 import { PlanBadge } from "../components/PlanBadge";
 import { authenticate } from "../shopify.server";
@@ -110,6 +111,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
     const error = (await resp.text()).slice(0, 300);
     return json({ type: "resetAllData", ok: false, error });
+  }
+
+  if (intent === "redeemQuotaCode") {
+    const code = String(form.get("code") ?? "").trim();
+    const resp = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/quota-code/redeem`,
+      {
+        accessToken: session.accessToken,
+        method: "POST",
+        body: JSON.stringify({ code }),
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (!resp.ok) {
+      const status = resp.status;
+      return json({ type: "redeemQuotaCode", ok: false, status });
+    }
+    return json({ type: "redeemQuotaCode", ok: true, status: 200 });
   }
 
   if (intent === "saveAutomation") {
@@ -427,6 +447,8 @@ export default function AccountHub() {
           }
         />
 
+        <QuotaCodeCard fr={fr} />
+
         <Card>
           <BlockStack gap="300">
             <BlockStack gap="100">
@@ -575,5 +597,68 @@ function GoogleConnectionsCardWrapper({
       fetcher={fetcher}
       footer={footer}
     />
+  );
+}
+
+function QuotaCodeCard({ fr }: { fr: boolean }) {
+  const fetcher = useFetcher<{ type: string; ok: boolean; status: number }>();
+  const [code, setCode] = useState("");
+  const data = fetcher.data?.type === "redeemQuotaCode" ? fetcher.data : null;
+
+  const submit = () => {
+    const fd = new FormData();
+    fd.set("intent", "redeemQuotaCode");
+    fd.set("code", code);
+    fetcher.submit(fd, { method: "post" });
+  };
+
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <Text as="h2" variant="headingMd">
+          {fr ? "Code promotionnel" : "Promo code"}
+        </Text>
+        <Text as="p" variant="bodySm" tone="subdued">
+          {fr
+            ? "Un code de réinitialisation remet à zéro vos quotas d'analyse du mois en cours. Chaque code est à usage unique."
+            : "A reset code restores your analysis quotas for the current window. Each code is single-use."}
+        </Text>
+        {data?.ok && (
+          <Banner tone="success">
+            <Text as="p">
+              {fr ? "Quotas d'analyse réinitialisés !" : "Analysis quotas reset!"}
+            </Text>
+          </Banner>
+        )}
+        {data && !data.ok && (
+          <Banner tone="critical">
+            <Text as="p">
+              {data.status === 409
+                ? (fr ? "Ce code a déjà été utilisé." : "This code has already been used.")
+                : (fr ? "Code invalide." : "Invalid code.")}
+            </Text>
+          </Banner>
+        )}
+        <InlineStack gap="200" blockAlign="end">
+          <Box width="280px">
+            <TextField
+              label={fr ? "Code" : "Code"}
+              labelHidden
+              value={code}
+              onChange={setCode}
+              placeholder="GEO-XXXX-XXXXXXXX"
+              autoComplete="off"
+            />
+          </Box>
+          <Button
+            onClick={submit}
+            disabled={!code.trim()}
+            loading={fetcher.state !== "idle"}
+          >
+            {fr ? "Utiliser le code" : "Redeem code"}
+          </Button>
+        </InlineStack>
+      </BlockStack>
+    </Card>
   );
 }

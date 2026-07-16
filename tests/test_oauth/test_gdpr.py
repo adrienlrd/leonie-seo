@@ -226,6 +226,11 @@ def test_reset_shop_data_wipes_everything_except_token_and_subscription(tmp_path
             "VALUES (?, 'pro', 'active', 'now', 'now')",
             (SHOP,),
         )
+        conn.execute(
+            "INSERT INTO redeemed_quota_codes (code, shop, redeemed_at) "
+            "VALUES ('GEO-TEST-ABCDEF12', ?, 'now')",
+            (SHOP,),
+        )
 
     result = reset_shop_data(SHOP)
     # shop_config + analysis_artifacts seeded above = 2 rows wiped, no failures.

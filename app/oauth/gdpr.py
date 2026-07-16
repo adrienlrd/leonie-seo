@@ -76,6 +76,7 @@ _SHOP_SCOPED_TABLES = (
     "agent_schedule_settings",
     "analysis_artifacts",
     "usage_events",
+    "redeemed_quota_codes",
 )
 
 # Tables kept during an in-app "reset to first-open" (Danger Zone). The OAuth
@@ -83,7 +84,9 @@ _SHOP_SCOPED_TABLES = (
 # survive because a merchant reset cannot un-bill an active plan. Everything
 # else (including google_tokens → GSC/GA4) is wiped to restore the first-open
 # state. This differs from shop/redact, which deletes everything on uninstall.
-_RESET_PRESERVED_TABLES = ("shop_tokens", "subscriptions")
+# redeemed_quota_codes survives the in-app reset too: resetting the app must
+# not un-burn single-use quota codes.
+_RESET_PRESERVED_TABLES = ("shop_tokens", "subscriptions", "redeemed_quota_codes")
 
 
 def purge_shop_data(shop: str) -> None:

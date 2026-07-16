@@ -77,6 +77,12 @@ _SQLITE_DDL = [
         kind       TEXT NOT NULL,
         created_at TEXT NOT NULL
     )""",
+    # Single-use quota reset codes (redeemed globally, never reusable)
+    """CREATE TABLE IF NOT EXISTS redeemed_quota_codes (
+        code        TEXT PRIMARY KEY,
+        shop        TEXT NOT NULL,
+        redeemed_at TEXT NOT NULL
+    )""",
     # LLM meta suggestions (Phase 7, task 60)
     """CREATE TABLE IF NOT EXISTS meta_suggestions (
         id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -602,6 +608,11 @@ _PG_DDL = [
         shop       TEXT NOT NULL,
         kind       TEXT NOT NULL,
         created_at TEXT NOT NULL
+    )""",
+    """CREATE TABLE IF NOT EXISTS redeemed_quota_codes (
+        code        TEXT PRIMARY KEY,
+        shop        TEXT NOT NULL,
+        redeemed_at TEXT NOT NULL
     )""",
     """CREATE TABLE IF NOT EXISTS content_actions (
         action_id       TEXT PRIMARY KEY,

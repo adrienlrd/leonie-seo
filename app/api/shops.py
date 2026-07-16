@@ -215,6 +215,31 @@ class ManagedProductsUpdate(BaseModel):
     product_ids: list[str]
 
 
+class QuotaCodeRedeem(BaseModel):
+    code: str
+
+
+@router.post("/shops/{shop}/quota-code/redeem")
+async def redeem_quota_code_endpoint(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    body: QuotaCodeRedeem,
+) -> dict:
+    """Redeem a single-use quota reset code (any plan). See app/billing/quota_codes.py."""
+    from app.billing.quota_codes import (  # noqa: PLC0415
+        InvalidQuotaCode,
+        QuotaCodeAlreadyUsed,
+        redeem_quota_code,
+    )
+
+    try:
+        result = redeem_quota_code(ctx.shop, body.code)
+    except InvalidQuotaCode as exc:
+        raise HTTPException(status_code=400, detail=f"invalid_code: {exc}") from exc
+    except QuotaCodeAlreadyUsed as exc:
+        raise HTTPException(status_code=409, detail="code_already_used") from exc
+    return {"redeemed": True, **result}
+
+
 @router.get("/shops/{shop}/managed-products")
 async def get_managed_products(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict:
     """Return the merchant's managed-products selection + the pickable catalog.
