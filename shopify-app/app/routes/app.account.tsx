@@ -15,7 +15,6 @@ import {
   Page,
   Select,
   Text,
-  TextField,
 } from "@shopify/polaris";
 import { PlanBadge } from "../components/PlanBadge";
 import { authenticate } from "../shopify.server";
@@ -113,25 +112,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return json({ type: "resetAllData", ok: false, error });
   }
 
-  if (intent === "redeemQuotaCode") {
-    const code = String(form.get("code") ?? "").trim();
-    const resp = await callBackendForShop(
-      session.shop,
-      `/api/shops/${session.shop}/quota-code/redeem`,
-      {
-        accessToken: session.accessToken,
-        method: "POST",
-        body: JSON.stringify({ code }),
-        signal: AbortSignal.timeout(15_000),
-      },
-    );
-    if (!resp.ok) {
-      const status = resp.status;
-      return json({ type: "redeemQuotaCode", ok: false, status });
-    }
-    return json({ type: "redeemQuotaCode", ok: true, status: 200 });
-  }
-
   if (intent === "saveAutomation") {
     const automationMode = String(form.get("automation_mode") ?? "semi_auto");
     // Learning is always enabled; the mode only decides manual (semi_auto) vs
@@ -157,15 +137,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
-  if (intent === "testReanalysis1h") {
-    const resp = await callBackendForShop(
-      session.shop,
-      `/api/shops/${session.shop}/agent-schedule/test-in-1h`,
-      { accessToken: session.accessToken, method: "POST" },
-    );
-    return json({ type: "testReanalysis1h", ok: resp.ok, error: resp.ok ? null : `Backend ${resp.status}` });
-  }
-
   return json({ type: "unknown", ok: false, reset: 0 });
 };
 
@@ -185,7 +156,6 @@ export default function AccountHub() {
   const resetFetcher = useFetcher<{ type: string; ok: boolean; reset: number }>();
   const resetAllFetcher = useFetcher<{ type: string; ok: boolean; error?: string | null }>();
   const automationFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
-  const testReanalysisFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const onboardingFetcher = useFetcher<OnboardingActionData>();
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmResetAll, setConfirmResetAll] = useState(false);
@@ -268,13 +238,6 @@ export default function AccountHub() {
         : "Current plan, billing, and upgrade to Pro or Agency.",
     },
     {
-      titleKey: "settings",
-      href: "/app/settings",
-      description: fr
-        ? "Préférences, budget IA, locales multilingues."
-        : "Preferences, AI budget, multilingual locales.",
-    },
-    {
       titleKey: "privacy",
       href: "/app/privacy",
       description: fr
@@ -320,15 +283,6 @@ export default function AccountHub() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
               <Select
-                label={t(locale, "automationModeLabel")}
-                options={[
-                  { label: t(locale, "automationModeManual"), value: "semi_auto" },
-                  { label: t(locale, "automationModeAutoApply"), value: "auto_apply" },
-                ]}
-                value={automationMode}
-                onChange={(value) => setAutomationMode(value as "semi_auto" | "auto_apply")}
-              />
-              <Select
                 label={t(locale, "automationFrequencyLabel")}
                 options={[
                   { label: t(locale, "automationFrequency1"), value: "1" },
@@ -345,21 +299,7 @@ export default function AccountHub() {
             </Text>
 
             <InlineStack align="space-between" blockAlign="center" wrap>
-              <InlineStack gap="300" blockAlign="center" wrap>
-                <Button
-                  url={localizedPath("/app/continuous-improvement", locale)}
-                  variant="plain"
-                >
-                  {t(locale, "automationScheduleLink")}
-                </Button>
-                <Button
-                  variant="plain"
-                  loading={testReanalysisFetcher.state !== "idle"}
-                  onClick={() => testReanalysisFetcher.submit({ intent: "testReanalysis1h" }, { method: "post" })}
-                >
-                  {t(locale, "testReanalysisLabel")}
-                </Button>
-              </InlineStack>
+              <div />
               <Button
                 variant="primary"
                 loading={automationFetcher.state !== "idle"}
@@ -368,12 +308,6 @@ export default function AccountHub() {
                 {t(locale, "automationSave")}
               </Button>
             </InlineStack>
-
-            {testReanalysisFetcher.data?.ok && (
-              <Banner tone="success">
-                <Text as="p">{t(locale, "testReanalysisQueued")}</Text>
-              </Banner>
-            )}
 
             {automationFetcher.data?.ok && (
               <Banner tone="success">
@@ -446,8 +380,6 @@ export default function AccountHub() {
             </BlockStack>
           }
         />
-
-        <QuotaCodeCard fr={fr} />
 
         <Card>
           <BlockStack gap="300">
@@ -597,68 +529,5 @@ function GoogleConnectionsCardWrapper({
       fetcher={fetcher}
       footer={footer}
     />
-  );
-}
-
-function QuotaCodeCard({ fr }: { fr: boolean }) {
-  const fetcher = useFetcher<{ type: string; ok: boolean; status: number }>();
-  const [code, setCode] = useState("");
-  const data = fetcher.data?.type === "redeemQuotaCode" ? fetcher.data : null;
-
-  const submit = () => {
-    const fd = new FormData();
-    fd.set("intent", "redeemQuotaCode");
-    fd.set("code", code);
-    fetcher.submit(fd, { method: "post" });
-  };
-
-  return (
-    <Card>
-      <BlockStack gap="300">
-        <Text as="h2" variant="headingMd">
-          {fr ? "Code promotionnel" : "Promo code"}
-        </Text>
-        <Text as="p" variant="bodySm" tone="subdued">
-          {fr
-            ? "Un code de réinitialisation remet à zéro vos quotas d'analyse du mois en cours. Chaque code est à usage unique."
-            : "A reset code restores your analysis quotas for the current window. Each code is single-use."}
-        </Text>
-        {data?.ok && (
-          <Banner tone="success">
-            <Text as="p">
-              {fr ? "Quotas d'analyse réinitialisés !" : "Analysis quotas reset!"}
-            </Text>
-          </Banner>
-        )}
-        {data && !data.ok && (
-          <Banner tone="critical">
-            <Text as="p">
-              {data.status === 409
-                ? (fr ? "Ce code a déjà été utilisé." : "This code has already been used.")
-                : (fr ? "Code invalide." : "Invalid code.")}
-            </Text>
-          </Banner>
-        )}
-        <InlineStack gap="200" blockAlign="end">
-          <Box width="280px">
-            <TextField
-              label={fr ? "Code" : "Code"}
-              labelHidden
-              value={code}
-              onChange={setCode}
-              placeholder="GEO-XXXX-XXXXXXXX"
-              autoComplete="off"
-            />
-          </Box>
-          <Button
-            onClick={submit}
-            disabled={!code.trim()}
-            loading={fetcher.state !== "idle"}
-          >
-            {fr ? "Utiliser le code" : "Redeem code"}
-          </Button>
-        </InlineStack>
-      </BlockStack>
-    </Card>
   );
 }
