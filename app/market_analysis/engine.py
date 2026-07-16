@@ -630,6 +630,25 @@ def _verify_keywords_once(
         return None
 
 
+def _round_robin_keywords(per_product_queries: list[list[str]]) -> list[str]:
+    """Interleave each product's keyword list one-at-a-time instead of
+    concatenating product by product.
+
+    Regression fix: a flat concat meant a single product with 30+ keywords
+    (e.g. a long-tail-heavy catalog entry) could exhaust the whole
+    `_MAX_VERIFY_KEYWORDS` cap in `verify_keywords_against_market` by itself,
+    leaving every other product in the catalog with zero market verification
+    — verified live on a real comparison run. Round-robin guarantees every
+    product gets its highest-priority keyword(s) considered first.
+    """
+    result: list[str] = []
+    for round_idx in range(max((len(q) for q in per_product_queries), default=0)):
+        for product_queries in per_product_queries:
+            if round_idx < len(product_queries):
+                result.append(product_queries[round_idx])
+    return result
+
+
 def _apply_market_verification(
     pass1_states: list[dict[str, Any]], verifications: dict[str, dict[str, Any]]
 ) -> int:
@@ -5990,12 +6009,15 @@ def run_market_analysis(
     verify_status: dict[str, Any] = {"status": "not_attempted", "detail": ""}
     keywords_verified_count = 0
     if fetch_realtime:
-        all_keywords = [
-            str(kw.get("query") or "")
+        per_product_queries = [
+            [
+                str(kw.get("query") or "")
+                for kw in (view.get("seo_keywords") or [])
+                if isinstance(kw, dict) and kw.get("query")
+            ]
             for view in pass1_product_views
-            for kw in (view.get("seo_keywords") or [])
-            if isinstance(kw, dict) and kw.get("query")
         ]
+        all_keywords = _round_robin_keywords(per_product_queries)
         verifications = _verify_keywords_once(
             shop,
             all_keywords,

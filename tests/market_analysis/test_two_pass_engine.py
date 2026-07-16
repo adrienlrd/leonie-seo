@@ -1331,6 +1331,32 @@ def test_market_verification_no_verifications_leaves_keywords_untouched():
     assert "market_verification" not in kw
 
 
+def test_round_robin_keywords_prevents_one_product_starving_the_rest():
+    """Regression test for a real bug found live: a flat per-product concat
+    let a single 33-keyword product exhaust the whole
+    _MAX_VERIFY_KEYWORDS=30 cap, leaving two other catalog products with
+    zero market_verification. Round-robin must interleave products instead."""
+    per_product = [
+        [f"kw-a-{i}" for i in range(5)],  # product A: 5 keywords
+        ["kw-b-0"],  # product B: 1 keyword
+        [f"kw-c-{i}" for i in range(3)],  # product C: 3 keywords
+    ]
+    result = engine._round_robin_keywords(per_product)
+    # Every product's first (highest-priority) keyword must appear within
+    # the first 3 items, not buried after product A's whole 5-item tail.
+    first_three = result[:3]
+    assert "kw-a-0" in first_three
+    assert "kw-b-0" in first_three
+    assert "kw-c-0" in first_three
+    # All keywords still present, none dropped, order stable within each product.
+    assert result == ["kw-a-0", "kw-b-0", "kw-c-0", "kw-a-1", "kw-c-1", "kw-a-2", "kw-c-2", "kw-a-3", "kw-a-4"]
+
+
+def test_round_robin_keywords_empty_input():
+    assert engine._round_robin_keywords([]) == []
+    assert engine._round_robin_keywords([[], []]) == []
+
+
 def test_fetch_realtime_force_defaults_to_false_and_is_threaded_through():
     """fetch_realtime_force must reach _fetch_realtime_signals_once's `force`
     kwarg unchanged — used only by the Pro/Grande boutique comparison tool to

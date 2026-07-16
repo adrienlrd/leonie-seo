@@ -10,8 +10,17 @@
 
 ## Last completed task
 
-- **Date:** 2026-07-15
+- **Date:** 2026-07-16
 - **Agent:** Claude (Sonnet 5)
+- **Goal:** Fix a real market-verification coverage bug found by Adrien in the live comparison export.
+- **Bug:** Adrien re-ran « Analyse test » after adding the Render env var (worked — `agency.diff_summary` showed grounding + verification both `ok`). But inspecting per-product detail, only the FIRST product (33 keywords) had any `market_verification` — the other two catalog products (Fontaine Smart, Harnais) had zero, despite `keywords_with_market_verification: 30` looking healthy in aggregate.
+- **Root cause:** the keyword list sent to `verify_keywords_against_market` was built as a flat per-product concat (all of product 1's keywords, then product 2's, ...); `_MAX_VERIFY_KEYWORDS = 30` truncated after product 1 alone, starving every other product of verification budget.
+- **Fix:** new `_round_robin_keywords()` (`app/market_analysis/engine.py`) interleaves one keyword per product per round instead of concatenating — every product's highest-priority keyword now lands within the first N items regardless of how many keywords any single product has.
+- **Validations:** `ruff check .` OK; full `pytest` = 2136 passed / 174 skipped (2 new: round-robin interleaving + empty-input edge case).
+- **Open:** Adrien should re-run « Analyse test » once more and confirm all 3 catalog products now carry `market_verification` on at least one keyword each (not just the first one alphabetically/positionally).
+
+## Task before that
+
 - **Goal:** Fix Gemini grounding value gap — `docs/GEMINI_VALUE_FIX_PLAN.md`, written after the Pro vs Grande boutique comparison showed identical output for both plans (`agency.realtime_grounding_used = False`; even when it ran, grounding only added one prompt context line — nothing verified, nothing traceable).
 - **Root cause (fixed by Adrien):** `GEMINI_API_KEY` was only in local `.env`, absent on Render — added to the Render API service env vars, redeployed.
 - **Changes:**
