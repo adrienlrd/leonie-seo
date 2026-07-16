@@ -65,3 +65,28 @@ export function UsageMeter({
     </Box>
   );
 }
+
+/** Discreet one-line quota indicator for a page's title row (titleMetadata):
+ * "Analyses : 1/10" — critical tone at the limit, no bar, no CTA. */
+export function QuotaPill({
+  label,
+  used,
+  quota,
+}: {
+  label: string;
+  used: number;
+  quota: number;
+}) {
+  const clamped = Math.min(used, quota);
+  const atLimit = used >= quota;
+  return (
+    <Text
+      as="span"
+      variant="bodySm"
+      tone={atLimit ? "critical" : "subdued"}
+      fontWeight={atLimit ? "semibold" : undefined}
+    >
+      {label} {clamped}/{quota}
+    </Text>
+  );
+}

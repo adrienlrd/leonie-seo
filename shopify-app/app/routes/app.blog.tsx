@@ -48,7 +48,7 @@ import { callBackendForShop } from "../lib/api.server";
 import { handleShopifyFilesIntent } from "../lib/shopifyFiles.server";
 import { getLocale, loaderPhrases, type Locale } from "../lib/i18n";
 import { ResearchConsole } from "../components/ResearchConsole";
-import { UsageMeter } from "../components/UsageMeter";
+import { QuotaPill } from "../components/UsageMeter";
 import { CoverImageModal, ShopifyImagePicker } from "../components/ShopifyImagePicker";
 import { scoreTone } from "../lib/marketAnalysisShared";
 import { authenticate } from "../shopify.server";
@@ -1087,7 +1087,22 @@ export default function BlogIndexPage() {
 
   return (
     <>
-    <Page title="Blog" titleMetadata={<PlanBadge />} fullWidth>
+    <Page
+      title="Blog"
+      titleMetadata={
+        <InlineStack gap="200" blockAlign="center">
+          <PlanBadge />
+          {blogUsage && (
+            <QuotaPill
+              label={fr ? "Articles :" : "Articles:"}
+              used={blogUsage.used}
+              quota={blogUsage.quota}
+            />
+          )}
+        </InlineStack>
+      }
+      fullWidth
+    >
       <BlockStack gap="400">
         {error && (
           <Banner tone="critical"><p>{error}</p></Banner>
@@ -1108,15 +1123,6 @@ export default function BlogIndexPage() {
                 : "Every published article is one more door into your store. With Pro, generate up to 20 articles every 28 days and let the agent optimize the rest."}
             </p>
           </Banner>
-        )}
-        {blogUsage && !selected && (
-          <UsageMeter
-            label={fr ? "Articles générés ce cycle" : "Articles generated this cycle"}
-            used={blogUsage.used}
-            quota={blogUsage.quota}
-            locale={locale}
-            showUpgrade={blogUsage.plan !== "agency"}
-          />
         )}
         {!selected && (
           <button
