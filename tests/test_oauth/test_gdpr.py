@@ -331,3 +331,35 @@ def test_verify_webhook_hmac_exported_from_hmac_validator():
     assert verify_webhook_hmac(body, sig, secret) is True
     assert verify_webhook_hmac(body, "bad", secret) is False
     assert verify_webhook_hmac(body, None, secret) is False
+
+
+def test_reset_shop_data_preserves_plan_override(tmp_path, monkeypatch):
+    """The Danger Zone reset must not silently downgrade an overridden plan."""
+    db = tmp_path / "test.db"
+    raw_dir = tmp_path / "raw"
+    monkeypatch.setattr("app.oauth.gdpr.DB_PATH", db)
+    monkeypatch.setattr("app.oauth.gdpr._RAW_DIR", raw_dir)
+    from app.db import init_db
+    from app.oauth.gdpr import reset_shop_data
+
+    init_db(db)
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "INSERT INTO shop_config (shop, key, value) VALUES (?, 'plan_override', 'agency')",
+            (SHOP,),
+        )
+        conn.execute(
+            "INSERT INTO shop_config (shop, key, value) VALUES (?, 'managed_product_ids', '[]')",
+            (SHOP,),
+        )
+
+    reset_shop_data(SHOP)
+
+    with sqlite3.connect(db) as conn:
+        rows = dict(
+            conn.execute(
+                "SELECT key, value FROM shop_config WHERE shop = ?", (SHOP,)
+            ).fetchall()
+        )
+    # plan_override survives; everything else in shop_config is wiped.
+    assert rows == {"plan_override": "agency"}
