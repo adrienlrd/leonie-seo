@@ -12,6 +12,23 @@
 
 - **Date:** 2026-07-16
 - **Agent:** Claude (Fable 5)
+- **Goal:** Managed-products selection — the merchant now explicitly picks which products the app manages (plan-capped: free 3 / pro 15 / agency 35), replacing the historical take-all-active-products + silent `[:product_cap]` head-slice. Approved plan; decisions by Adrien: scope = everywhere (all surfaces), migration = auto-inherit from last analysis, scheduler kept but restricted to the selection.
+- **Changes (6 commits):**
+  - `app/managed_products.py` (new): `get/set_managed_product_ids` (shop_config key `managed_product_ids`, cap-validated), `filter_managed_products` (selection filter with migration fallback: inherit last analysis's products, persisted once; else historical active[:cap]), `filter_snapshot_products` (snapshot-level hook).
+  - `app/api/shops.py`: `GET/PUT /shops/{shop}/managed-products` (selection + pickable catalog + cap; 402 quota payload on overflow).
+  - Analysis core: `app/api/market_analysis.py` (full job, targeted job scoped within selection, identification) + `app/agent_schedule/reanalysis.py` use `filter_managed_products` instead of `[:product_cap]`.
+  - Read surfaces: `filter_snapshot_products` applied at the shared loaders — `app/api/audit.py::_load_snapshot` (covers audit/dashboard/opportunities/business-profile-router users), `app/api/geo.py` blocking helpers, `app/api/llms_txt.py` (incl. webhook republish), `app/api/blog.py`, `app/api/crawl.py`. Deliberate exception: `app/api/business_profile.py` keeps the full catalog (profiles the brand, not the managed products).
+  - `products/remove` endpoint also removes IDs from the managed selection.
+  - Onboarding (`app.onboarding.tsx`): new step 4 "Choisissez vos produits" (`ProductSelectionPanel.tsx`, X/cap counter, checkboxes disabled at cap); identification+analysis → step 5, first win → step 6. No analysis runs before the selection is saved.
+  - Products page (`app.products.tsx`): the top-right RefreshIcon reload button is replaced by an "Ajouter un produit" modal (active products not yet managed, plan-cap gated with upgrade banner).
+  - i18n: `productSelection*` / `addProduct*` keys FR+EN.
+- **Validations:** `ruff check .` OK; full `pytest` = **2158 passed / 174 skipped** (9 new managed-products tests + 3 endpoint tests); `npm run typecheck` + `npm run build` OK.
+- **Open:** live test after deploy — (a) legacy shop inherits its analyzed products, (b) onboarding forces selection before analysis, (c) add-product modal respects the cap. Note: `GET /products/active` intentionally stays full-catalog (it feeds the picker).
+
+## Task before that
+
+- **Date:** 2026-07-16
+- **Agent:** Claude (Fable 5)
 - **Goal:** Extract more SEO traffic value from the (now per-product) Gemini grounding — 3 levers applied after analyzing the live 2026-07-16 plan-comparison export, plus the "confirmed" scoring fix.
 - **Changes (all in `app/market_analysis/engine.py` + prompts in `app/niche/signals/realtime_trends.py`):**
   - **"confirmed" verdict now bumps demand_score +5** (rising +10 / declining -10 unchanged) — 17/21 live verdicts were "confirmed" but previously had zero ranking effect.
