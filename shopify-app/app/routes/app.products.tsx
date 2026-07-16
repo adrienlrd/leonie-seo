@@ -21,7 +21,7 @@ import {
   Tooltip,
 } from "@shopify/polaris";
 import { PlanBadge } from "../components/PlanBadge";
-import { AlertTriangleIcon, CheckIcon, RefreshIcon } from "@shopify/polaris-icons";
+import { AlertTriangleIcon, CheckIcon } from "@shopify/polaris-icons";
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
@@ -695,6 +695,46 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  if (intent === "loadManagedProducts") {
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/managed-products`,
+        { accessToken: session.accessToken, signal: AbortSignal.timeout(20_000) },
+      );
+      if (!resp.ok) return json({ type: "loadManagedProducts", managed: null, error: `${resp.status}` });
+      const managed = await resp.json();
+      return json({ type: "loadManagedProducts", managed, error: null });
+    } catch (err) {
+      return json({ type: "loadManagedProducts", managed: null, error: String(err) });
+    }
+  }
+
+  if (intent === "addManagedProduct") {
+    const productId = String(formData.get("productId") ?? "");
+    const currentIdsRaw = String(formData.get("currentIds") ?? "[]");
+    try {
+      const currentIds = JSON.parse(currentIdsRaw) as string[];
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/managed-products`,
+        {
+          accessToken: session.accessToken,
+          method: "PUT",
+          body: JSON.stringify({ product_ids: [...currentIds, productId] }),
+          signal: AbortSignal.timeout(20_000),
+        },
+      );
+      if (!resp.ok) {
+        const detail = await resp.text();
+        return json({ type: "addManagedProduct", added: false, error: `HTTP ${resp.status}: ${detail}` });
+      }
+      return json({ type: "addManagedProduct", added: true, productId, error: null });
+    } catch (err) {
+      return json({ type: "addManagedProduct", added: false, error: String(err) });
+    }
+  }
+
   // ── Auto-remove products no longer active in the store ───────────────────
   if (intent === "removeProducts") {
     const productIdsRaw = formData.get("productIds") as string;
@@ -1253,6 +1293,38 @@ export default function ProductsPage() {
 
   // ── Full re-run confirmation modal ────────────────────────────────────────
   const [showRerunModal, setShowRerunModal] = useState(false);
+
+  // ── "Add a product" modal (managed-products selection) ───────────────────
+  type ManagedState = {
+    selected_ids: string[] | null;
+    cap: number;
+    plan: string;
+    available_products: Array<{ id: string; title: string; image_url: string | null }>;
+  };
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
+  const managedFetcher = useFetcher<{ type: string; managed: ManagedState | null; error?: string | null }>();
+  const addProductFetcher = useFetcher<{ type: string; added?: boolean; error?: string | null }>();
+  const managed = managedFetcher.data?.managed ?? null;
+  const openAddProductModal = () => {
+    setShowAddProductModal(true);
+    const fd = new FormData();
+    fd.set("intent", "loadManagedProducts");
+    managedFetcher.submit(fd, { method: "post" });
+  };
+  const handleAddProduct = (productId: string) => {
+    const fd = new FormData();
+    fd.set("intent", "addManagedProduct");
+    fd.set("productId", productId);
+    fd.set("currentIds", JSON.stringify(managed?.selected_ids ?? []));
+    addProductFetcher.submit(fd, { method: "post" });
+  };
+  useEffect(() => {
+    if (addProductFetcher.data?.type === "addManagedProduct" && addProductFetcher.data.added) {
+      setShowAddProductModal(false);
+      revalidator.revalidate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addProductFetcher.data]);
 
   // ── Single-product analysis state ─────────────────────────────────────────
   const [singleProductJobId, setSingleProductJobId] = useState<string | null>(null);
@@ -1880,6 +1952,59 @@ export default function ProductsPage() {
             {/* Rerun confirmation modal — always mounted so Polaris can animate close
                 before the completed-job block disappears from the tree */}
             <Modal
+              open={showAddProductModal}
+              onClose={() => setShowAddProductModal(false)}
+              title={t(locale, "addProductModalTitle")}
+            >
+              <Modal.Section>
+                <BlockStack gap="300">
+                  {managedFetcher.state !== "idle" && <Spinner size="small" />}
+                  {addProductFetcher.data?.error && (
+                    <Banner tone="critical">
+                      <Text as="p">{addProductFetcher.data.error}</Text>
+                    </Banner>
+                  )}
+                  {managed && (
+                    <>
+                      <Text as="p" fontWeight="semibold">
+                        {t(locale, "productSelectionCount")
+                          .replace("{selected}", String((managed.selected_ids ?? []).length))
+                          .replace("{cap}", String(managed.cap))}
+                      </Text>
+                      {(managed.selected_ids ?? []).length >= managed.cap ? (
+                        <Banner tone="warning">
+                          <Text as="p">{t(locale, "productSelectionCapReached")}</Text>
+                        </Banner>
+                      ) : (
+                        (() => {
+                          const selectedSet = new Set(managed.selected_ids ?? []);
+                          const addable = managed.available_products.filter((ap) => !selectedSet.has(ap.id));
+                          if (addable.length === 0) {
+                            return (
+                              <Text as="p" tone="subdued">{t(locale, "addProductNoneLeft")}</Text>
+                            );
+                          }
+                          return addable.map((ap) => (
+                            <InlineStack key={ap.id} align="space-between" blockAlign="center">
+                              <Text as="span">{ap.title}</Text>
+                              <Button
+                                size="slim"
+                                loading={addProductFetcher.state !== "idle"}
+                                onClick={() => handleAddProduct(ap.id)}
+                              >
+                                {t(locale, "addProductAdd")}
+                              </Button>
+                            </InlineStack>
+                          ));
+                        })()
+                      )}
+                    </>
+                  )}
+                </BlockStack>
+              </Modal.Section>
+            </Modal>
+
+            <Modal
               open={showRerunModal}
               onClose={() => setShowRerunModal(false)}
               title={t(locale, "marketAnalysisAnalyzeAllTitle")}
@@ -2045,16 +2170,9 @@ export default function ProductsPage() {
                   <Button onClick={handleExportFull}>
                     {t(locale, "marketAnalysisExportFull")}
                   </Button>
-                  <Tooltip content={t(locale, "dashboardRefresh")}>
-                    <Button
-                      icon={RefreshIcon}
-                      onClick={() => revalidator.revalidate()}
-                      loading={revalidator.state !== "idle"}
-                      disabled={revalidator.state !== "idle"}
-                      variant="tertiary"
-                      accessibilityLabel={t(locale, "dashboardRefresh")}
-                    />
-                  </Tooltip>
+                  <Button onClick={openAddProductModal} variant="tertiary">
+                    {t(locale, "addProductAction")}
+                  </Button>
                 </InlineStack>
                 <SummaryCard
                   job={job}

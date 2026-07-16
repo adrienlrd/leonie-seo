@@ -45,7 +45,11 @@ from app.gsc.client import ensure_fresh_gsc
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.learning.models import PRIMARY_WINDOW_DAYS, LearningMode
 from app.learning.store import get_settings, record_run
-from app.managed_products import filter_managed_products
+from app.managed_products import (
+    filter_managed_products,
+    get_managed_product_ids,
+    set_managed_product_ids,
+)
 from app.market_analysis.competitors import (
     load_competitors,
     load_excluded_competitors,
@@ -1493,11 +1497,14 @@ async def remove_market_analysis_products(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
     body: dict[str, Any],
 ) -> dict[str, Any]:
-    """Remove stale products from the persisted analysis (no longer active in the store)."""
+    """Remove products from the persisted analysis AND the managed selection."""
     product_ids = {str(p) for p in body.get("product_ids", []) if p}
     if not product_ids:
         return {"removed": 0}
     removed = remove_products_from_analysis(ctx.shop, product_ids)
+    selected = get_managed_product_ids(ctx.shop)
+    if selected:
+        set_managed_product_ids(ctx.shop, [pid for pid in selected if pid not in product_ids])
     return {"removed": removed}
 
 
