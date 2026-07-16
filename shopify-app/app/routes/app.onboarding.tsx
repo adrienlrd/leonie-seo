@@ -32,6 +32,7 @@ import {
   fetchLatestBusinessProfile,
 } from "../lib/businessProfileActions.server";
 import { OnboardingDiscoveryPanel } from "../components/OnboardingDiscoveryPanel";
+import { ProductSelectionPanel } from "../components/ProductSelectionPanel";
 import { OnboardingFirstWinPanel } from "../components/OnboardingFirstWinPanel";
 import {
   startProductAnalysis as startProductAnalysisAction,
@@ -46,7 +47,7 @@ import type {
   OnboardingActionData,
 } from "../components/onboarding/types";
 
-type OnboardingStep = 1 | 2 | 3 | 4 | 5;
+type OnboardingStep = 1 | 2 | 3 | 4 | 5 | 6;
 
 interface LoaderData {
   locale: Locale;
@@ -88,7 +89,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const forcedStepParam = Number(url.searchParams.get("step"));
   const forcedStep =
-    forcedStepParam >= 1 && forcedStepParam <= 5 ? (forcedStepParam as OnboardingStep) : null;
+    forcedStepParam >= 1 && forcedStepParam <= 6 ? (forcedStepParam as OnboardingStep) : null;
 
   // Google is optional in the reordered flow: onboarding is done once the
   // merchant validated the profile and a market analysis exists.
@@ -97,7 +98,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   // Value-first order: discovery (1) → profile validation (2) → Google (3)
-  // → identification + deep analysis (4) → first win (5).
+  // → product selection (4) → identification + deep analysis (5) → first win (6).
   let startStep: OnboardingStep = 1;
   if (businessProfile && !profileValidated) startStep = 2;
   if (profileValidated) startStep = 3;
@@ -296,6 +297,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    if (intent === "loadManagedProducts") {
+      const resp = await be(`/api/shops/${shop}/managed-products`);
+      if (!resp.ok) {
+        return json({ type: "loadManagedProducts", managed: null, error: `${resp.status}` });
+      }
+      const managed = await resp.json();
+      return json({ type: "loadManagedProducts", managed, error: null });
+    }
+
+    if (intent === "saveManagedProducts") {
+      const productIds = JSON.parse(String(form.get("productIds") ?? "[]")) as string[];
+      const resp = await be(`/api/shops/${shop}/managed-products`, {
+        method: "PUT",
+        body: JSON.stringify({ product_ids: productIds }),
+      });
+      if (!resp.ok) {
+        const detail = await resp.text();
+        return json({ type: "saveManagedProducts", saved: false, error: `HTTP ${resp.status}: ${detail}` });
+      }
+      return json({ type: "saveManagedProducts", saved: true, error: null });
+    }
+
     if (intent === "startProductAnalysis") {
       const result = await startProductAnalysisAction(session.shop, session.accessToken);
       return json({ type: "startProductAnalysis", ...result });
@@ -432,7 +455,7 @@ export default function Onboarding() {
 
   const handleAnalysisComplete = (job: MarketJobState) => {
     setCompletedJob(job);
-    setStep(5);
+    setStep(6);
   };
 
   const handleFinish = () => {
@@ -529,7 +552,11 @@ export default function Onboarding() {
           />
         )}
 
-        {step === 4 && !productJobId && (
+        {step === 4 && (
+          <ProductSelectionPanel locale={locale} onSaved={() => setStep(5)} />
+        )}
+
+        {step === 5 && !productJobId && (
           <ProductIdentificationPanel
             locale={locale}
             initialJobId={null}
@@ -537,7 +564,7 @@ export default function Onboarding() {
           />
         )}
 
-        {step === 4 && productJobId && (
+        {step === 5 && productJobId && (
           <MarketAnalysisProgressPanel
             locale={locale}
             jobId={productJobId}
@@ -545,10 +572,10 @@ export default function Onboarding() {
           />
         )}
 
-        {step === 5 && completedJob && (
+        {step === 6 && completedJob && (
           <OnboardingFirstWinPanel locale={locale} job={completedJob} onDone={handleFinish} />
         )}
-        {step === 5 && !completedJob && (
+        {step === 6 && !completedJob && (
           // Forced ?step=5 without a fresh analysis in memory — nothing to apply.
           <Banner tone="info">
             <Text as="p">{t(locale, "marketAnalysisEmpty")}</Text>

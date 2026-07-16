@@ -183,6 +183,21 @@ const FR: Dictionary = {
   onboardingDiscoveryThemes: "Thèmes à fort potentiel",
   onboardingDiscoveryConfirm: "Continuer",
   onboardingGoogleSkip: "Passer cette étape",
+  productSelectionTitle: "Choisissez vos produits",
+  productSelectionSubtitle:
+    "Sélectionnez les produits que l'app va gérer et optimiser. Votre forfait détermine le nombre maximum de produits.",
+  productSelectionLoading: "Chargement de votre catalogue…",
+  productSelectionCount: "{selected} / {cap} produits sélectionnés",
+  productSelectionCapReached:
+    "Limite de votre forfait atteinte. Passez à un forfait supérieur pour gérer plus de produits.",
+  productSelectionEmptyCatalog:
+    "Aucun produit actif trouvé. Lancez d'abord la découverte de votre boutique.",
+  productSelectionSave: "Valider ma sélection",
+  addProductAction: "Ajouter un produit",
+  addProductModalTitle: "Ajouter un produit à gérer",
+  addProductNoneLeft: "Tous vos produits actifs sont déjà gérés.",
+  addProductAdd: "Ajouter",
+
   onboardingGoogleExampleTitle: "La différence concrète :",
   onboardingGoogleExampleEstimated: "Sans connexion : « harnais chien » — demande estimée par Organically",
   onboardingGoogleExampleMeasured: "Avec Search Console : « harnais chien » — 1 240 impressions réelles sur votre boutique ces 90 derniers jours",
@@ -1024,6 +1039,21 @@ const EN: Dictionary = {
   onboardingDiscoveryThemes: "High-potential themes",
   onboardingDiscoveryConfirm: "Continue",
   onboardingGoogleSkip: "Skip this step",
+  productSelectionTitle: "Choose your products",
+  productSelectionSubtitle:
+    "Select the products the app will manage and optimize. Your plan sets the maximum number of products.",
+  productSelectionLoading: "Loading your catalog…",
+  productSelectionCount: "{selected} / {cap} products selected",
+  productSelectionCapReached:
+    "Plan limit reached. Upgrade your plan to manage more products.",
+  productSelectionEmptyCatalog:
+    "No active products found. Run the store discovery first.",
+  productSelectionSave: "Confirm my selection",
+  addProductAction: "Add a product",
+  addProductModalTitle: "Add a product to manage",
+  addProductNoneLeft: "All your active products are already managed.",
+  addProductAdd: "Add",
+
   onboardingGoogleExampleTitle: "The concrete difference:",
   onboardingGoogleExampleEstimated: "Without connection: “dog harness” — demand estimated by Organically",
   onboardingGoogleExampleMeasured: "With Search Console: “dog harness” — 1,240 real impressions on your store over the last 90 days",
