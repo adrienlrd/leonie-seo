@@ -1403,8 +1403,12 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
     autoFetcher.submit(fd, { method: "post" });
   };
   const [showThemeHelp, setShowThemeHelp] = useState(false);
-  // Deep link to the theme editor with our app embed pre-selected for activation.
-  const themeEditorUrl = `https://${shop}/admin/themes/current/editor?context=apps&activateAppId=41c38ef1-2770-74ac-364b-b4cff7f918b20d1602f9/faq_embed`;
+  // Deep link to the theme editor with our app embed pre-selected for
+  // activation. Uses the canonical admin.shopify.com form (the {shop}/admin
+  // redirect could drop the activateAppId param, landing on an empty "no apps
+  // with embeds" panel); uuid = the extension uid from shopify.extension.toml.
+  const storeHandle = shop.replace(".myshopify.com", "");
+  const themeEditorUrl = `https://admin.shopify.com/store/${storeHandle}/themes/current/editor?context=apps&template=index&activateAppId=41c38ef1-2770-74ac-364b-b4cff7f918b20d1602f9/faq_embed`;
 
   const steps: GuideStep[] = [
     {

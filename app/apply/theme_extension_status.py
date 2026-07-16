@@ -53,9 +53,15 @@ def _app_embed_enabled(settings_json: str) -> bool | None:
         data = json.loads(settings_json)
     except (json.JSONDecodeError, TypeError):
         return None
-    blocks = (data.get("current") or {}).get("blocks")
+    current = data.get("current")
+    if isinstance(current, str):
+        # "current" can be a preset NAME pointing into "presets" — themes saved
+        # from the editor's preset picker use this form. Not resolving it made
+        # the status stay "unknown" forever even after the merchant enabled the
+        # embed by hand.
+        current = (data.get("presets") or {}).get(current)
+    blocks = (current or {}).get("blocks") if isinstance(current, dict) else None
     if not isinstance(blocks, dict):
-        # Some themes store settings under a named preset rather than "current".
         return None
     for block in blocks.values():
         if not isinstance(block, dict):

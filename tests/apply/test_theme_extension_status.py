@@ -37,3 +37,32 @@ def test_none_on_malformed_json() -> None:
 
 def test_none_when_no_current_blocks() -> None:
     assert _app_embed_enabled(json.dumps({"current": {}})) is None
+
+def test_enabled_when_current_is_a_preset_name() -> None:
+    """Themes saved via the editor's preset picker store `current` as a preset
+    NAME — the embed state then lives under presets[name].blocks."""
+    settings = json.dumps({
+        "current": "Default",
+        "presets": {
+            "Default": {
+                "blocks": {
+                    "abc": {"type": "shopify://apps/x/blocks/faq_embed/41c38ef1", "disabled": False}
+                }
+            }
+        },
+    })
+    assert _app_embed_enabled(settings) is True
+
+
+def test_disabled_when_preset_block_disabled() -> None:
+    settings = json.dumps({
+        "current": "Default",
+        "presets": {
+            "Default": {
+                "blocks": {
+                    "abc": {"type": "shopify://apps/x/blocks/faq_embed/41c38ef1", "disabled": True}
+                }
+            }
+        },
+    })
+    assert _app_embed_enabled(settings) is False
