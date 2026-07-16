@@ -696,14 +696,19 @@ def _apply_market_verification(
 ) -> int:
     """Write market-verification verdicts onto matching seo_keywords in place.
 
-    Bumps `demand_score` (+10 "rising", -10 "declining", capped 0-100) — the
-    field pass-1's own keyword items already carry and that downstream sorting
-    already reads as a priority signal (see `_repair_keyword_selection...`
-    and the candidate pool sort) — so the agency plan's real market signal
-    actually shifts keyword ranking, not just prompt context. Returns the
-    count of keywords annotated (surfaced as `keywords_with_market_verification`
+    Bumps `demand_score` (+10 "rising", +5 "confirmed", -10 "declining",
+    capped 0-100) — the field pass-1's own keyword items already carry and
+    that downstream sorting already reads as a priority signal (see
+    `_repair_keyword_selection...` and the candidate pool sort) — so the
+    agency plan's real market signal actually shifts keyword ranking, not
+    just prompt context. "confirmed" gets a smaller bump than "rising"
+    because most verdicts come back confirmed (17/21 in the live 2026-07-16
+    comparison) — a web-verified keyword should outrank an unverified or
+    no_signal one, without drowning out the rising signal. Returns the count
+    of keywords annotated (surfaced as `keywords_with_market_verification`
     in the plan-comparison diff summary).
     """
+    deltas = {"rising": 10.0, "confirmed": 5.0, "declining": -10.0}
     annotated = 0
     for state in pass1_states:
         for kw in state["pack"].get("seo_keywords") or []:
@@ -717,8 +722,8 @@ def _apply_market_verification(
             notes = kw.setdefault("notes", [])
             if isinstance(notes, list):
                 notes.append("verified_by_market")
-            if verdict["evidence"] in ("rising", "declining"):
-                delta = 10 if verdict["evidence"] == "rising" else -10
+            delta = deltas.get(verdict["evidence"])
+            if delta is not None:
                 base = float(kw.get("demand_score") or 0)
                 kw["demand_score"] = max(0.0, min(100.0, base + delta))
             annotated += 1

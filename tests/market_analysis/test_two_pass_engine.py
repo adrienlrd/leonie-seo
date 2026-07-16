@@ -1342,6 +1342,21 @@ def test_market_verification_declining_bumps_demand_score_down():
     assert kw["demand_score"] == base_demand_score - 10
 
 
+def test_market_verification_confirmed_bumps_demand_score_up_slightly():
+    """A web-confirmed keyword must outrank an unverified one (+5), without
+    matching the stronger rising bump (+10)."""
+    router = _router(_PASS1_JSON, _PASS2_JSON)
+    verifications = {
+        "fontaine à chat": {"evidence": "confirmed", "note": "", "source_url": ""}
+    }
+    result, _mock_fetch, _mock_verify = _run_with_realtime(
+        router, fetch_realtime=True, realtime_signals=None, verifications=verifications
+    )
+    kw = result["products"][0]["seo_keywords"][0]
+    base_demand_score = 75.0  # post-enrichment baseline (not the raw pass-1 fixture value)
+    assert kw["demand_score"] == base_demand_score + 5
+
+
 def test_market_verification_no_verifications_leaves_keywords_untouched():
     router = _router(_PASS1_JSON, _PASS2_JSON)
     result, _mock_fetch, mock_verify = _run_with_realtime(
