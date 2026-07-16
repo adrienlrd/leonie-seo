@@ -475,10 +475,11 @@ def _run_analysis_background(
             collections=collections,
             articles=merged_articles,
             reflection_test=reflection_test,
-            # Real-time grounding is niche-wide, not product-specific: only fetch
-            # it for a full-catalog run (persist=True), never a targeted
-            # single/multi-product re-analysis (persist=False).
-            fetch_realtime=persist,
+            # Grounding is per-product since 2026-07: a targeted re-analysis
+            # costs the same 1-4 grounded calls per product as a full run, and
+            # is exactly when fresh market verification matters most. Plan gate
+            # (agency) + budget gate still apply inside the engine.
+            fetch_realtime=True,
         )
 
         _apply_retired_and_locked_keywords(result, shop_domain, retired_lower)
