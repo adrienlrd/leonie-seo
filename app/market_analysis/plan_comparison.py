@@ -66,10 +66,16 @@ def _plan_diff(result: dict[str, Any]) -> dict[str, Any]:
     signals = result.get("realtime_signals")
     if signals:
         events_used = len(signals.get("events") or []) + len(signals.get("rising_queries") or [])
+    realtime_status = result.get("realtime_status") or {}
+    verification_status = result.get("market_verification_status") or {}
     return {
         "realtime_grounding_used": result.get("realtime_grounding_used", False),
-        "realtime_status": (result.get("realtime_status") or {}).get("status"),
-        "market_verification_status": (result.get("market_verification_status") or {}).get("status"),
+        "realtime_status": realtime_status.get("status"),
+        "realtime_products_attempted": realtime_status.get("products_attempted", 0),
+        "realtime_products_ok": realtime_status.get("products_ok", 0),
+        "market_verification_status": verification_status.get("status"),
+        "market_verification_products_attempted": verification_status.get("products_attempted", 0),
+        "market_verification_products_ok": verification_status.get("products_ok", 0),
         "keywords_with_market_verification": result.get("keywords_with_market_verification", 0),
         "events_used": events_used,
     }

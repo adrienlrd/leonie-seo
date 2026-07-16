@@ -11,6 +11,20 @@
 ## Last completed task
 
 - **Date:** 2026-07-16
+- **Agent:** Claude (Opus 4.8)
+- **Goal:** Move Gemini grounding from 2 calls per full catalog analysis to 2 calls **per product** (Adrien's explicit request, after being warned and accepting the volume: up to 70 grounded calls per full analysis at 35 products, vs 2 today). Goal: each product's own keywords, trends, and content proposal get individually verified against the real market, not a shared catalog-wide sample.
+- **Also researched (no forcing possible):** confirmed via official Gemini docs (Context7) that Google Search grounding cannot be force-triggered — no API parameter exists, it's a model judgment call. Compensated with stronger, more insistent prompts (`_SYSTEM_PROMPT`, `_VERIFY_SYSTEM_PROMPT` in `realtime_trends.py`) telling the model it MUST search live and never answer from training memory, with the exact current date repeated prominently — increases trigger rate, does not guarantee it.
+- **Changes:**
+  - `app/niche/signals/realtime_trends.py`: `fetch_realtime_signals(..., persist: bool = True)` — skips the internal disk write when `False`; new `persist_realtime_signals(shop, signals, db_path=None)` public entry point for the caller to merge multiple per-product fetches and persist once.
+  - `app/market_analysis/engine.py`: removed the old catalog-wide `_fetch_realtime_signals_once`/`_verify_keywords_once` calls (before/after the Pass 1 loop) and the `_round_robin_keywords()` helper (made obsolete — starvation is now structurally impossible since each product has its own dedicated, independently-capped call). Both grounded calls now run inside the Pass 1 per-product loop, scoped to that product's title/keywords only. New pre-loop budget gate (`check_budget`, once per job): if the shop is already over its monthly LLM budget, ALL per-product grounded calls are skipped for that job (`budget_skipped`) instead of partially draining it across a large catalog. New `_merge_realtime_signals()` deduplicates events/rising_queries/competitor_moves/citations across every product's signal into one coherent snapshot, persisted once via `persist_realtime_signals` — `data/raw/{shop}/realtime_signals.json` stays a single file, unchanged for downstream consumers (dashboard card, blog idea generator).
+  - `realtime_status`/`market_verification_status` in the result dict gained `products_attempted`/`products_ok` (aggregate across the whole catalog) plus a `"partial"` status when some but not all products succeeded.
+  - `app/market_analysis/plan_comparison.py::_plan_diff()`: surfaces the new `realtime_products_attempted`/`realtime_products_ok`/`market_verification_products_attempted`/`market_verification_products_ok` fields in the comparison export.
+- **Validations:** `ruff check .` OK (no errors). Full `pytest` = **2140 passed / 174 skipped** (removed 2 obsolete round-robin tests, added 6 new: per-product independence, partial status, multi-product signal merge/dedupe, budget-exhausted skips every product).
+- **Open:** Live test pending — after this deploys, Adrien should re-run an analysis on a 3-product catalog and confirm each product now carries its own `market_verification` (not just via round-robin interleaving, but a genuinely dedicated call per product), and that `realtime_signals.json` remains one coherent merged file.
+
+## Task before that
+
+- **Date:** 2026-07-16
 - **Agent:** Claude (Sonnet 5)
 - **Goal:** Fix a real market-verification coverage bug found by Adrien in the live comparison export.
 - **Bug:** Adrien re-ran « Analyse test » after adding the Render env var (worked — `agency.diff_summary` showed grounding + verification both `ok`). But inspecting per-product detail, only the FIRST product (33 keywords) had any `market_verification` — the other two catalog products (Fontaine Smart, Harnais) had zero, despite `keywords_with_market_verification: 30` looking healthy in aggregate.

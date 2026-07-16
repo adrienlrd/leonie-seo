@@ -574,8 +574,9 @@ def _fetch_realtime_signals_once(
     *,
     force: bool = False,
     status_out: dict[str, Any] | None = None,
+    persist: bool = True,
 ) -> dict[str, Any] | None:
-    """Call the grounded real-time signal fetcher once per job. Fail-open.
+    """Call the grounded real-time signal fetcher once per product. Fail-open.
 
     Already gated to the "agency" plan + a configured GEMINI_API_KEY inside
     `fetch_realtime_signals` itself — this wrapper only adds the same
@@ -585,6 +586,9 @@ def _fetch_realtime_signals_once(
     (optional) is populated with why the call did or didn't run — so a
     silent no-op (e.g. missing GEMINI_API_KEY) is diagnosable in the result
     instead of just leaving `realtime_grounding` out of `sources_used`.
+    ``persist=False`` (used by the per-product Pass 1 loop) skips writing to
+    disk immediately — the caller merges every product's signal and persists
+    once via `persist_realtime_signals`.
     """
     try:
         from app.niche.signals.realtime_trends import fetch_realtime_signals  # noqa: PLC0415
@@ -596,6 +600,7 @@ def _fetch_realtime_signals_once(
             db_path=db_path,
             force=force,
             status_out=status_out,
+            persist=persist,
         )
     except Exception as exc:
         logger.warning("Real-time signals unavailable: %s", exc)
@@ -630,23 +635,60 @@ def _verify_keywords_once(
         return None
 
 
-def _round_robin_keywords(per_product_queries: list[list[str]]) -> list[str]:
-    """Interleave each product's keyword list one-at-a-time instead of
-    concatenating product by product.
+def _merge_realtime_signals(per_product_signals: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Combine each product's own grounded signal (events/rising_queries/
+    competitor_moves/citations) into one deduplicated catalog-wide snapshot.
 
-    Regression fix: a flat concat meant a single product with 30+ keywords
-    (e.g. a long-tail-heavy catalog entry) could exhaust the whole
-    `_MAX_VERIFY_KEYWORDS` cap in `verify_keywords_against_market` by itself,
-    leaving every other product in the catalog with zero market verification
-    — verified live on a real comparison run. Round-robin guarantees every
-    product gets its highest-priority keyword(s) considered first.
+    Each product now gets its own grounded realtime-signal call (see the Pass 1
+    loop), so the same event/query can legitimately be returned by several
+    products — dedup by title/query text keeps the merged file from repeating
+    the same canicule alert once per product. Returns None if nothing was
+    fetched (fail-open — mirrors every other grounded-call caller here).
     """
-    result: list[str] = []
-    for round_idx in range(max((len(q) for q in per_product_queries), default=0)):
-        for product_queries in per_product_queries:
-            if round_idx < len(product_queries):
-                result.append(product_queries[round_idx])
-    return result
+    if not per_product_signals:
+        return None
+    events: list[dict[str, Any]] = []
+    rising_queries: list[dict[str, Any]] = []
+    competitor_moves: list[dict[str, Any]] = []
+    citations: list[dict[str, Any]] = []
+    seen_events: set[str] = set()
+    seen_queries: set[str] = set()
+    seen_moves: set[str] = set()
+    seen_citation_urls: set[str] = set()
+    latest_fetched_at = ""
+    for signal in per_product_signals:
+        for event in signal.get("events") or []:
+            key = str((event or {}).get("title") or "").strip().lower()
+            if key and key not in seen_events:
+                seen_events.add(key)
+                events.append(event)
+        for query in signal.get("rising_queries") or []:
+            key = str((query or {}).get("query") or "").strip().lower()
+            if key and key not in seen_queries:
+                seen_queries.add(key)
+                rising_queries.append(query)
+        for move in signal.get("competitor_moves") or []:
+            key = str((move or {}).get("summary") or "").strip().lower()
+            if key and key not in seen_moves:
+                seen_moves.add(key)
+                competitor_moves.append(move)
+        for citation in signal.get("citations") or []:
+            url = str((citation or {}).get("url") or "").strip()
+            if url and url not in seen_citation_urls:
+                seen_citation_urls.add(url)
+                citations.append(citation)
+        fetched_at = str(signal.get("fetched_at") or "")
+        if fetched_at > latest_fetched_at:
+            latest_fetched_at = fetched_at
+    if not events and not rising_queries and not competitor_moves:
+        return None
+    return {
+        "events": events,
+        "rising_queries": rising_queries,
+        "competitor_moves": competitor_moves,
+        "citations": citations,
+        "fetched_at": latest_fetched_at or datetime.now(UTC).isoformat(),
+    }
 
 
 def _apply_market_verification(
@@ -5698,15 +5740,30 @@ def run_market_analysis(
     if trend_signals:
         sources_used.append("trends")
 
-    realtime_signals: dict[str, Any] | None = None
-    realtime_status: dict[str, Any] = {"status": "not_attempted", "detail": ""}
+    # Grounded calls now run once PER PRODUCT (events/trends + keyword market
+    # verification), not once for the whole catalog — see the per-product
+    # accumulators + budget gate below, and the calls inside the Pass 1 loop.
+    # `per_product_realtime_signals` collects each product's own signal dict
+    # for the final merge+persist; `_grounding_budget_exhausted` (checked once,
+    # before the loop) skips ALL per-product grounded calls for this job if the
+    # shop is already over its monthly LLM budget — protects against a large
+    # catalog (up to 35 products × 2 calls) draining the whole budget on
+    # grounding alone.
+    per_product_realtime_signals: list[dict[str, Any]] = []
+    realtime_products_attempted = 0
+    realtime_products_ok = 0
+    verify_products_attempted = 0
+    verify_products_ok = 0
+    keywords_verified_count = 0
+    last_realtime_status = "not_attempted"
+    last_verify_status = "not_attempted"
+    _grounding_budget_exhausted = False
     if fetch_realtime:
-        realtime_signals = _fetch_realtime_signals_once(
-            shop, niche_hypothesis, top_titles, db_path, force=fetch_realtime_force, status_out=realtime_status
-        )
-    if realtime_signals:
-        sources_used.append("realtime_grounding")
-    realtime_text = _format_realtime_signals(realtime_signals)
+        _budget_usd = _PLAN_BUDGETS_USD.get(plan or "", _DEFAULT_BUDGET_USD)
+        _grounding_budget_exhausted = check_budget(shop, _budget_usd, days=30)["over_budget"]
+        if _grounding_budget_exhausted:
+            last_realtime_status = "budget_skipped"
+            last_verify_status = "budget_skipped"
 
     try:
         llm_router = get_router(shop=shop)
@@ -5771,6 +5828,28 @@ def run_market_analysis(
         if optimization_history_block and "optimization_history" not in sources_used:
             sources_used.append("optimization_history")
 
+        # Grounded real-time signal for THIS product only (agency plan / force,
+        # gated internally; no-op + zero cost otherwise). One call per product,
+        # never persisted individually — merged + saved once after the loop.
+        product_realtime_signal: dict[str, Any] | None = None
+        if fetch_realtime and not _grounding_budget_exhausted:
+            realtime_products_attempted += 1
+            _rt_status: dict[str, Any] = {}
+            product_realtime_signal = _fetch_realtime_signals_once(
+                shop,
+                niche_hypothesis,
+                [fields["product_title"]],
+                db_path,
+                force=fetch_realtime_force,
+                status_out=_rt_status,
+                persist=False,
+            )
+            last_realtime_status = _rt_status.get("status", "llm_error")
+            if product_realtime_signal:
+                realtime_products_ok += 1
+                per_product_realtime_signals.append(product_realtime_signal)
+        realtime_text = _format_realtime_signals(product_realtime_signal)
+
         prompt = _build_pass1_prompt(
             product_title=fields["product_title"],
             handle=fields["handle"],
@@ -5832,6 +5911,31 @@ def run_market_analysis(
             pack["seo_keywords"] = _enrich_keyword_dicts(
                 pack["seo_keywords"], free_provider, paid_providers, shop=shop
             )
+
+        # Grounded market verification for THIS product's just-selected
+        # keywords only. One call per product (capped at _MAX_VERIFY_KEYWORDS
+        # inside verify_keywords_against_market) — structurally cannot starve
+        # other products of verification budget, unlike the old catalog-wide
+        # single call this replaces.
+        if fetch_realtime and not _grounding_budget_exhausted:
+            verify_products_attempted += 1
+            _verify_status: dict[str, Any] = {}
+            product_keywords = [
+                str(kw.get("query") or "")
+                for kw in (pack.get("seo_keywords") or [])
+                if isinstance(kw, dict) and kw.get("query")
+            ]
+            verifications = _verify_keywords_once(
+                shop,
+                product_keywords,
+                niche_summary,
+                force=fetch_realtime_force,
+                status_out=_verify_status,
+            )
+            last_verify_status = _verify_status.get("status", "llm_error")
+            if verifications:
+                verify_products_ok += 1
+                keywords_verified_count += _apply_market_verification([{"pack": pack}], verifications)
 
         pass1_states.append(
             {
@@ -6001,35 +6105,35 @@ def run_market_analysis(
         }
         for state in pass1_states
     ]
-    # Cross-check the just-selected keywords against the real current market
-    # (agency plan, one grounded call for the whole job — never per product).
-    # This is the visible SEO effect of grounding: verified keywords get a
-    # market_verification verdict + a demand_score nudge, so the agency plan's
-    # output actually ranks differently, not just carries extra prompt context.
-    verify_status: dict[str, Any] = {"status": "not_attempted", "detail": ""}
-    keywords_verified_count = 0
-    if fetch_realtime:
-        per_product_queries = [
-            [
-                str(kw.get("query") or "")
-                for kw in (view.get("seo_keywords") or [])
-                if isinstance(kw, dict) and kw.get("query")
-            ]
-            for view in pass1_product_views
-        ]
-        all_keywords = _round_robin_keywords(per_product_queries)
-        verifications = _verify_keywords_once(
-            shop,
-            all_keywords,
-            niche_summary,
-            force=fetch_realtime_force,
-            status_out=verify_status,
-        )
-        if verifications:
-            keywords_verified_count = _apply_market_verification(pass1_states, verifications)
-            sources_used.append("realtime_market_verification")
-            # pass1_product_views mirrors pass1_states' seo_keywords by reference
-            # (same dicts), so the verdicts just written are already reflected.
+
+    # Aggregate the per-product grounded calls made during the Pass 1 loop
+    # above into one catalog-wide status + one merged, deduplicated signal
+    # snapshot, persisted once (see `fetch_realtime_signals(persist=False)`).
+    realtime_signals = _merge_realtime_signals(per_product_realtime_signals)
+    if realtime_signals:
+        sources_used.append("realtime_grounding")
+        from app.niche.signals.realtime_trends import persist_realtime_signals  # noqa: PLC0415
+
+        persist_realtime_signals(shop, realtime_signals, db_path=db_path)
+    if keywords_verified_count > 0:
+        sources_used.append("realtime_market_verification")
+
+    realtime_status: dict[str, Any] = {
+        "status": last_realtime_status,
+        "products_attempted": realtime_products_attempted,
+        "products_ok": realtime_products_ok,
+        "detail": "",
+    }
+    if realtime_products_attempted > 0 and 0 < realtime_products_ok < realtime_products_attempted:
+        realtime_status["status"] = "partial"
+    verify_status: dict[str, Any] = {
+        "status": last_verify_status,
+        "products_attempted": verify_products_attempted,
+        "products_ok": verify_products_ok,
+        "detail": "",
+    }
+    if verify_products_attempted > 0 and 0 < verify_products_ok < verify_products_attempted:
+        verify_status["status"] = "partial"
 
     cannibalization_alerts = cn.detect_alerts(pass1_product_views)
     cannibalization_hints_by_product: dict[str, dict[str, Any]] = {}

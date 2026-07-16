@@ -1186,18 +1186,41 @@ def test_catalog_conflict_blocks_lower_priority_duplicate_target() -> None:
 # ── Real-time grounding injection (fetch_realtime) ─────────────────────────
 
 
-def _run_with_realtime(router, *, fetch_realtime, realtime_signals, verifications=None):
-    budget = {
-        "over_budget": False,
+def _product2():
+    return {
+        "id": "gid://shopify/Product/2",
+        "title": "Griffoir pour chat",
+        "handle": "griffoir-chat",
+        "status": "ACTIVE",
+        "body_html": "<p>Griffoir en sisal</p>",
+        "seo": {"title": "Griffoir chat", "description": ""},
+        "variants": [{"price": "19.90", "inventory_quantity": 8}],
+    }
+
+
+def _default_budget(*, over_budget=False):
+    return {
+        "over_budget": over_budget,
         "budget_usd": 20.0,
         "spent_usd": 0.0,
         "remaining_usd": 20.0,
         "usage_pct": 0.0,
         "alert": None,
     }
+
+
+def _run_with_realtime(
+    router,
+    *,
+    fetch_realtime,
+    realtime_signals,
+    verifications=None,
+    products=None,
+    over_budget=False,
+):
     with (
         patch.object(engine, "get_router", return_value=router),
-        patch.object(engine, "check_budget", return_value=budget),
+        patch.object(engine, "check_budget", return_value=_default_budget(over_budget=over_budget)),
         patch.object(engine, "_fetch_trends_once", return_value=[]),
         patch.object(engine, "_fetch_realtime_signals_once", return_value=realtime_signals) as mock_fetch,
         # Never let a real GEMINI_API_KEY in the test environment trigger a live
@@ -1207,7 +1230,7 @@ def _run_with_realtime(router, *, fetch_realtime, realtime_signals, verification
         patch.object(engine, "DataForSEOProvider", return_value=_FakeDataForSEO()),
     ):
         result = engine.run_market_analysis(
-            [_product()],
+            products if products is not None else [_product()],
             _SHOP,
             {},
             [],
@@ -1331,32 +1354,6 @@ def test_market_verification_no_verifications_leaves_keywords_untouched():
     assert "market_verification" not in kw
 
 
-def test_round_robin_keywords_prevents_one_product_starving_the_rest():
-    """Regression test for a real bug found live: a flat per-product concat
-    let a single 33-keyword product exhaust the whole
-    _MAX_VERIFY_KEYWORDS=30 cap, leaving two other catalog products with
-    zero market_verification. Round-robin must interleave products instead."""
-    per_product = [
-        [f"kw-a-{i}" for i in range(5)],  # product A: 5 keywords
-        ["kw-b-0"],  # product B: 1 keyword
-        [f"kw-c-{i}" for i in range(3)],  # product C: 3 keywords
-    ]
-    result = engine._round_robin_keywords(per_product)
-    # Every product's first (highest-priority) keyword must appear within
-    # the first 3 items, not buried after product A's whole 5-item tail.
-    first_three = result[:3]
-    assert "kw-a-0" in first_three
-    assert "kw-b-0" in first_three
-    assert "kw-c-0" in first_three
-    # All keywords still present, none dropped, order stable within each product.
-    assert result == ["kw-a-0", "kw-b-0", "kw-c-0", "kw-a-1", "kw-c-1", "kw-a-2", "kw-c-2", "kw-a-3", "kw-a-4"]
-
-
-def test_round_robin_keywords_empty_input():
-    assert engine._round_robin_keywords([]) == []
-    assert engine._round_robin_keywords([[], []]) == []
-
-
 def test_fetch_realtime_force_defaults_to_false_and_is_threaded_through():
     """fetch_realtime_force must reach _fetch_realtime_signals_once's `force`
     kwarg unchanged — used only by the Pro/Grande boutique comparison tool to
@@ -1378,3 +1375,115 @@ def test_fetch_realtime_force_defaults_to_false_and_is_threaded_through():
             [_product()], _SHOP, {}, [], fetch_realtime=True, fetch_realtime_force=True,
         )
     assert mock_fetch.call_args.kwargs["force"] is True
+
+
+def test_fetch_realtime_multiple_products_each_get_own_grounded_call():
+    """Core behavior change: 2 products must trigger 2 independent realtime
+    calls and 2 independent verification calls (one pair per product), not one
+    shared catalog-wide pair."""
+    router = _router(_PASS1_JSON, _PASS1_JSON, _PASS2_JSON, _PASS2_JSON)
+    result, mock_fetch, mock_verify = _run_with_realtime(
+        router,
+        fetch_realtime=True,
+        realtime_signals=None,
+        products=[_product(), _product2()],
+    )
+    assert mock_fetch.call_count == 2
+    assert mock_verify.call_count == 2
+    fetched_titles = {call.args[2][0] for call in mock_fetch.call_args_list}
+    assert fetched_titles == {"Fontaine à chat", "Griffoir pour chat"}
+    assert result["realtime_status"]["products_attempted"] == 2
+    assert result["market_verification_status"]["products_attempted"] == 2
+
+
+def test_realtime_status_is_partial_when_only_some_products_succeed():
+    router = _router(_PASS1_JSON, _PASS1_JSON, _PASS2_JSON, _PASS2_JSON)
+    signal = {
+        "events": [],
+        "rising_queries": [],
+        "competitor_moves": [],
+        "citations": [],
+        "fetched_at": "2026-07-15T00:00:00+00:00",
+    }
+    with (
+        patch.object(engine, "get_router", return_value=router),
+        patch.object(engine, "check_budget", return_value=_default_budget()),
+        patch.object(engine, "_fetch_trends_once", return_value=[]),
+        patch.object(engine, "_fetch_realtime_signals_once", side_effect=[signal, None]) as mock_fetch,
+        patch.object(engine, "_verify_keywords_once", return_value=None) as mock_verify,
+        patch.object(engine, "fetch_suggestions_bulk", return_value=[]),
+        patch.object(engine, "DataForSEOProvider", return_value=_FakeDataForSEO()),
+    ):
+        result = engine.run_market_analysis(
+            [_product(), _product2()], _SHOP, {}, [], fetch_realtime=True,
+        )
+    assert mock_fetch.call_count == 2
+    assert mock_verify.call_count == 2
+    assert result["realtime_status"]["products_attempted"] == 2
+    assert result["realtime_status"]["products_ok"] == 1
+    assert result["realtime_status"]["status"] == "partial"
+
+
+def test_realtime_signals_from_multiple_products_merge_and_dedupe():
+    router = _router(_PASS1_JSON, _PASS1_JSON, _PASS2_JSON, _PASS2_JSON)
+    signal_a = {
+        "events": [{"title": "Canicule en France cette semaine"}],
+        "rising_queries": [{"query": "fontaine à eau chat canicule"}],
+        "competitor_moves": [],
+        "citations": [{"url": "https://meteo-france.fr/canicule", "title": "Météo France"}],
+        "fetched_at": "2026-07-15T00:00:00+00:00",
+    }
+    signal_b = {
+        # Same event as product A (should be deduped), plus a new one of its own.
+        "events": [
+            {"title": "Canicule en France cette semaine"},
+            {"title": "Rentrée des classes"},
+        ],
+        "rising_queries": [{"query": "griffoir chat sisal"}],
+        "competitor_moves": [],
+        "citations": [],
+        "fetched_at": "2026-07-16T00:00:00+00:00",
+    }
+    with (
+        patch.object(engine, "get_router", return_value=router),
+        patch.object(engine, "check_budget", return_value=_default_budget()),
+        patch.object(engine, "_fetch_trends_once", return_value=[]),
+        patch.object(
+            engine, "_fetch_realtime_signals_once", side_effect=[signal_a, signal_b]
+        ),
+        patch.object(engine, "_verify_keywords_once", return_value=None),
+        patch.object(engine, "fetch_suggestions_bulk", return_value=[]),
+        patch.object(engine, "DataForSEOProvider", return_value=_FakeDataForSEO()),
+    ):
+        result = engine.run_market_analysis(
+            [_product(), _product2()], _SHOP, {}, [], fetch_realtime=True,
+        )
+    merged = result["realtime_signals"]
+    assert len(merged["events"]) == 2
+    assert {e["title"] for e in merged["events"]} == {
+        "Canicule en France cette semaine",
+        "Rentrée des classes",
+    }
+    assert {q["query"] for q in merged["rising_queries"]} == {
+        "fontaine à eau chat canicule",
+        "griffoir chat sisal",
+    }
+    # Latest fetched_at across all merged products.
+    assert merged["fetched_at"] == "2026-07-16T00:00:00+00:00"
+
+
+def test_grounding_budget_exhausted_skips_every_product():
+    """A catalog large enough to already be over the monthly LLM budget must
+    skip ALL per-product grounded calls, not partially drain the budget."""
+    router = _router(_PASS1_JSON, _PASS1_JSON, _PASS2_JSON, _PASS2_JSON)
+    result, mock_fetch, mock_verify = _run_with_realtime(
+        router,
+        fetch_realtime=True,
+        realtime_signals=None,
+        products=[_product(), _product2()],
+        over_budget=True,
+    )
+    mock_fetch.assert_not_called()
+    mock_verify.assert_not_called()
+    assert result["realtime_status"]["status"] == "budget_skipped"
+    assert result["market_verification_status"]["status"] == "budget_skipped"
