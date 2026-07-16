@@ -42,6 +42,7 @@ from app.blog.seo_score import score_blog_readiness
 from app.blog.shopify_articles import BlogPublisher
 from app.blog.store import delete_draft, get_draft, list_drafts, save_draft
 from app.geo.auto_tracking import record_applied_change
+from app.managed_products import filter_snapshot_products
 from app.market_analysis.jobs import load_latest_result
 
 router = APIRouter(prefix="/api", tags=["blog"])
@@ -527,7 +528,9 @@ def get_link_suggestions(
     Matches keywords against products (via primary keyword), collections, and
     other drafts. Uses the latest market analysis for product/collection data.
     """
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = filter_snapshot_products(
+        ctx.shop, load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    )
     products = (load_latest_result(ctx.shop) or {}).get("products") or snapshot.get("products") or []
     collections = snapshot.get("collections") or []
     other_drafts = [d for d in list_drafts(ctx.shop) if d.get("id") != draft_id]

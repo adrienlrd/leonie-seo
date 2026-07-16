@@ -10,6 +10,7 @@ from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.db_adapter import DB_PATH, get_conn
 from app.geo.readiness import score_catalog_readiness
+from app.managed_products import filter_snapshot_products
 from app.niche.understanding import get_validated_niche_hypothesis
 from app.snapshot.scope import normalize_product_scope
 from scripts.audit.detect_issues import (
@@ -76,7 +77,9 @@ def _load_snapshot(ctx: ShopContext) -> dict[str, Any]:
             status_code=404,
             detail="No crawl data found. Run 'leonie-seo audit crawl' first.",
         )
-    return snapshot
+    # The app only works on the merchant's managed selection — every consumer
+    # of this loader (audit, dashboard, GEO, market analysis…) sees it applied.
+    return filter_snapshot_products(ctx.shop, snapshot)
 
 
 def _detect_all_issues(snapshot: dict[str, Any]) -> list[Issue]:

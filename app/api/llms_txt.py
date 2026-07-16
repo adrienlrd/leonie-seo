@@ -22,6 +22,7 @@ from app.geo.llms_txt import (
 )
 from app.jobs.audit_snapshot import crawl_shopify_catalog_for_job
 from app.llms_txt import publisher, store
+from app.managed_products import filter_snapshot_products
 from app.oauth.token_store import get_token
 from app.paths import data_dir
 from app.safety import require_theme_write_allowed, theme_write_mode
@@ -34,7 +35,9 @@ _SHOP_DOMAIN_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$")
 
 
 def _load_snapshot_or_404(ctx: ShopContext) -> dict:
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = filter_snapshot_products(
+        ctx.shop, load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    )
     if not snapshot:
         raise HTTPException(
             status_code=404,
@@ -120,7 +123,9 @@ def llms_txt_status(
     prefs = resolve_crawler_prefs(store.get_crawler_prefs(ctx.shop))
     divergent = False
     current_hash: str | None = None
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = filter_snapshot_products(
+        ctx.shop, load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    )
     if snapshot:
         business_profile = load_business_profile(ctx.shop)
         try:
@@ -196,7 +201,7 @@ async def _regenerate_published(shop: str, access_token: str) -> None:
         logger.warning("Webhook re-crawl failed for %s: %s", shop, exc)
 
     snapshot_path = data_dir() / shop / "shopify_snapshot.json"
-    snapshot = load_snapshot_from_file_or_db(shop, snapshot_path)
+    snapshot = filter_snapshot_products(shop, load_snapshot_from_file_or_db(shop, snapshot_path))
     if not snapshot:
         logger.warning("No snapshot available after re-crawl for %s", shop)
         return

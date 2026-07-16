@@ -91,6 +91,27 @@ def filter_managed_products(
     return [p for p in products if str(p.get("id", "")) in selected_set][:cap]
 
 
+def filter_snapshot_products(
+    shop: str,
+    snapshot: dict[str, Any] | None,
+    *,
+    db_path: Path | None = None,
+) -> dict[str, Any] | None:
+    """Shallow-copy a snapshot with its products restricted to the managed selection.
+
+    The single hook used by every read-only surface (audit, dashboard, GEO,
+    llms.txt, blog, crawl) so the whole app only ever sees the merchant's
+    selected products. Collections/pages/articles are left untouched.
+    """
+    if not snapshot:
+        return snapshot
+    filtered = dict(snapshot)
+    filtered["products"] = filter_managed_products(
+        shop, snapshot.get("products") or [], db_path=db_path
+    )
+    return filtered
+
+
 def _ids_from_latest_analysis(shop: str, *, db_path: Path | None = None) -> list[str]:
     from app.market_analysis.jobs import load_latest_result  # noqa: PLC0415
 

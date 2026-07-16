@@ -24,6 +24,7 @@ from app.crawl.sitemap import (
     fetch_sitemap_urls,
     snapshot_public_urls,
 )
+from app.managed_products import filter_snapshot_products
 
 router = APIRouter(tags=["crawl"])
 
@@ -85,7 +86,9 @@ async def crawl_l3(
     throttle_seconds: float = Query(default=1.0, ge=0, le=10),
 ) -> dict:
     """Run a capped native Crawl L3 audit without requiring Screaming Frog."""
-    snapshot = load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    snapshot = filter_snapshot_products(
+        ctx.shop, load_snapshot_from_file_or_db(ctx.shop, ctx.snapshot_path)
+    )
     if snapshot is None:
         raise HTTPException(status_code=404, detail="Snapshot introuvable. Lancez un audit SEO d'abord.")
 

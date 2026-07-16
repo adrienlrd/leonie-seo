@@ -109,6 +109,23 @@ def test_filter_fallback_without_analysis_keeps_historical_active_slice() -> Non
     assert get_managed_product_ids(SHOP) is None
 
 
+def test_filter_snapshot_products_restricts_only_products() -> None:
+    from app.managed_products import filter_snapshot_products
+
+    set_managed_product_ids(SHOP, ["gid://shopify/Product/2"])
+    snapshot = {
+        "products": [_product("1"), _product("2")],
+        "collections": [{"id": "c1"}],
+        "snapshot_date": "2026-07-16",
+    }
+    filtered = filter_snapshot_products(SHOP, snapshot)
+    assert [p["id"] for p in filtered["products"]] == ["gid://shopify/Product/2"]
+    assert filtered["collections"] == [{"id": "c1"}]
+    # Original snapshot untouched (shallow copy).
+    assert len(snapshot["products"]) == 2
+    assert filter_snapshot_products(SHOP, None) is None
+
+
 def test_filter_caps_selection_even_if_stored_list_is_larger() -> None:
     """Downgrade path: a pro shop with 5 selected products dropping to free
     (cap 3) must only get 3 products analyzed, without erroring."""

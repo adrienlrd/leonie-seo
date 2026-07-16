@@ -46,6 +46,7 @@ from app.geo.validation_timeline import build_validation_timeline
 from app.geo.weekly import build_weekly_actions
 from app.gsc.token_store import get_google_token
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
+from app.managed_products import filter_snapshot_products
 from app.snapshot.scope import normalize_product_scope
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ def _validated_scope(scope: str) -> str:
 # enough that reading + parsing them on the event loop can stall /health checks.
 # Always call these via ``await asyncio.to_thread(...)`` from async routes.
 def _load_snapshot_blocking(shop: str, snapshot_path: Path) -> dict | None:
-    return load_snapshot_from_file_or_db(shop, snapshot_path)
+    return filter_snapshot_products(shop, load_snapshot_from_file_or_db(shop, snapshot_path))
 
 
 def _read_gsc_rows_blocking(gsc_file: Path | None) -> dict:
@@ -518,7 +519,7 @@ def _load_next_best_actions(
     scope: str,
 ) -> dict:
     """Blocking: snapshot read/parse can be a 10-100MB file, must not run on the event loop."""
-    snapshot = load_snapshot_from_file_or_db(shop, snapshot_path)
+    snapshot = filter_snapshot_products(shop, load_snapshot_from_file_or_db(shop, snapshot_path))
     return build_next_best_actions(reports, snapshot=snapshot, scope=scope, shop=shop)
 
 
@@ -588,7 +589,7 @@ def _load_control_groups(
     controls_per_event: int,
 ) -> dict | None:
     """Blocking: snapshot read/parse can be a 10-100MB file, must not run on the event loop."""
-    snapshot = load_snapshot_from_file_or_db(shop, snapshot_path)
+    snapshot = filter_snapshot_products(shop, load_snapshot_from_file_or_db(shop, snapshot_path))
     if snapshot is None:
         return None
     gsc_file = _find_gsc_file(shop)
