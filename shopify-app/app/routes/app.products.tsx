@@ -369,7 +369,6 @@ interface LoaderData {
   ga4Connected: boolean;
   activeHandles: string[];
   /** Products currently active in the snapshot but absent from the latest analysis. */
-  newProducts: ActiveProduct[];
   /** Product IDs present in the latest analysis but no longer active. */
   removedProductIds: string[];
   analysisUsage: { used: number; quota: number; productCap: number; plan: string } | null;
@@ -487,19 +486,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   // ── Delta detection ───────────────────────────────────────────────────────
-  let newProducts: ActiveProduct[] = [];
   let removedProductIds: string[] = [];
   if (latestJob && activeProductsFull.length > 0) {
-    const analyzedHandles = new Set((latestJob.products ?? []).map((p) => p.product_handle));
-    newProducts = activeProductsFull.filter((p) => !analyzedHandles.has(p.handle));
-
     const activeHandleSet = new Set(activeHandles);
     removedProductIds = (latestJob.products ?? [])
       .filter((p) => !activeHandleSet.has(p.product_handle))
       .map((p) => p.product_id);
   }
 
-  return json({ locale, shop: session.shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds, analysisUsage });
+  return json({ locale, shop: session.shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, removedProductIds, analysisUsage });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -1089,44 +1084,6 @@ function GeoPackSection({
   );
 }
 
-function NewProductsBanner({
-  products,
-  locale,
-  onAnalyze,
-  isAnalyzing,
-}: {
-  products: ActiveProduct[];
-  locale: Locale;
-  onAnalyze: (productId: string) => void;
-  isAnalyzing: boolean;
-}) {
-  if (products.length === 0) return null;
-  const label = t(locale, "marketAnalysisNewProductsBanner").replace("{count}", String(products.length));
-  return (
-    <Banner tone="info">
-      <BlockStack gap="200">
-        <Text as="p" variant="bodySm">{label}</Text>
-        <BlockStack gap="100">
-          {products.map((p) => (
-            <InlineStack key={p.id} gap="300" blockAlign="center">
-              <Text as="span" variant="bodySm"><strong>{p.title}</strong></Text>
-              <Button
-                size="slim"
-                onClick={() => onAnalyze(p.id)}
-                disabled={isAnalyzing}
-                loading={isAnalyzing}
-              >
-                {t(locale, "marketAnalysisNewProductsAnalyze")}
-              </Button>
-            </InlineStack>
-          ))}
-        </BlockStack>
-      </BlockStack>
-    </Banner>
-  );
-}
-
-
 function OrphanGapsBanner({
   orphanProducts,
   blogGaps,
@@ -1257,7 +1214,7 @@ function CannibalizationBanner({
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
-  const { locale, shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, newProducts, removedProductIds, analysisUsage } =
+  const { locale, shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, removedProductIds, analysisUsage } =
     useLoaderData<LoaderData>();
 
   const revalidator = useRevalidator();
@@ -1294,9 +1251,6 @@ export default function ProductsPage() {
 
   // ── Active-only filter ────────────────────────────────────────────────────
   const [showInactive, setShowInactive] = useState(false);
-
-  // ── Delta banner: track analyzed new products to hide their banner entry ──
-  const [analyzedNewIds, setAnalyzedNewIds] = useState<Set<string>>(new Set());
 
   // ── Full re-run confirmation modal ────────────────────────────────────────
   const [showRerunModal, setShowRerunModal] = useState(false);
@@ -1518,8 +1472,6 @@ export default function ProductsPage() {
                 : [...prev.products, updated];
             return { ...prev, products: updatedProducts };
           });
-          // Mark as analyzed so the delta banner hides this product
-          setAnalyzedNewIds((prev) => new Set([...prev, updated.product_id]));
           if (enrichTriggeredRef.current) {
             (window as unknown as { shopify?: { toast?: { show: (m: string) => void } } }).shopify
               ?.toast?.show(t(locale, "enrichSavedToast"));
@@ -1633,48 +1585,6 @@ export default function ProductsPage() {
       singleProductJob?.status !== "failed");
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  // Single comprehensive export of everything the analysis produced, A→Z, as one
-  // JSON file: data sources used + provider status, per-product keywords with
-  // their provenance (data_source), GEO questions, generated content proposals,
-  // the reflection/guardrail pass and quality scores. The full `job` is embedded
-  // verbatim so the run can be read back completely to study/improve the algorithm.
-  const handleExportFull = () => {
-    if (typeof document === "undefined" || !job) return;
-    const reflectionThreshold =
-      job.products.find((p) => p.content_test_pack.content_guardrail_reflection)
-        ?.content_test_pack.content_guardrail_reflection?.threshold ?? null;
-    const payload = {
-      export_version: 2,
-      exported_at: new Date().toISOString(),
-      source: "market-analysis-full",
-      shop,
-      summary: {
-        analyzed_at: job.analyzed_at,
-        analyzed_product_count: job.analyzed_product_count,
-        total_opportunity_count: job.total_opportunity_count,
-        sources_used: job.sources_used,
-        provider_status: job.provider_status,
-        reflection_test: job.reflection_test === true,
-        reflection_threshold: reflectionThreshold,
-      },
-      // Full run verbatim: products[] carry content_test_pack (proposals,
-      // content_guardrail_reflection, content_quality), seo_keywords with
-      // data_source, geo_questions, confirmed facts, and business profile context.
-      analysis: job,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `analyse-complete-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
-  };
-
   const handleStartIdentify = () => {
     setIdentifyJobId(null);
     setIdentifyJob(null);
@@ -2064,24 +1974,6 @@ export default function ProductsPage() {
               />
             ) : null}
 
-            {/* Delta banner — new products not yet analysed */}
-            {(() => {
-              const pendingNew = newProducts.filter(
-                (p) => !analyzedNewIds.has(p.id) && !(job?.products ?? []).some((jp) => jp.product_id === p.id),
-              );
-              return pendingNew.length > 0 ? (
-                <NewProductsBanner
-                  products={pendingNew}
-                  locale={locale}
-                  onAnalyze={(id) => {
-                    setStep("analysis");
-                    handleAnalyzeSingle(id);
-                  }}
-                  isAnalyzing={isSingleRunning}
-                />
-              ) : null;
-            })()}
-
             {/* Launch card — only shown when no job yet, job failed, or analysis running */}
             {(!job?.status || job.status === "failed" || isRunning) && (
               <Card>
@@ -2175,16 +2067,6 @@ export default function ProductsPage() {
             {/* Summary + export */}
             {job && job.analyzed_product_count > 0 && (
               <>
-                <InlineStack align="end" gap="200">
-                  {job.reflection_test === true && (
-                    <Badge tone="info">
-                      {locale === "fr" ? "Mode réflexion test" : "Reflection test mode"}
-                    </Badge>
-                  )}
-                  <Button onClick={handleExportFull}>
-                    {t(locale, "marketAnalysisExportFull")}
-                  </Button>
-                </InlineStack>
                 <SummaryCard
                   job={job}
                   locale={locale}
