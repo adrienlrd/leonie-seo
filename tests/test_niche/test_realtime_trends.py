@@ -141,9 +141,42 @@ def test_persists_result_to_json_file(db: Path, data_dir: Path, monkeypatch: pyt
     saved = json.loads((data_dir / SHOP / "realtime_signals.json").read_text())
     assert saved["events"][0]["title"] == "Canicule"
 
+
+def test_persist_false_does_not_write_file(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The per-product grounding loop (engine.py) calls this once per product
+    with persist=False, then merges + saves once itself — a per-product call
+    must never silently overwrite a previous product's saved snapshot."""
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
+        provider="gemini",
+        model="gemini-3.1-flash-lite",
+    )
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, persist=False)
+
+    assert result is not None
+    assert not (data_dir / SHOP / "realtime_signals.json").exists()
+
+
+def test_persist_realtime_signals_writes_the_merged_snapshot(
+    db: Path, data_dir: Path
+) -> None:
+    from app.niche.signals.realtime_trends import persist_realtime_signals
+
+    merged = {"events": [{"title": "Merged event"}], "rising_queries": [], "competitor_moves": []}
+    persist_realtime_signals(SHOP, merged, db_path=db)
+
+    saved = json.loads((data_dir / SHOP / "realtime_signals.json").read_text())
+    assert saved["events"][0]["title"] == "Merged event"
+
     loaded = load_realtime_signals(SHOP, db_path=db)
     assert loaded is not None
-    assert loaded["events"][0]["title"] == "Canicule"
+    assert loaded["events"][0]["title"] == "Merged event"
 
 
 def test_fail_open_when_llm_raises(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:

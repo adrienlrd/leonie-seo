@@ -34,9 +34,12 @@ _EMPTY_SIGNALS: dict[str, Any] = {
 }
 
 _SYSTEM_PROMPT = (
-    "Tu es un veilleur e-commerce. Tu réponds UNIQUEMENT avec des faits que tu "
-    "peux confirmer par une recherche web récente, avec leurs sources. "
-    "N'invente jamais un événement ou une tendance sans pouvoir citer une URL."
+    "Tu es un veilleur e-commerce. Tu DOIS effectuer une recherche web réelle "
+    "avant de répondre — ne réponds JAMAIS uniquement depuis ta mémoire ou tes "
+    "connaissances d'entraînement, même si le sujet te semble familier. Tu "
+    "réponds UNIQUEMENT avec des faits que tu peux confirmer par une recherche "
+    "web déclenchée maintenant, avec leurs sources. N'invente jamais un "
+    "événement ou une tendance sans pouvoir citer une URL réelle et vérifiable."
 )
 
 
@@ -44,7 +47,9 @@ def _build_prompt(niche_summary: str, product_titles: list[str]) -> str:
     products_text = ", ".join(product_titles[:5]) if product_titles else "non renseigné"
     today = datetime.now(UTC).strftime("%d/%m/%Y")
     return (
-        f"Nous sommes le {today}. Boutique e-commerce française. "
+        f"Nous sommes précisément le {today}. Toute information que tu fournis doit être "
+        f"vérifiable à cette date exacte — effectue une recherche web maintenant, "
+        f"ne réponds pas depuis ta mémoire. Boutique e-commerce française. "
         f"Niche : {niche_summary or 'non renseignée'}. Exemples de produits : {products_text}.\n\n"
         "Cherche sur le web francophone (France) et réponds en JSON strict avec ce schéma exact :\n"
         "{\n"
@@ -99,8 +104,9 @@ def fetch_realtime_signals(
     db_path: Path | None = None,
     force: bool = False,
     status_out: dict[str, Any] | None = None,
+    persist: bool = True,
 ) -> dict[str, Any] | None:
-    """Fetch and persist a real-time market signal snapshot for `shop`.
+    """Fetch (and, by default, persist) a real-time market signal snapshot.
 
     Gated to the "agency" plan and a configured GEMINI_API_KEY — returns None
     immediately (no HTTP call, no cost) for every other shop. Fail-open on any
@@ -116,6 +122,11 @@ def fetch_realtime_signals(
     ``status`` one of ``no_gemini_key`` | ``plan_not_agency`` | ``llm_error`` |
     ``parse_error`` | ``ok``, plus ``detail``. Lets callers (and the plan
     comparison export) show *why* grounding was silent instead of guessing.
+
+    ``persist`` (default True): when a caller invokes this once per product
+    (engine.py's per-product grounding loop), pass False and merge + persist
+    the combined catalog signal once yourself — otherwise each product's call
+    would silently overwrite the previous one's saved snapshot.
     """
     if not force and get_plan_for_shop(shop, db_path) != "agency":
         _set_status(status_out, "plan_not_agency")
@@ -162,9 +173,20 @@ def fetch_realtime_signals(
         "citations": result.citations,
         "fetched_at": datetime.now(UTC).isoformat(),
     }
-    _persist(shop, signals, db_path=db_path)
+    if persist:
+        _persist(shop, signals, db_path=db_path)
     _set_status(status_out, "ok")
     return signals
+
+
+def persist_realtime_signals(
+    shop: str, signals: dict[str, Any], *, db_path: Path | None = None
+) -> None:
+    """Public entry point for a caller merging multiple per-product signal
+    fetches (each with ``persist=False``) into one combined snapshot and
+    saving it once — see `fetch_realtime_signals`'s `persist` param.
+    """
+    _persist(shop, signals, db_path=db_path)
 
 
 def _persist(shop: str, signals: dict[str, Any], *, db_path: Path | None = None) -> None:
@@ -179,10 +201,13 @@ def _persist(shop: str, signals: dict[str, Any], *, db_path: Path | None = None)
 
 
 _VERIFY_SYSTEM_PROMPT = (
-    "Tu es un analyste marché e-commerce. Pour chaque mot-clé, indique si une "
-    "recherche web récente confirme qu'il est réellement recherché/pertinent "
-    "sur le marché français en ce moment. Ne te base QUE sur des résultats de "
-    "recherche réels — jamais une estimation ou une intuition."
+    "Tu es un analyste marché e-commerce. Tu DOIS effectuer une recherche web "
+    "réelle pour CHAQUE mot-clé avant de répondre — ne réponds JAMAIS "
+    "uniquement depuis ta mémoire, même pour un mot-clé qui te semble évident. "
+    "Indique si une recherche web déclenchée maintenant confirme que ce "
+    "mot-clé est réellement recherché/pertinent sur le marché français en ce "
+    "moment. Ne te base QUE sur des résultats de recherche réels — jamais une "
+    "estimation ou une intuition."
 )
 
 _MAX_VERIFY_KEYWORDS = 30
@@ -190,7 +215,10 @@ _MAX_VERIFY_KEYWORDS = 30
 
 def _build_verify_prompt(keywords: list[str], niche_summary: str) -> str:
     kw_list = "\n".join(f"- {k}" for k in keywords)
+    today = datetime.now(UTC).strftime("%d/%m/%Y")
     return (
+        f"Nous sommes précisément le {today}. Effectue une recherche web maintenant pour "
+        f"chaque mot-clé ci-dessous, ne réponds pas depuis ta mémoire.\n"
         f"Niche : {niche_summary or 'non renseignée'}.\n"
         f"Mots-clés à vérifier sur le marché français actuel :\n{kw_list}\n\n"
         "Pour CHAQUE mot-clé de la liste, cherche sur le web et réponds en JSON "
