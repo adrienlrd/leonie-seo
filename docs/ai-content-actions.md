@@ -1,4 +1,4 @@
-# AI Content Actions Simplification — Giulio Geo
+# AI Content Actions Simplification — GEO by Organically
 
 > Référence canonique du workflow unique de génération de contenu IA. Fusionne meta titles, meta descriptions, descriptions produits, alt text, FAQ, Answer Blocks, guides courts et JSON-LD FAQPage en **un seul orchestrateur** alimenté par les faits confirmés, Shopify, GSC/GA4 et les hypothèses marchand validées.
 >

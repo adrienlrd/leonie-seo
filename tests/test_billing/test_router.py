@@ -244,7 +244,7 @@ def test_subscription_webhook_updates_status(client, db, monkeypatch):
         {
             "admin_graphql_api_id": SUB_GID,
             "status": "ACTIVE",
-            "name": "Giulio Geo Pro",
+            "name": "GEO by Organically Pro",
         }
     ).encode()
     resp = client.post(

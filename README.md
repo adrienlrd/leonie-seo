@@ -1,4 +1,4 @@
-# Giulio Geo
+# GEO by Organically
 
 > **FR** | [EN below](#english-version)
 
@@ -8,7 +8,7 @@ Outil d'audit et d'optimisation SEO pour boutiques Shopify. Crawle votre catalog
 
 ## Vision
 
-Giulio Geo est un **copilote SEO niche-first pour boutiques Shopify** — conçu pour évoluer de l'outil CLI personnel vers une **app SaaS embarquée dans l'admin Shopify**.
+GEO by Organically est un **copilote SEO niche-first pour boutiques Shopify** — conçu pour évoluer de l'outil CLI personnel vers une **app SaaS embarquée dans l'admin Shopify**.
 
 **Le marché est saturé sur** : meta tags automatiques, alt texts, compression images, schema basique (AVADA, Smart SEO, TinyIMG, Booster SEO le font tous).
 
@@ -36,7 +36,7 @@ Giulio Geo est un **copilote SEO niche-first pour boutiques Shopify** — conçu
 
 ## Distribution & facturation
 
-Giulio Geo se distribue selon **deux modes** :
+GEO by Organically se distribue selon **deux modes** :
 
 | Mode | Cible | Auth | Facturation |
 |---|---|---|---|
@@ -47,7 +47,7 @@ Voir [`docs/plans.md`](docs/plans.md) pour le détail.
 
 ### Pilote marchand réel avant App Store
 
-Avant la soumission publique, Giulio Geo passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à l'URL stable `https://leonie-seo-pilot-web.onrender.com`. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md), et le plan de test réel dans [`docs/pilot-real-store-test-plan.md`](docs/pilot-real-store-test-plan.md).
+Avant la soumission publique, GEO by Organically passe par une app pilote Shopify séparée, distribuée directement à la boutique réelle et reliée à l'URL stable `https://leonie-seo-pilot-web.onrender.com`. Le déroulé opératoire est documenté dans [`docs/pilot-real-store-setup.md`](docs/pilot-real-store-setup.md), et le plan de test réel dans [`docs/pilot-real-store-test-plan.md`](docs/pilot-real-store-test-plan.md).
 
 Smoke check public du pilote :
 

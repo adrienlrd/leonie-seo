@@ -73,7 +73,7 @@ Ce prérequis s'ajoute en amont des §3 de `docs/launch-readiness.md`. Voir `doc
 
 ## 2026-05-12 — Real-store pilot uses a separate custom-distribution Shopify app
 
-**Context:** Giulio Geo needs real merchant feedback on `leoniedelacroix.com` before the public App Store launch, but Shopify distribution type is a long-lived product choice.
+**Context:** GEO by Organically needs real merchant feedback on `leoniedelacroix.com` before the public App Store launch, but Shopify distribution type is a long-lived product choice.
 
 **Decision:** Use a dedicated Shopify Partner app for the pilot, configured for custom distribution and installed directly on the real merchant store through Shopify's generated install link. Keep the future public App Store app separate.
 

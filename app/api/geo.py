@@ -406,7 +406,7 @@ async def get_theme_extension_status_endpoint(
     shop: str,
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict:
-    """Whether the Giulio Geo theme app embed is enabled on the published theme."""
+    """Whether the GEO by Organically theme app embed is enabled on the published theme."""
     from app.apply.theme_extension_status import get_theme_extension_status  # noqa: PLC0415
 
     status = await asyncio.to_thread(get_theme_extension_status, ctx.shop, ctx.access_token)

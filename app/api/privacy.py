@@ -3,7 +3,7 @@
 Two privacy modes are supported, controlled by the LEONIE_MODE env var:
 
 - `app_store` (default) — SaaS deployment. Tokens and metadata are stored on
-  Giulio Geo managed infrastructure (Neon Postgres) and the data controller
+  GEO by Organically managed infrastructure (Neon Postgres) and the data controller
   is the app vendor. This is the canonical mode for App Store distribution.
 - `self_hosted` — CLI/agency deployment. The merchant runs the app on their
   own infrastructure; no data leaves their environment. The data controller
@@ -41,7 +41,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Politique de confidentialité — Giulio Geo</title>
+  <title>Politique de confidentialité — GEO by Organically</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
            max-width: 800px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.6; }
@@ -57,13 +57,13 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
 <body>
   <p class="lang"><a href="#english">English version below</a></p>
 
-  <h1>Politique de confidentialité — Giulio Geo</h1>
+  <h1>Politique de confidentialité — GEO by Organically</h1>
   <p><em>Mise à jour : 2026-05-12 — édition Shopify App Store</em></p>
 
   <h2>1. Responsable du traitement</h2>
   <p>
-    Giulio Geo est une application Shopify hébergée par son éditeur. Le responsable du
-    traitement des données est <strong>l'éditeur de Giulio Geo</strong>. Le marchand
+    GEO by Organically est une application Shopify hébergée par son éditeur. Le responsable du
+    traitement des données est <strong>l'éditeur de GEO by Organically</strong>. Le marchand
     Shopify reste responsable des données qu'il choisit d'exposer via les portées OAuth
     qu'il accorde lors de l'installation.
   </p>
@@ -82,7 +82,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
 
   <h2>3. Données non collectées</h2>
   <p>
-    Giulio Geo <strong>ne collecte pas</strong> de données clients individuels du marchand
+    GEO by Organically <strong>ne collecte pas</strong> de données clients individuels du marchand
     (noms, emails, adresses, historiques de commandes). L'app accède uniquement aux
     méta-données produits/collections et aux performances SEO (GSC, GA4).
   </p>
@@ -115,13 +115,13 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
 
   <hr id="english" style="margin: 3rem 0;">
 
-  <h1>Privacy Policy — Giulio Geo</h1>
+  <h1>Privacy Policy — GEO by Organically</h1>
   <p><em>Updated: 2026-05-12 — Shopify App Store edition</em></p>
 
   <h2>1. Data Controller</h2>
   <p>
-    Giulio Geo is a Shopify-hosted application operated by its publisher. The data
-    controller is the <strong>Giulio Geo publisher</strong>. The Shopify merchant
+    GEO by Organically is a Shopify-hosted application operated by its publisher. The data
+    controller is the <strong>GEO by Organically publisher</strong>. The Shopify merchant
     remains responsible for the data they expose via the OAuth scopes they grant on
     install.
   </p>
@@ -140,7 +140,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
 
   <h2>3. Data Not Collected</h2>
   <p>
-    Giulio Geo does <strong>not</strong> collect individual customer data (names,
+    GEO by Organically does <strong>not</strong> collect individual customer data (names,
     emails, addresses, order history). The app only accesses product/collection
     meta-data and SEO performance data (GSC, GA4).
   </p>
@@ -178,7 +178,7 @@ _PRIVACY_HTML_SELF_HOSTED = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Politique de confidentialité — Giulio Geo</title>
+  <title>Politique de confidentialité — GEO by Organically</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
            max-width: 800px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.6; }
@@ -194,12 +194,12 @@ _PRIVACY_HTML_SELF_HOSTED = """<!DOCTYPE html>
 <body>
   <p class="lang"><a href="#english">English version below</a></p>
 
-  <h1>Politique de confidentialité — Giulio Geo</h1>
+  <h1>Politique de confidentialité — GEO by Organically</h1>
   <p><em>Mise à jour : 2026-05-10</em></p>
 
   <h2>1. Responsable du traitement</h2>
   <p>
-    Giulio Geo est un outil auto-hébergé. Le responsable du traitement des données est
+    GEO by Organically est un outil auto-hébergé. Le responsable du traitement des données est
     le marchand qui installe et opère l'application sur ses propres serveurs.
     Anthropic / Claude Code ne collecte aucune donnée marchande.
   </p>
@@ -217,7 +217,7 @@ _PRIVACY_HTML_SELF_HOSTED = """<!DOCTYPE html>
 
   <h2>3. Données non collectées</h2>
   <p>
-    Giulio Geo <strong>ne collecte pas</strong> de données clients individuels (noms, emails,
+    GEO by Organically <strong>ne collecte pas</strong> de données clients individuels (noms, emails,
     adresses, historiques de commandes). L'outil accède uniquement aux méta-données produits
     et aux données de performance SEO (GSC).
   </p>
@@ -239,12 +239,12 @@ _PRIVACY_HTML_SELF_HOSTED = """<!DOCTYPE html>
 
   <hr id="english" style="margin: 3rem 0;">
 
-  <h1>Privacy Policy — Giulio Geo</h1>
+  <h1>Privacy Policy — GEO by Organically</h1>
   <p><em>Updated: 2026-05-10</em></p>
 
   <h2>1. Data Controller</h2>
   <p>
-    Giulio Geo is a self-hosted tool. The data controller is the merchant who installs
+    GEO by Organically is a self-hosted tool. The data controller is the merchant who installs
     and operates the application on their own servers.
   </p>
 
@@ -261,7 +261,7 @@ _PRIVACY_HTML_SELF_HOSTED = """<!DOCTYPE html>
 
   <h2>3. Data Not Collected</h2>
   <p>
-    Giulio Geo does <strong>not</strong> collect individual customer data (names, emails,
+    GEO by Organically does <strong>not</strong> collect individual customer data (names, emails,
     addresses, order history). The tool only accesses product meta-data and SEO performance
     data (GSC).
   </p>
@@ -289,7 +289,7 @@ _TERMS_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Conditions d'utilisation — Giulio Geo</title>
+  <title>Conditions d'utilisation — GEO by Organically</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
            max-width: 800px; margin: 40px auto; padding: 0 20px; color: #111; line-height: 1.6; }
@@ -302,12 +302,12 @@ _TERMS_HTML = """<!DOCTYPE html>
 <body>
   <p class="lang"><a href="#english">English version below</a></p>
 
-  <h1>Conditions d'utilisation — Giulio Geo</h1>
+  <h1>Conditions d'utilisation — GEO by Organically</h1>
   <p><em>Mise à jour : 2026-06-06</em></p>
 
   <h2>1. Objet</h2>
   <p>
-    Giulio Geo est une application Shopify d'aide au référencement (SEO) : audit,
+    GEO by Organically est une application Shopify d'aide au référencement (SEO) : audit,
     recommandations supervisées, génération de contenu assistée et suivi d'impact.
     En installant l'application, le marchand accepte les présentes conditions.
   </p>
@@ -329,7 +329,7 @@ _TERMS_HTML = """<!DOCTYPE html>
 
   <h2>4. Absence de garantie de résultat</h2>
   <p>
-    Giulio Geo fournit des recommandations et des optimisations SEO. <strong>Aucune
+    GEO by Organically fournit des recommandations et des optimisations SEO. <strong>Aucune
     position dans Google ni aucune apparition dans des moteurs de réponse IA (ChatGPT,
     Perplexity, Gemini, Google AI Overviews) n'est garantie.</strong> La visibilité
     constitue un signal mesuré, jamais une promesse. Les estimations d'impact sont
@@ -365,12 +365,12 @@ _TERMS_HTML = """<!DOCTYPE html>
 
   <hr id="english" style="margin: 3rem 0;">
 
-  <h1>Terms of Service — Giulio Geo</h1>
+  <h1>Terms of Service — GEO by Organically</h1>
   <p><em>Updated: 2026-06-06</em></p>
 
   <h2>1. Purpose</h2>
   <p>
-    Giulio Geo is a Shopify SEO assistance app: audits, supervised recommendations,
+    GEO by Organically is a Shopify SEO assistance app: audits, supervised recommendations,
     AI-assisted content generation and impact tracking. By installing the app, the
     merchant agrees to these terms.
   </p>
@@ -392,7 +392,7 @@ _TERMS_HTML = """<!DOCTYPE html>
 
   <h2>4. No guarantee of results</h2>
   <p>
-    Giulio Geo provides SEO recommendations and optimizations. <strong>No Google ranking
+    GEO by Organically provides SEO recommendations and optimizations. <strong>No Google ranking
     and no appearance in AI answer engines (ChatGPT, Perplexity, Gemini, Google AI
     Overviews) is guaranteed.</strong> Visibility is a measured signal, never a promise.
     Impact estimates are indicative and depend on external factors beyond the publisher's

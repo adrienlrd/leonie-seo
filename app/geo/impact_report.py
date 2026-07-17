@@ -283,7 +283,7 @@ def render_markdown(reports: list[dict[str, Any]]) -> str:
     """
     now_str = datetime.utcnow().strftime("%Y-%m-%d")
     lines: list[str] = [
-        "# Rapport d'impact GEO — Giulio Geo",
+        "# Rapport d'impact GEO — GEO by Organically",
         "",
         f"Généré le : {now_str}",
         "",

@@ -37,7 +37,7 @@ _SNAPSHOT = {
             "title": "Collier Garantie Chat",
             "handle": "collier-chat",
             "seo": {
-                "title": "Collier élégant pour chat — boutique Giulio Geo",
+                "title": "Collier élégant pour chat — boutique GEO by Organically",
                 "description": "Découvrez notre collier pour chat, élégant, résistant et certifié vétérinaire. Livraison garantie.",
             },
             "description": "Un collier de qualité certifié, fabriqué avec des matières résistantes. Recommandé par les vétérinaires. Satisfaction garantie ou remboursé. Livraison rapide et service client disponible.",

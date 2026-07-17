@@ -1,4 +1,4 @@
-"""Detect whether the Giulio Geo theme app embed is enabled on the published theme.
+"""Detect whether the GEO by Organically theme app embed is enabled on the published theme.
 
 Reads ``config/settings_data.json`` of the MAIN theme (read_themes scope) and looks
 for our app embed block (matched by extension handle/uid) and whether it is enabled.
@@ -90,7 +90,7 @@ def _app_embed_enabled(settings_json: str) -> bool | None:
 
 
 def get_theme_extension_status(shop: str, access_token: str) -> dict[str, Any]:
-    """Return {available, enabled, detail} for the Giulio Geo theme app embed.
+    """Return {available, enabled, detail} for the GEO by Organically theme app embed.
 
     available=False means we could not read the theme (treat enabled as unknown).
     """

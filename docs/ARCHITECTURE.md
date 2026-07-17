@@ -1,8 +1,8 @@
-# ARCHITECTURE.md — Giulio Geo
+# ARCHITECTURE.md — GEO by Organically
 
 ## Vue d'ensemble
 
-Giulio Geo est une application SEO Shopify hybride. Le dépôt contient un backend Python/FastAPI, un moteur CLI Click, des scripts d'audit et d'optimisation SEO, des jobs asynchrones, et une app Shopify embedded Remix/React dans `shopify-app/`. L'objectif est de faire évoluer un moteur CLI SEO vers une app Shopify publique avec validation marchande et garde-fous avant application.
+GEO by Organically est une application SEO Shopify hybride. Le dépôt contient un backend Python/FastAPI, un moteur CLI Click, des scripts d'audit et d'optimisation SEO, des jobs asynchrones, et une app Shopify embedded Remix/React dans `shopify-app/`. L'objectif est de faire évoluer un moteur CLI SEO vers une app Shopify publique avec validation marchande et garde-fous avant application.
 
 ## Flux principal
 

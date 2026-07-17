@@ -1,8 +1,8 @@
-# AGENTS.md — Giulio Geo
+# AGENTS.md — GEO by Organically
 
 ## 1. Project overview
 
-- **Name:** Giulio Geo
+- **Name:** GEO by Organically
 - **Goal:** Shopify SEO automation pipeline and public Shopify app for niche-first SEO recommendations, supervised content generation, SEO audits, and safe Shopify application.
 - **App type:** Shopify public app plus self-hosted/CLI mode.
 - **Short-term vision:** Complete Phase 10 parity between CLI capabilities and the embedded Shopify app, then prepare App Store go/no-go.

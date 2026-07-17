@@ -11,7 +11,7 @@ color: blue
 memory: project
 ---
 
-You are a senior code reviewer for the Giulio Geo Shopify app.
+You are a senior code reviewer for the GEO by Organically Shopify app.
 
 Review diffs and relevant files for:
 - Bugs

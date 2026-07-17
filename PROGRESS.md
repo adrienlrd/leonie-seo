@@ -64,7 +64,7 @@
 
 ### Objectif
 
-Aligner Giulio Geo sur le parcours marchand cible : onboarding 4 étapes fonctionnel (jusqu'ici basé sur un endpoint mort `/niche/understand`), dashboard allégé, navigation Dashboard/Produits/Blog/Mesure/Réglages, page Mesure exposant le backend GEO (`/geo/*`), tracking automatique des changements appliqués, historique d'optimisation injecté dans le moteur d'analyse, cycle de réanalyse 14/28 jours, page Réglages consolidée, persistance DB des artefacts d'analyse. Plan : `.claude/plans/claude-code-task-rippling-matsumoto.md`. Ordre d'exécution : 1, 2, 4, 3, 5, 6, 7, 8, 9.
+Aligner GEO by Organically sur le parcours marchand cible : onboarding 4 étapes fonctionnel (jusqu'ici basé sur un endpoint mort `/niche/understand`), dashboard allégé, navigation Dashboard/Produits/Blog/Mesure/Réglages, page Mesure exposant le backend GEO (`/geo/*`), tracking automatique des changements appliqués, historique d'optimisation injecté dans le moteur d'analyse, cycle de réanalyse 14/28 jours, page Réglages consolidée, persistance DB des artefacts d'analyse. Plan : `.claude/plans/claude-code-task-rippling-matsumoto.md`. Ordre d'exécution : 1, 2, 4, 3, 5, 6, 7, 8, 9.
 
 ### Tâches terminées
 
@@ -124,7 +124,7 @@ Aligner Giulio Geo sur le parcours marchand cible : onboarding 4 étapes fonctio
 
 ### Objectif
 
-Rendre l'app Giulio Geo compréhensible par un marchand non expert en moins de 5 minutes, sans explication préalable. Tâches 155-163 : 8 documents canoniques + ajustements UX/i18n dans 5 routes Remix.
+Rendre l'app GEO by Organically compréhensible par un marchand non expert en moins de 5 minutes, sans explication préalable. Tâches 155-163 : 8 documents canoniques + ajustements UX/i18n dans 5 routes Remix.
 
 ### Tâches terminées
 
@@ -1206,7 +1206,7 @@ tests/test_api/test_jsonld_status.py::test_jsonld_status_extension_note_present 
 
 ## Reprise 2026-05-13 → 2026-05-15 — Tâche 77 terminée
 
-- L'app Shopify `Giulio Geo Pilot` a été créée dans l'organisation `Léonie Delacroix`.
+- L'app Shopify `GEO by Organically Pilot` a été créée dans l'organisation `Léonie Delacroix`.
 - `shopify-app/shopify.app.pilot.toml` est lié à cette app et versionné dans le repo.
 - L'origine stable retenue est `https://pilot.leoniedelacroix.com`.
 - Un Blueprint Render `render.yaml` prépare deux services :
@@ -1640,7 +1640,7 @@ La publication publique est volontairement différée derrière une nouvelle sé
 
 ## ⏳ Phase 9 — Pilote marchand réel avant App Store
 
-**Objectif** : installer et tester Giulio Geo sur la vraie boutique Shopify `leoniedelacroix.com`, observer les frictions réelles, adapter le produit, puis seulement soumettre l'app publiquement.
+**Objectif** : installer et tester GEO by Organically sur la vraie boutique Shopify `leoniedelacroix.com`, observer les frictions réelles, adapter le produit, puis seulement soumettre l'app publiquement.
 
 **Séquence ordonnée** :
 - **76** ✅ Préparer l'environnement pilote hors App Store : stratégie pilote custom séparée, URL publique de test, callbacks, secrets et workflow d'installation directe documentés.
@@ -1732,7 +1732,7 @@ La publication publique est volontairement différée derrière une nouvelle sé
 
 ### Session 2026-05-12 (Tâche 76 — préparation pilote marchand réel)
 
-**Mission** : préparer le cadre repo et opératoire pour tester Giulio Geo sur la vraie boutique Shopify avant toute soumission publique App Store.
+**Mission** : préparer le cadre repo et opératoire pour tester GEO by Organically sur la vraie boutique Shopify avant toute soumission publique App Store.
 
 **Livrables** :
 - `docs/pilot-real-store-setup.md` ajouté : architecture cible, app pilote custom séparée, lien d'installation direct, config `pilot`, secrets et checklist de readiness.

@@ -1,4 +1,4 @@
-# Product Scope Simplification — Giulio Geo
+# Product Scope Simplification — GEO by Organically
 
 > Référence canonique du périmètre produit V1 public. Tout module qui calcule un score, classe des recommandations, ou affiche une liste de produits doit respecter les règles documentées ici.
 >

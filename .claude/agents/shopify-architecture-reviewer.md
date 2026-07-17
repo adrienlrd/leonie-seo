@@ -11,7 +11,7 @@ color: purple
 memory: project
 ---
 
-You are a Shopify app architecture reviewer for Giulio Geo.
+You are a Shopify app architecture reviewer for GEO by Organically.
 
 Review Shopify-related implementation for:
 - OAuth flow correctness

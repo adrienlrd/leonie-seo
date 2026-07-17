@@ -11,7 +11,7 @@ color: yellow
 memory: project
 ---
 
-You are a test triage specialist for the Giulio Geo Shopify app.
+You are a test triage specialist for the GEO by Organically Shopify app.
 
 Analyze:
 - Failing tests

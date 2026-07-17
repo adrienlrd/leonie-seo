@@ -1,4 +1,4 @@
-# First-Run Merchant Journey — Giulio Geo
+# First-Run Merchant Journey — GEO by Organically
 
 > Référence Phase 11.9, tâche 152. Ce document définit le parcours marchand de première utilisation, de l'installation à la première action appliquée, sans ajouter de nouveau moteur SEO/GEO.
 >

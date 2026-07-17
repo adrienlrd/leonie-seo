@@ -1,6 +1,6 @@
-# Impact Tracker as Core Product Value — Giulio Geo
+# Impact Tracker as Core Product Value — GEO by Organically
 
-> Référence canonique du module central de mesure d'impact. Positionne les 8 briques de la Phase 11.5 (déjà codées) comme **le cœur différenciant** de Giulio Geo : la preuve que chaque optimisation a aidé, ou non. Sépare strictement Search Performance (GSC/GA4) et AI Visibility (signal mesurable mais imparfait, branche opt-in V2).
+> Référence canonique du module central de mesure d'impact. Positionne les 8 briques de la Phase 11.5 (déjà codées) comme **le cœur différenciant** de GEO by Organically : la preuve que chaque optimisation a aidé, ou non. Sépare strictement Search Performance (GSC/GA4) et AI Visibility (signal mesurable mais imparfait, branche opt-in V2).
 >
 > Statut : décisions produit/architecture figées au 2026-05-20 (tâche 136, Phase 11.7). Aucun code applicatif n'est modifié dans cette tâche.
 
@@ -8,7 +8,7 @@
 
 ## 1. Pourquoi ce cadrage
 
-Giulio Geo n'est pas un générateur de contenu — c'est un **moteur de preuve d'impact**. Cette posture est ce qui différencie l'app des dizaines d'outils SEO génératifs disponibles sur l'App Store.
+GEO by Organically n'est pas un générateur de contenu — c'est un **moteur de preuve d'impact**. Cette posture est ce qui différencie l'app des dizaines d'outils SEO génératifs disponibles sur l'App Store.
 
 L'infrastructure existante est déjà **complète et opérationnelle** (Phase 11.5 tâches 116-125) :
 

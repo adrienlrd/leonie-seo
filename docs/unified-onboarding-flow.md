@@ -1,4 +1,4 @@
-# Unified Onboarding Flow — Giulio Geo
+# Unified Onboarding Flow — GEO by Organically
 
 > Référence Phase 11.9, tâche 154. Ce document définit l'onboarding marchand V1 en 4 étapes maximum.
 >

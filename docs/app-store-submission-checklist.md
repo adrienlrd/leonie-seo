@@ -47,7 +47,7 @@ Verify each one before submitting.
 
 | Item | Where | Notes |
 |---|---|---|
-| **App name** ("Giulio Geo") unique on the App Store | Partner Dashboard → App setup → Name | Must not collide with another app |
+| **App name** ("GEO by Organically") unique on the App Store | Partner Dashboard → App setup → Name | Must not collide with another app |
 | **App URL** = `https://leonie-seo-pilot-web.onrender.com` (will change for production app) | App setup → URLs | Use a non-pilot URL when going GA |
 | **Allowed redirection URLs** | App setup → URLs | Currently in `shopify.app.pilot.toml` |
 | **Access scopes** = `read_products,write_products,write_content,read_themes,write_themes` | App setup → Access scopes | Matches `shopify.app.toml`. `read_orders` removed (unused). `write_themes` is tightly scoped, consented, reversible and audited — see `docs/shopify-write-themes-review-justification.md` (paste its summary into the review notes) |

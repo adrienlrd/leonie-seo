@@ -1,6 +1,6 @@
-# Unified AI Search Readiness Audit — Giulio Geo
+# Unified AI Search Readiness Audit — GEO by Organically
 
-> Référence canonique du score d'audit unique exposé au marchand. Définit comment Giulio Geo fusionne facts, SEO issues, JSON-LD, Crawl L3, PageSpeed, status produit et signaux niche en **un seul score lisible** par produit, avec sous-scores explicatifs et actions recommandées.
+> Référence canonique du score d'audit unique exposé au marchand. Définit comment GEO by Organically fusionne facts, SEO issues, JSON-LD, Crawl L3, PageSpeed, status produit et signaux niche en **un seul score lisible** par produit, avec sous-scores explicatifs et actions recommandées.
 >
 > Statut : décisions produit/architecture figées au 2026-05-19 (tâche 131, Phase 11.7). Aucun code applicatif n'est modifié dans cette tâche.
 
@@ -240,7 +240,7 @@ Elles ne sont **plus des entrées dans le menu principal**. Elles sont accessibl
 
 Le score CWV (`app/api/pagespeed.py:36`) **n'est pas inclus dans le score unifié V1**. Raisons :
 
-- CWV est largement déterminé par le thème Shopify, pas par les optimisations Giulio Geo.
+- CWV est largement déterminé par le thème Shopify, pas par les optimisations GEO by Organically.
 - Inclure CWV pénaliserait des marchands qui ne peuvent pas y agir depuis l'app.
 - CWV reste visible comme **signal séparé** sur la page audit, avec ses propres alertes.
 

@@ -122,7 +122,7 @@ async def ga4_callback(
               <body style="font-family:sans-serif;padding:2rem;max-width:600px;margin:auto">
                 <h1>Erreur lors de la connexion GA4</h1>
                 <pre style="background:#fee;padding:1rem;border-radius:4px;overflow:auto">{exc.__class__.__name__}: {exc}</pre>
-                <p>Fermez cet onglet et réessayez depuis Giulio Geo.</p>
+                <p>Fermez cet onglet et réessayez depuis GEO by Organically.</p>
               </body>
             </html>
             """,
@@ -135,7 +135,7 @@ async def ga4_callback(
       <body style="font-family:sans-serif;padding:2rem;max-width:480px;margin:auto">
         <h1>Google Analytics connecté ✓</h1>
         <p>Vos credentials Google Analytics ont été enregistrés.</p>
-        <p>Retournez dans Giulio Geo, sélectionnez votre propriété GA4 et enregistrez.</p>
+        <p>Retournez dans GEO by Organically, sélectionnez votre propriété GA4 et enregistrez.</p>
         <p><small>Vous pouvez fermer cet onglet.</small></p>
         <script>
           (function () {

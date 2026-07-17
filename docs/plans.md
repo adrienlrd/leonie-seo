@@ -1,6 +1,6 @@
-# Plans & Pricing — Giulio Geo
+# Plans & Pricing — GEO by Organically
 
-> Giulio Geo se distribue selon **deux modes** complémentaires. Chacun a son propre système d'authentification et de facturation. Les fonctionnalités offertes par plan (Free/Pro/Agency) sont identiques entre les deux modes.
+> GEO by Organically se distribue selon **deux modes** complémentaires. Chacun a son propre système d'authentification et de facturation. Les fonctionnalités offertes par plan (Free/Pro/Agency) sont identiques entre les deux modes.
 
 ---
 

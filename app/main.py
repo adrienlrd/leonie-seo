@@ -1,4 +1,4 @@
-"""FastAPI app entry point — Giulio Geo public API."""
+"""FastAPI app entry point — GEO by Organically public API."""
 # ruff: noqa: I001  — import order is forced by load_dotenv() runtime constraint
 
 import asyncio
@@ -157,7 +157,7 @@ async def lifespan(app: FastAPI):
 # ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="Giulio Geo — Shopify App",
+    title="GEO by Organically — Shopify App",
     version="0.1.0",
     description="SEO automation app for Shopify merchants",
     lifespan=lifespan,

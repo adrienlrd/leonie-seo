@@ -1,6 +1,6 @@
 ---
 name: project-architecture-snapshot
-description: Giulio Geo Shopify app layout, env var naming split between Remix and Python services, and a node_modules version-resolution quirk found during the 2026-06-15 audit
+description: GEO by Organically Shopify app layout, env var naming split between Remix and Python services, and a node_modules version-resolution quirk found during the 2026-06-15 audit
 metadata:
   type: project
 ---

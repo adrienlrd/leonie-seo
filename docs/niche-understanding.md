@@ -1,6 +1,6 @@
-# Merchant Niche Understanding Layer — Giulio Geo
+# Merchant Niche Understanding Layer — GEO by Organically
 
-> Référence canonique de la couche de compréhension de la boutique par LLM. Définit comment Giulio Geo transforme les signaux Shopify, GSC, GA4 et catalogue en hypothèses marketing validées par le marchand, qui alimentent ensuite les modules 131-134.
+> Référence canonique de la couche de compréhension de la boutique par LLM. Définit comment GEO by Organically transforme les signaux Shopify, GSC, GA4 et catalogue en hypothèses marketing validées par le marchand, qui alimentent ensuite les modules 131-134.
 >
 > Statut : décisions produit/architecture figées au 2026-05-19 (tâche 130, Phase 11.7). Runtime backend/API/UI implémenté le 2026-05-20 (tâche 141, Phase 11.8).
 
@@ -27,7 +27,7 @@ Connecter → [Comprendre] → Proposer → Valider → Appliquer → Mesurer
 ```
 
 - Le marchand connecte sa boutique (Shopify OAuth, GSC, optionnel GA4).
-- Giulio Geo synthétise les signaux en hypothèses.
+- GEO by Organically synthétise les signaux en hypothèses.
 - Le marchand voit "Voici ce que l'IA a compris de votre boutique" et corrige.
 - Les hypothèses validées sont persistées dans `shop_config`.
 - **Aucun module aval (131 audit, 132 opportunités, 133 priorisation, 134 contenu)** ne tourne sans hypothèses marchand validées.
