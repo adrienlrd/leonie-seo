@@ -19,6 +19,7 @@
   - Réglages: removed the Settings-hub sub-page link, the publishing-mode select (frequency kept; saveAutomation still sends the stored mode), the continuous-improvement link + 1h test button, and the promo-code card. GEO- codes now redeem through the billing page's existing partner-code field (routed to /quota-code/redeem on the GEO- prefix).
   - Theme embed: `_app_embed_enabled` now resolves `current` as a preset NAME (presets[name].blocks) — enabling the embed by hand finally shows as validated. Deep link switched to `admin.shopify.com/store/{handle}/themes/current/editor?context=apps&template=index&activateAppId={uid}/faq_embed`.
   - Dashboard: RealtimeSignalsCard removed (incl. loader fetch). Verified: grounding source URLs are metadata only, never fetched by the pipeline — dead vertexaisearch redirect links have zero algorithmic impact.
+- **Follow-up (same day):** plan upgrades (free→pro, pro→agency; both Shopify subscription confirm and partner access codes) now automatically reset the analysis + per-product quota window via `reset_analysis_usage`/`is_plan_upgrade` (`app/billing/quotas.py`); quota-code redemption reuses the same helper. pytest 2171 passed.
 - **Validations:** ruff OK, pytest 2169 passed, typecheck + build OK.
 - **Open:** if the theme-editor deep link still lands on an empty apps panel after deploy, the deployed extension uuid must be compared against the toml uid (Partner Dashboard → app version → extension).
 
