@@ -20,7 +20,8 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, loaderPhrases, localizedPath, type Locale } from "../lib/i18n";
+import { loaderPhrases, localizedPath, type Locale } from "../lib/i18n";
+import { resolveLocale } from "../lib/i18n.server";
 import { ResearchConsole, type ResearchJobEvent } from "../components/ResearchConsole";
 import { buildCrawlSteps } from "../lib/researchSteps";
 import type {
@@ -55,7 +56,7 @@ async function fetchJson(
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const locale = getLocale(request);
+  const locale = await resolveLocale(request, session.shop, session.accessToken);
   try {
     const [previewRes, latestRes] = await Promise.all([
       fetchJson(session.shop, `/api/shops/${session.shop}/competitor-serp/preview`, session.accessToken),

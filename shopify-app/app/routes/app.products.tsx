@@ -26,7 +26,8 @@ import { Component, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
+import { loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
+import { resolveLocale } from "../lib/i18n.server";
 import { ResearchConsole, type ResearchJobEvent } from "../components/ResearchConsole";
 import { QuotaPill } from "../components/UsageMeter";
 import { buildAnalysisCounters, buildAnalysisSteps } from "../lib/researchSteps";
@@ -388,7 +389,7 @@ export const shouldRevalidate: ShouldRevalidateFunction = (args) => {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const locale = getLocale(request);
+  const locale = await resolveLocale(request, session.shop, session.accessToken);
 
   const fetchOpt = { accessToken: session.accessToken, method: "GET" as const };
 

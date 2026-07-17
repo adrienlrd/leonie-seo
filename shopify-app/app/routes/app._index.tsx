@@ -68,7 +68,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { handleProductCardIntent } from "../lib/productCardActions.server";
-import { getLocale, loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
+import { loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
+import { resolveLocale } from "../lib/i18n.server";
 import { ResearchConsole } from "../components/ResearchConsole";
 import { ProductCard } from "../components/ProductCard";
 import { Sparkline } from "../components/Sparkline";
@@ -213,7 +214,7 @@ interface ScheduleStatus {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
-  const locale = getLocale(request);
+  const locale = await resolveLocale(request, session.shop, session.accessToken);
 
   const url = new URL(request.url);
   const plan = (url.searchParams.get("plan") ?? "free") as "free" | "pro" | "agency";

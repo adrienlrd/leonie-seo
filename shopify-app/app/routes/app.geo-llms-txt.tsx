@@ -19,7 +19,8 @@ import { PlanBadge } from "../components/PlanBadge";
 import { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, t, type Locale } from "../lib/i18n";
+import { t, type Locale } from "../lib/i18n";
+import { resolveLocale } from "../lib/i18n.server";
 
 interface LlmsTxtStatus {
   is_published: boolean;
@@ -64,7 +65,7 @@ const INTENT_SEGMENTS: Record<string, string> = {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const locale = getLocale(request);
+  const locale = await resolveLocale(request, session.shop, session.accessToken);
   let status: LlmsTxtStatus | null = null;
   try {
     const resp = await callBackendForShop(

@@ -1,4 +1,10 @@
-export type Locale = "fr" | "en";
+export type Locale = "fr" | "en" | "de" | "es";
+
+export const SUPPORTED_LOCALES: readonly Locale[] = ["fr", "en", "de", "es"] as const;
+
+export function isSupportedLocale(value: string | null | undefined): value is Locale {
+  return value === "fr" || value === "en" || value === "de" || value === "es";
+}
 
 type Dictionary = Record<string, string>;
 
@@ -183,6 +189,9 @@ const FR: Dictionary = {
   onboardingDiscoveryThemes: "Thèmes à fort potentiel",
   onboardingDiscoveryConfirm: "Continuer",
   onboardingGoogleSkip: "Passer cette étape",
+  languageCardTitle: "Langue de l'application",
+  languageCardBody:
+    "Cette langue pilote toute l'application : interface, analyses IA, marché des mots-clés et contenu généré. Par défaut : la langue principale de votre boutique Shopify.",
   productSelectionTitle: "Choisissez vos produits",
   productSelectionSubtitle:
     "Sélectionnez les produits que l'app va gérer et optimiser. Votre forfait détermine le nombre maximum de produits.",
@@ -1047,6 +1056,9 @@ const EN: Dictionary = {
   onboardingDiscoveryThemes: "High-potential themes",
   onboardingDiscoveryConfirm: "Continue",
   onboardingGoogleSkip: "Skip this step",
+  languageCardTitle: "App language",
+  languageCardBody:
+    "This language drives the whole app: interface, AI analyses, keyword market and generated content. Default: your Shopify store's primary language.",
   productSelectionTitle: "Choose your products",
   productSelectionSubtitle:
     "Select the products the app will manage and optimize. Your plan sets the maximum number of products.",
@@ -1728,20 +1740,29 @@ const EN: Dictionary = {
   coverImageError: "Error loading image",
 };
 
-const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN };
+const DE: Dictionary = { ...EN };
+
+const ES: Dictionary = { ...EN };
+
+// DE/ES start as EN copies and are progressively replaced by real
+// translations (see DE/ES dictionaries below once populated).
+const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };
 
 export function getLocale(request: Request): Locale {
   const url = new URL(request.url);
   const requested = url.searchParams.get("locale");
-  if (requested === "en" || requested === "fr") {
+  if (isSupportedLocale(requested)) {
     return requested;
   }
-  const header = request.headers.get("accept-language") || "";
-  return header.toLowerCase().startsWith("en") ? "en" : "fr";
+  const header = (request.headers.get("accept-language") || "").toLowerCase();
+  for (const candidate of SUPPORTED_LOCALES) {
+    if (header.startsWith(candidate)) return candidate;
+  }
+  return "en";
 }
 
 export function t(locale: Locale, key: string): string {
-  return DICTIONARIES[locale][key] ?? DICTIONARIES.fr[key] ?? key;
+  return DICTIONARIES[locale][key] ?? DICTIONARIES.en[key] ?? DICTIONARIES.fr[key] ?? key;
 }
 
 export function localizedPath(path: string, locale: Locale): string {
@@ -1772,6 +1793,22 @@ const LOADER_PHRASES: Record<LoaderPhraseKind, Record<Locale, string[]>> = {
       "Anti-cannibalization check across your pages…",
       "Verifying product facts before writing (zero invention)…",
     ],
+    de: [
+      "Abgleich Ihrer Search-Console-Anfragen mit Suchvolumen…",
+      "Qualifizierung der Suchintention (Kauf, Vergleich, Information)…",
+      "Erkennung der Fragen, die Ihre Kunden KIs stellen (ChatGPT, Gemini)…",
+      "Analyse der Ansätze der Wettbewerber auf Googles erster Seite…",
+      "Kannibalisierungs-Check zwischen Ihren Seiten…",
+      "Prüfung der Produktfakten vor dem Schreiben (keine Erfindungen)…",
+    ],
+    es: [
+      "Cruzando sus consultas de Search Console con los volúmenes de búsqueda…",
+      "Calificando la intención de búsqueda (compra, comparación, información)…",
+      "Detectando las preguntas que sus clientes hacen a las IA (ChatGPT, Gemini)…",
+      "Estudiando los enfoques de la competencia en la primera página de Google…",
+      "Control anticanibalización entre sus páginas…",
+      "Verificación de datos del producto antes de redactar (cero invención)…",
+    ],
   },
   writing: {
     fr: [
@@ -1789,6 +1826,22 @@ const LOADER_PHRASES: Record<LoaderPhraseKind, Record<Locale, string[]>> = {
       "Applying Article + FAQPage markup (Google structured data)…",
       "Aligning with your brand voice…",
       "Proofreading: length, readability, verified claims…",
+    ],
+    de: [
+      "Strukturierung des Artikels rund um die Suchintention…",
+      "Verfassen kurzer Antworten, die Google und KIs übernehmen können…",
+      "Interne Verlinkung zu Ihren Produkten…",
+      "Anwendung von Article- + FAQPage-Markup (strukturierte Daten)…",
+      "Abstimmung auf Ihre Markenstimme…",
+      "Korrektur: Länge, Lesbarkeit, geprüfte Aussagen…",
+    ],
+    es: [
+      "Estructurando el artículo en torno a la intención de búsqueda…",
+      "Redactando respuestas cortas extraíbles por Google y las IA…",
+      "Tejiendo enlaces internos hacia sus productos…",
+      "Aplicando el marcado Article + FAQPage (datos estructurados)…",
+      "Alineación con la voz de su marca…",
+      "Revisión: longitud, legibilidad, afirmaciones verificadas…",
     ],
   },
   profile: {
@@ -1808,6 +1861,22 @@ const LOADER_PHRASES: Record<LoaderPhraseKind, Record<Locale, string[]>> = {
       "Detecting high-potential content themes…",
       "Consolidating the strategic profile…",
     ],
+    de: [
+      "Lektüre Ihres Katalogs und Ihrer Kollektionen…",
+      "Identifizierung Ihrer Nische und ihres Vokabulars…",
+      "Ableitung der Personas aus Ihren Produkten und echten Suchanfragen…",
+      "Erkennung Ihrer direkten Wettbewerber in den Google-Ergebnissen…",
+      "Erkennung von Content-Themen mit hohem Potenzial…",
+      "Konsolidierung des strategischen Profils…",
+    ],
+    es: [
+      "Leyendo su catálogo y sus colecciones…",
+      "Identificando su nicho y su vocabulario…",
+      "Deduciendo los perfiles de cliente desde sus productos y consultas reales…",
+      "Localizando a sus competidores directos en los resultados de Google…",
+      "Detectando temas de contenido con alto potencial…",
+      "Consolidando el perfil estratégico…",
+    ],
   },
   crawl: {
     fr: [
@@ -1825,6 +1894,22 @@ const LOADER_PHRASES: Record<LoaderPhraseKind, Record<Locale, string[]>> = {
       "Spotting the frequent questions they already cover…",
       "Measuring their strength on your target queries…",
       "Synthesis: what they do, what is transferable…",
+    ],
+    de: [
+      "Abfrage der Google-Ergebnisse zu Ihren Keywords…",
+      "Extraktion der Struktur der Wettbewerberseiten (Titel, FAQ, Verlinkung)…",
+      "Vergleich ihrer redaktionellen Ansätze mit Ihren…",
+      "Erkennung der häufigen Fragen, die sie bereits abdecken…",
+      "Messung ihrer Stärke bei Ihren Ziel-Suchanfragen…",
+      "Synthese: was sie tun, was übertragbar ist…",
+    ],
+    es: [
+      "Consultando los resultados de Google para sus palabras clave…",
+      "Extrayendo la estructura de las páginas competidoras (títulos, FAQ, enlaces)…",
+      "Comparando sus enfoques editoriales con los suyos…",
+      "Localizando las preguntas frecuentes que ya cubren…",
+      "Midiendo su fuerza en sus consultas objetivo…",
+      "Síntesis: qué hacen, qué es transferible…",
     ],
   },
 };

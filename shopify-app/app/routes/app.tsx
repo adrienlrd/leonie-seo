@@ -7,13 +7,14 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import { localizedPath, t, type Locale } from "../lib/i18n";
+import { resolveLocale } from "../lib/i18n.server";
 import { SupportChat } from "../components/SupportChat";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
 
   // "Forfaits" nav entry is shown only to free-plan merchants. Fail closed
   // (hidden) on backend timeout so the nav never nags paying merchants.
@@ -33,7 +34,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return json({
     apiKey: process.env.SHOPIFY_API_KEY || "",
-    locale: getLocale(request),
+    locale: await resolveLocale(request, session.shop, session.accessToken, admin),
     // Optional support-chat widget (e.g. a Tawk.to embed URL). Empty → no widget.
     supportChatSrc: process.env.LEONIE_SUPPORT_CHAT_SRC || "",
     shop: session.shop,

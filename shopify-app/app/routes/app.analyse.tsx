@@ -24,7 +24,8 @@ import { PlanBadge } from "../components/PlanBadge";
 import { AlertTriangleIcon, LightbulbIcon, ViewIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import { localizedPath, t, type Locale } from "../lib/i18n";
+import { resolveLocale } from "../lib/i18n.server";
 import {
   ValidationClicksChart,
   type ClicksSeriesPoint,
@@ -109,7 +110,7 @@ interface LoaderData {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
-  const locale = getLocale(request);
+  const locale = await resolveLocale(request, session.shop, session.accessToken);
 
   let products: ProductEntry[] = [];
   let summary = { total_products: 0, total_actions: 0 };

@@ -21,7 +21,8 @@ import { CheckCircleIcon, LockIcon } from "@shopify/polaris-icons";
 import { useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, type Locale } from "../lib/i18n";
+import { type Locale } from "../lib/i18n";
+import { resolveLocale } from "../lib/i18n.server";
 import { UsageMeter } from "../components/UsageMeter";
 
 interface PlanQuotas {
@@ -54,7 +55,7 @@ interface LoaderData {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
-  const locale = getLocale(request);
+  const locale = await resolveLocale(request, session.shop, session.accessToken);
 
   let plans: Plan[] = [];
   let currentPlan = "free";

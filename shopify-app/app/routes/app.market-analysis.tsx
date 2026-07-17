@@ -1,11 +1,11 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { redirect } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
-import { getLocale } from "../lib/i18n";
+import { resolveLocale } from "../lib/i18n.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
-  const locale = getLocale(request);
+  const { session } = await authenticate.admin(request);
+  const locale = await resolveLocale(request, session.shop, session.accessToken);
   const url = new URL(request.url);
   const params = new URLSearchParams(url.search);
   params.set("locale", locale);

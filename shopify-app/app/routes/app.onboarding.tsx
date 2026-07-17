@@ -18,7 +18,8 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import { localizedPath, t, type Locale } from "../lib/i18n";
+import { resolveLocale } from "../lib/i18n.server";
 import { BusinessProfilePanel } from "../components/BusinessProfilePanel";
 import { ProductIdentificationPanel } from "../components/ProductIdentificationPanel";
 import { MarketAnalysisProgressPanel } from "../components/MarketAnalysisProgressPanel";
@@ -72,7 +73,7 @@ async function fetchOk<T>(promise: Promise<Response>): Promise<T | null> {
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = session.shop;
-  const locale = getLocale(request);
+  const locale = await resolveLocale(request, session.shop, session.accessToken);
 
   const be = (path: string) =>
     callBackendForShop(shop, path, { accessToken: session.accessToken });
@@ -126,7 +127,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shop = session.shop;
-  const locale = getLocale(request);
+  const locale = await resolveLocale(request, session.shop, session.accessToken);
   const form = await request.formData();
   const intent = String(form.get("intent") || "audit");
 

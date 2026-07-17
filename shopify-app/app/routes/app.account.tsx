@@ -19,7 +19,8 @@ import {
 import { PlanBadge } from "../components/PlanBadge";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { getLocale, localizedPath, t, type Locale } from "../lib/i18n";
+import { localizedPath, t, type Locale } from "../lib/i18n";
+import { resolveLocale } from "../lib/i18n.server";
 import { HubGrid, type HubItem } from "../components/HubGrid";
 import { GoogleConnectionsCard } from "../components/GoogleConnectionsCard";
 import type { GA4Property, GA4Status, GSCStatus, OnboardingActionData } from "../components/onboarding/types";
@@ -38,7 +39,7 @@ interface LlmsTxtStatus {
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const locale = getLocale(request);
+  const locale = await resolveLocale(request, session.shop, session.accessToken);
   const [gscResp, ga4Resp, learningResp, llmsResp, themeExtResp] = await Promise.allSettled([
     callBackendForShop(session.shop, `/api/shops/${session.shop}/gsc/status`, { accessToken: session.accessToken }),
     callBackendForShop(session.shop, `/api/shops/${session.shop}/ga4/status`, { accessToken: session.accessToken }),
@@ -106,7 +107,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Server-side redirect (followed by the fetcher) is the reliable way to
       // navigate inside the embedded iframe. Land the merchant back on the now
       // first-open home page.
-      return redirect(localizedPath("/app", getLocale(request)));
+      return redirect(localizedPath("/app", await resolveLocale(request, session.shop, session.accessToken)));
     }
     const error = (await resp.text()).slice(0, 300);
     return json({ type: "resetAllData", ok: false, error });
