@@ -29,7 +29,12 @@ _SETTINGS_QUERY = """
 query ThemeSettings($id: ID!) {
   theme(id: $id) {
     files(filenames: ["config/settings_data.json"], first: 1) {
-      nodes { body { ... on OnlineStoreThemeFileBodyText { content } } }
+      nodes {
+        body {
+          ... on OnlineStoreThemeFileBodyText { content }
+          ... on OnlineStoreThemeFileBodyBase64 { contentBase64 }
+        }
+      }
     }
   }
 }
@@ -92,9 +97,23 @@ def get_theme_extension_status(shop: str, access_token: str) -> dict[str, Any]:
         ) or []
         if not nodes:
             return {"available": False, "enabled": None, "detail": "settings_data.json not found"}
-        content = ((nodes[0] or {}).get("body") or {}).get("content") or ""
+        body = (nodes[0] or {}).get("body") or {}
+        content = body.get("content") or ""
+        if not content and body.get("contentBase64"):
+            # Large settings files come back as the Base64 body type — only
+            # requesting the text fragment left content empty, so the status
+            # stayed "unknown" forever on themes with big settings_data.json.
+            import base64  # noqa: PLC0415
+
+            try:
+                content = base64.b64decode(body["contentBase64"]).decode("utf-8")
+            except (ValueError, UnicodeDecodeError):
+                return {"available": True, "enabled": None, "detail": "settings body undecodable"}
+        if not content:
+            return {"available": True, "enabled": None, "detail": "settings body empty"}
         enabled = _app_embed_enabled(content)
-        return {"available": True, "enabled": enabled, "detail": "ok"}
+        detail = "ok" if enabled is not None else "no app-embed blocks section found"
+        return {"available": True, "enabled": enabled, "detail": detail}
     except requests.RequestException as exc:
         logger.warning("Theme extension status check failed for %s: %s", shop, exc)
         return {"available": False, "enabled": None, "detail": str(exc)}
