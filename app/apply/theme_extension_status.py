@@ -26,7 +26,7 @@ query MainTheme { themes(roles: [MAIN], first: 1) { edges { node { id } } } }
 """.strip()
 
 _ALL_THEMES_QUERY = """
-query AllThemes { themes(first: 10) { edges { node { id name role } } } }
+query AllThemes { themes(first: 30) { edges { node { id name role } } } }
 """.strip()
 
 _SETTINGS_QUERY = """
@@ -69,9 +69,14 @@ def _app_embed_enabled(settings_json: str) -> bool | None:
         # the status stay "unknown" forever even after the merchant enabled the
         # embed by hand.
         current = (data.get("presets") or {}).get(current)
-    blocks = (current or {}).get("blocks") if isinstance(current, dict) else None
-    if not isinstance(blocks, dict):
+    if not isinstance(current, dict):
         return None
+    blocks = current.get("blocks")
+    if not isinstance(blocks, dict):
+        # Settings parsed fine but the theme has no app-embed entries at all —
+        # that IS "not enabled", not "unknown" (verified live: a valid theme
+        # with zero embeds previously showed as indeterminate forever).
+        return False
     for block in blocks.values():
         if not isinstance(block, dict):
             continue

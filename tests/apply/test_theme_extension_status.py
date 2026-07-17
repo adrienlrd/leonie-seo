@@ -35,8 +35,13 @@ def test_none_on_malformed_json() -> None:
     assert _app_embed_enabled("{not json") is None
 
 
-def test_none_when_no_current_blocks() -> None:
-    assert _app_embed_enabled(json.dumps({"current": {}})) is None
+def test_false_when_no_blocks_section() -> None:
+    """A valid theme with zero app embeds is 'not enabled', not 'unknown'."""
+    assert _app_embed_enabled(json.dumps({"current": {}})) is False
+
+
+def test_none_when_current_missing() -> None:
+    assert _app_embed_enabled(json.dumps({"presets": {}})) is None
 
 def test_enabled_when_current_is_a_preset_name() -> None:
     """Themes saved via the editor's preset picker store `current` as a preset
