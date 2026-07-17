@@ -493,22 +493,22 @@ function verdictTone(verdict: string): "success" | "critical" | "attention" | "i
   return "info";
 }
 
+const VERDICT_KEYS: Record<string, string> = {
+  improving: "ciVerdictImproving",
+  regressing: "ciVerdictRegressing",
+  no_effect: "ciVerdictNoEffect",
+  inconclusive: "ciVerdictInconclusive",
+  partially_improving: "ciVerdictPartiallyImproving",
+};
+
 function verdictLabel(verdict: string, locale: Locale): string {
-  const fr: Record<string, string> = {
-    improving: "En amélioration",
-    regressing: "En régression",
-    no_effect: "Sans effet",
-    inconclusive: "Non concluant",
-    partially_improving: "Partiellement en amélioration",
-  };
-  const en: Record<string, string> = {
-    improving: "Improving",
-    regressing: "Regressing",
-    no_effect: "No effect",
-    inconclusive: "Inconclusive",
-    partially_improving: "Partially improving",
-  };
-  return (locale === "fr" ? fr : en)[verdict] ?? verdict;
+  const key = VERDICT_KEYS[verdict];
+  return key ? t(locale, key) : verdict;
+}
+
+function bilingualText(item: { fr: string; en: string }, locale: Locale): string {
+  const useFrench = locale === "fr";
+  return useFrench ? item.fr : item.en;
 }
 
 function recommendationTone(severity: string): "success" | "critical" | "warning" | "info" {
@@ -528,22 +528,20 @@ function ProductCard({ product, locale }: { product: ProductRow; locale: Locale 
             <Text as="h2" variant="headingMd">{product.product_title}</Text>
             <Text as="p" variant="bodySm" tone="subdued">/{product.product_handle}</Text>
           </BlockStack>
-          <Badge tone="info">{`${improved}/${product.elements.length} ${locale === "fr" ? "éléments améliorés" : "elements improved"}`}</Badge>
+          <Badge tone="info">{`${improved}/${product.elements.length} ${t(locale, "ciElementsImproved")}`}</Badge>
         </InlineStack>
         <InlineStack gap="100" wrap>
           {product.tags.slice(0, 12).map((tag) => (
             <Badge key={tag.tag_id} tone={tagTone(tag.status)}>
-              {tag.locked_by_merchant ? `${tag.label} · ${locale === "fr" ? "marchand" : "merchant"}` : tag.label}
+              {tag.locked_by_merchant ? `${tag.label} · ${t(locale, "ciMerchantLocked")}` : tag.label}
             </Badge>
           ))}
-          {product.tags.length === 0 && <Badge>{locale === "fr" ? "Aucun tag" : "No tag"}</Badge>}
+          {product.tags.length === 0 && <Badge>{t(locale, "ciNoTag")}</Badge>}
         </InlineStack>
         <InlineStack gap="100" wrap>
           {product.elements.map((element) => (
             <Badge key={element.key} tone={element.improved ? "success" : "info"}>
-              {`${element.label}: ${element.improved
-                ? (locale === "fr" ? "amélioré" : "improved")
-                : (locale === "fr" ? "non amélioré" : "not improved")}`}
+              {`${element.label}: ${element.improved ? t(locale, "ciImproved") : t(locale, "ciNotImproved")}`}
             </Badge>
           ))}
         </InlineStack>
@@ -570,20 +568,20 @@ function EventCard({ event, locale }: { event: AgentEvent; locale: Locale }) {
         </InlineStack>
         <InlineStack gap="300" wrap>
           <Text as="p" variant="bodySm">
-            <strong>{locale === "fr" ? "Score avant" : "Before score"}:</strong>{" "}
+            <strong>{t(locale, "ciBeforeScore")}:</strong>{" "}
             {event.score_before ?? "n/a"}
           </Text>
           <Text as="p" variant="bodySm">
-            <strong>{locale === "fr" ? "Score après" : "After score"}:</strong>{" "}
-            {event.score_after ?? (locale === "fr" ? "En attente" : "Pending")}
+            <strong>{t(locale, "ciAfterScore")}:</strong>{" "}
+            {event.score_after ?? t(locale, "ciPending")}
           </Text>
           <Text as="p" variant="bodySm">
-            <strong>{locale === "fr" ? "Revenu estimé" : "Estimated revenue"}:</strong>{" "}
+            <strong>{t(locale, "ciEstimatedRevenue")}:</strong>{" "}
             {money(estimatedRevenue)}
           </Text>
           <Text as="p" variant="bodySm">
-            <strong>{locale === "fr" ? "Revenu observé" : "Observed revenue"}:</strong>{" "}
-            {observedRevenue === null ? (locale === "fr" ? "En attente" : "Pending") : money(observedRevenue)}
+            <strong>{t(locale, "ciObservedRevenue")}:</strong>{" "}
+            {observedRevenue === null ? t(locale, "ciPending") : money(observedRevenue)}
           </Text>
         </InlineStack>
         {event.notes && <Text as="p" variant="bodySm">{event.notes}</Text>}
@@ -626,15 +624,15 @@ function ApprovalCard({
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
           <div style={{ border: "1px solid #dfe3e8", borderRadius: 8, padding: 12 }}>
             <BlockStack gap="100">
-              <Text as="p" variant="headingSm">{locale === "fr" ? "Avant" : "Before"}</Text>
+              <Text as="p" variant="headingSm">{t(locale, "ciBefore")}</Text>
               <Text as="p" variant="bodySm">{approval.old_value || "n/a"}</Text>
             </BlockStack>
           </div>
           <div style={{ border: "1px solid #dfe3e8", borderRadius: 8, padding: 12 }}>
             <BlockStack gap="100">
-              <Text as="p" variant="headingSm">{locale === "fr" ? "Après" : "After"}</Text>
+              <Text as="p" variant="headingSm">{t(locale, "ciAfter")}</Text>
               <TextField
-                label={locale === "fr" ? "Proposition" : "Proposal"}
+                label={t(locale, "ciProposal")}
                 labelHidden
                 value={value}
                 onChange={setValue}
@@ -648,7 +646,7 @@ function ApprovalCard({
           {String(
             approval.expected_impact.summary
               ?? approval.explanation.reason
-              ?? (locale === "fr" ? "Impact attendu calculé par le moteur." : "Expected impact calculated by the engine."),
+              ?? t(locale, "ciExpectedImpactDefault"),
           )}
         </Text>
         <InlineStack gap="200">
@@ -656,14 +654,14 @@ function ApprovalCard({
             <input type="hidden" name="intent" value="approveLearning" />
             <input type="hidden" name="approval_id" value={approval.id} />
             <Button submit variant="primary" loading={pending}>
-              {locale === "fr" ? "Appliquer" : "Apply"}
+              {t(locale, "ciApply")}
             </Button>
           </fetcher.Form>
           <fetcher.Form method="post">
             <input type="hidden" name="intent" value="rejectLearning" />
             <input type="hidden" name="approval_id" value={approval.id} />
             <Button submit loading={pending}>
-              {locale === "fr" ? "Ignorer" : "Skip"}
+              {t(locale, "ciSkip")}
             </Button>
           </fetcher.Form>
           <fetcher.Form method="post">
@@ -671,7 +669,7 @@ function ApprovalCard({
             <input type="hidden" name="approval_id" value={approval.id} />
             <input type="hidden" name="proposed_value" value={value} />
             <Button submit loading={pending}>
-              {locale === "fr" ? "Modifier" : "Edit"}
+              {t(locale, "ciEdit")}
             </Button>
           </fetcher.Form>
         </InlineStack>
@@ -680,11 +678,18 @@ function ApprovalCard({
   );
 }
 
+const DATE_LOCALES: Record<Locale, string> = {
+  fr: "fr-FR",
+  en: "en-US",
+  de: "de-DE",
+  es: "es-ES",
+};
+
 function formatDateTime(value: string | null, locale: Locale): string {
-  if (!value) return locale === "fr" ? "—" : "—";
+  if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(locale === "fr" ? "fr-FR" : "en-US", {
+  return new Intl.DateTimeFormat(DATE_LOCALES[locale], {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
@@ -832,29 +837,27 @@ export default function ContinuousImprovement() {
             <InlineStack align="space-between" blockAlign="center" wrap>
               <BlockStack gap="050">
                 <Text as="h2" variant="headingMd">
-                  {locale === "fr" ? "Agent de correction GEO" : "GEO correction agent"}
+                  {t(locale, "ciAgentTitle")}
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {locale === "fr"
-                    ? "Analyse les retours J+14/J+28, classe les tags, génère les corrections et enregistre le score avant/après."
-                    : "Analyzes J+14/J+28 feedback, classifies tags, generates corrections and records before/after scores."}
+                  {t(locale, "ciAgentSubtitle")}
                 </Text>
               </BlockStack>
               <InlineStack gap="200">
                 <Button loading={busy} onClick={() => runAgent(false)}>
-                  {locale === "fr" ? "Semi-automatique — recommandé" : "Semi-automatic — recommended"}
+                  {t(locale, "ciSemiAutoRecommended")}
                 </Button>
                 <Button variant="primary" tone="critical" loading={busy} onClick={() => runAgent(true)}>
-                  {locale === "fr" ? "Auto-apply — avancé" : "Auto-apply — advanced"}
+                  {t(locale, "ciAutoApplyAdvanced")}
                 </Button>
               </InlineStack>
             </InlineStack>
             {fetcher.data?.ok && fetcher.data.result?.diagnostics && (
               <Banner tone="success">
                 <Text as="p">
-                  {locale === "fr"
-                    ? `Run #${fetcher.data.result?.run_id} terminé. Propositions : ${fetcher.data.result?.proposals?.length ?? 0}.`
-                    : `Run #${fetcher.data.result?.run_id} completed. Proposals: ${fetcher.data.result?.proposals?.length ?? 0}.`}
+                  {t(locale, "ciRunCompleted")
+                    .replace("{runId}", String(fetcher.data.result?.run_id))
+                    .replace("{count}", String(fetcher.data.result?.proposals?.length ?? 0))}
                 </Text>
               </Banner>
             )}
@@ -863,18 +866,14 @@ export default function ContinuousImprovement() {
               && (fetcher.data.result.proposals?.length ?? 0) === 0 && (
               <Banner tone="info">
                 <Text as="p">
-                  {locale === "fr"
-                    ? fetcher.data.result.diagnostics.fr
-                    : fetcher.data.result.diagnostics.en}
+                  {bilingualText(fetcher.data.result.diagnostics, locale)}
                 </Text>
               </Banner>
             )}
             {fetcher.data?.ok && fetcher.data.result?.diagnostics && (
               <InlineStack gap="200">
                 <Button onClick={downloadAgentResult}>
-                  {locale === "fr"
-                    ? "Télécharger le JSON (raisonnement + résultat)"
-                    : "Download JSON (reasoning + result)"}
+                  {t(locale, "ciDownloadRunJson")}
                 </Button>
               </InlineStack>
             )}
@@ -891,33 +890,27 @@ export default function ContinuousImprovement() {
             <InlineStack align="space-between" blockAlign="center" wrap>
               <BlockStack gap="050">
                 <Text as="h2" variant="headingMd">
-                  {locale === "fr" ? "Automatisation de l'agent" : "Agent automation"}
+                  {t(locale, "ciAutomationTitle")}
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {locale === "fr"
-                    ? "Laissez l'agent tourner automatiquement chaque jour. Le test ne fait qu'un seul passage et n'active pas le quotidien."
-                    : "Let the agent run automatically every day. The test runs once and does not enable the daily schedule."}
+                  {t(locale, "ciAutomationSubtitle")}
                 </Text>
               </BlockStack>
               <Badge tone={schedule?.enabled ? "success" : "info"}>
-                {schedule?.enabled
-                  ? (locale === "fr" ? "Activé" : "Enabled")
-                  : (locale === "fr" ? "Désactivé" : "Disabled")}
+                {schedule?.enabled ? t(locale, "ciEnabled") : t(locale, "ciDisabled")}
               </Badge>
             </InlineStack>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
               <Select
-                label={locale === "fr" ? "Mode" : "Mode"}
+                label={t(locale, "ciMode")}
                 options={[
                   {
-                    label: locale === "fr"
-                      ? "Semi-automatique — recommandé"
-                      : "Semi-automatic — recommended",
+                    label: t(locale, "ciSemiAutoRecommended"),
                     value: "semi_auto",
                   },
                   {
-                    label: locale === "fr" ? "Auto-apply — avancé" : "Auto-apply — advanced",
+                    label: t(locale, "ciAutoApplyAdvanced"),
                     value: "auto_apply",
                   },
                 ]}
@@ -925,16 +918,16 @@ export default function ContinuousImprovement() {
                 onChange={(value) => setScheduleMode(value as "semi_auto" | "auto_apply")}
               />
               <Select
-                label={locale === "fr" ? "Fréquence" : "Frequency"}
+                label={t(locale, "ciFrequency")}
                 options={[
-                  { label: locale === "fr" ? "Tous les jours" : "Every day", value: "daily" },
+                  { label: t(locale, "ciEveryDay"), value: "daily" },
                 ]}
                 value="daily"
                 disabled
                 onChange={() => {}}
               />
               <TextField
-                label={locale === "fr" ? "Heure locale" : "Local time"}
+                label={t(locale, "ciLocalTime")}
                 value={scheduleTime}
                 onChange={setScheduleTime}
                 type="time"
@@ -945,42 +938,40 @@ export default function ContinuousImprovement() {
             {scheduleMode === "auto_apply" && (
               <Banner tone="warning">
                 <Text as="p">
-                  {locale === "fr"
-                    ? "Mode auto-apply : l'agent peut appliquer des modifications Shopify automatiquement, dans la limite des garde-fous existants (faible risque + confiance élevée). Le mode semi-automatique reste recommandé."
-                    : "Auto-apply mode: the agent may apply Shopify changes automatically, within existing guardrails (low risk + high confidence). Semi-automatic mode remains recommended."}
+                  {t(locale, "ciAutoApplyWarning")}
                 </Text>
               </Banner>
             )}
 
             <InlineStack gap="200" wrap>
               <Button variant="primary" loading={scheduleBusy} onClick={enableDailyAgent}>
-                {locale === "fr" ? "Activer l'agent quotidien" : "Enable daily agent"}
+                {t(locale, "ciEnableDailyAgent")}
               </Button>
               <Button tone="critical" loading={scheduleBusy} onClick={disableDailyAgent}>
-                {locale === "fr" ? "Désactiver l'agent" : "Disable agent"}
+                {t(locale, "ciDisableAgent")}
               </Button>
               <Button loading={scheduleBusy} onClick={testAgentIn5Min}>
-                {locale === "fr" ? "Lancer un test dans 5 minutes" : "Run a test in 5 minutes"}
+                {t(locale, "ciRunTestIn5Min")}
               </Button>
               <Button loading={exportBusy} onClick={exportResults}>
-                {locale === "fr" ? "Exporter les résultats" : "Export results"}
+                {t(locale, "ciExportResults")}
               </Button>
             </InlineStack>
 
             <InlineStack gap="300" wrap>
               <Text as="p" variant="bodySm">
-                <strong>{locale === "fr" ? "Prochain lancement" : "Next run"}:</strong>{" "}
+                <strong>{t(locale, "ciNextRun")}:</strong>{" "}
                 {schedule?.enabled
                   ? formatDateTime(schedule?.next_run_at ?? null, locale)
-                  : (locale === "fr" ? "Désactivé" : "Disabled")}
+                  : t(locale, "ciDisabled")}
               </Text>
               <Text as="p" variant="bodySm">
-                <strong>{locale === "fr" ? "Dernier lancement" : "Last run"}:</strong>{" "}
+                <strong>{t(locale, "ciLastRun")}:</strong>{" "}
                 {formatDateTime(schedule?.last_run_at ?? null, locale)}
               </Text>
               {schedule?.test_run_at && (
                 <Text as="p" variant="bodySm">
-                  <strong>{locale === "fr" ? "Test prévu" : "Test scheduled"}:</strong>{" "}
+                  <strong>{t(locale, "ciTestScheduled")}:</strong>{" "}
                   {formatDateTime(schedule.test_run_at, locale)}
                 </Text>
               )}
@@ -990,9 +981,7 @@ export default function ContinuousImprovement() {
               <BlockStack gap="200">
                 <InlineStack align="space-between" blockAlign="center" wrap>
                   <Text as="h3" variant="headingSm">
-                    {locale === "fr"
-                      ? "L'agent améliore-t-il le référencement Google et le GEO ?"
-                      : "Is the agent improving Google ranking and GEO?"}
+                    {t(locale, "ciEffectivenessQuestion")}
                   </Text>
                   <InlineStack gap="100">
                     <Badge tone={verdictTone(effectiveness?.seo.verdict ?? "inconclusive")}>
@@ -1004,13 +993,13 @@ export default function ContinuousImprovement() {
                   </InlineStack>
                 </InlineStack>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {locale === "fr"
-                    ? `Basé sur ${effectiveness?.sample_size ?? 0} mesure(s) mûre(s) (J+14/J+28), confiance moyenne ${effectiveness?.avg_confidence ?? 0}/100.`
-                    : `Based on ${effectiveness?.sample_size ?? 0} matured measurement(s) (J+14/J+28), average confidence ${effectiveness?.avg_confidence ?? 0}/100.`}
+                  {t(locale, "ciEffectivenessBasis")
+                    .replace("{sampleSize}", String(effectiveness?.sample_size ?? 0))
+                    .replace("{avgConfidence}", String(effectiveness?.avg_confidence ?? 0))}
                 </Text>
                 {(effectiveness?.recommendations ?? []).slice(0, 4).map((rec) => (
                   <Banner key={rec.code} tone={recommendationTone(rec.severity)}>
-                    <Text as="p" variant="bodySm">{locale === "fr" ? rec.fr : rec.en}</Text>
+                    <Text as="p" variant="bodySm">{bilingualText(rec, locale)}</Text>
                   </Banner>
                 ))}
                 {(effectiveness?.by_field?.length ?? 0) > 0 && (
@@ -1028,7 +1017,7 @@ export default function ContinuousImprovement() {
             {scheduleFetcher.data?.ok && (
               <Banner tone="success">
                 <Text as="p">
-                  {locale === "fr" ? "Automatisation mise à jour." : "Automation updated."}
+                  {t(locale, "ciAutomationUpdated")}
                 </Text>
               </Banner>
             )}
@@ -1051,17 +1040,15 @@ export default function ContinuousImprovement() {
               <BlockStack gap="050">
                 <Text as="h2" variant="headingMd">Learning / Algorithme</Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {locale === "fr"
-                    ? "Le moteur apprend des résultats J+14/J+28, prépare les meilleures optimisations et garde les changements risqués en validation."
-                    : "The engine learns from J+14/J+28 outcomes, prepares the best optimizations and keeps riskier changes in review."}
+                  {t(locale, "ciLearningSubtitle")}
                 </Text>
               </BlockStack>
               <InlineStack gap="200">
                 <Button loading={busy} onClick={saveLearningSettings}>
-                  {locale === "fr" ? "Enregistrer" : "Save"}
+                  {t(locale, "ciSave")}
                 </Button>
                 <Button variant="primary" loading={cycleBusy} onClick={runLearningCycle}>
-                  {locale === "fr" ? "Lancer un cycle maintenant" : "Run cycle now"}
+                  {t(locale, "ciRunCycleNow")}
                 </Button>
               </InlineStack>
             </InlineStack>
@@ -1072,9 +1059,7 @@ export default function ContinuousImprovement() {
                 }
               >
                 <Text as="p">
-                  {locale === "fr"
-                    ? cycleFetcher.data.result.diagnostics.fr
-                    : cycleFetcher.data.result.diagnostics.en}
+                  {bilingualText(cycleFetcher.data.result.diagnostics, locale)}
                 </Text>
               </Banner>
             )}
@@ -1086,35 +1071,29 @@ export default function ContinuousImprovement() {
             {cycleFetcher.data?.result && (
               <InlineStack gap="200">
                 <Button onClick={downloadCycleResult}>
-                  {locale === "fr"
-                    ? "Télécharger le JSON de ce cycle (raisonnement + résultat)"
-                    : "Download this cycle's JSON (reasoning + result)"}
+                  {t(locale, "ciDownloadCycleJson")}
                 </Button>
               </InlineStack>
             )}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
               <Select
-                label={locale === "fr" ? "Statut" : "Status"}
+                label={t(locale, "ciStatus")}
                 options={[
-                  { label: locale === "fr" ? "Activé" : "Enabled", value: "true" },
-                  { label: locale === "fr" ? "Désactivé" : "Disabled", value: "false" },
+                  { label: t(locale, "ciEnabled"), value: "true" },
+                  { label: t(locale, "ciDisabled"), value: "false" },
                 ]}
                 value={enabled}
                 onChange={setEnabled}
               />
               <Select
-                label={locale === "fr" ? "Mode" : "Mode"}
+                label={t(locale, "ciMode")}
                 options={[
                   {
-                    label: locale === "fr"
-                      ? "Semi-automatique — recommandé"
-                      : "Semi-automatic — recommended",
+                    label: t(locale, "ciSemiAutoRecommended"),
                     value: "semi_auto",
                   },
                   {
-                    label: locale === "fr"
-                      ? "Auto-apply — avancé"
-                      : "Auto-apply — advanced",
+                    label: t(locale, "ciAutoApplyAdvanced"),
                     value: "auto_apply",
                   },
                 ]}
@@ -1122,24 +1101,24 @@ export default function ContinuousImprovement() {
                 onChange={(value) => setLearningMode(value as "semi_auto" | "auto_apply")}
               />
               <TextField
-                label={locale === "fr" ? "Confiance minimum auto-apply" : "Auto-apply minimum confidence"}
+                label={t(locale, "ciMinAutoConfidence")}
                 value={minAutoConfidence}
                 onChange={setMinAutoConfidence}
                 type="number"
                 autoComplete="off"
               />
               <TextField
-                label={locale === "fr" ? "Limite auto par cycle" : "Auto limit per cycle"}
+                label={t(locale, "ciAutoLimitPerCycle")}
                 value={maxAutoActions}
                 onChange={setMaxAutoActions}
                 type="number"
                 autoComplete="off"
               />
               <Select
-                label={locale === "fr" ? "Validation groupée" : "Bulk approval"}
+                label={t(locale, "ciBulkApproval")}
                 options={[
-                  { label: locale === "fr" ? "Autorisée" : "Allowed", value: "true" },
-                  { label: locale === "fr" ? "Désactivée" : "Disabled", value: "false" },
+                  { label: t(locale, "ciAllowed"), value: "true" },
+                  { label: t(locale, "ciBulkDisabled"), value: "false" },
                 ]}
                 value={bulkApproval}
                 onChange={setBulkApproval}
@@ -1171,10 +1150,10 @@ export default function ContinuousImprovement() {
         <BlockStack gap="300">
           <InlineStack align="space-between" blockAlign="center" wrap>
             <Text as="h2" variant="headingLg">
-              {locale === "fr" ? "Actions à valider" : "Actions to review"}
+              {t(locale, "ciActionsToReview")}
             </Text>
             <Button loading={busy} onClick={bulkApproveSafe}>
-              {locale === "fr" ? "Appliquer toutes les actions sûres" : "Apply all safe actions"}
+              {t(locale, "ciApplyAllSafe")}
             </Button>
           </InlineStack>
           {approvals.map((approval) => (
@@ -1183,9 +1162,7 @@ export default function ContinuousImprovement() {
           {approvals.length === 0 && (
             <Banner tone="info">
               <Text as="p">
-                {locale === "fr"
-                  ? "Aucune action en attente. Lance un cycle learning pour préparer les prochaines optimisations."
-                  : "No pending action. Run a learning cycle to prepare the next optimizations."}
+                {t(locale, "ciNoPendingAction")}
               </Text>
             </Banner>
           )}
@@ -1195,7 +1172,7 @@ export default function ContinuousImprovement() {
           <Card>
             <BlockStack gap="200">
               <Text as="h2" variant="headingMd">
-                {locale === "fr" ? "Actions appliquées automatiquement" : "Automatically applied actions"}
+                {t(locale, "ciAutoAppliedActions")}
               </Text>
               {(learning?.recent_decisions ?? [])
                 .filter((decision) => decision.merchant_decision === "auto_applied")
@@ -1207,7 +1184,7 @@ export default function ContinuousImprovement() {
                 ))}
               {(learning?.recent_decisions ?? []).filter((decision) => decision.merchant_decision === "auto_applied").length === 0 && (
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {locale === "fr" ? "Aucune action auto-appliquée récemment." : "No recent automatic apply."}
+                  {t(locale, "ciNoRecentAutoApply")}
                 </Text>
               )}
             </BlockStack>
@@ -1215,7 +1192,7 @@ export default function ContinuousImprovement() {
           <Card>
             <BlockStack gap="200">
               <Text as="h2" variant="headingMd">
-                {locale === "fr" ? "Suivi J+14 / J+28" : "J+14 / J+28 follow-up"}
+                {t(locale, "ciFollowUpTitle")}
               </Text>
               {(learning?.recent_runs ?? []).slice(0, 5).map((run) => (
                 <InlineStack key={String(run.id)} align="space-between" wrap>
@@ -1227,7 +1204,7 @@ export default function ContinuousImprovement() {
               ))}
               {(learning?.recent_runs ?? []).length === 0 && (
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {locale === "fr" ? "Aucun cycle learning enregistré." : "No learning cycle recorded."}
+                  {t(locale, "ciNoLearningCycle")}
                 </Text>
               )}
             </BlockStack>
@@ -1244,12 +1221,12 @@ export default function ContinuousImprovement() {
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
               {[
-                { label: locale === "fr" ? "Produits suivis" : "Products tracked", value: String(data.summary.products_tracked) },
-                { label: locale === "fr" ? "Éléments améliorés" : "Elements improved", value: `${data.summary.improved_elements}/${data.summary.total_elements}` },
-                { label: locale === "fr" ? "Tags positifs" : "Positive tags", value: String(data.summary.positive_tags) },
-                { label: locale === "fr" ? "Tags négatifs" : "Negative tags", value: String(data.summary.negative_tags) },
-                { label: locale === "fr" ? "Modifications agent" : "Agent changes", value: String(data.summary.total_events) },
-                { label: locale === "fr" ? "Impact observé" : "Observed impact", value: money(data.summary.observed_revenue) },
+                { label: t(locale, "ciProductsTracked"), value: String(data.summary.products_tracked) },
+                { label: t(locale, "ciElementsImprovedStat"), value: `${data.summary.improved_elements}/${data.summary.total_elements}` },
+                { label: t(locale, "ciPositiveTags"), value: String(data.summary.positive_tags) },
+                { label: t(locale, "ciNegativeTags"), value: String(data.summary.negative_tags) },
+                { label: t(locale, "ciAgentChangesStat"), value: String(data.summary.total_events) },
+                { label: t(locale, "ciObservedImpact"), value: money(data.summary.observed_revenue) },
               ].map((item) => (
                 <Card key={item.label}>
                   <BlockStack gap="050">
@@ -1267,7 +1244,7 @@ export default function ContinuousImprovement() {
             <Card>
               <BlockStack gap="200">
                 <Text as="h2" variant="headingMd">
-                  {locale === "fr" ? "Répartition des tags" : "Tag breakdown"}
+                  {t(locale, "ciTagBreakdown")}
                 </Text>
                 <InlineStack gap="100" wrap>
                   {data.tag_breakdown.map((row) => (
@@ -1276,7 +1253,7 @@ export default function ContinuousImprovement() {
                     </Badge>
                   ))}
                   {data.tag_breakdown.length === 0 && (
-                    <Badge>{locale === "fr" ? "Aucun tag enregistré" : "No stored tag"}</Badge>
+                    <Badge>{t(locale, "ciNoStoredTag")}</Badge>
                   )}
                 </InlineStack>
               </BlockStack>
@@ -1284,7 +1261,7 @@ export default function ContinuousImprovement() {
 
             <BlockStack gap="300">
               <Text as="h2" variant="headingLg">
-                {locale === "fr" ? "Runs de l'agent" : "Agent runs"}
+                {t(locale, "ciAgentRuns")}
               </Text>
               {data.agent_runs.map((run) => (
                 <Card key={run.id}>
@@ -1303,7 +1280,7 @@ export default function ContinuousImprovement() {
                     </InlineStack>
                     {run.errors.length > 0 && (
                       <Banner tone="warning">
-                        <Text as="p">{`${run.errors.length} ${locale === "fr" ? "erreur(s) pendant le run" : "error(s) during the run"}`}</Text>
+                        <Text as="p">{t(locale, "ciRunErrors").replace("{count}", String(run.errors.length))}</Text>
                       </Banner>
                     )}
                   </BlockStack>
@@ -1311,14 +1288,14 @@ export default function ContinuousImprovement() {
               ))}
               {data.agent_runs.length === 0 && (
                 <Banner tone="info">
-                  <Text as="p">{locale === "fr" ? "Aucun run agent enregistré." : "No agent run recorded."}</Text>
+                  <Text as="p">{t(locale, "ciNoAgentRun")}</Text>
                 </Banner>
               )}
             </BlockStack>
 
             <BlockStack gap="300">
               <Text as="h2" variant="headingLg">
-                {locale === "fr" ? "Décisions sur les tags" : "Tag decisions"}
+                {t(locale, "ciTagDecisions")}
               </Text>
               <InlineStack gap="100" wrap>
                 {data.tag_history.slice(0, 30).map((item) => (
@@ -1327,35 +1304,35 @@ export default function ContinuousImprovement() {
                   </Badge>
                 ))}
                 {data.tag_history.length === 0 && (
-                  <Badge>{locale === "fr" ? "Aucune décision tag" : "No tag decision"}</Badge>
+                  <Badge>{t(locale, "ciNoTagDecision")}</Badge>
                 )}
               </InlineStack>
             </BlockStack>
 
             <BlockStack gap="300">
               <Text as="h2" variant="headingLg">
-                {locale === "fr" ? "Produits et axes de contenu" : "Products and content axes"}
+                {t(locale, "ciProductsContentAxes")}
               </Text>
               {data.products.map((product) => (
                 <ProductCard key={product.product_id} product={product} locale={locale} />
               ))}
               {data.products.length === 0 && (
                 <Banner tone="warning">
-                  <Text as="p">{locale === "fr" ? "Lancez une Analyse marché pour créer les premiers tags." : "Run a Market analysis to create the first tags."}</Text>
+                  <Text as="p">{t(locale, "ciRunMarketAnalysis")}</Text>
                 </Banner>
               )}
             </BlockStack>
 
             <BlockStack gap="300">
               <Text as="h2" variant="headingLg">
-                {locale === "fr" ? "Modifications de l'agent" : "Agent changes"}
+                {t(locale, "ciAgentChangesTitle")}
               </Text>
               {data.events.map((event) => (
                 <EventCard key={event.id} event={event} locale={locale} />
               ))}
               {data.events.length === 0 && (
                 <Banner tone="info">
-                  <Text as="p">{locale === "fr" ? "Aucune modification agent enregistrée pour le moment." : "No agent change recorded yet."}</Text>
+                  <Text as="p">{t(locale, "ciNoAgentChange")}</Text>
                 </Banner>
               )}
             </BlockStack>
