@@ -219,6 +219,38 @@ class QuotaCodeRedeem(BaseModel):
     code: str
 
 
+class LanguageUpdate(BaseModel):
+    language: str
+
+
+@router.get("/shops/{shop}/language")
+async def get_language(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict:
+    """Return the shop's app language and whether it was explicitly set."""
+    from app.language import SUPPORTED_LANGUAGES, get_shop_language  # noqa: PLC0415
+    from app.shop_config_store import get_shop_config  # noqa: PLC0415
+
+    return {
+        "language": get_shop_language(ctx.shop),
+        "configured": get_shop_config(ctx.shop, "app_language") in SUPPORTED_LANGUAGES,
+        "supported": list(SUPPORTED_LANGUAGES),
+    }
+
+
+@router.put("/shops/{shop}/language")
+async def put_language(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    body: LanguageUpdate,
+) -> dict:
+    """Persist the shop's app language (drives UI, prompts and keyword market)."""
+    from app.language import set_shop_language  # noqa: PLC0415
+
+    try:
+        set_shop_language(ctx.shop, body.language)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"saved": True, "language": body.language}
+
+
 @router.post("/shops/{shop}/quota-code/redeem")
 async def redeem_quota_code_endpoint(
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
