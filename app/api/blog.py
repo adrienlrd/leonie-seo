@@ -42,6 +42,7 @@ from app.blog.seo_score import score_blog_readiness
 from app.blog.shopify_articles import BlogPublisher
 from app.blog.store import delete_draft, get_draft, list_drafts, save_draft
 from app.geo.auto_tracking import record_applied_change
+from app.language import get_shop_language
 from app.managed_products import filter_snapshot_products
 from app.market_analysis.jobs import load_latest_result
 
@@ -1008,7 +1009,7 @@ def publish_blog_draft(
             publisher_name=body.publisher_name or draft.get("author_name", "") or ctx.shop,
             publisher_logo_url=body.publisher_logo_url,
             image_url=draft.get("image_url"),
-            language="fr",
+            language=get_shop_language(ctx.shop),
             article_body=article_body_text,
             word_count=int(draft.get("word_count") or 0),
             keywords=", ".join(

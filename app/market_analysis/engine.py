@@ -8,6 +8,7 @@ import os
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -539,7 +540,10 @@ def _coerce_claims(value: Any) -> list[dict[str, Any]]:
 
 
 def _fetch_trends_once(
-    top_titles: list[str], status_out: dict[str, Any] | None = None
+    top_titles: list[str],
+    status_out: dict[str, Any] | None = None,
+    *,
+    language: str = "fr",
 ) -> list[Any]:
     """Call Google Trends once with up to 5 product title seeds. Returns [] on any error.
 
@@ -552,10 +556,15 @@ def _fetch_trends_once(
             status_out.update({"status": "empty", "detail": "no product titles", "count": 0})
         return []
     try:
+        from app.language import get_market  # noqa: PLC0415
         from app.niche.signals.trends import fetch_related_queries  # noqa: PLC0415
 
+        market = get_market(language)
         return fetch_related_queries(
-            top_titles[:5], geo="FR", timeframe="today 12-m", status_out=status_out
+            top_titles[:5],
+            geo=market.trends_geo,
+            timeframe="today 12-m",
+            status_out=status_out,
         )
     except Exception as exc:
         logger.warning("Google Trends unavailable: %s", exc)
@@ -5720,6 +5729,7 @@ def run_market_analysis(
     db_path: Path | None = None,
     fetch_realtime: bool = False,
     fetch_realtime_force: bool = False,
+    language: str = "fr",
 ) -> dict[str, Any]:
     """Run a two-pass SEO/GEO market analysis for active products.
 
@@ -5794,7 +5804,9 @@ def run_market_analysis(
         if opp.get("product_id") in product_by_id
     ]
     trends_status: dict[str, Any] = {}
-    trend_signals = _fetch_trends_once([t for t in top_titles if t], status_out=trends_status)
+    trend_signals = _fetch_trends_once(
+        [t for t in top_titles if t], status_out=trends_status, language=language
+    )
     if trend_signals:
         sources_used.append("trends")
 
@@ -5829,7 +5841,13 @@ def run_market_analysis(
         llm_router = None
 
     free_provider = FreeProvider(gsc_query_rows=gsc_query_rows, trend_signals=trend_signals)
-    dataforseo_provider = DataForSEOProvider()
+    from app.language import get_market  # noqa: PLC0415
+
+    _market = get_market(language)
+    dataforseo_provider = DataForSEOProvider(
+        location_code=_market.dataforseo_location_code,
+        language_code=_market.dataforseo_language_code,
+    )
     google_ads_provider = GoogleAdsKeywordProvider()
     paid_providers = [p for p in (dataforseo_provider, google_ads_provider) if p.available]
     competitor_crawl_config = CompetitorCrawlConfig.for_market_analysis()
@@ -5868,6 +5886,9 @@ def run_market_analysis(
             fields,
             gsc_query_rows,
             dataforseo=dataforseo_provider,
+            suggest_fetcher=partial(
+                fetch_suggestions_bulk, lang=_market.suggest_hl, country=_market.suggest_gl
+            ),
             competitor_markers=competitor_brand_markers,
             merchant_terms=merchant_terms,
             use_suggest=True,
@@ -6035,7 +6056,7 @@ def run_market_analysis(
 
         if progress_callback is not None:
             try:
-                partial = [
+                partial_results = [
                     _build_product_result(
                         s["product"],
                         s["opp"],
@@ -6045,7 +6066,7 @@ def run_market_analysis(
                     )
                     for s in pass1_states
                 ]
-                progress_callback(idx + 1, total, partial, "targeting")
+                progress_callback(idx + 1, total, partial_results, "targeting")
             except Exception:
                 pass
 

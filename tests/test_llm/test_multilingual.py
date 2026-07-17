@@ -147,7 +147,7 @@ def test_generate_meta_locale_success():
 def test_generate_meta_locale_invalid_locale_raises():
     router = _make_router("response")
     with pytest.raises(ValueError, match="Unsupported locale"):
-        generate_meta_locale(_PRODUCT, "es", router)
+        generate_meta_locale(_PRODUCT, "it", router)
 
 
 def test_generate_meta_locale_llm_error_sets_error_field():

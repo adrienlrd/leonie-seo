@@ -43,6 +43,7 @@ from app.geo.continuous_improvement import (
 )
 from app.gsc.client import ensure_fresh_gsc
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
+from app.language import get_shop_language
 from app.learning.models import PRIMARY_WINDOW_DAYS, LearningMode
 from app.learning.store import get_settings, record_run
 from app.managed_products import (
@@ -376,6 +377,7 @@ def _run_analysis_background(
     collections: list[dict[str, Any]] | None = None,
     articles: list[dict[str, Any]] | None = None,
     reflection_test: bool = True,
+    language: str = "en",
 ) -> None:
     """Background task: runs the full analysis and updates the job store incrementally."""
     started_at = datetime.now(UTC)
@@ -484,6 +486,7 @@ def _run_analysis_background(
             # is exactly when fresh market verification matters most. Plan gate
             # (agency) + budget gate still apply inside the engine.
             fetch_realtime=True,
+            language=language,
         )
 
         _apply_retired_and_locked_keywords(result, shop_domain, retired_lower)
@@ -763,6 +766,7 @@ async def start_market_analysis_job(
         snapshot.get("collections") or [],
         snapshot.get("articles") or [],
         reflection_test,
+        get_shop_language(ctx.shop),
     )
 
     age = _snapshot_age_days(snapshot)

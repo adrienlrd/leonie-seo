@@ -15,6 +15,7 @@ SUPPORTED_LOCALES: dict[str, str] = {
     "fr": "français",
     "en": "English",
     "de": "Deutsch",
+    "es": "español",
     "nl": "Nederlands",
 }
 

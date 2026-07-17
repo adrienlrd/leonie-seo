@@ -32,6 +32,7 @@ from app.billing.subscription_store import get_plan_for_shop
 from app.blog.auto_draft import auto_create_orphan_drafts
 from app.geo.continuous_improvement import enrich_market_analysis_result, get_shop_retired_tags
 from app.jobs.store import enqueue_unique
+from app.language import get_shop_language
 from app.managed_products import filter_managed_products
 from app.market_analysis.engine import _DEFAULT_BUDGET_USD, _PLAN_BUDGETS_USD, run_market_analysis
 from app.market_analysis.jobs import load_latest_result, save_latest_result
@@ -173,6 +174,7 @@ def run_market_reanalysis(
         # Always a full-catalog run (never targeted), so fetch the real-time
         # signal once per job — internally still gated to the agency plan.
         fetch_realtime=True,
+        language=get_shop_language(shop),
     )
 
     retired_lower = {lbl.lower().strip() for lbl in get_shop_retired_tags(shop_domain)}

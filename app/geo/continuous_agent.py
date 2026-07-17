@@ -28,6 +28,7 @@ from app.geo.continuous_improvement import (
     upsert_product_tags,
 )
 from app.geo.ledger import create_geo_event, list_geo_events, update_geo_event_status
+from app.language import get_shop_language
 from app.learning.models import CandidateAction, LearningMode, RiskLevel
 from app.learning.policy import learning_boost_for_action, rank_candidates
 from app.learning.risk import assess_action_risk
@@ -318,6 +319,7 @@ def _request_for_product(
     product: dict[str, Any],
     content_type: ContentType,
     tags: list[dict[str, Any]],
+    language: str = "en",
 ) -> ContentActionRequest:
     pack = (
         product.get("content_test_pack")
@@ -349,7 +351,7 @@ def _request_for_product(
         missing_facts=_missing_facts(pack),
         gsc_signals=GscSignals(top_queries=top_queries),
         niche_context=_niche_context(product, tags),
-        constraints=Constraints(locale="fr"),
+        constraints=Constraints(locale=language),
         previous_content=PreviousContent(content="", feedback=feedback),
         optimization_context=_optimization_context(product),
     )
@@ -578,7 +580,7 @@ def run_continuous_improvement_agent(
     for product, element_key, content_type in candidates:
         tags = product.get("improvement_tags") or []
         try:
-            request = _request_for_product(product, content_type, tags)
+            request = _request_for_product(product, content_type, tags, get_shop_language(shop))
             result = run_content_action(
                 request,
                 shop,

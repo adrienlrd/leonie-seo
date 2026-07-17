@@ -288,7 +288,8 @@ def test_publish_corrects_canonical_url_with_real_handles() -> None:
     corrected_body = publisher.update_article.call_args.kwargs["body_html"]
     assert "/blogs/news/mon-article" in corrected_body
     assert '"articleBody"' in corrected_body
-    assert '"inLanguage":"fr"' in corrected_body
+    # Language now follows the shop's app_language (default en, none configured here).
+    assert '"inLanguage":"en"' in corrected_body
     assert draft["shopify_blog_handle"] == "news"
 
 

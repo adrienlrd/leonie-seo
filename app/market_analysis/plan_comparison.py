@@ -18,6 +18,7 @@ from typing import Any
 from app.api.deps import _RAW_DIR, ShopContext
 from app.api.market_analysis import _gather_analysis_inputs
 from app.billing.quotas import get_quotas
+from app.language import get_shop_language
 from app.market_analysis.engine import run_market_analysis
 
 _API_VERSION = "2025-01"
@@ -27,6 +28,7 @@ def _run_one(
     plan: str,
     *,
     inputs: dict[str, Any],
+    shop: str,
     shop_domain: str,
     db_path: Path | None,
     fetch_realtime: bool,
@@ -53,6 +55,7 @@ def _run_one(
         reflection_test=True,
         fetch_realtime=fetch_realtime,
         fetch_realtime_force=fetch_realtime_force,
+        language=get_shop_language(shop),
     )
     result["realtime_grounding_used"] = "realtime_grounding" in result.get("sources_used", [])
     return result
@@ -119,6 +122,7 @@ def run_plan_comparison(
     pro_result = _run_one(
         "pro",
         inputs=inputs,
+        shop=shop,
         shop_domain=shop_domain,
         db_path=db_path,
         fetch_realtime=False,
@@ -130,6 +134,7 @@ def run_plan_comparison(
     agency_result = _run_one(
         "agency",
         inputs=inputs,
+        shop=shop,
         shop_domain=shop_domain,
         db_path=db_path,
         fetch_realtime=True,
