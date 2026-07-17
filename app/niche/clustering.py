@@ -80,6 +80,9 @@ _STOPWORDS = {
     "produit",
     "article",
 }
+from app.nlp.lang_resources import stopwords_all  # noqa: E402
+
+_STOPWORDS = frozenset(_STOPWORDS) | stopwords_all()
 
 _MIN_TERM_LEN = 3
 _TOP_KEYWORDS_PER_CLUSTER = 8

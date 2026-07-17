@@ -42,6 +42,10 @@ _ORIGIN_PATTERNS = (
     "made in eu",
 )
 
+from app.nlp.lang_resources import origin_patterns_all  # noqa: E402
+
+_ORIGIN_PATTERNS = _ORIGIN_PATTERNS + origin_patterns_all()
+
 
 def detect_signals(
     *,

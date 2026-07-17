@@ -364,6 +364,9 @@ _CONFIDENCE_ALIASES = {
     "basse": "low",
     "bas": "low",
 }
+from app.nlp.lang_resources import CONFIDENCE_ALIASES_EXTRA  # noqa: E402
+
+_CONFIDENCE_ALIASES = {**_CONFIDENCE_ALIASES, **CONFIDENCE_ALIASES_EXTRA}
 
 
 def _normalize_confidence(value: Any) -> str:

@@ -213,6 +213,15 @@ _STOPWORDS = {
     "pas",
     "est",
 }
+from app.nlp.lang_resources import (  # noqa: E402
+    commercial_signals_all,
+    informational_signals_all,
+    stopwords_all,
+)
+
+_STOPWORDS = frozenset(_STOPWORDS) | stopwords_all()
+_INFORMATIONAL_SIGNALS = frozenset(_INFORMATIONAL_SIGNALS) | informational_signals_all()
+_COMMERCIAL_SIGNALS = frozenset(_COMMERCIAL_SIGNALS) | commercial_signals_all()
 
 _MIN_TERM_LEN = 3
 _TOP_KEYWORDS_PER_CLUSTER = 8
