@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 from app.business_profile.context import build_business_profile_context_meta
 from app.geo.facts import analyze_product_facts
 from app.llm import LLMError, get_router
+from app.llm.language_context import language_context
 from app.market_analysis.competitor_crawl.config import CompetitorCrawlConfig
 from app.market_analysis.competitor_crawl.extractor import extract_merchant_product_features
 from app.market_analysis.competitor_crawl.fetcher import fetch_competitor_targets
@@ -584,6 +585,7 @@ def _fetch_realtime_signals_once(
     force: bool = False,
     status_out: dict[str, Any] | None = None,
     persist: bool = True,
+    language: str = "fr",
 ) -> dict[str, Any] | None:
     """Call the grounded real-time signal fetcher once per product. Fail-open.
 
@@ -610,6 +612,7 @@ def _fetch_realtime_signals_once(
             force=force,
             status_out=status_out,
             persist=persist,
+            language=language,
         )
     except Exception as exc:
         logger.warning("Real-time signals unavailable: %s", exc)
@@ -625,6 +628,7 @@ def _verify_keywords_once(
     *,
     force: bool = False,
     status_out: dict[str, Any] | None = None,
+    language: str = "fr",
 ) -> dict[str, dict[str, Any]] | None:
     """Call the grounded keyword-verification fetcher once per job. Fail-open,
     same exception safety net as `_fetch_realtime_signals_once`.
@@ -635,7 +639,7 @@ def _verify_keywords_once(
         )
 
         return verify_keywords_against_market(
-            shop, keywords, niche_summary, force=force, status_out=status_out
+            shop, keywords, niche_summary, force=force, status_out=status_out, language=language
         )
     except Exception as exc:
         logger.warning("Keyword market verification unavailable: %s", exc)
@@ -813,6 +817,7 @@ def _build_pass1_prompt(
     candidate_pool: list[dict[str, Any]] | None = None,
     optimization_history_block: str = "",
     realtime_text: str = "",
+    language: str = "fr",
 ) -> str:
     queries_text = ", ".join(matched_queries[:5]) if matched_queries else "aucune donnée GSC"
     collections_text = ", ".join(collections) if collections else "aucune"
@@ -877,7 +882,7 @@ def _build_pass1_prompt(
         keyword_instructions = (
             "ÉTAPE 1/2 — CIBLAGE. Aucune donnée mots-clés réelle disponible pour ce produit : "
             "propose des cibles plausibles (elles seront marquées comme estimées).\n"
-            "RÈGLE MOTS-CLÉS : priorité aux requêtes mid-tail (2-4 mots) réalistes en France. "
+            "RÈGLE MOTS-CLÉS : priorité aux requêtes mid-tail (2-4 mots) réalistes sur le marché cible. "
             "Les 2-3 premiers seo_keywords doivent être mid-tail. Longues traînes en fin de liste pour FAQ/GEO.\n"
             "Réponds uniquement en JSON valide avec exactement ces clés : "
             "product_summary, target_customer, buying_intents (liste de strings), "
@@ -910,6 +915,7 @@ def _build_pass1_prompt(
         "Toutes les propositions doivent être actuelles et pertinentes pour l'année en cours.\n"
         + (f"{optimization_history_block}\n" if optimization_history_block else "")
         + f"\n{keyword_instructions}"
+        + f"\n\n{language_context(language)}"
     )
 
 
@@ -1062,6 +1068,7 @@ def _build_pass2_prompt(
     competitor_crawl_summary: str | None = None,
     optimization_history_block: str = "",
     realtime_text: str = "",
+    language: str = "fr",
 ) -> str:
     """Build the pass-2 (content) prompt with strict per-field rules.
 
@@ -1434,6 +1441,7 @@ def _build_pass2_prompt(
         f"confidence (high/medium/low)."
     )
 
+    parts.append("\n" + language_context(language))
     return "\n".join(p for p in parts if p != "")
 
 
@@ -5922,6 +5930,7 @@ def run_market_analysis(
                 force=fetch_realtime_force,
                 status_out=_rt_status,
                 persist=False,
+                language=language,
             )
             last_realtime_status = _rt_status.get("status", "llm_error")
             if product_realtime_signal:
@@ -5978,6 +5987,7 @@ def run_market_analysis(
             candidate_pool=candidate_pool,
             optimization_history_block=optimization_history_block,
             realtime_text=realtime_text,
+            language=language,
         )
         fallback = _fallback_pack(
             fields["product_title"],
@@ -6036,6 +6046,7 @@ def run_market_analysis(
                 niche_summary,
                 force=fetch_realtime_force,
                 status_out=_verify_status,
+                language=language,
             )
             last_verify_status = _verify_status.get("status", "llm_error")
             if verifications:
@@ -6329,6 +6340,7 @@ def run_market_analysis(
                 competitor_crawl_summary=pack.get("competitor_crawl_summary"),
                 optimization_history_block=state.get("optimization_history_block", ""),
                 realtime_text=state.get("realtime_text", ""),
+                language=language,
             )
             pack = _complete_json(
                 llm_router, prompt, _PASS2_KEYS, pack, fields["product_title"], max_tokens=8192

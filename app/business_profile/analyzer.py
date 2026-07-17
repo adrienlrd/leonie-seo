@@ -336,8 +336,11 @@ Retourne 2-3 personas, 6-8 key_themes, 3-5 seasonal_patterns, les domaines concu
 Les signaux produits observés doivent améliorer la compréhension entreprise : récurrence des besoins, concurrents, questions clients, familles de mots-clés et produits piliers."""
 
     try:
+        from app.language import get_shop_language  # noqa: PLC0415
         from app.llm import LLMError, get_router  # noqa: PLC0415
+        from app.llm.language_context import language_context  # noqa: PLC0415
 
+        prompt = f"{prompt}\n\n{language_context(get_shop_language(shop))}"
         llm_router = get_router(shop=shop)
         result = llm_router.complete(
             prompt,

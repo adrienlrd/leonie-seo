@@ -22,6 +22,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from app.business_profile.jobs import load_business_profile
+from app.language import get_shop_language
 from app.llm import LLMError, get_router
 from app.market_analysis import keyword_cache
 from app.market_analysis.competitor_crawl.config import CompetitorCrawlConfig
@@ -290,7 +291,7 @@ def run_competitor_serp_crawl(
             })
         _notify("synthesis_writing", {"domain": str(competitor.get("domain") or "")})
         competitor["synthesis"] = _synthesize_competitor(
-            competitor, features, business_profile, llm_router
+            competitor, features, business_profile, llm_router, get_shop_language(shop)
         )
 
     preview["enriched"] = True
@@ -304,11 +305,16 @@ def _synthesize_competitor(
     page_features: dict[str, Any] | None,
     business_profile: dict[str, Any] | None,
     llm_router: Any | None,
+    language: str = "",
 ) -> dict[str, Any] | None:
     """One LLM call per competitor. Fail-open: returns None on any LLM failure."""
     if llm_router is None:
         return None
     prompt = _build_synthesis_prompt(competitor, page_features, business_profile)
+    if language:
+        from app.llm.language_context import language_context  # noqa: PLC0415
+
+        prompt = f"{prompt}\n\n{language_context(language)}"
     try:
         completion = llm_router.complete(
             prompt,

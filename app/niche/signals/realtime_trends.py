@@ -43,15 +43,18 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _build_prompt(niche_summary: str, product_titles: list[str]) -> str:
+def _build_prompt(niche_summary: str, product_titles: list[str], language: str = "fr") -> str:
+    from app.llm.language_context import grounding_market  # noqa: PLC0415
+
+    country, lang_label = grounding_market(language)
     products_text = ", ".join(product_titles[:5]) if product_titles else "non renseigné"
     today = datetime.now(UTC).strftime("%d/%m/%Y")
     return (
         f"Nous sommes précisément le {today}. Toute information que tu fournis doit être "
         f"vérifiable à cette date exacte — effectue une recherche web maintenant, "
-        f"ne réponds pas depuis ta mémoire. Boutique e-commerce française. "
+        f"ne réponds pas depuis ta mémoire. Boutique e-commerce vendant sur le marché : {country}. "
         f"Niche : {niche_summary or 'non renseignée'}. Exemples de produits : {products_text}.\n\n"
-        "Cherche sur le web francophone (France) et réponds en JSON strict avec ce schéma exact :\n"
+        f"Cherche sur le web en {lang_label} (marché {country}) et réponds en JSON strict avec ce schéma exact :\n"
         "{\n"
         '  "events": [{"title": str, "description": str, "source_url": str}],\n'
         '  "rising_queries": [{"query": str, "why": str, "source_url": str}],\n'
@@ -105,6 +108,7 @@ def fetch_realtime_signals(
     force: bool = False,
     status_out: dict[str, Any] | None = None,
     persist: bool = True,
+    language: str = "fr",
 ) -> dict[str, Any] | None:
     """Fetch (and, by default, persist) a real-time market signal snapshot.
 
@@ -144,7 +148,7 @@ def fetch_realtime_signals(
     try:
         router = get_router(shop=shop, tier="grounded")
         result = router.complete(
-            _build_prompt(niche_summary, product_titles),
+            _build_prompt(niche_summary, product_titles, language),
             system=_SYSTEM_PROMPT,
             # Grounding redirect URLs (vertexaisearch.cloud.google.com/grounding-api-
             # redirect/...) are ~150-200 chars each; up to 11 items (events + rising
@@ -205,7 +209,7 @@ _VERIFY_SYSTEM_PROMPT = (
     "réelle pour CHAQUE mot-clé avant de répondre — ne réponds JAMAIS "
     "uniquement depuis ta mémoire, même pour un mot-clé qui te semble évident. "
     "Indique si une recherche web déclenchée maintenant confirme que ce "
-    "mot-clé est réellement recherché/pertinent sur le marché français en ce "
+    "mot-clé est réellement recherché/pertinent sur le marché cible en ce "
     "moment. Ne te base QUE sur des résultats de recherche réels — jamais une "
     "estimation ou une intuition."
 )
@@ -217,14 +221,17 @@ _MAX_VERIFY_KEYWORDS = 30
 _VERIFY_BATCH_SIZE = 10
 
 
-def _build_verify_prompt(keywords: list[str], niche_summary: str) -> str:
+def _build_verify_prompt(keywords: list[str], niche_summary: str, language: str = "fr") -> str:
+    from app.llm.language_context import grounding_market  # noqa: PLC0415
+
+    country, _lang_label = grounding_market(language)
     kw_list = "\n".join(f"- {k}" for k in keywords)
     today = datetime.now(UTC).strftime("%d/%m/%Y")
     return (
         f"Nous sommes précisément le {today}. Effectue une recherche web maintenant pour "
         f"chaque mot-clé ci-dessous, ne réponds pas depuis ta mémoire.\n"
         f"Niche : {niche_summary or 'non renseignée'}.\n"
-        f"Mots-clés à vérifier sur le marché français actuel :\n{kw_list}\n\n"
+        f"Mots-clés à vérifier sur le marché actuel ({country}) :\n{kw_list}\n\n"
         "Pour CHAQUE mot-clé de la liste, cherche sur le web et réponds en JSON "
         "strict avec ce schéma exact :\n"
         "{\n"
@@ -286,6 +293,7 @@ def verify_keywords_against_market(
     db_path: Path | None = None,
     force: bool = False,
     status_out: dict[str, Any] | None = None,
+    language: str = "fr",
 ) -> dict[str, dict[str, Any]] | None:
     """Cross-check a product's target keywords against the real current market.
 
@@ -327,7 +335,7 @@ def verify_keywords_against_market(
         batches_total += 1
         try:
             result = router.complete(
-                _build_verify_prompt(batch, niche_summary),
+                _build_verify_prompt(batch, niche_summary, language),
                 system=_VERIFY_SYSTEM_PROMPT,
                 max_tokens=4096,
                 temperature=0.2,

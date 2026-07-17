@@ -164,6 +164,12 @@ def generate_section(
         grounded=(tier == "grounded"),
     )
 
+    if shop:
+        from app.language import get_shop_language  # noqa: PLC0415
+        from app.llm.language_context import language_context  # noqa: PLC0415
+
+        prompt = f"{prompt}\n\n{language_context(get_shop_language(shop))}"
+
     try:
         completion = router.complete(
             prompt,

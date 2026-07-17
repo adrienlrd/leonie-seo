@@ -361,7 +361,9 @@ def _build_prompt_vars(
         "conversational_intents": niche_ctx.get("conversational_intents", []),
         # meta_multilingual specific
         "locale": request.constraints.locale,
-        "locale_name": "English" if request.constraints.locale == "en" else "French",
+        "locale_name": {"en": "English", "de": "German", "es": "Spanish"}.get(
+            request.constraints.locale, "French"
+        ),
         "brand": niche_ctx.get("primary_niche", ""),
         "product_type": resource.type,
         "image_context": resource.primary_image_alt_text or "",
@@ -426,6 +428,9 @@ def _call_llm(
         rendered = prompt_template.render_user(**vars_dict)
     except Exception as exc:
         raise ValueError(f"Prompt render failed: {exc}") from exc
+    from app.llm.language_context import language_context  # noqa: PLC0415
+
+    rendered = f"{rendered}\n\n{language_context(request.constraints.locale)}"
 
     try:
         completion = llm_router.complete(
