@@ -1094,7 +1094,6 @@ export default function BlogIndexPage() {
           <PlanBadge />
           {blogUsage && (
             <QuotaPill
-              label={fr ? "Articles :" : "Articles:"}
               used={blogUsage.used}
               quota={blogUsage.quota}
             />

@@ -1662,7 +1662,6 @@ export default function ProductsPage() {
           <PlanBadge />
           {analysisUsage && (
             <QuotaPill
-              label={locale === "fr" ? "Analyses :" : "Analyses:"}
               used={analysisUsage.used}
               quota={analysisUsage.quota}
             />

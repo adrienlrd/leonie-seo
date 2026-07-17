@@ -66,27 +66,35 @@ export function UsageMeter({
   );
 }
 
-/** Discreet one-line quota indicator for a page's title row (titleMetadata):
- * "Analyses : 1/10" — critical tone at the limit, no bar, no CTA. */
+/** Discreet quota indicator for a page's title row (titleMetadata):
+ * "Quota 1/10" + a thin progress bar — critical tone at the limit, no CTA. */
 export function QuotaPill({
-  label,
   used,
   quota,
 }: {
-  label: string;
   used: number;
   quota: number;
 }) {
   const clamped = Math.min(used, quota);
+  const pct = quota > 0 ? Math.round((clamped / quota) * 100) : 0;
   const atLimit = used >= quota;
   return (
-    <Text
-      as="span"
-      variant="bodySm"
-      tone={atLimit ? "critical" : "subdued"}
-      fontWeight={atLimit ? "semibold" : undefined}
-    >
-      {label} {clamped}/{quota}
-    </Text>
+    <InlineStack gap="150" blockAlign="center" wrap={false}>
+      <Text
+        as="span"
+        variant="bodySm"
+        tone={atLimit ? "critical" : "subdued"}
+        fontWeight={atLimit ? "semibold" : undefined}
+      >
+        Quota {clamped}/{quota}
+      </Text>
+      <div style={{ width: 72 }}>
+        <ProgressBar
+          progress={pct}
+          size="small"
+          tone={atLimit ? "critical" : "highlight"}
+        />
+      </div>
+    </InlineStack>
   );
 }
