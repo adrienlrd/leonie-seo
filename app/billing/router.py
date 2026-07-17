@@ -22,7 +22,7 @@ from app.billing.client import (
     create_subscription,
     get_active_subscriptions,
 )
-from app.billing.quotas import get_quotas, get_usage
+from app.billing.quotas import get_quotas, get_usage, is_plan_upgrade, reset_analysis_usage
 from app.billing.subscription_store import (
     get_plan_for_shop,
     get_subscription,
@@ -167,8 +167,15 @@ async def redeem_code(
     }
     for plan, expected in codes.items():
         if expected and hmac.compare_digest(submitted, expected.strip().upper()):
+            old_plan = get_plan_for_shop(ctx.shop)
             set_shop_config(ctx.shop, "plan_override", plan)
             set_theme_entitlement(ctx.shop, True)
+            if is_plan_upgrade(old_plan, plan):
+                cleared = reset_analysis_usage(ctx.shop)
+                logger.info(
+                    "billing.redeem: %s upgraded %s→%s, %d analysis usage events reset",
+                    ctx.shop, old_plan, plan, cleared,
+                )
             logger.info("billing.redeem: shop=%s granted plan=%s via access code", ctx.shop, plan)
             return {"plan": plan, "override": True}
     _record_redeem_failure(ctx.shop)
@@ -260,7 +267,16 @@ async def billing_confirm(shop: str, charge_id: str | None = None) -> RedirectRe
         )
         return RedirectResponse(url=f"{app_url}/?shop={shop}&billing=not_active")
 
+    # Compare before/after plans BEFORE activating: the pending row's plan is
+    # the upgrade target, get_plan_for_shop still reflects the old entitlement.
+    old_plan = get_plan_for_shop(shop)
     update_subscription_status(expected_id, "active")
     set_theme_entitlement(shop, True)
+    if is_plan_upgrade(old_plan, str(sub["plan"])):
+        cleared = reset_analysis_usage(shop)
+        logger.info(
+            "billing.confirm: %s upgraded %s→%s, %d analysis usage events reset",
+            shop, old_plan, sub["plan"], cleared,
+        )
     logger.info("billing.confirm: activated subscription %s for shop=%s", expected_id, shop)
     return RedirectResponse(url=f"{app_url}/?shop={shop}&billing=confirmed")

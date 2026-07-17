@@ -129,6 +129,31 @@ def product_analysis_quota(shop: str, db_path: Path | None = None) -> int:
     return int(get_quotas(plan)["product_analysis"])
 
 
+_PLAN_RANK = {"free": 0, "pro": 1, "agency": 2}
+
+
+def is_plan_upgrade(old_plan: str, new_plan: str) -> bool:
+    """True when new_plan is strictly higher than old_plan (free < pro < agency)."""
+    return _PLAN_RANK.get(new_plan, 0) > _PLAN_RANK.get(old_plan, 0)
+
+
+def reset_analysis_usage(shop: str, db_path: Path | None = None) -> int:
+    """Wipe the shop's rolling-window analysis usage (full + per-product).
+
+    Blog usage is untouched. Used on plan upgrades and quota-code redemption,
+    so a merchant who just paid more never starts capped by their old plan's
+    consumed window. Returns the number of cleared events.
+    """
+    path = db_path if db_path is not None else DB_PATH
+    with get_conn(path) as conn:
+        cur = conn.execute(
+            "DELETE FROM usage_events WHERE shop = ?"
+            " AND (kind = 'analysis' OR kind LIKE 'product_analysis:%')",
+            (shop,),
+        )
+    return max(cur.rowcount, 0)
+
+
 def product_cap(shop: str, db_path: Path | None = None) -> int:
     """Max products the shop's plan allows in analyses."""
     plan = get_plan_for_shop(shop, db_path)

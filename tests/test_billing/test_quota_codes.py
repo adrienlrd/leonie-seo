@@ -78,3 +78,24 @@ def test_redeem_is_case_insensitive_on_input(db: Path) -> None:
     code = build_code("VIP5", SECRET)
     result = redeem_quota_code(SHOP, code.lower(), db_path=db)
     assert result["reset_events"] == 0
+
+
+def test_plan_upgrade_detection() -> None:
+    from app.billing.quotas import is_plan_upgrade
+
+    assert is_plan_upgrade("free", "pro") is True
+    assert is_plan_upgrade("pro", "agency") is True
+    assert is_plan_upgrade("free", "agency") is True
+    assert is_plan_upgrade("pro", "pro") is False
+    assert is_plan_upgrade("agency", "pro") is False
+
+
+def test_reset_analysis_usage_clears_only_analysis_kinds(db: Path) -> None:
+    from app.billing.quotas import reset_analysis_usage
+
+    record_usage(SHOP, "analysis", db)
+    record_product_analysis(SHOP, "gid://shopify/Product/9", db)
+    record_usage(SHOP, "blog", db)
+    assert reset_analysis_usage(SHOP, db) == 2
+    assert get_usage(SHOP, "analysis", db) == 0
+    assert get_usage(SHOP, "blog", db) == 1

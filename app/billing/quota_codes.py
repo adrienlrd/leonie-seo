@@ -79,9 +79,6 @@ def redeem_quota_code(shop: str, code: str, *, db_path: Path | None = None) -> d
             "INSERT INTO redeemed_quota_codes (code, shop, redeemed_at) VALUES (?, ?, ?)",
             (normalized, shop, datetime.now(UTC).isoformat()),
         )
-        cur = conn.execute(
-            "DELETE FROM usage_events WHERE shop = ?"
-            " AND (kind = 'analysis' OR kind LIKE 'product_analysis:%')",
-            (shop,),
-        )
-    return {"reset_events": max(cur.rowcount, 0)}
+    from app.billing.quotas import reset_analysis_usage  # noqa: PLC0415
+
+    return {"reset_events": reset_analysis_usage(shop, db_path)}
