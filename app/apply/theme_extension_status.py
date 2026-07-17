@@ -90,26 +90,16 @@ def get_theme_extension_status(shop: str, access_token: str) -> dict[str, Any]:
     available=False means we could not read the theme (treat enabled as unknown).
     """
     try:
-        themes_data = _post(shop, access_token, _ALL_THEMES_QUERY, {})
-        theme_nodes = [
-            e["node"]
-            for e in ((((themes_data.get("data") or {}).get("themes") or {}).get("edges")) or [])
-            if isinstance(e, dict) and e.get("node")
-        ]
-        if not theme_nodes:
-            return {"available": False, "enabled": None, "detail": "no themes readable"}
-        main = next((tn for tn in theme_nodes if str(tn.get("role", "")).upper() == "MAIN"), None)
-        if main is None:
-            seen = ", ".join(
-                f"{tn.get('name', '?')}={tn.get('role', '?')}" for tn in theme_nodes[:5]
-            )
-            return {
-                "available": False,
-                "enabled": None,
-                "detail": f"no published theme (themes seen: {seen})",
-            }
+        # The published theme is fetched by role — a paginated all-themes list
+        # can miss it entirely on stores with many theme copies (seen live:
+        # 10 UNPUBLISHED copies before the MAIN one).
+        main_data = _post(shop, access_token, _MAIN_THEME_QUERY, {})
+        main_edges = (((main_data.get("data") or {}).get("themes") or {}).get("edges")) or []
+        if not main_edges:
+            return {"available": False, "enabled": None, "detail": "no published theme"}
+        main_id = main_edges[0]["node"]["id"]
 
-        main_status = _embed_state_for_theme(shop, access_token, main["id"])
+        main_status = _embed_state_for_theme(shop, access_token, main_id)
         if main_status.get("enabled"):
             return {"available": True, "enabled": True, "detail": "ok"}
 
@@ -117,8 +107,14 @@ def get_theme_extension_status(shop: str, access_token: str) -> dict[str, Any]:
         # deep link sometimes opens an unpublished copy, so the merchant can
         # genuinely have enabled the embed on the wrong theme. Surfacing WHICH
         # one turns a dead-end "not enabled" into an actionable message.
+        themes_data = _post(shop, access_token, _ALL_THEMES_QUERY, {})
+        theme_nodes = [
+            e["node"]
+            for e in ((((themes_data.get("data") or {}).get("themes") or {}).get("edges")) or [])
+            if isinstance(e, dict) and e.get("node")
+        ]
         for tn in theme_nodes:
-            if tn.get("role") == "MAIN":
+            if tn.get("id") == main_id:
                 continue
             other = _embed_state_for_theme(shop, access_token, tn["id"])
             if other.get("enabled"):
