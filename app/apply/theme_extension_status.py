@@ -98,9 +98,16 @@ def get_theme_extension_status(shop: str, access_token: str) -> dict[str, Any]:
         ]
         if not theme_nodes:
             return {"available": False, "enabled": None, "detail": "no themes readable"}
-        main = next((tn for tn in theme_nodes if tn.get("role") == "MAIN"), None)
+        main = next((tn for tn in theme_nodes if str(tn.get("role", "")).upper() == "MAIN"), None)
         if main is None:
-            return {"available": False, "enabled": None, "detail": "no published theme"}
+            seen = ", ".join(
+                f"{tn.get('name', '?')}={tn.get('role', '?')}" for tn in theme_nodes[:5]
+            )
+            return {
+                "available": False,
+                "enabled": None,
+                "detail": f"no published theme (themes seen: {seen})",
+            }
 
         main_status = _embed_state_for_theme(shop, access_token, main["id"])
         if main_status.get("enabled"):
