@@ -97,12 +97,16 @@ export async function resolveLocale(
   accessToken: string | undefined,
   admin?: AdminGraphql,
 ): Promise<Locale> {
+  // The persisted preference WINS over ?locale=. URLs carry stale locale
+  // params (history, links rendered before a language switch), and letting
+  // them override the setting made the app "snap back" to the old language
+  // on every navigation. ?locale only matters before a preference exists.
+  const pref = await fetchPreference(shop, accessToken);
+  if (pref.configured && pref.locale) return pref.locale;
+
   const url = new URL(request.url);
   const requested = url.searchParams.get("locale");
   if (isSupportedLocale(requested)) return requested;
-
-  const pref = await fetchPreference(shop, accessToken);
-  if (pref.configured && pref.locale) return pref.locale;
 
   if (admin) {
     const fromShopify = await shopifyPrimaryLocale(admin);
