@@ -137,16 +137,25 @@ async def shop_status(ctx: Annotated[ShopContext, Depends(get_shop_context)]) ->
 
 
 @router.get("/shops/{shop}/products/active")
-async def list_active_products(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> list[dict]:
+async def list_active_products(
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    managed_only: bool = False,
+) -> list[dict]:
     """Return active (ACTIVE + published) products from the latest snapshot.
 
     Returns a lightweight list of {id, title, handle, image_url} for each active
-    product. Used by the dashboard to display the active catalog at a glance.
+    product. Full catalog by default (feeds the add-product picker);
+    ``managed_only=true`` restricts to the managed selection (dashboard panel —
+    otherwise it prompts to analyze products the merchant chose NOT to manage).
     """
     try:
         result = await asyncio.to_thread(_build_active_products, ctx)
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    if managed_only:
+        from app.managed_products import filter_managed_products  # noqa: PLC0415
+
+        result = await asyncio.to_thread(filter_managed_products, ctx.shop, result)
     return result
 
 
@@ -276,13 +285,24 @@ async def redeem_quota_code_endpoint(
 async def get_managed_products(ctx: Annotated[ShopContext, Depends(get_shop_context)]) -> dict:
     """Return the merchant's managed-products selection + the pickable catalog.
 
-    `selected_ids` is null when never configured (legacy shop that hasn't gone
-    through selection yet) — the analysis pipeline then falls back to
-    inheriting the last analysis's products (see `filter_managed_products`).
+    `selected_ids` reflects the EFFECTIVE selection: for a legacy shop that
+    never configured one, the last analysis's products are inherited (and
+    persisted) here — otherwise the add-product picker would list products
+    that are in fact already managed and analyzed.
     """
     available = await asyncio.to_thread(_build_active_products, ctx)
+    selected = get_managed_product_ids(ctx.shop)
+    if selected is None:
+        from app.managed_products import filter_managed_products  # noqa: PLC0415
+
+        snapshot_like = [{"id": p["id"], "status": "ACTIVE"} for p in available]
+        # Side effect: inherits + persists the last analysis's products as the
+        # selection when one exists. A brand-new shop stays null, so onboarding
+        # still forces an explicit choice.
+        await asyncio.to_thread(filter_managed_products, ctx.shop, snapshot_like)
+        selected = get_managed_product_ids(ctx.shop)
     return {
-        "selected_ids": get_managed_product_ids(ctx.shop),
+        "selected_ids": selected,
         "cap": product_cap(ctx.shop),
         "plan": ctx.plan,
         "available_products": available,

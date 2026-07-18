@@ -79,7 +79,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     } catch { /* ignore */ }
   }
 
-  return json({ locale, gsc, ga4, ga4Properties, learningSettings, llmsTxt, themeExt });
+  return json({ locale, gsc, ga4, ga4Properties, learningSettings, llmsTxt, themeExt, backendUrl: process.env.PYTHON_BACKEND_URL || "http://localhost:8000" });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -142,7 +142,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function AccountHub() {
-  const { locale, gsc, ga4, ga4Properties, learningSettings, llmsTxt, themeExt } = useLoaderData<typeof loader>() as {
+  const { locale, gsc, ga4, ga4Properties, learningSettings, llmsTxt, themeExt, backendUrl } = useLoaderData<typeof loader>() as {
     locale: Locale;
     gsc: GSCStatus | null;
     ga4: GA4Status | null;
@@ -150,6 +150,7 @@ export default function AccountHub() {
     learningSettings: LearningSettings | null;
     llmsTxt: LlmsTxtStatus | null;
     themeExt: { available?: boolean; enabled?: boolean | null } | null;
+    backendUrl: string;
   };
   const gscConnected = Boolean(gsc?.connected);
   const ga4Connected = Boolean(ga4?.ready);
@@ -235,11 +236,6 @@ export default function AccountHub() {
       href: "/app/billing",
       description: t(locale, "acctBillingDesc"),
     },
-    {
-      titleKey: "privacy",
-      href: "/app/privacy",
-      description: t(locale, "acctPrivacyDesc"),
-    },
   ];
 
   const onResetConfirm = () => {
@@ -265,6 +261,19 @@ export default function AccountHub() {
     >
       <BlockStack gap="600">
         <HubGrid items={items} locale={locale} />
+
+        <Card>
+          <BlockStack gap="200">
+            <Text as="h2" variant="headingMd">
+              {t(locale, "privacyPolicy")}
+            </Text>
+            <InlineStack>
+              <Button url={`${backendUrl}/privacy`} target="_blank">
+                {t(locale, "openPolicy")}
+              </Button>
+            </InlineStack>
+          </BlockStack>
+        </Card>
 
         <Card>
           <BlockStack gap="300">

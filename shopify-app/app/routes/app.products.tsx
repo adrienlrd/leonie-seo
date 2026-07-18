@@ -1265,7 +1265,7 @@ export default function ProductsPage() {
   };
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const managedFetcher = useFetcher<{ type: string; managed: ManagedState | null; error?: string | null }>();
-  const addProductFetcher = useFetcher<{ type: string; added?: boolean; error?: string | null }>();
+  const addProductFetcher = useFetcher<{ type: string; added?: boolean; productId?: string | null; error?: string | null }>();
   const managed = managedFetcher.data?.managed ?? null;
   const openAddProductModal = () => {
     setShowAddProductModal(true);
@@ -1284,6 +1284,10 @@ export default function ProductsPage() {
     if (addProductFetcher.data?.type === "addManagedProduct" && addProductFetcher.data.added) {
       setShowAddProductModal(false);
       revalidator.revalidate();
+      // Analyze the newly added product right away — adding without analyzing
+      // left the page unchanged, which read as "nothing happened".
+      const addedId = addProductFetcher.data.productId;
+      if (addedId) handleAnalyzeSingle(addedId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addProductFetcher.data]);
