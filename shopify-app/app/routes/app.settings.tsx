@@ -1,5 +1,5 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import type { LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import {
   Badge,
@@ -10,13 +10,10 @@ import {
   InlineStack,
   Page,
   Text,
-  Select,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackend, callBackendForShop } from "../lib/api.server";
 import { localizedPath, t, type Locale } from "../lib/i18n";
-import { invalidateLocaleCache } from "../lib/i18n.server";
-import { useFetcher } from "@remix-run/react";
 import { resolveLocale } from "../lib/i18n.server";
 
 interface LoaderData {
@@ -70,62 +67,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json<LoaderData>({ locale, shop, backendUrl, status, health, budget, locales });
 };
 
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const form = await request.formData();
-  if (String(form.get("intent")) === "setLanguage") {
-    const language = String(form.get("language") ?? "");
-    const resp = await callBackendForShop(
-      session.shop,
-      `/api/shops/${session.shop}/language`,
-      {
-        accessToken: session.accessToken,
-        method: "PUT",
-        body: JSON.stringify({ language }),
-        signal: AbortSignal.timeout(10_000),
-      },
-    );
-    if (resp.ok) invalidateLocaleCache(session.shop);
-    // Redirect with the new locale so the whole app re-renders in it at once.
-    return redirect(localizedPath("/app/settings", language as Locale));
-  }
-  return json({ ok: false });
-};
-
-function LanguageCard({ locale }: { locale: Locale }) {
-  const fetcher = useFetcher();
-  const options = [
-    { label: "Français", value: "fr" },
-    { label: "English", value: "en" },
-    { label: "Deutsch", value: "de" },
-    { label: "Español", value: "es" },
-  ];
-  return (
-    <Card>
-      <BlockStack gap="300">
-        <Text as="h2" variant="headingMd">
-          {t(locale, "languageCardTitle")}
-        </Text>
-        <Text as="p" tone="subdued">
-          {t(locale, "languageCardBody")}
-        </Text>
-        <Select
-          label={t(locale, "languageCardTitle")}
-          labelHidden
-          options={options}
-          value={locale}
-          onChange={(value) => {
-            const fd = new FormData();
-            fd.set("intent", "setLanguage");
-            fd.set("language", value);
-            fetcher.submit(fd, { method: "post" });
-          }}
-        />
-      </BlockStack>
-    </Card>
-  );
-}
-
 function StateBadge({ ok, locale }: { ok: boolean; locale: Locale }) {
   return (
     <Badge tone={ok ? "success" : "warning"}>
@@ -141,7 +82,6 @@ export default function Settings() {
   return (
     <Page title={t(locale, "settings")}>
       <BlockStack gap="400">
-        <LanguageCard locale={locale} />
         <InlineGrid columns={["oneHalf", "oneHalf"]} gap="400">
           <Card>
             <BlockStack gap="300">

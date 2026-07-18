@@ -20,7 +20,7 @@ import { PlanBadge } from "../components/PlanBadge";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { localizedPath, t, type Locale } from "../lib/i18n";
-import { resolveLocale } from "../lib/i18n.server";
+import { invalidateLocaleCache, resolveLocale } from "../lib/i18n.server";
 import { HubGrid, type HubItem } from "../components/HubGrid";
 import { GoogleConnectionsCard } from "../components/GoogleConnectionsCard";
 import type { GA4Property, GA4Status, GSCStatus, OnboardingActionData } from "../components/onboarding/types";
@@ -111,6 +111,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
     const error = (await resp.text()).slice(0, 300);
     return json({ type: "resetAllData", ok: false, error });
+  }
+
+  if (intent === "setLanguage") {
+    const language = String(form.get("language") ?? "");
+    const resp = await callBackendForShop(
+      session.shop,
+      `/api/shops/${session.shop}/language`,
+      {
+        accessToken: session.accessToken,
+        method: "PUT",
+        body: JSON.stringify({ language }),
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (resp.ok) invalidateLocaleCache(session.shop);
+    // Redirect with the new locale so the whole app re-renders in it at once.
+    return redirect(localizedPath("/app/account", language as Locale));
   }
 
   if (intent === "saveAutomation") {
@@ -261,6 +278,8 @@ export default function AccountHub() {
     >
       <BlockStack gap="600">
         <HubGrid items={items} locale={locale} />
+
+        <LanguageCard locale={locale} />
 
         <Card>
           <BlockStack gap="200">
@@ -516,5 +535,41 @@ function GoogleConnectionsCardWrapper({
       fetcher={fetcher}
       footer={footer}
     />
+  );
+}
+
+function LanguageCard({ locale }: { locale: Locale }) {
+  const fetcher = useFetcher();
+  const options = [
+    { label: "Français", value: "fr" },
+    { label: "English", value: "en" },
+    { label: "Deutsch", value: "de" },
+    { label: "Español", value: "es" },
+  ];
+  return (
+    <Card>
+      <BlockStack gap="300">
+        <Text as="h2" variant="headingMd">
+          {t(locale, "languageCardTitle")}
+        </Text>
+        <Text as="p" variant="bodySm" tone="subdued">
+          {t(locale, "languageCardBody")}
+        </Text>
+        <Box width="280px">
+          <Select
+            label={t(locale, "languageCardTitle")}
+            labelHidden
+            options={options}
+            value={locale}
+            onChange={(value) => {
+              const fd = new FormData();
+              fd.set("intent", "setLanguage");
+              fd.set("language", value);
+              fetcher.submit(fd, { method: "post" });
+            }}
+          />
+        </Box>
+      </BlockStack>
+    </Card>
   );
 }
