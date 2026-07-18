@@ -10,6 +10,23 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-18
+- **Agent:** Claude (Fable 5)
+- **Goal:** Full 4-language support (FR/EN/DE/ES) — UI AND algorithms driven by one per-shop language setting. Adrien's decisions: single setting drives everything; EN market = United States; AI-generated DE/ES translations (native review later). Default = Shopify primaryLocale (persisted on first read), else EN.
+- **Changes (12 commits, all phases of the approved plan):**
+  - **Socle** : `app/language.py` (`app_language` in shop_config; `MARKETS` per language: DataForSEO location/language 2250-fr/2840-en/2276-de/2724-es, Suggest hl/gl, Trends geo/hl/tz, country+language labels) + `GET/PUT /shops/{shop}/language`.
+  - **UI infra** : `Locale = fr|en|de|es`; `resolveLocale` (i18n.server.ts): ?locale → persisted pref (60s cache) → Shopify primaryLocale (persisted) → en; wired into all 15 route loaders; `t()` falls back FR→EN→key; language picker Card in Settings (switches everything).
+  - **Dictionnaires** : DE + ES complets (1293 keys per locale, full parity, 0 dups), German Sie-form, Castilian Spanish.
+  - **Migration ternaires** : ALL ~490 hardcoded `locale==="fr" ?`/`fr ?` sites across 18 files replaced by t() keys (continuous-improvement 91, blog 176, dashboard ~156, competitor-crawl 43, ProductContentProposals 37, ProductCard/ImagePicker/shared etc.). Backend-provided [fr,en] label pairs keep EN fallback for de/es. Date formats now per-locale.
+  - **Fournisseurs** : `run_market_analysis(language=)` threaded from all callers (jobs, reanalysis, plan comparison, daily agent Constraints, blog inLanguage); DataForSEO/Suggest/Trends use MARKETS; multilingual meta gains es.
+  - **Prompts** : `app/llm/language_context.py` (output_instruction + market_line) appended to engine pass1/2, Gemini grounding (events + verification now search the selected market, no more hardcoded France), content-action YAML prompts (personas de-Frenchified), business profile, blog sections, competitor SERP synthesis.
+  - **NLP** : `app/nlp/lang_resources.py` — en/de/es stopwords, intent signals (comparison/review terms classed commercial), origin phrases (made in Germany/España/USA), confidence aliases (hoch/alta/…) consumed as unions on top of French sets. Lemmatization stays FR-only (no-op others) in v1.
+  - Regression test `test_continuous_improvement_ui_learning_contract_is_present` updated to read labels from i18n.ts.
+- **Validations:** ruff OK; pytest **2188 passed / 174 skipped**; typecheck + build OK at every phase; dictionary parity checks (1293×4, 0 dups).
+- **Open:** live test — switch to de/es in Settings → whole UI switches, run an analysis → keywords/content in that language for that market (check `language_code` in DataForSEO calls + prompt export). AI translations (~2600 strings) deserve native review before App Store. Out of scope v1: real de/es/en lemmatization, per-market subreddits, en-GB.
+
+## Task before that
+
 - **Date:** 2026-07-17
 - **Agent:** Claude (Fable 5)
 - **Goal:** UI cleanup batch + theme-embed fixes requested by Adrien after live testing.

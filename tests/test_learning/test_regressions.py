@@ -82,12 +82,17 @@ def test_auto_apply_safe_fields_exclude_risky_surfaces() -> None:
 def test_continuous_improvement_ui_learning_contract_is_present() -> None:
     repo = Path(__file__).parents[2]
     ui = repo / "shopify-app" / "app" / "routes" / "app.continuous-improvement.tsx"
-    text = ui.read_text(encoding="utf-8")
+    # UI strings moved into the 4-locale dictionary (i18n migration) — the
+    # learning-contract labels now live in i18n.ts's FR dictionary, while the
+    # route must keep referencing them via t() keys.
+    text = ui.read_text(encoding="utf-8") + (
+        repo / "shopify-app" / "app" / "lib" / "i18n.ts"
+    ).read_text(encoding="utf-8")
     forbidden = "man" + "ual"
 
     assert "Semi-automatique — recommandé" in text
     assert "Auto-apply — avancé" in text
-    assert forbidden not in text.lower()
+    assert forbidden not in ui.read_text(encoding="utf-8").lower()
     for label in [
         "Enregistrer",
         "Lancer un cycle maintenant",
