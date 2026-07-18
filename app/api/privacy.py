@@ -67,10 +67,10 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
     au capital de 1 000 €<br>
     Siège social : 28 C, rue François-Spoerry, 68100 Mulhouse, France<br>
     RCS Mulhouse 987 948 106 — SIREN 987 948 106 — TVA intracommunautaire FR 18 987 948 106<br>
-    Contact : <a href="mailto:contact.leoniedelacroix@gmail.com">contact.leoniedelacroix@gmail.com</a>
+    Contact : <a href="mailto:support.organically@gmail.com">support.organically@gmail.com</a>
     — Tél. : +33 7 68 33 16 27<br>
     Référent protection des données (DPO) : Adrien Leredde,
-    <a href="mailto:contact.leoniedelacroix@gmail.com">contact.leoniedelacroix@gmail.com</a>
+    <a href="mailto:support.organically@gmail.com">support.organically@gmail.com</a>
   </p>
   <p>
     Léonie Delacroix SASU est responsable du traitement des données décrites ci-dessous.
@@ -128,7 +128,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
         <code>shop/redact</code> efface toutes les données sous 48 h ;
         la réinitialisation depuis l'app efface les données d'analyse à tout moment</li>
     <li><strong>Rectification, limitation, opposition</strong> : écrire à
-        <a href="mailto:contact.leoniedelacroix@gmail.com">contact.leoniedelacroix@gmail.com</a>
+        <a href="mailto:support.organically@gmail.com">support.organically@gmail.com</a>
         — réponse sous 30 jours</li>
     <li><strong>Réclamation</strong> : vous pouvez saisir la CNIL
         (<a href="https://www.cnil.fr">www.cnil.fr</a>, 3 place de Fontenoy,
@@ -167,10 +167,10 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
     joint-stock company with a share capital of €1,000<br>
     Registered office: 28 C, rue François-Spoerry, 68100 Mulhouse, France<br>
     Mulhouse Trade Register (RCS) 987 948 106 — VAT FR 18 987 948 106<br>
-    Contact: <a href="mailto:contact.leoniedelacroix@gmail.com">contact.leoniedelacroix@gmail.com</a>
+    Contact: <a href="mailto:support.organically@gmail.com">support.organically@gmail.com</a>
     — Phone: +33 7 68 33 16 27<br>
     Data protection officer: Adrien Leredde,
-    <a href="mailto:contact.leoniedelacroix@gmail.com">contact.leoniedelacroix@gmail.com</a>
+    <a href="mailto:support.organically@gmail.com">support.organically@gmail.com</a>
   </p>
   <p>
     Léonie Delacroix SASU is the controller for the data described below. The Shopify
@@ -226,7 +226,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
         webhook erases all data within 48 hours; the in-app reset erases analysis data
         at any time</li>
     <li><strong>Rectification, restriction, objection</strong>: write to
-        <a href="mailto:contact.leoniedelacroix@gmail.com">contact.leoniedelacroix@gmail.com</a>
+        <a href="mailto:support.organically@gmail.com">support.organically@gmail.com</a>
         — response within 30 days</li>
     <li><strong>Complaint</strong>: you may lodge a complaint with the French
         supervisory authority, the CNIL (<a href="https://www.cnil.fr">www.cnil.fr</a>)</li>
@@ -315,7 +315,7 @@ _PRIVACY_HTML_SELF_HOSTED = """<!DOCTYPE html>
     <li><strong>Accès</strong> : <code>GET /api/gdpr/export?shop=votre-boutique</code></li>
     <li><strong>Suppression</strong> : désinstaller l'app — le webhook <code>shop/redact</code>
         efface toutes les données dans les 48 h</li>
-    <li><strong>Contact</strong> : <a href="mailto:contact.leoniedelacroix@gmail.com">contact.leoniedelacroix@gmail.com</a></li>
+    <li><strong>Contact</strong> : <a href="mailto:support.organically@gmail.com">support.organically@gmail.com</a></li>
   </ul>
 
   <hr id="english" style="margin: 3rem 0;">
@@ -359,7 +359,7 @@ _PRIVACY_HTML_SELF_HOSTED = """<!DOCTYPE html>
     <li><strong>Access</strong>: <code>GET /api/gdpr/export?shop=your-shop</code></li>
     <li><strong>Deletion</strong>: uninstall the app — the <code>shop/redact</code> webhook
         erases all data within 48 hours</li>
-    <li><strong>Contact</strong>: <a href="mailto:contact.leoniedelacroix@gmail.com">contact.leoniedelacroix@gmail.com</a></li>
+    <li><strong>Contact</strong>: <a href="mailto:support.organically@gmail.com">support.organically@gmail.com</a></li>
   </ul>
 </body>
 </html>"""
@@ -441,7 +441,7 @@ _TERMS_HTML = """<!DOCTYPE html>
   <h2>8. Évolution et contact</h2>
   <p>
     Ces conditions peuvent évoluer ; la version en vigueur est celle publiée sur cette page.
-    Contact : <a href="mailto:contact.leoniedelacroix@gmail.com">contact.leoniedelacroix@gmail.com</a>.
+    Contact : <a href="mailto:support.organically@gmail.com">support.organically@gmail.com</a>.
   </p>
 
   <hr id="english" style="margin: 3rem 0;">
@@ -502,7 +502,7 @@ _TERMS_HTML = """<!DOCTYPE html>
   <h2>8. Changes and contact</h2>
   <p>
     These terms may change; the version in force is the one published on this page.
-    Contact: <a href="mailto:contact.leoniedelacroix@gmail.com">contact.leoniedelacroix@gmail.com</a>.
+    Contact: <a href="mailto:support.organically@gmail.com">support.organically@gmail.com</a>.
   </p>
 </body>
 </html>"""
