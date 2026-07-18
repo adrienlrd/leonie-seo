@@ -151,7 +151,6 @@ export default function AccountHub() {
     llmsTxt: LlmsTxtStatus | null;
     themeExt: { available?: boolean; enabled?: boolean | null } | null;
   };
-  const fr = locale === "fr";
   const gscConnected = Boolean(gsc?.connected);
   const ga4Connected = Boolean(ga4?.ready);
   const resetFetcher = useFetcher<{ type: string; ok: boolean; reset: number }>();
@@ -234,16 +233,12 @@ export default function AccountHub() {
     {
       titleKey: "billing",
       href: "/app/billing",
-      description: fr
-        ? "Plan actuel, facturation et passage Pro ou Agency."
-        : "Current plan, billing, and upgrade to Pro or Agency.",
+      description: t(locale, "acctBillingDesc"),
     },
     {
       titleKey: "privacy",
       href: "/app/privacy",
-      description: fr
-        ? "Confidentialité, export et suppression de vos données (RGPD)."
-        : "Privacy, data export, and deletion (GDPR).",
+      description: t(locale, "acctPrivacyDesc"),
     },
   ];
 
@@ -333,49 +328,41 @@ export default function AccountHub() {
             <BlockStack gap="300">
               <BlockStack gap="100">
                 <Text as="h3" variant="headingSm">
-                  {fr ? "Analyse GEO — sources de données" : "GEO Analysis — data sources"}
+                  {t(locale, "acctGeoSourcesTitle")}
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {fr
-                    ? "L'analyse utilise le profil entreprise validé quand il existe et remonte des signaux pour l'améliorer."
-                    : "The analysis uses the validated business profile when available and surfaces signals to improve it."}
+                  {t(locale, "acctGeoSourcesDesc")}
                 </Text>
               </BlockStack>
               <InlineStack gap="400" wrap>
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="span" variant="bodySm">Shopify</Text>
-                  <Badge tone="success">{fr ? "Réel" : "Live"}</Badge>
+                  <Badge tone="success">{t(locale, "acctLive")}</Badge>
                 </InlineStack>
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="span" variant="bodySm">Google Search Console</Text>
                   <Badge tone={gscConnected ? "success" : "attention"}>
-                    {gscConnected ? (fr ? "Réel" : "Live") : (fr ? "À connecter" : "Not connected")}
+                    {t(locale, gscConnected ? "acctLive" : "acctNotConnected")}
                   </Badge>
                 </InlineStack>
                 <InlineStack gap="200" blockAlign="center">
                   <Text as="span" variant="bodySm">Google Analytics 4</Text>
                   <Badge tone={ga4Connected ? "success" : "attention"}>
-                    {ga4Connected
-                      ? (fr ? "Réel" : "Live")
-                      : ga4?.oauth_connected
-                        ? (fr ? "Propriété à sélectionner" : "Select a property")
-                        : (fr ? "À connecter" : "Not connected")}
+                    {t(locale, ga4Connected ? "acctLive" : ga4?.oauth_connected ? "acctSelectProperty" : "acctNotConnected")}
                   </Badge>
                 </InlineStack>
                 <InlineStack gap="200" blockAlign="center">
-                  <Text as="span" variant="bodySm">{fr ? "Extension de thème (FAQ, données structurées, fil d'Ariane)" : "Theme extension (FAQ, structured data, breadcrumb)"}</Text>
+                  <Text as="span" variant="bodySm">{t(locale, "acctThemeExtLabel")}</Text>
                   {themeExt?.available
                     ? (themeExt.enabled
-                        ? <Badge tone="success">{fr ? "Activée" : "Enabled"}</Badge>
-                        : <Badge tone="attention">{fr ? "Non activée" : "Not enabled"}</Badge>)
-                    : <Badge tone="info">{fr ? "Indéterminé" : "Unknown"}</Badge>}
+                        ? <Badge tone="success">{t(locale, "acctEnabled")}</Badge>
+                        : <Badge tone="attention">{t(locale, "acctNotEnabled")}</Badge>)
+                    : <Badge tone="info">{t(locale, "acctUnknown")}</Badge>}
                 </InlineStack>
               </InlineStack>
               {themeExt?.available && !themeExt.enabled && (
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {fr
-                    ? "Activez « GEO by Organically » dans Boutique en ligne → Personnaliser → Intégrations d'app pour publier la FAQ, les données structurées et le fil d'Ariane sur votre boutique."
-                    : "Enable “GEO by Organically” in Online Store → Customize → App embeds to publish the FAQ, structured data and breadcrumb on your storefront."}
+                  {t(locale, "acctThemeExtHowTo")}
                 </Text>
               )}
             </BlockStack>
@@ -386,12 +373,10 @@ export default function AccountHub() {
           <BlockStack gap="300">
             <BlockStack gap="100">
               <Text as="h2" variant="headingMd">
-                {fr ? "Zone de danger" : "Danger zone"}
+                {t(locale, "acctDangerZone")}
               </Text>
               <Text as="p" variant="bodySm" tone="subdued">
-                {fr
-                  ? "Ces actions sont irréversibles."
-                  : "These actions are irreversible."}
+                {t(locale, "acctIrreversible")}
               </Text>
             </BlockStack>
 
@@ -405,29 +390,27 @@ export default function AccountHub() {
               <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="050">
                   <Text as="p" variant="bodyMd" fontWeight="semibold">
-                    {fr ? "Réinitialiser les tags" : "Reset tags"}
+                    {t(locale, "acctResetTags")}
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {fr
-                      ? "Supprime tous les tags ajoutés et retirés pour tous les produits."
-                      : "Deletes all added and retired tags for all products."}
+                    {t(locale, "acctResetTagsDesc")}
                   </Text>
                 </BlockStack>
                 {!confirmReset ? (
                   <Button tone="critical" onClick={() => setConfirmReset(true)}>
-                    {fr ? "Réinitialiser" : "Reset"}
+                    {t(locale, "acctReset")}
                   </Button>
                 ) : (
                   <InlineStack gap="200">
                     <Button variant="plain" onClick={() => setConfirmReset(false)}>
-                      {fr ? "Annuler" : "Cancel"}
+                      {t(locale, "acctCancel")}
                     </Button>
                     <Button
                       tone="critical"
                       loading={resetFetcher.state !== "idle"}
                       onClick={onResetConfirm}
                     >
-                      {fr ? "Confirmer la réinitialisation" : "Confirm reset"}
+                      {t(locale, "acctConfirmReset")}
                     </Button>
                   </InlineStack>
                 )}
@@ -437,9 +420,7 @@ export default function AccountHub() {
             {resetFetcher.data?.ok && (
               <Banner tone="success">
                 <Text as="p" variant="bodySm">
-                  {fr
-                    ? `${resetFetcher.data.reset} tag(s) supprimé(s).`
-                    : `${resetFetcher.data.reset} tag(s) deleted.`}
+                  {t(locale, "acctTagsDeleted").replace("{n}", String(resetFetcher.data.reset))}
                 </Text>
               </Banner>
             )}
@@ -454,29 +435,27 @@ export default function AccountHub() {
               <InlineStack align="space-between" blockAlign="center">
                 <BlockStack gap="050">
                   <Text as="p" variant="bodyMd" fontWeight="semibold">
-                    {fr ? "Réinitialiser l'application" : "Reset the app"}
+                    {t(locale, "acctResetApp")}
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {fr
-                      ? "Remet l'application à zéro, comme au premier lancement : supprime toutes vos données de nos serveurs (analyses, catalogue, tags, planification, connexions Google Search Console et Analytics) et relance la configuration initiale. Votre abonnement et l'installation sont conservés."
-                      : "Resets the app to its first-open state: deletes all your data from our servers (analyses, catalog, tags, scheduling, Google Search Console and Analytics connections) and restarts the initial setup. Your subscription and installation are kept."}
+                    {t(locale, "acctResetAppDesc")}
                   </Text>
                 </BlockStack>
                 {!confirmResetAll ? (
                   <Button tone="critical" onClick={() => setConfirmResetAll(true)}>
-                    {fr ? "Réinitialiser" : "Reset"}
+                    {t(locale, "acctReset")}
                   </Button>
                 ) : (
                   <InlineStack gap="200">
                     <Button variant="plain" onClick={() => setConfirmResetAll(false)}>
-                      {fr ? "Annuler" : "Cancel"}
+                      {t(locale, "acctCancel")}
                     </Button>
                     <Button
                       tone="critical"
                       loading={resetAllFetcher.state !== "idle"}
                       onClick={onResetAllConfirm}
                     >
-                      {fr ? "Tout supprimer" : "Delete everything"}
+                      {t(locale, "acctDeleteEverything")}
                     </Button>
                   </InlineStack>
                 )}
@@ -486,9 +465,7 @@ export default function AccountHub() {
             {resetAllFetcher.data && !resetAllFetcher.data.ok && (
               <Banner tone="critical">
                 <Text as="p" variant="bodySm">
-                  {fr
-                    ? `La réinitialisation a échoué. ${resetAllFetcher.data.error ?? ""}`
-                    : `Reset failed. ${resetAllFetcher.data.error ?? ""}`}
+                  {`${t(locale, "acctResetFailed")} ${resetAllFetcher.data.error ?? ""}`}
                 </Text>
               </Banner>
             )}

@@ -207,15 +207,13 @@ export default function Settings() {
           <Card>
             <BlockStack gap="200">
               <Text as="h2" variant="headingMd">
-                {locale === "fr" ? "Écritures Shopify" : "Shopify writes"}
+                {t(locale, "stgShopifyWrites")}
               </Text>
               <Badge tone="success">
-                {locale === "fr" ? "Écritures live activées" : "Live writes enabled"}
+                {t(locale, "stgLiveWritesEnabled")}
               </Badge>
               <Text as="p" tone="subdued">
-                {locale === "fr"
-                  ? "Les écritures Shopify live sont activées; chaque application est confirmée explicitement."
-                  : "Live Shopify writes are enabled; each apply is explicitly confirmed."}
+                {t(locale, "stgLiveWritesDesc")}
               </Text>
               <Text as="p" tone="subdued">
                 {t(locale, "locales")}:{" "}

@@ -1330,6 +1330,35 @@ const FR: Dictionary = {
   blogProfileUrl: "URL profil (optionnel)",
   blogCreate: "Créer",
   blogGeoScore: "Score GEO",
+  // components (ProductCard, ImagePicker, shared)
+  pcardAddedTags: "Tags ajoutés",
+  pcardRetiredTags: "Tags retirés",
+  pcardNoActiveTags: "Aucun tag actif.",
+  pcardRetire: "Retirer",
+  pcardNewTag: "Nouveau tag…",
+  pcardFacts: "Faits produit",
+  pcardSchema: "Données structurées",
+  pcardAnswerability: "Répondabilité IA",
+  pcardGeoMeta: "GEO (méta)",
+  pcardScoreBreakdown: "Détail du Score GEO",
+  pcardNotImproved: "Non amélioré",
+  pcardTargetCustomer: "Client cible",
+  pcardImprove: "Améliorer",
+  pcardAppliedMark: "✓ appliqué",
+  pcardFailed: "échec",
+  pcardResults28: "Résultats dans 28 j",
+  pcardPublish: "Publier",
+  pcardPriority: "Priorité",
+  pcardDemand: "Demande",
+  imgpCoverImage: "Image de couverture",
+  imgpDone: "Terminé",
+  imgpPlacement: "Emplacement de l'image",
+  imgpNoImages: "Aucune image trouvée",
+  masFixBefore: "À corriger avant publication",
+  masParentEstimated: "Estimé via parent",
+  pcardExcludedTopics: "Ces sujets sont exclus des prochaines analyses.",
+  pcardScoreExplain: "Ce que les moteurs IA évaluent. ✓ = en place, ✗ = à compléter. Le % est le poids dans le score.",
+  pcardRerunForDetail: "Relancez une analyse pour voir le détail par critère.",
 };
 
 const EN: Dictionary = {
@@ -2652,6 +2681,35 @@ const EN: Dictionary = {
   blogProfileUrl: "Profile URL (optional)",
   blogCreate: "Create",
   blogGeoScore: "GEO score",
+  // components (ProductCard, ImagePicker, shared)
+  pcardAddedTags: "Added tags",
+  pcardRetiredTags: "Retired tags",
+  pcardNoActiveTags: "No active tags.",
+  pcardRetire: "Retire",
+  pcardNewTag: "New tag…",
+  pcardFacts: "Product facts",
+  pcardSchema: "Structured data",
+  pcardAnswerability: "AI answerability",
+  pcardGeoMeta: "GEO (meta)",
+  pcardScoreBreakdown: "GEO score breakdown",
+  pcardNotImproved: "Not improved",
+  pcardTargetCustomer: "Target customer",
+  pcardImprove: "Improve",
+  pcardAppliedMark: "✓ applied",
+  pcardFailed: "failed",
+  pcardResults28: "Results in 28d",
+  pcardPublish: "Publish",
+  pcardPriority: "Priority",
+  pcardDemand: "Demand",
+  imgpCoverImage: "Cover image",
+  imgpDone: "Done",
+  imgpPlacement: "Image placement",
+  imgpNoImages: "No images found",
+  masFixBefore: "Fix before publishing",
+  masParentEstimated: "Parent-estimated",
+  pcardExcludedTopics: "These topics are excluded from future analyses.",
+  pcardScoreExplain: "What AI engines assess. ✓ = in place, ✗ = to complete. The % is its weight in the score.",
+  pcardRerunForDetail: "Re-run an analysis to see the per-criterion breakdown.",
 };
 
 const DE: Dictionary = {
@@ -3974,6 +4032,35 @@ const DE: Dictionary = {
   blogProfileUrl: "Profil-URL (optional)",
   blogCreate: "Erstellen",
   blogGeoScore: "GEO-Score",
+  // components (ProductCard, ImagePicker, shared)
+  pcardAddedTags: "Hinzugefügte Tags",
+  pcardRetiredTags: "Entfernte Tags",
+  pcardNoActiveTags: "Keine aktiven Tags.",
+  pcardRetire: "Entfernen",
+  pcardNewTag: "Neuer Tag…",
+  pcardFacts: "Produktfakten",
+  pcardSchema: "Strukturierte Daten",
+  pcardAnswerability: "KI-Antwortfähigkeit",
+  pcardGeoMeta: "GEO (Meta)",
+  pcardScoreBreakdown: "GEO-Score im Detail",
+  pcardNotImproved: "Nicht verbessert",
+  pcardTargetCustomer: "Zielkunde",
+  pcardImprove: "Verbessern",
+  pcardAppliedMark: "✓ übernommen",
+  pcardFailed: "fehlgeschlagen",
+  pcardResults28: "Ergebnisse in 28 T.",
+  pcardPublish: "Veröffentlichen",
+  pcardPriority: "Priorität",
+  pcardDemand: "Nachfrage",
+  imgpCoverImage: "Titelbild",
+  imgpDone: "Fertig",
+  imgpPlacement: "Bildplatzierung",
+  imgpNoImages: "Keine Bilder gefunden",
+  masFixBefore: "Vor der Veröffentlichung zu korrigieren",
+  masParentEstimated: "Über übergeordnetes Element geschätzt",
+  pcardExcludedTopics: "Diese Themen sind von künftigen Analysen ausgeschlossen.",
+  pcardScoreExplain: "Was KI-Engines bewerten. ✓ = vorhanden, ✗ = zu ergänzen. Der %-Wert ist das Gewicht im Score.",
+  pcardRerunForDetail: "Führen Sie eine Analyse erneut aus, um das Detail pro Kriterium zu sehen.",
 };
 
 const ES: Dictionary = {
@@ -5296,6 +5383,35 @@ const ES: Dictionary = {
   blogProfileUrl: "URL de perfil (opcional)",
   blogCreate: "Crear",
   blogGeoScore: "Puntuación GEO",
+  // components (ProductCard, ImagePicker, shared)
+  pcardAddedTags: "Etiquetas añadidas",
+  pcardRetiredTags: "Etiquetas retiradas",
+  pcardNoActiveTags: "Sin etiquetas activas.",
+  pcardRetire: "Retirar",
+  pcardNewTag: "Nueva etiqueta…",
+  pcardFacts: "Datos del producto",
+  pcardSchema: "Datos estructurados",
+  pcardAnswerability: "Capacidad de respuesta IA",
+  pcardGeoMeta: "GEO (meta)",
+  pcardScoreBreakdown: "Detalle de la puntuación GEO",
+  pcardNotImproved: "No mejorado",
+  pcardTargetCustomer: "Cliente objetivo",
+  pcardImprove: "Mejorar",
+  pcardAppliedMark: "✓ aplicado",
+  pcardFailed: "fallido",
+  pcardResults28: "Resultados en 28 d",
+  pcardPublish: "Publicar",
+  pcardPriority: "Prioridad",
+  pcardDemand: "Demanda",
+  imgpCoverImage: "Imagen de portada",
+  imgpDone: "Hecho",
+  imgpPlacement: "Ubicación de la imagen",
+  imgpNoImages: "No se encontraron imágenes",
+  masFixBefore: "Corregir antes de publicar",
+  masParentEstimated: "Estimado vía elemento principal",
+  pcardExcludedTopics: "Estos temas quedan excluidos de los próximos análisis.",
+  pcardScoreExplain: "Lo que evalúan los motores de IA. ✓ = en su lugar, ✗ = por completar. El % es su peso en la puntuación.",
+  pcardRerunForDetail: "Vuelva a ejecutar un análisis para ver el detalle por criterio.",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };
@@ -5315,6 +5431,11 @@ export function getLocale(request: Request): Locale {
 
 export function t(locale: Locale, key: string): string {
   return DICTIONARIES[locale][key] ?? DICTIONARIES.en[key] ?? DICTIONARIES.fr[key] ?? key;
+}
+
+/** Pick the right variant of backend data that only exists in FR and EN (falls back to EN for de/es). */
+export function pickLang(locale: Locale, frText: string, enText: string): string {
+  return locale === "fr" ? frText : enText;
 }
 
 export function localizedPath(path: string, locale: Locale): string {

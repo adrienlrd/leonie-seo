@@ -823,7 +823,7 @@ function DataSourcesCard({
               <Badge tone="success">{t(locale, "marketAnalysisBadgeReal")}</Badge>
             ) : (
               <Button variant="plain" size="slim" url={localizedPath("/app/onboarding", locale)}>
-                {locale === "fr" ? "Se connecter" : "Connect"}
+                {t(locale, "prodConnect")}
               </Button>
             )}
           </InlineStack>
@@ -833,7 +833,7 @@ function DataSourcesCard({
               <Badge tone="success">{t(locale, "marketAnalysisBadgeReal")}</Badge>
             ) : (
               <Button variant="plain" size="slim" url={localizedPath("/app/onboarding", locale)}>
-                {locale === "fr" ? "Se connecter" : "Connect"}
+                {t(locale, "prodConnect")}
               </Button>
             )}
           </InlineStack>
@@ -1034,7 +1034,7 @@ function GeoPackSection({
             <InlineStack gap="150" blockAlign="center">
               {syncState?.applied && syncState.applied_at ? (
                 <Badge tone="success">
-                  {locale === "fr" ? "Faits synchronisés" : "Facts synced"}
+                  {t(locale, "prodFactsSynced")}
                 </Badge>
               ) : null}
               <Button
@@ -1043,7 +1043,7 @@ function GeoPackSection({
                 loading={syncFetcher.state !== "idle"}
                 onClick={syncSchemaFacts}
               >
-                {locale === "fr" ? "Synchroniser avec le thème" : "Sync to theme"}
+                {t(locale, "prodSyncToTheme")}
               </Button>
               <Button
                 size="slim"
@@ -1675,38 +1675,30 @@ export default function ProductsPage() {
         {showSuccessUpsell && (
           <Banner
             tone="success"
-            title={locale === "fr" ? "Belle progression !" : "Great progress!"}
+            title={t(locale, "prodGreatProgress")}
             action={{
-              content: locale === "fr" ? "Essayer Pro 7 jours gratuitement" : "Try Pro free for 7 days",
+              content: t(locale, "prodTryProTrial"),
               url: "/app/billing",
             }}
             onDismiss={() => setShowSuccessUpsell(false)}
           >
             <Text as="p">
-              {locale === "fr"
-                ? "Votre analyse est terminée — c'était celle de votre cycle de 28 jours. Avec Pro, l'agent referait ce travail chaque jour, automatiquement, sur 15 produits."
-                : "Your analysis is done — that was the one in your 28-day cycle. With Pro, the agent would redo this work every day, automatically, across 15 products."}
+              {t(locale, "prodUpsellBody")}
             </Text>
           </Banner>
         )}
         {gscReauthRequired ? (
           <Banner
             tone="critical"
-            title={
-              locale === "fr"
-                ? "Reconnexion à Google requise"
-                : "Google reconnection required"
-            }
+            title={t(locale, "prodGoogleReauthTitle")}
           >
             <BlockStack gap="200">
               <Text as="p">
-                {locale === "fr"
-                  ? "Google a déconnecté votre compte. Reconnectez-le pour que les analyses continuent d'utiliser vos vraies données de recherche."
-                  : "Google disconnected your account. Reconnect it so analyses keep using your real search data."}
+                {t(locale, "prodGoogleReauthBody")}
               </Text>
               <InlineStack>
                 <Button url="/app/onboarding" variant="primary">
-                  {locale === "fr" ? "Reconnecter Google" : "Reconnect Google"}
+                  {t(locale, "prodReconnectGoogle")}
                 </Button>
               </InlineStack>
             </BlockStack>
@@ -1714,21 +1706,15 @@ export default function ProductsPage() {
         ) : !gscConnected ? (
           <Banner
             tone="warning"
-            title={
-              locale === "fr"
-                ? "Google n'est pas connecté"
-                : "Google is not connected"
-            }
+            title={t(locale, "prodGoogleNotConnectedTitle")}
           >
             <BlockStack gap="200">
               <Text as="p">
-                {locale === "fr"
-                  ? "Sans Google, les recommandations seront basées sur le marché général, pas sur les vraies requêtes de vos clients."
-                  : "Without Google, recommendations will be based on the general market, not on your customers' real queries."}
+                {t(locale, "prodGoogleNotConnectedBody")}
               </Text>
               <InlineStack>
                 <Button url="/app/onboarding" variant="primary">
-                  {locale === "fr" ? "Connecter Google" : "Connect Google"}
+                  {t(locale, "prodConnectGoogle")}
                 </Button>
               </InlineStack>
             </BlockStack>
@@ -1781,10 +1767,10 @@ export default function ProductsPage() {
                   <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: "8px 16px", alignItems: "center" }}>
                     {/* Column headers */}
                     <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
-                      {locale === "fr" ? "Titre boutique" : "Store title"}
+                      {t(locale, "prodStoreTitleCol")}
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
-                      {locale === "fr" ? "Quel est le produit concrètement ?" : "What is the product concretely?"}
+                      {t(locale, "prodWhatIsProductCol")}
                     </Text>
 
                     {/* Product rows */}
@@ -1916,11 +1902,11 @@ export default function ProductsPage() {
               onClose={() => setShowRerunModal(false)}
               title={t(locale, "marketAnalysisAnalyzeAllTitle")}
               primaryAction={{
-                content: locale === "fr" ? "Confirmer" : "Confirm",
+                content: t(locale, "prodConfirm"),
                 onAction: () => { setShowRerunModal(false); handleRerun(); },
               }}
               secondaryActions={[{
-                content: locale === "fr" ? "Annuler" : "Cancel",
+                content: t(locale, "prodCancel"),
                 onAction: () => setShowRerunModal(false),
               }]}
             >
@@ -2010,13 +1996,11 @@ export default function ProductsPage() {
             {anyError && String(anyError).includes("402") && String(anyError).includes("quota_exceeded") ? (
               <Banner
                 tone="warning"
-                title={locale === "fr" ? "Limite d'analyses atteinte pour ce cycle de 28 jours" : "Analysis limit reached for this 28-day cycle"}
-                action={{ content: locale === "fr" ? "Voir les plans" : "See plans", url: "/app/billing" }}
+                title={t(locale, "prodQuotaTitle")}
+                action={{ content: t(locale, "blogSeePlans"), url: "/app/billing" }}
               >
                 <Text as="p">
-                  {locale === "fr"
-                    ? "Passez au plan supérieur pour lancer plus d'analyses et couvrir plus de produits."
-                    : "Upgrade your plan to run more analyses and cover more products."}
+                  {t(locale, "prodQuotaBody")}
                 </Text>
               </Banner>
             ) : anyError ? (
@@ -2090,10 +2074,8 @@ export default function ProductsPage() {
                   {hiddenCount > 0 && (
                     <Button variant="plain" onClick={() => setShowInactive((v) => !v)}>
                       {showInactive
-                        ? (locale === "fr" ? "Masquer les produits inactifs" : "Hide inactive products")
-                        : (locale === "fr"
-                            ? `Voir aussi les ${hiddenCount} produits inactifs`
-                            : `Show ${hiddenCount} inactive product${hiddenCount > 1 ? "s" : ""}`)}
+                        ? t(locale, "prodHideInactive")
+                        : t(locale, "prodShowInactive").replace("{n}", String(hiddenCount))}
                     </Button>
                   )}
                 </>

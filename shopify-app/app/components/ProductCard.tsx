@@ -62,7 +62,6 @@ function ImprovementTags({
   leading?: ReactNode;
   trailing?: ReactNode;
 }) {
-  const fr = locale === "fr";
   return (
     <BlockStack gap="200">
       <InlineStack gap="150">
@@ -72,7 +71,7 @@ function ImprovementTags({
           pressed={openBucket === "added"}
           onClick={() => onToggle("added")}
         >
-          {fr ? `Tags ajoutés (${addedTags.length})` : `Added tags (${addedTags.length})`}
+          {`${t(locale, "pcardAddedTags")} (${addedTags.length})`}
         </Button>
         {retiredTags.length > 0 && (
           <Button
@@ -80,7 +79,7 @@ function ImprovementTags({
             pressed={openBucket === "retired"}
             onClick={() => onToggle("retired")}
           >
-            {fr ? `Tags retirés (${retiredTags.length})` : `Retired tags (${retiredTags.length})`}
+            {`${t(locale, "pcardRetiredTags")} (${retiredTags.length})`}
           </Button>
         )}
         {trailing}
@@ -91,7 +90,7 @@ function ImprovementTags({
           <BlockStack gap="200">
             {addedTags.length === 0 ? (
               <Text as="p" variant="bodySm" tone="subdued">
-                {fr ? "Aucun tag actif." : "No active tags."}
+                {t(locale, "pcardNoActiveTags")}
               </Text>
             ) : (
               <BlockStack gap="100">
@@ -99,7 +98,7 @@ function ImprovementTags({
                   <InlineStack key={tag.tag_id} align="space-between" blockAlign="center">
                     <Badge tone={tagToneInAdded(tag)}>{tag.label}</Badge>
                     <Button size="slim" variant="plain" tone="critical" onClick={() => onRetire(tag)}>
-                      {fr ? "Retirer" : "Retire"}
+                      {t(locale, "pcardRetire")}
                     </Button>
                   </InlineStack>
                 ))}
@@ -110,14 +109,14 @@ function ImprovementTags({
                 <TextField
                   label=""
                   labelHidden
-                  placeholder={fr ? "Nouveau tag…" : "New tag…"}
+                  placeholder={t(locale, "pcardNewTag")}
                   value={newLabel}
                   onChange={onNewLabelChange}
                   autoComplete="off"
                 />
               </div>
               <Button size="slim" onClick={onAdd} disabled={!newLabel.trim()}>
-                {fr ? "Ajouter" : "Add"}
+                {t(locale, "dashAdd")}
               </Button>
             </InlineStack>
           </BlockStack>
@@ -128,15 +127,13 @@ function ImprovementTags({
         <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
           <BlockStack gap="100">
             <Text as="p" variant="bodySm" tone="subdued">
-              {fr
-                ? "Ces sujets sont exclus des prochaines analyses."
-                : "These topics are excluded from future analyses."}
+              {t(locale, "pcardExcludedTopics")}
             </Text>
             {retiredTags.map((tag) => (
               <InlineStack key={tag.tag_id} align="space-between" blockAlign="center">
                 <Badge tone="critical">{tag.label}</Badge>
                 <Button size="slim" variant="plain" onClick={() => onRestore(tag)}>
-                  {fr ? "Restaurer" : "Restore"}
+                  {t(locale, "pcpRestore")}
                 </Button>
               </InlineStack>
             ))}
@@ -156,33 +153,28 @@ function GeoScoreBreakdown({
   components?: Record<string, { score: number; weight: number }>;
   locale: Locale;
 }) {
-  const fr = locale === "fr";
   // Order by weight (biggest lever first). Labels mirror the readiness scorer.
   const pillars: Array<{ key: string; label: string }> = [
-    { key: "facts", label: fr ? "Faits produit" : "Product facts" },
-    { key: "schema", label: fr ? "Données structurées" : "Structured data" },
-    { key: "answerability", label: fr ? "Répondabilité IA" : "AI answerability" },
-    { key: "trust", label: fr ? "Confiance" : "Trust" },
-    { key: "seo", label: fr ? "GEO (méta)" : "GEO (meta)" },
-    { key: "commerce", label: fr ? "Commerce" : "Commerce" },
+    { key: "facts", label: t(locale, "pcardFacts") },
+    { key: "schema", label: t(locale, "pcardSchema") },
+    { key: "answerability", label: t(locale, "pcardAnswerability") },
+    { key: "trust", label: t(locale, "ccTrust") },
+    { key: "seo", label: t(locale, "pcardGeoMeta") },
+    { key: "commerce", label: "Commerce" },
   ];
   const has = components && Object.keys(components).length > 0;
 
   return (
     <BlockStack gap="200">
       <Text as="p" variant="headingSm">
-        {fr ? "Détail du Score GEO" : "GEO score breakdown"}
+        {t(locale, "pcardScoreBreakdown")}
       </Text>
       <Text as="p" variant="bodySm" tone="subdued">
-        {fr
-          ? "Ce que les moteurs IA évaluent. ✓ = en place, ✗ = à compléter. Le % est le poids dans le score."
-          : "What AI engines assess. ✓ = in place, ✗ = to complete. The % is its weight in the score."}
+        {t(locale, "pcardScoreExplain")}
       </Text>
       {!has ? (
         <Text as="p" variant="bodySm" tone="subdued">
-          {fr
-            ? "Relancez une analyse pour voir le détail par critère."
-            : "Re-run an analysis to see the per-criterion breakdown."}
+          {t(locale, "pcardRerunForDetail")}
         </Text>
       ) : (
         pillars.map(({ key, label }) => {
@@ -221,7 +213,6 @@ export function ProductCard({
   onEnrichAndAnalyze: (answers: Record<string, string>) => void;
   analyzeDisabled: boolean;
 }) {
-  const fr = locale === "fr";
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggle = (s: string) => setOpenSection((p) => (p === s ? null : s));
   const [enrichmentOpen, setEnrichmentOpen] = useState(false);
@@ -571,7 +562,7 @@ export function ProductCard({
                 }
                 const notImproved = (product.improvement_elements ?? []).filter((e) => !e.improved);
                 if (notImproved.length > 0) {
-                  parts.push(`${fr ? "Non amélioré" : "Not improved"} : ${notImproved.map((e) => e.label).join(", ")}`);
+                  parts.push(`${t(locale, "pcardNotImproved")} : ${notImproved.map((e) => e.label).join(", ")}`);
                 }
                 return parts.length > 0 ? (
                   <Tooltip content={parts.join(" — ")}>
@@ -593,7 +584,7 @@ export function ProductCard({
                   variant="tertiary"
                   icon={QuestionCircleIcon}
                   onClick={() => setGeoHelpOpen((o) => !o)}
-                  accessibilityLabel={fr ? "Détail du Score GEO" : "GEO score breakdown"}
+                  accessibilityLabel={t(locale, "pcardScoreBreakdown")}
                 />
               }
             >
@@ -619,7 +610,7 @@ export function ProductCard({
         )}
         {product.target_customer && (
           <Text as="p" variant="bodySm" tone="subdued">
-            {locale === "fr" ? "Client cible" : "Target customer"} :{" "}
+            {t(locale, "pcardTargetCustomer")} :{" "}
             {typeof product.target_customer === "string"
               ? product.target_customer
               : Object.values(product.target_customer as Record<string, string>).join(" — ")}
@@ -640,9 +631,7 @@ export function ProductCard({
           leading={
             displayedKeywords.length > 0 ? (
               <Button size="slim" pressed={openSection === "keywords"} onClick={() => toggle("keywords")}>
-                {fr
-                  ? `Mots-clés (${displayedKeywords.filter((k) => !keywordTagLabels.has(k.query.toLowerCase())).length})`
-                  : `Keywords (${displayedKeywords.filter((k) => !keywordTagLabels.has(k.query.toLowerCase())).length})`}
+                {`${t(locale, "keywords")} (${displayedKeywords.filter((k) => !keywordTagLabels.has(k.query.toLowerCase())).length})`}
               </Button>
             ) : null
           }
@@ -661,7 +650,7 @@ export function ProductCard({
             }
             return (
               <Button size="slim" variant="primary" pressed={enrichmentOpen} onClick={() => setEnrichmentOpen((v) => !v)}>
-                {(fr ? "Améliorer" : "Improve") + ` (${activeCount})`}
+                {t(locale, "pcardImprove") + ` (${activeCount})`}
               </Button>
             );
           })()}
@@ -673,12 +662,12 @@ export function ProductCard({
               <BlockStack gap="100">
                 {Object.entries(applyResult.results ?? {}).map(([field, res]) => (
                   <Text key={field} as="p" variant="bodySm">
-                    {field} : {res.applied ? (fr ? "✓ appliqué" : "✓ applied") : `✗ ${res.error ?? (fr ? "échec" : "failed")}`}
+                    {field} : {res.applied ? t(locale, "pcardAppliedMark") : `✗ ${res.error ?? t(locale, "pcardFailed")}`}
                   </Text>
                 ))}
                 {Object.values(applyResult.results ?? {}).some((r) => r.applied) && (
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {fr ? "Résultats dans 28 j" : "Results in 28d"}
+                    {t(locale, "pcardResults28")}
                   </Text>
                 )}
               </BlockStack>
@@ -709,7 +698,7 @@ export function ProductCard({
           applyAction={
             checkedApplyFields.size > 0 ? (
               <Button size="slim" variant="primary" loading={applyLoading} onClick={handleApplyProposals}>
-                {fr ? "Publier" : "Publish"}
+                {t(locale, "pcardPublish")}
               </Button>
             ) : null
           }
@@ -770,7 +759,7 @@ export function ProductCard({
                           <InlineStack gap="100" blockAlign="center">
                             {k.priority_score != null && (
                               <Badge tone={scoreTone(k.priority_score)}>
-                                {`${fr ? "Priorité" : "Priority"} ${k.priority_score}`}
+                                {`${t(locale, "pcardPriority")} ${k.priority_score}`}
                               </Badge>
                             )}
                             <Badge
@@ -780,7 +769,7 @@ export function ProductCard({
                                   : scoreTone(k.demand_score)
                               }
                             >
-                              {`${fr ? "Demande" : "Demand"} ${k.demand_score}${
+                              {`${t(locale, "pcardDemand")} ${k.demand_score}${
                                 k.data_source === "llm_estimated" || k.data_source === "shopify" || k.data_source === "parent_estimated"
                                   ? " (estimé)"
                                   : ""
@@ -796,12 +785,12 @@ export function ProductCard({
                               (retiredKeywordLabels.has(k.query.toLowerCase()) ||
                                 !usedKeywords.has(k.query.toLowerCase())) && (
                               <Button size="slim" onClick={() => addKeywordTag(k.query)}>
-                                {fr ? "Ajouter" : "Add"}
+                                {t(locale, "dashAdd")}
                               </Button>
                             )}
                             {!retiredKeywordLabels.has(k.query.toLowerCase()) && (
                               <Button size="slim" variant="plain" tone="critical" onClick={() => retireKeywordTag(k.query)}>
-                                {fr ? "Retirer" : "Retire"}
+                                {t(locale, "pcardRetire")}
                               </Button>
                             )}
                           </InlineStack>

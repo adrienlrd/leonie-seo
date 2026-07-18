@@ -588,7 +588,7 @@ export function qualityWarningText(pack: ContentTestPack, locale: Locale): strin
   if (!quality) return "";
   const parts: string[] = [];
   if (!quality.publish_ready && (quality.issues?.length ?? 0) > 0) {
-    const prefix = locale === "fr" ? "À corriger avant publication" : "Fix before publishing";
+    const prefix = t(locale, "masFixBefore");
     parts.push(`${prefix} : ${(quality.issues ?? []).map((issue) => qualityIssueLabel(issue, locale)).join(" · ")}`);
   }
   if ((quality.skipped_surfaces?.length ?? 0) > 0) {
@@ -629,7 +629,7 @@ export function KeywordSourceBadge({
       return <Badge tone="info">{t(locale, "marketAnalysisSourceShopify")}</Badge>;
     case "parent_estimated":
       return (
-        <Badge tone="info">{locale === "fr" ? "Estimé via parent" : "Parent-estimated"}</Badge>
+        <Badge tone="info">{t(locale, "masParentEstimated")}</Badge>
       );
     case "llm_proposed":
       return <Badge tone="attention">{t(locale, "marketAnalysisSourceLlmProposed")}</Badge>;

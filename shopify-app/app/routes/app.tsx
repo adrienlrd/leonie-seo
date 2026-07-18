@@ -71,7 +71,7 @@ export default function App() {
         {!onOnboarding && <a href={localizedPath("/app/geo-llms-txt", locale)}>{t(locale, "llmsTxtTitle")}</a>}
         {!onOnboarding && <a href={localizedPath("/app/account", locale)}>{t(locale, "settings")}</a>}
         {!onOnboarding && isFreePlan && (
-          <a href={localizedPath("/app/billing", locale)}>{locale === "fr" ? "Forfaits" : "Plans"}</a>
+          <a href={localizedPath("/app/billing", locale)}>{t(locale, "navPlans")}</a>
         )}
       </NavMenu>
       <Outlet />

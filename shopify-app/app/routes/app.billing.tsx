@@ -21,7 +21,7 @@ import { CheckCircleIcon, LockIcon } from "@shopify/polaris-icons";
 import { useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { type Locale } from "../lib/i18n";
+import { pickLang, t, type Locale } from "../lib/i18n";
 import { resolveLocale } from "../lib/i18n.server";
 import { UsageMeter } from "../components/UsageMeter";
 
@@ -146,48 +146,42 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return redirect("/app/billing");
 };
 
-function planCopy(plan: Plan, fr: boolean) {
+function planCopy(plan: Plan, locale: Locale) {
   const q = plan.quotas;
-  const per28 = fr ? "tous les 28 jours" : "every 28 days";
+  const per28 = t(locale, "billPer28");
+  const countLine = (n: number, singularKey: string, pluralKey: string) =>
+    `${t(locale, n > 1 ? pluralKey : singularKey).replace("{n}", String(n))} ${per28}`;
   const lines: { text: string; included: boolean }[] = [
     {
-      text: fr ? `${q.products} produits optimisés` : `${q.products} optimized products`,
+      text: t(locale, "billProductsOptimized").replace("{n}", String(q.products)),
       included: true,
     },
     {
-      text: fr
-        ? `${q.analysis} analyse${q.analysis > 1 ? "s" : ""} ${per28}`
-        : `${q.analysis} analys${q.analysis > 1 ? "es" : "is"} ${per28}`,
+      text: countLine(q.analysis, "billAnalysisSingular", "billAnalysesPlural"),
       included: true,
     },
     {
-      text: fr
-        ? `${q.product_analysis} analyse${q.product_analysis > 1 ? "s" : ""} par produit ${per28}`
-        : `${q.product_analysis} analys${q.product_analysis > 1 ? "es" : "is"} per product ${per28}`,
+      text: countLine(q.product_analysis, "billProductAnalysisSingular", "billProductAnalysesPlural"),
       included: true,
     },
     {
-      text: fr ? `${q.blog} articles de blog ${per28}` : `${q.blog} blog articles ${per28}`,
+      text: countLine(q.blog, "billBlogArticleSingular", "billBlogArticlesPlural"),
       included: true,
     },
     {
-      text: fr ? "Analyse automatique (agent quotidien)" : "Auto-analysis (daily agent)",
+      text: t(locale, "billAutoAnalysis"),
       included: q.auto_analysis,
     },
     {
-      text: fr
-        ? "Extension de thème (FAQ + données structurées)"
-        : "Theme extension (FAQ + structured data)",
+      text: t(locale, "billThemeExtension"),
       included: plan.id !== "free",
     },
     {
-      text: fr ? "llms.txt + fichiers IA" : "llms.txt + AI files",
+      text: t(locale, "billLlmsTxt"),
       included: true,
     },
     {
-      text: fr
-        ? "Tendances temps réel + veille concurrents (sourcées)"
-        : "Real-time trends + competitor watch (sourced)",
+      text: t(locale, "billTrendsWatch"),
       included: plan.id === "agency",
     },
   ];
@@ -217,7 +211,6 @@ const PLAN_LABELS: Record<string, { fr: string; en: string; taglineFr: string; t
 
 export default function Billing() {
   const { locale, plans, currentPlan, override, usage } = useLoaderData<typeof loader>();
-  const fr = locale === "fr";
   const submit = useSubmit();
   const redeemFetcher = useFetcher<{ redeemed: string | null; redeemError: boolean }>();
   const [codeOpen, setCodeOpen] = useState(false);
@@ -227,8 +220,9 @@ export default function Billing() {
   const redeemError = redeemFetcher.data?.redeemError;
 
   const formatPrice = (plan: Plan) => {
-    if (plan.price === 0) return fr ? "0 €" : "€0";
-    const amount = plan.price.toLocaleString(fr ? "fr-FR" : "en-US", {
+    if (plan.price === 0) return t(locale, "billFreePrice");
+    const amount = plan.price.toLocaleString(
+      { fr: "fr-FR", en: "en-US", de: "de-DE", es: "es-ES" }[locale], {
       minimumFractionDigits: 2,
     });
     return plan.currency === "EUR" ? `${amount} €` : `$${amount}`;
@@ -236,44 +230,43 @@ export default function Billing() {
 
   return (
     <Page
-      title={fr ? "Forfaits" : "Plans"}
+      title={t(locale, "navPlans")}
       titleMetadata={<PlanBadge />}
-      subtitle={
-        fr
-          ? "Plus de produits optimisés, plus de trafic. Changez ou annulez à tout moment."
-          : "More optimized products, more traffic. Change or cancel anytime."
-      }
+      subtitle={t(locale, "billSubtitle")}
     >
       <BlockStack gap="500">
         {redeemed && (
-          <Banner tone="success" title={fr ? "Accès partenaire activé" : "Partner access enabled"}>
+          <Banner tone="success" title={t(locale, "billPartnerEnabled")}>
             <Text as="p">
-              {fr
-                ? `Votre boutique bénéficie maintenant du plan ${PLAN_LABELS[redeemed]?.fr ?? redeemed} — offert.`
-                : `Your store now has the ${PLAN_LABELS[redeemed]?.en ?? redeemed} plan — free of charge.`}
+              {t(locale, "billPartnerRedeemed").replace(
+                "{plan}",
+                PLAN_LABELS[redeemed]
+                  ? pickLang(locale, PLAN_LABELS[redeemed].fr, PLAN_LABELS[redeemed].en)
+                  : redeemed,
+              )}
             </Text>
           </Banner>
         )}
         {override && !redeemed && (
-          <Banner tone="success" title={fr ? "Accès partenaire actif" : "Partner access active"} />
+          <Banner tone="success" title={t(locale, "billPartnerActive")} />
         )}
 
         {usage && (
           <Card>
             <BlockStack gap="300">
               <Text as="h2" variant="headingSm">
-                {fr ? "Votre consommation ce cycle" : "Your usage this cycle"}
+                {t(locale, "billUsageTitle")}
               </Text>
               <InlineGrid columns={{ xs: 1, sm: 2 }} gap="300">
                 <UsageMeter
-                  label={fr ? "Analyses" : "Analyses"}
+                  label={t(locale, "billAnalysesLabel")}
                   used={usage.analysis}
                   quota={Number(plans.find((p) => p.current)?.quotas.analysis ?? 1)}
                   locale={locale}
                   showUpgrade={currentPlan !== "agency"}
                 />
                 <UsageMeter
-                  label={fr ? "Articles de blog" : "Blog articles"}
+                  label={t(locale, "billBlogLabel")}
                   used={usage.blog}
                   quota={Number(plans.find((p) => p.current)?.quotas.blog ?? 3)}
                   locale={locale}
@@ -308,18 +301,18 @@ export default function Billing() {
                   <BlockStack gap="300">
                     <InlineStack align="space-between" blockAlign="center">
                       <Text as="h2" variant="headingMd">
-                        {labels ? (fr ? labels.fr : labels.en) : plan.display_name}
+                        {labels ? pickLang(locale, labels.fr, labels.en) : plan.display_name}
                       </Text>
                       {isPro && (
-                        <Badge tone="info">{fr ? "Le plus populaire" : "Most popular"}</Badge>
+                        <Badge tone="info">{t(locale, "billMostPopular")}</Badge>
                       )}
                       {plan.current && (
-                        <Badge tone="success">{fr ? "Plan actuel" : "Current plan"}</Badge>
+                        <Badge tone="success">{t(locale, "billCurrentPlan")}</Badge>
                       )}
                     </InlineStack>
                     <div style={{ minHeight: "2.5rem" }}>
                       <Text as="p" variant="bodySm" tone="subdued">
-                        {labels ? (fr ? labels.taglineFr : labels.taglineEn) : ""}
+                        {labels ? pickLang(locale, labels.taglineFr, labels.taglineEn) : ""}
                       </Text>
                     </div>
                     <InlineStack gap="100" blockAlign="end">
@@ -327,22 +320,22 @@ export default function Billing() {
                         {formatPrice(plan)}
                       </Text>
                       <Text as="p" variant="bodySm" tone="subdued">
-                        {fr ? "/ mois" : "/ month"}
+                        {t(locale, "billPerMonth")}
                       </Text>
                     </InlineStack>
                     {isPaid ? (
                       <Badge tone="success">
-                        {fr ? "7 jours d'essai gratuit" : "7-day free trial"}
+                        {t(locale, "billFreeTrial")}
                       </Badge>
                     ) : (
                       <div style={{ visibility: "hidden" }} aria-hidden="true">
                         <Badge tone="success">
-                          {fr ? "7 jours d'essai gratuit" : "7-day free trial"}
+                          {t(locale, "billFreeTrial")}
                         </Badge>
                       </div>
                     )}
                     <BlockStack gap="150">
-                      {planCopy(plan, fr).map((line, i) => (
+                      {planCopy(plan, locale).map((line, i) => (
                         <InlineStack key={i} gap="150" blockAlign="center" wrap={false}>
                           <span style={{ opacity: line.included ? 1 : 0.35, display: "inline-flex" }}>
                             <Icon
@@ -368,12 +361,12 @@ export default function Billing() {
                       fullWidth
                       onClick={() => submit({ plan: plan.id }, { method: "post" })}
                     >
-                      {fr ? "Essayer 7 jours gratuitement" : "Start 7-day free trial"}
+                      {t(locale, "billStartTrial")}
                     </Button>
                   )}
                   {!plan.current && !isPaid && (
                     <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-                      {fr ? "Inclus avec l'installation" : "Included with install"}
+                      {t(locale, "billIncludedInstall")}
                     </Text>
                   )}
                   {plan.current && isPaid && (
@@ -382,7 +375,7 @@ export default function Billing() {
                       tone="critical"
                       onClick={() => submit({ intent: "cancel" }, { method: "post" })}
                     >
-                      {fr ? "Annuler l'abonnement" : "Cancel subscription"}
+                      {t(locale, "billCancelSub")}
                     </Button>
                   )}
               </div>
@@ -393,9 +386,7 @@ export default function Billing() {
         {plans.length > 0 && (
           <Box background="bg-surface-secondary" padding="300" borderRadius="200">
             <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-              {fr
-                ? "Facturation sécurisée gérée par Shopify · Aucun paiement pendant l'essai · Annulation en 1 clic"
-                : "Secure billing handled by Shopify · No charge during the trial · Cancel in 1 click"}
+              {t(locale, "billSecureNote")}
             </Text>
           </Box>
         )}
@@ -403,9 +394,7 @@ export default function Billing() {
         {plans.length === 0 && (
           <Card>
             <Text as="p" tone="subdued">
-              {fr
-                ? "Impossible de charger les plans. Réessayez dans un instant."
-                : "Could not load plans. Please try again shortly."}
+              {t(locale, "billLoadError")}
             </Text>
           </Card>
         )}
@@ -413,19 +402,19 @@ export default function Billing() {
         <Card>
           <BlockStack gap="200">
             <Button variant="plain" onClick={() => setCodeOpen((v) => !v)} disclosure={codeOpen ? "up" : "down"}>
-              {fr ? "J'ai un code partenaire" : "I have a partner code"}
+              {t(locale, "billPartnerCodeToggle")}
             </Button>
             <Collapsible id="partner-code" open={codeOpen}>
               <InlineStack gap="200" blockAlign="end" wrap={false}>
                 <div style={{ flexGrow: 1 }}>
                   <TextField
-                    label={fr ? "Code partenaire" : "Partner code"}
+                    label={t(locale, "billPartnerCodeLabel")}
                     labelHidden
                     value={code}
                     onChange={setCode}
                     autoComplete="off"
-                    placeholder={fr ? "Entrez votre code" : "Enter your code"}
-                    error={redeemError ? (fr ? "Code invalide" : "Invalid code") : undefined}
+                    placeholder={t(locale, "billCodePlaceholder")}
+                    error={redeemError ? t(locale, "billCodeInvalid") : undefined}
                   />
                 </div>
                 <Button
@@ -435,7 +424,7 @@ export default function Billing() {
                   loading={redeemFetcher.state !== "idle"}
                   disabled={!code.trim()}
                 >
-                  {fr ? "Activer" : "Redeem"}
+                  {t(locale, "billRedeem")}
                 </Button>
               </InlineStack>
             </Collapsible>

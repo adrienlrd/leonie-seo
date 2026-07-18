@@ -24,7 +24,7 @@ import { PlanBadge } from "../components/PlanBadge";
 import { AlertTriangleIcon, LightbulbIcon, ViewIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { localizedPath, t, type Locale } from "../lib/i18n";
+import { localizedPath, pickLang, t, type Locale } from "../lib/i18n";
 import { resolveLocale } from "../lib/i18n.server";
 import {
   ValidationClicksChart,
@@ -167,9 +167,9 @@ function windowTone(status: string): "success" | "warning" | "critical" {
 }
 
 function windowBadgeLabel(status: string, daysRemaining: number, locale: Locale): string {
-  if (status === "complete") return locale === "fr" ? "28 j ✓" : "28 d ✓";
-  if (status === "waiting") return locale === "fr" ? `J-${daysRemaining}` : `D-${daysRemaining}`;
-  return locale === "fr" ? "< 28 j" : "< 28 d";
+  if (status === "complete") return t(locale, "anlWindowDone");
+  if (status === "waiting") return t(locale, "anlWindowCountdown").replace("{d}", String(daysRemaining));
+  return t(locale, "anlWindowPartial");
 }
 
 function confidenceTone(confidence: string): "success" | "warning" | undefined {
@@ -226,7 +226,7 @@ function EntryContent({ product, locale }: { product: ProductEntry; locale: Loca
             {vd.window_status === "waiting" && (
               <Banner tone="warning">
                 <BlockStack gap="200">
-                  <Text as="p">{locale === "fr" ? vd.window_message_fr : vd.window_message_en}</Text>
+                  <Text as="p">{pickLang(locale, vd.window_message_fr, vd.window_message_en)}</Text>
                   <ProgressBar
                     progress={Math.round(((28 - vd.days_remaining) / 28) * 100)}
                     tone="highlight"
@@ -238,7 +238,7 @@ function EntryContent({ product, locale }: { product: ProductEntry; locale: Loca
 
             {vd.window_status === "insufficient" && (
               <Banner tone="critical">
-                <Text as="p">{locale === "fr" ? vd.window_message_fr : vd.window_message_en}</Text>
+                <Text as="p">{pickLang(locale, vd.window_message_fr, vd.window_message_en)}</Text>
               </Banner>
             )}
 
@@ -302,7 +302,7 @@ function EntryContent({ product, locale }: { product: ProductEntry; locale: Loca
                         <Icon source={LightbulbIcon} tone="subdued" />
                       </span>
                       <Text as="p" variant="bodySm" tone="subdued">
-                        {locale === "fr" ? action.decomposition.cause_fr : action.decomposition.cause_en}
+                        {pickLang(locale, action.decomposition.cause_fr, action.decomposition.cause_en)}
                       </Text>
                     </InlineStack>
                   ) : null}
@@ -331,7 +331,7 @@ function DropdownHeader({
 function ClicksLine({ entry, locale }: { entry: ClickEntry | undefined; locale: Locale }) {
   if (!entry) return null;
   const since = new Date(`${entry.since}T00:00:00`).toLocaleDateString(
-    locale === "fr" ? "fr-FR" : "en-US",
+    { fr: "fr-FR", en: "en-US", de: "de-DE", es: "es-ES" }[locale],
     { day: "2-digit", month: "short", year: "numeric" },
   );
   const tooltip = entry.source === "ga4"
@@ -345,7 +345,7 @@ function ClicksLine({ entry, locale }: { entry: ClickEntry | undefined; locale: 
             <Icon source={ViewIcon} tone="subdued" />
           </span>
           <Text as="span" variant="bodySm" tone="subdued">
-            {`${entry.total.toLocaleString(locale === "fr" ? "fr-FR" : "en-US")} ${t(locale, "analyseClicksLabel")} ${t(locale, "analyseClicksSince")} ${since}`}
+            {`${entry.total.toLocaleString({ fr: "fr-FR", en: "en-US", de: "de-DE", es: "es-ES" }[locale])} ${t(locale, "analyseClicksLabel")} ${t(locale, "analyseClicksSince")} ${since}`}
           </Text>
         </InlineStack>
       </Tooltip>
@@ -472,9 +472,9 @@ export default function AnalysePage() {
                   <DropdownHeader
                     open={showProducts}
                     onToggle={() => setShowProducts((o) => !o)}
-                    title={locale === "fr" ? "Produits" : "Products"}
+                    title={t(locale, "anlProductsTitle")}
                     count={prods.length}
-                    countLabel={locale === "fr" ? "produits" : "products"}
+                    countLabel={t(locale, "anlProductsCount")}
                   />
                   <Collapsible open={showProducts} id="analyse-products">
                     <BlockStack gap="200">
@@ -550,9 +550,9 @@ export default function AnalysePage() {
                   <DropdownHeader
                     open={showBlogs}
                     onToggle={() => setShowBlogs((o) => !o)}
-                    title={locale === "fr" ? "Blogs" : "Blogs"}
+                    title="Blogs"
                     count={blogs.length}
-                    countLabel={locale === "fr" ? "articles" : "articles"}
+                    countLabel={t(locale, "anlArticlesCount")}
                   />
                   <Collapsible open={showBlogs} id="analyse-blogs">
                     <BlockStack gap="300">

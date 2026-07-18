@@ -31,7 +31,7 @@ export function ValidationClicksChart({
   height = 120,
   color = "#008060",
 }: ValidationClicksChartProps) {
-  const numberLocale = locale === "fr" ? "fr-FR" : "en-US";
+  const numberLocale = { fr: "fr-FR", en: "en-US", de: "de-DE", es: "es-ES" }[locale];
 
   if (!series || series.length === 0) {
     return (

@@ -1,6 +1,6 @@
 import { BlockStack, Box, Button, InlineStack, ProgressBar, Text } from "@shopify/polaris";
 import type { Locale } from "../lib/i18n";
-import { localizedPath } from "../lib/i18n";
+import { localizedPath, t } from "../lib/i18n";
 
 export interface UsageInfo {
   analysis: number;
@@ -30,7 +30,6 @@ export function UsageMeter({
   /** Show the upgrade CTA when the limit is reached (hide for paid top tier). */
   showUpgrade?: boolean;
 }) {
-  const fr = locale === "fr";
   const clamped = Math.min(used, quota);
   const pct = quota > 0 ? Math.round((clamped / quota) * 100) : 0;
   const atLimit = used >= quota;
@@ -48,17 +47,11 @@ export function UsageMeter({
         </InlineStack>
         <ProgressBar progress={pct} size="small" tone={tone} />
         <Text as="p" variant="bodySm" tone="subdued">
-          {atLimit
-            ? fr
-              ? "Limite atteinte — se libère au fil des 28 jours."
-              : "Limit reached — frees up over the 28-day window."
-            : fr
-              ? "Sur les 28 derniers jours."
-              : "Over the last 28 days."}
+          {t(locale, atLimit ? "umLimitReached" : "umLast28")}
         </Text>
         {atLimit && showUpgrade && (
           <Button url={localizedPath("/app/billing", locale)} variant="primary" size="slim">
-            {fr ? "Passer à la vitesse supérieure" : "Move up a gear"}
+            {t(locale, "umUpgrade")}
           </Button>
         )}
       </BlockStack>

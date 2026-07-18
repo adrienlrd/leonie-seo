@@ -471,29 +471,19 @@ export default function Onboarding() {
         {legacyActionData?.authorizationUrl && (
           <Banner
             tone="info"
-            title={
-              locale === "fr"
-                ? "Autorisation Google requise"
-                : "Google authorization required"
-            }
+            title={t(locale, "onbGoogleAuthRequired")}
           >
             <Text as="p">
-              {locale === "fr"
-                ? "Une fenêtre Google s'est ouverte. Termine le consentement, puis cette page se mettra à jour automatiquement."
-                : "A Google window opened. Complete the consent and this page will refresh automatically."}
+              {t(locale, "onbGoogleWindowOpened")}
             </Text>
             <Text as="p" variant="bodySm" tone="subdued">
-              {locale === "fr" ? "Si la fenêtre est bloquée :" : "If the popup is blocked:"}{" "}
+              {t(locale, "onbPopupBlocked")}{" "}
               <Link
                 url={legacyActionData.authorizationUrl}
                 target="_blank"
-                accessibilityLabel={
-                  locale === "fr"
-                    ? "Ouvrir l'autorisation Google dans un nouvel onglet"
-                    : "Open Google authorization in a new tab"
-                }
+                accessibilityLabel={t(locale, "onbOpenGoogleAuthA11y")}
               >
-                {locale === "fr" ? "ouvrir l'autorisation Google →" : "open Google authorization →"}
+                {t(locale, "onbOpenGoogleAuth")}
               </Link>
             </Text>
           </Banner>

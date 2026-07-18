@@ -37,7 +37,7 @@ export function ShopifyImagePicker({ locale, imageUrl, imageAlt, onSelect, onAlt
   return (
     <BlockStack gap="200">
       <Text as="h3" variant="headingSm">
-        {label ?? (locale === "fr" ? "Image de couverture" : "Cover image")}
+        {label ?? t(locale, "imgpCoverImage")}
       </Text>
 
       {imageUrl ? (
@@ -98,13 +98,13 @@ function ImagePickerModal({
     <Modal
       open
       onClose={onClose}
-      title={locale === "fr" ? "Image de couverture" : "Cover image"}
+      title={t(locale, "imgpCoverImage")}
       primaryAction={
         tab === 0 && selected
           ? { content: t(locale, "coverImageSelect"), onAction: () => onSelect(selected.url, selected.alt) }
           : undefined
       }
-      secondaryActions={[{ content: locale === "fr" ? "Annuler" : "Cancel", onAction: onClose }]}
+      secondaryActions={[{ content: t(locale, "pcpCancel"), onAction: onClose }]}
       size="large"
     >
       <Modal.Section>
@@ -158,10 +158,10 @@ export function CoverImageModal({
     <Modal
       open
       onClose={onClose}
-      title={locale === "fr" ? "Image de couverture" : "Cover image"}
+      title={t(locale, "imgpCoverImage")}
       // "Terminé" applies the image picked in the Browse tab (if any) and closes.
       primaryAction={{
-        content: locale === "fr" ? "Terminé" : "Done",
+        content: t(locale, "imgpDone"),
         onAction: () => {
           if (selected) onSelect(selected.url, selected.alt);
           onClose();
@@ -185,7 +185,7 @@ export function CoverImageModal({
               />
               {onStyleChange && styleOptions && styleOptions.length > 0 && (
                 <Select
-                  label={locale === "fr" ? "Emplacement de l'image" : "Image placement"}
+                  label={t(locale, "imgpPlacement")}
                   options={styleOptions}
                   value={imageStyle ?? "hero"}
                   onChange={onStyleChange}
@@ -289,7 +289,7 @@ function BrowseTab({
       {loading && files.length === 0 ? (
         <InlineStack align="center"><Spinner size="small" /></InlineStack>
       ) : files.length === 0 ? (
-        <Text as="p" tone="subdued">{locale === "fr" ? "Aucune image trouvée" : "No images found"}</Text>
+        <Text as="p" tone="subdued">{t(locale, "imgpNoImages")}</Text>
       ) : (
         <div
           style={{

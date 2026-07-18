@@ -1,11 +1,12 @@
 import { Badge } from "@shopify/polaris";
 import { useRouteLoaderData } from "@remix-run/react";
 import type { Locale } from "../lib/i18n";
+import { t } from "../lib/i18n";
 
-const PLAN_LABELS: Record<string, { fr: string; en: string }> = {
-  free: { fr: "Gratuit", en: "Free" },
-  pro: { fr: "Pro", en: "Pro" },
-  agency: { fr: "Grande boutique", en: "Large store" },
+const PLAN_LABEL_KEYS: Record<string, string> = {
+  free: "pbFree",
+  pro: "pbPro",
+  agency: "pbAgency",
 };
 
 /**
@@ -15,7 +16,7 @@ const PLAN_LABELS: Record<string, { fr: string; en: string }> = {
 export function PlanBadge() {
   const data = useRouteLoaderData("routes/app") as { plan?: string; locale?: Locale } | undefined;
   const plan = data?.plan ?? "free";
-  const fr = (data?.locale ?? "fr") === "fr";
-  const label = PLAN_LABELS[plan] ?? PLAN_LABELS.free;
-  return <Badge tone={plan === "free" ? undefined : "info"}>{fr ? label.fr : label.en}</Badge>;
+  const locale = data?.locale ?? "fr";
+  const labelKey = PLAN_LABEL_KEYS[plan] ?? PLAN_LABEL_KEYS.free;
+  return <Badge tone={plan === "free" ? undefined : "info"}>{t(locale, labelKey)}</Badge>;
 }
