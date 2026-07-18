@@ -46,7 +46,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { callBackendForShop } from "../lib/api.server";
 import { handleShopifyFilesIntent } from "../lib/shopifyFiles.server";
-import { loaderPhrases, type Locale } from "../lib/i18n";
+import { loaderPhrases, t, type Locale } from "../lib/i18n";
 import { resolveLocale } from "../lib/i18n.server";
 import { ResearchConsole } from "../components/ResearchConsole";
 import { QuotaPill } from "../components/UsageMeter";
@@ -521,7 +521,6 @@ function DraftListItem({
   locale,
   onClick,
 }: { draft: Draft; active: boolean; locale: Locale; onClick?: () => void }) {
-  const fr = locale === "fr";
   // Use the Remix Link (client-side navigation) so we never leave the embedded
   // Shopify session — a plain anchor would trigger the OAuth login path.
   return (
@@ -540,14 +539,14 @@ function DraftListItem({
     >
       <BlockStack gap="050">
         <Text as="span" variant="bodyMd" fontWeight={active ? "semibold" : "regular"}>
-          {draft.blog_title || (fr ? "(sans titre)" : "(untitled)")}
+          {draft.blog_title || (t(locale, "blogUntitled"))}
         </Text>
         <Text as="span" variant="bodySm" tone="subdued">{draft.product_title}</Text>
         <InlineStack gap="100">
           <Badge tone={draft.status === "published_to_shopify" ? "success" : "info"}>
             {draft.status === "published_to_shopify"
-              ? fr ? "Sur Shopify" : "On Shopify"
-              : fr ? "Brouillon" : "Draft"}
+              ? t(locale, "blogOnShopify")
+              : t(locale, "blogStatusDraft")}
           </Badge>
         </InlineStack>
       </BlockStack>
@@ -555,18 +554,18 @@ function DraftListItem({
   );
 }
 
-function linkReasonBadge(reason: string, fr: boolean): { tone: "info" | "success" | "attention"; label: string } {
+function linkReasonBadge(reason: string, locale: Locale): { tone: "info" | "success" | "attention"; label: string } {
   switch (reason) {
     case "related_article":
-      return { tone: "info", label: fr ? "Article" : "Article" };
+      return { tone: "info", label: "Article" };
     case "collection_parent":
-      return { tone: "success", label: fr ? "Collection" : "Collection" };
+      return { tone: "success", label: "Collection" };
     case "cluster_pillar":
-      return { tone: "success", label: fr ? "Article pilier" : "Pillar article" };
+      return { tone: "success", label: t(locale, "blogPillarArticle") };
     case "cluster_sibling":
-      return { tone: "info", label: fr ? "Article satellite" : "Cluster article" };
+      return { tone: "info", label: t(locale, "blogClusterArticle") };
     default:
-      return { tone: "attention", label: fr ? "Produit" : "Product" };
+      return { tone: "attention", label: t(locale, "blogLinkProduct") };
   }
 }
 
@@ -579,30 +578,27 @@ function BlogGeoScoreBreakdown({
   components?: Record<string, GeoScoreComponent>;
   locale: Locale;
 }) {
-  const fr = locale === "fr";
   const pillars: Array<{ key: string; label: string }> = [
-    { key: "content_length", label: fr ? "Longueur du contenu" : "Content length" },
-    { key: "keyword", label: fr ? "Mot-clé placé" : "Keyword placement" },
-    { key: "structure", label: fr ? "Structure (intro, H2)" : "Structure (intro, H2)" },
-    { key: "meta_description", label: fr ? "Meta description" : "Meta description" },
+    { key: "content_length", label: t(locale, "blogPillarContentLength") },
+    { key: "keyword", label: t(locale, "blogPillarKeyword") },
+    { key: "structure", label: "Structure (intro, H2)" },
+    { key: "meta_description", label: "Meta description" },
     { key: "faq", label: "FAQ" },
-    { key: "internal_links", label: fr ? "Liens internes" : "Internal links" },
-    { key: "image", label: fr ? "Image de couverture" : "Cover image" },
+    { key: "internal_links", label: t(locale, "blogInternalLinks") },
+    { key: "image", label: t(locale, "blogCoverImage") },
   ];
   const has = components && Object.keys(components).length > 0;
   return (
     <BlockStack gap="200">
       <Text as="p" variant="headingSm">
-        {fr ? "Détail du Score GEO" : "GEO score breakdown"}
+        {t(locale, "blogGeoBreakdownTitle")}
       </Text>
       <Text as="p" variant="bodySm" tone="subdued">
-        {fr
-          ? "Ce que les moteurs évaluent. ✓ = en place, ✗ = à compléter. Le % est le poids dans le score."
-          : "What engines assess. ✓ = in place, ✗ = to complete. The % is its weight in the score."}
+        {t(locale, "blogGeoBreakdownHelp")}
       </Text>
       {!has ? (
         <Text as="p" variant="bodySm" tone="subdued">
-          {fr ? "Sauvegardez pour voir le détail par critère." : "Save to see the per-criterion breakdown."}
+          {t(locale, "blogGeoBreakdownEmpty")}
         </Text>
       ) : (
         pillars.map(({ key, label }) => {
@@ -747,7 +743,7 @@ export default function BlogIndexPage() {
   const submit = useSubmit();
   const navigate = useNavigate();
   const navigation = useNavigation();
-  const fr = locale === "fr";
+  const dateLocale = { fr: "fr-FR", en: "en-US", de: "de-DE", es: "es-ES" }[locale];
 
   // Editable copy of the selected draft.
   const [draft, setDraft] = useState<Draft | null>(selected);
@@ -824,11 +820,11 @@ export default function BlogIndexPage() {
 
   // Localized format options for the cover-image popup (shared with the preview).
   const coverStyleOptions = [
-    { label: fr ? "Couverture pleine largeur" : "Full-width cover", value: "hero" },
-    { label: fr ? "Bandeau cinématique (plus court)" : "Cinematic banner (shorter)", value: "banner" },
-    { label: fr ? "Image centrée" : "Centered image", value: "centered" },
-    { label: fr ? "Flottant à gauche (texte à droite)" : "Float left (text wraps right)", value: "float-left" },
-    { label: fr ? "Flottant à droite (texte à gauche)" : "Float right (text wraps left)", value: "float-right" },
+    { label: t(locale, "blogImgHero"), value: "hero" },
+    { label: t(locale, "blogImgBanner"), value: "banner" },
+    { label: t(locale, "blogImgCentered"), value: "centered" },
+    { label: t(locale, "blogImgFloatLeft"), value: "float-left" },
+    { label: t(locale, "blogImgFloatRight"), value: "float-right" },
   ];
   const [geoHelpOpen, setGeoHelpOpen] = useState(false);
 
@@ -1082,7 +1078,7 @@ export default function BlogIndexPage() {
 
   const onDelete = () => {
     if (!draft) return;
-    if (typeof window !== "undefined" && !window.confirm(fr ? "Supprimer ce brouillon ?" : "Delete this draft?")) return;
+    if (typeof window !== "undefined" && !window.confirm(t(locale, "blogConfirmDelete"))) return;
     submit({ intent: "deleteDraft", id: draft.id }, { method: "post" });
   };
 
@@ -1110,17 +1106,15 @@ export default function BlogIndexPage() {
         {showPublishUpsell && (
           <Banner
             tone="success"
-            title={fr ? "Article publié — belle progression !" : "Article published — great progress!"}
+            title={t(locale, "blogPublishedUpsellTitle")}
             action={{
-              content: fr ? "Essayer Pro 7 jours gratuitement" : "Try Pro free for 7 days",
+              content: t(locale, "dashTryProCta"),
               url: "/app/billing",
             }}
             onDismiss={() => setShowPublishUpsell(false)}
           >
             <p>
-              {fr
-                ? "Chaque article publié est une porte d'entrée de plus vers votre boutique. Avec Pro, générez jusqu'à 20 articles tous les 28 jours et laissez l'agent optimiser le reste."
-                : "Every published article is one more door into your store. With Pro, generate up to 20 articles every 28 days and let the agent optimize the rest."}
+              {t(locale, "blogPublishedUpsellBody")}
             </p>
           </Banner>
         )}
@@ -1135,9 +1129,7 @@ export default function BlogIndexPage() {
                 <InlineStack gap="200" blockAlign="center" wrap={false}>
                   <Icon source={QuestionCircleIcon} tone="subdued" />
                   <Text as="h3" variant="bodySm" fontWeight="medium">
-                    {fr
-                      ? "Comment les blogs améliorent significativement le référencement ?"
-                      : "How blogs significantly improve your ranking?"}
+                    {t(locale, "blogEduTitle")}
                   </Text>
                 </InlineStack>
                 <Icon source={CheckIcon} tone="subdued" />
@@ -1148,39 +1140,31 @@ export default function BlogIndexPage() {
         <Modal
           open={showBlogEdu}
           onClose={() => setShowBlogEdu(false)}
-          title={fr ? "Comment les blogs améliorent significativement le référencement ?" : "How blogs significantly improve your ranking"}
-          primaryAction={{ content: fr ? "Compris" : "Got it", onAction: () => setShowBlogEdu(false) }}
+          title={t(locale, "blogEduTitle")}
+          primaryAction={{ content: t(locale, "blogGotIt"), onAction: () => setShowBlogEdu(false) }}
         >
           <Modal.Section>
             <BlockStack gap="400">
               <Text as="p" variant="bodyMd">
-                {fr
-                  ? "Le blog est l'outil le plus puissant de votre arsenal SEO/GEO. Vos fiches produits ciblent l'intention d'achat ; le blog, lui, capte toutes les questions que vos clients se posent avant d'acheter — et multiplie vos portes d'entrée sur Google et dans les réponses des IA."
-                  : "The blog is the most powerful tool in your SEO/GEO arsenal. Product pages target buying intent; the blog captures every question customers ask before buying — multiplying your doors into Google and AI answers."}
+                {t(locale, "blogEduIntro")}
               </Text>
               <Box background="bg-surface-secondary" padding="300" borderRadius="200">
                 <BlockStack gap="150">
                   <Text as="p" variant="bodySm" fontWeight="semibold">
-                    {fr ? "Basé sur des faits réels que les gens recherchent" : "Grounded in real facts people actually search"}
+                    {t(locale, "blogEduFactsTitle")}
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {fr
-                      ? "Un bon article part de vraies requêtes (données Google, tendances de votre niche) et y répond avec des faits vérifiables — pas du remplissage. C'est ce que Google classe et ce que les IA citent."
-                      : "A good article starts from real queries (Google data, niche trends) and answers them with verifiable facts — not filler. That's what Google ranks and AIs cite."}
+                    {t(locale, "blogEduFactsBody")}
                   </Text>
                 </BlockStack>
               </Box>
               <Box background="bg-surface-info" padding="300" borderRadius="200">
                 <Text as="p" variant="bodySm" fontWeight="medium">
-                  {fr
-                    ? "Comptez 10 à 15 articles avant de générer un trafic significatif : le blog se construit comme une bibliothèque, chaque article renforce les autres."
-                    : "Expect 10 to 15 articles before meaningful traffic: a blog builds like a library, each article reinforcing the others."}
+                  {t(locale, "blogEduLibrary")}
                 </Text>
               </Box>
               <Text as="p" variant="bodyMd" tone="subdued">
-                {fr
-                  ? "Soyez patient : contrairement à une fiche produit optimisée qui peut bouger en quelques semaines, un blog met 3 à 6 mois à donner sa pleine mesure. Mais une fois lancé, c'est le canal qui compose dans le temps — il travaille pour vous pendant des années."
-                  : "Be patient: unlike an optimized product page that can move within weeks, a blog takes 3 to 6 months to reach full effect. But once it takes off, it's the channel that compounds — working for you for years."}
+                {t(locale, "blogEduPatience")}
               </Text>
             </BlockStack>
           </Modal.Section>
@@ -1188,33 +1172,29 @@ export default function BlogIndexPage() {
         {actionData?.error === "402" ? (
           <Banner
             tone="warning"
-            title={fr ? "Limite d'articles atteinte pour ce cycle de 28 jours" : "Blog limit reached for this 28-day cycle"}
-            action={{ content: fr ? "Voir les plans" : "See plans", url: "/app/billing" }}
+            title={t(locale, "blogLimitTitle")}
+            action={{ content: t(locale, "blogSeePlans"), url: "/app/billing" }}
           >
             <p>
-              {fr
-                ? "Passez au plan Pro pour générer jusqu'à 20 articles tous les 28 jours."
-                : "Upgrade to Pro to generate up to 20 articles every 28 days."}
+              {t(locale, "blogLimitBody")}
             </p>
           </Banner>
         ) : actionData?.error ? (
           <Banner tone="critical"><p>{actionData.error}</p></Banner>
         ) : null}
         {fetcher.data?.error && !fetcher.data.ok && (
-          <Banner tone="critical" title={fr ? "Publication échouée" : "Publish failed"}>
+          <Banner tone="critical" title={t(locale, "blogPublishFailed")}>
             <p style={{ whiteSpace: "pre-wrap" }}>{fetcher.data.error}</p>
           </Banner>
         )}
         {prefillTitle && (
           <Banner
             tone="info"
-            title={fr ? "Sujet détecté depuis Produits" : "Topic detected from Products"}
+            title={t(locale, "blogTopicDetected")}
           >
             <BlockStack gap="200">
               <Text as="p" variant="bodySm">
-                {fr
-                  ? `Crée un article sur : "${prefillTitle}"`
-                  : `Create an article about: "${prefillTitle}"`}
+                {t(locale, "blogCreateArticleAbout").replace("{title}", prefillTitle)}
               </Text>
               <Form method="post">
                 <input type="hidden" name="intent" value="createBlank" />
@@ -1225,7 +1205,7 @@ export default function BlogIndexPage() {
                   submit
                   loading={navigation.state !== "idle" && navigation.formData?.get("intent") === "createBlank"}
                 >
-                  {fr ? "Créer le brouillon" : "Create draft"}
+                  {t(locale, "blogCreateDraft")}
                 </Button>
               </Form>
             </BlockStack>
@@ -1247,7 +1227,7 @@ export default function BlogIndexPage() {
                       disclosure={showPublished ? "up" : "down"}
                       variant="tertiary"
                     >
-                      {fr ? `Publiés (${published.length})` : `Published (${published.length})`}
+                      {t(locale, "blogPublishedCount").replace("{n}", String(published.length))}
                     </Button>
                     <Collapsible open={showPublished} id="blog-published">
                       <Box>
@@ -1273,13 +1253,13 @@ export default function BlogIndexPage() {
                       disclosure={showDrafts ? "up" : "down"}
                       variant="tertiary"
                     >
-                      {fr ? `Brouillons (${unpublished.length})` : `Drafts (${unpublished.length})`}
+                      {t(locale, "blogDraftsCount").replace("{n}", String(unpublished.length))}
                     </Button>
                     <Collapsible open={showDrafts} id="blog-drafts">
                       {unpublished.length === 0 ? (
                         <Box padding="200">
                           <Text as="p" tone="subdued" variant="bodySm">
-                            {fr ? "Aucun brouillon." : "No drafts yet."}
+                            {t(locale, "blogNoDrafts")}
                           </Text>
                         </Box>
                       ) : (
@@ -1308,7 +1288,7 @@ export default function BlogIndexPage() {
                         disclosure={showIdeas ? "up" : "down"}
                         variant="tertiary"
                       >
-                        {fr ? `Idées de blog (${visibleBlogIdeas.length})` : `Blog ideas (${visibleBlogIdeas.length})`}
+                        {t(locale, "blogIdeasCount").replace("{n}", String(visibleBlogIdeas.length))}
                       </Button>
                     </div>
                   </InlineStack>
@@ -1346,11 +1326,11 @@ export default function BlogIndexPage() {
                                 >
                                   <InlineStack gap="150" blockAlign="center">
                                     <Text as="span" variant="bodySm" fontWeight={isActive ? "semibold" : "regular"}>
-                                      {idea.title || (fr ? "(sans titre)" : "(untitled)")}
+                                      {idea.title || (t(locale, "blogUntitled"))}
                                     </Text>
                                     {isPillar && (
                                       <Badge tone="success" size="small">
-                                        {fr ? "Pilier suggéré" : "Suggested pillar"}
+                                        {t(locale, "blogSuggestedPillar")}
                                       </Badge>
                                     )}
                                   </InlineStack>
@@ -1379,16 +1359,14 @@ export default function BlogIndexPage() {
                         disclosure={showSuggested ? "up" : "down"}
                         variant="tertiary"
                       >
-                        {fr ? `Idées suggérées (${visibleSuggestions.length})` : `Suggested ideas (${visibleSuggestions.length})`}
+                        {t(locale, "blogSuggestedIdeasCount").replace("{n}", String(visibleSuggestions.length))}
                       </Button>
                     </div>
                   </InlineStack>
                   <Collapsible open={showSuggested} id="blog-suggested">
                     <BlockStack gap="100">
                       <Text as="p" variant="bodySm" tone="subdued">
-                        {fr
-                          ? "Tendances saisonnières, alternatives aux concurrents et avantages produit."
-                          : "Seasonal trends, competitor alternatives and product advantages."}
+                        {t(locale, "blogSuggestedIdeasDesc")}
                       </Text>
                       <BlockStack gap="050">
                     {visibleSuggestions.map((idea, i) => {
@@ -1431,7 +1409,7 @@ export default function BlogIndexPage() {
               )}
 
               <Button url="/app/products" variant="plain">
-                {fr ? "Aller à Produits →" : "Go to Products →"}
+                {t(locale, "blogGoToProductsArrow")}
               </Button>
             </BlockStack>
           </Card>
@@ -1441,11 +1419,11 @@ export default function BlogIndexPage() {
               <BlockStack gap="400">
                 <InlineStack align="space-between" blockAlign="center" wrap={false}>
                   <BlockStack gap="050">
-                    <Text as="h2" variant="headingLg">{selectedIdea.title || (fr ? "(sans titre)" : "(untitled)")}</Text>
+                    <Text as="h2" variant="headingLg">{selectedIdea.title || (t(locale, "blogUntitled"))}</Text>
                     <Text as="p" variant="bodySm" tone="subdued">{selectedIdea.product_title}</Text>
                   </BlockStack>
                   <Button variant="plain" onClick={() => setSelectedIdea(null)}>
-                    {fr ? "Fermer" : "Close"}
+                    {t(locale, "blogClose")}
                   </Button>
                 </InlineStack>
 
@@ -1456,16 +1434,16 @@ export default function BlogIndexPage() {
                 )}
 
                 <BlockStack gap="100">
-                  <Text as="span" variant="bodySm" tone="subdued">{fr ? "Mot-clé cible :" : "Target keyword:"}</Text>
+                  <Text as="span" variant="bodySm" tone="subdued">{t(locale, "blogTargetKeywordLabel")}</Text>
                   <InlineStack gap="150" blockAlign="center">
                     {editingKeyword ? (
                       <div style={{ minWidth: 240 }}>
                         <TextField label="" labelHidden value={ideaKeyword} onChange={setIdeaKeyword} autoComplete="off" />
                       </div>
                     ) : (
-                      <Badge tone="attention">{ideaKeyword || (fr ? "(non défini)" : "(none)")}</Badge>
+                      <Badge tone="attention">{ideaKeyword || (t(locale, "blogKeywordNone"))}</Badge>
                     )}
-                    <Button variant="plain" icon={EditIcon} accessibilityLabel={fr ? "Modifier le mot-clé" : "Edit keyword"} onClick={() => setEditingKeyword((e) => !e)} />
+                    <Button variant="plain" icon={EditIcon} accessibilityLabel={t(locale, "blogEditKeyword")} onClick={() => setEditingKeyword((e) => !e)} />
                   </InlineStack>
                   {ideaSecondary.length > 0 && (
                     <InlineStack gap="100" wrap>
@@ -1477,7 +1455,7 @@ export default function BlogIndexPage() {
                   {keywordSuggestions.length > 0 && (
                     <BlockStack gap="100">
                       <Text as="p" variant="bodySm" tone="subdued">
-                        {fr ? "Suggestions (de vos analyses) — cliquez pour ajouter :" : "Suggestions (from your analyses) — click to add:"}
+                        {t(locale, "blogKeywordSuggestionsHint")}
                       </Text>
                       <InlineStack gap="100" wrap>
                         {keywordSuggestions
@@ -1495,14 +1473,14 @@ export default function BlogIndexPage() {
 
                 {selectedIdea.intro && (
                   <BlockStack gap="100">
-                    <Text as="p" variant="headingXs" tone="subdued">{fr ? "Introduction" : "Introduction"}</Text>
+                    <Text as="p" variant="headingXs" tone="subdued">{"Introduction"}</Text>
                     <Text as="p" variant="bodySm">{selectedIdea.intro}</Text>
                   </BlockStack>
                 )}
 
                 {selectedIdea.outline.length > 0 && (
                   <BlockStack gap="100">
-                    <Text as="p" variant="headingXs" tone="subdued">{fr ? "Plan de l'article" : "Article outline"}</Text>
+                    <Text as="p" variant="headingXs" tone="subdued">{t(locale, "blogArticleOutline")}</Text>
                     <BlockStack gap="050">
                       {selectedIdea.outline.map((h2, i) => (
                         <Text key={i} as="p" variant="bodySm">
@@ -1536,7 +1514,7 @@ export default function BlogIndexPage() {
                         disabled={isGeneratingArticle}
                         loading={isGeneratingArticle}
                       >
-                        {fr ? "Générer l'article" : "Generate article"}
+                        {t(locale, "blogGenerateArticle")}
                       </Button>
                     </Form>
                     {isGeneratingArticle && (
@@ -1544,9 +1522,7 @@ export default function BlogIndexPage() {
                         locale={locale}
                         phrases={loaderPhrases(locale, "writing")}
                         estimateMs={90_000}
-                        title={fr
-                          ? "Génération en cours… cela peut prendre 1 à 2 minutes."
-                          : "Generating… this can take 1-2 minutes."}
+                        title={t(locale, "blogGeneratingWait")}
                       />
                     )}
                   </BlockStack>
@@ -1558,7 +1534,7 @@ export default function BlogIndexPage() {
               <BlockStack gap="400">
                 <InlineStack align="space-between" blockAlign="center" wrap>
                   <BlockStack gap="050">
-                    <Text as="h2" variant="headingLg">{draft.blog_title || (fr ? "(sans titre)" : "(untitled)")}</Text>
+                    <Text as="h2" variant="headingLg">{draft.blog_title || (t(locale, "blogUntitled"))}</Text>
                     <Text as="p" variant="bodySm" tone="subdued">{draft.product_title}</Text>
                   </BlockStack>
                   <InlineStack gap="200" blockAlign="center">
@@ -1573,7 +1549,7 @@ export default function BlogIndexPage() {
                               variant="tertiary"
                               icon={QuestionCircleIcon}
                               onClick={() => setGeoHelpOpen((o) => !o)}
-                              accessibilityLabel={fr ? "Détail du Score GEO" : "GEO score breakdown"}
+                              accessibilityLabel={t(locale, "blogGeoBreakdownTitle")}
                             />
                           }
                         >
@@ -1581,34 +1557,32 @@ export default function BlogIndexPage() {
                             <BlogGeoScoreBreakdown components={liveGeo?.components} locale={locale} />
                           </Box>
                         </Popover>
-                        <Badge tone={scoreTone(geoScore)}>{`${fr ? "Score GEO" : "GEO score"} ${geoScore}/100`}</Badge>
+                        <Badge tone={scoreTone(geoScore)}>{`${t(locale, "blogGeoScore")} ${geoScore}/100`}</Badge>
                       </InlineStack>
                     )}
                     <Text as="span" variant="bodySm" tone="subdued">
                       {autoSaveFetcher.state !== "idle"
-                        ? (fr ? "Enregistrement…" : "Saving…")
-                        : (fr ? "Enregistré automatiquement" : "Auto-saved")}
+                        ? (t(locale, "blogSaving"))
+                        : (t(locale, "blogAutoSaved"))}
                     </Text>
                     <Button variant="primary" onClick={onOpenPublish}
                       disabled={!draft.sections.length || !draft.sections.some((s) => s.direct_answer)}>
-                      {fr ? "Publier" : "Publish"}
+                      {t(locale, "blogPublish")}
                     </Button>
                     <Button tone="critical" variant="plain" onClick={onDelete}>
-                      {fr ? "Supprimer" : "Delete"}
+                      {t(locale, "blogDelete")}
                     </Button>
                     {/* Close the editor and return to the inspiration grid. Edits are
                         already auto-saved, so navigating away loses nothing. */}
                     <Button variant="plain" onClick={() => navigate("/app/blog")}>
-                      {fr ? "Fermer" : "Close"}
+                      {t(locale, "blogClose")}
                     </Button>
                   </InlineStack>
                 </InlineStack>
 
                 {draft.status === "published_to_shopify" && (
                   <Banner tone="success">
-                    <p>{fr
-                      ? "Cet article est en ligne et visible sur ta boutique Shopify. Tes modifications republiées éditent le même article."
-                      : "This article is live and visible on your Shopify store. Re-publishing edits the same article."}</p>
+                    <p>{t(locale, "blogLiveBanner")}</p>
                   </Banner>
                 )}
 
@@ -1617,7 +1591,7 @@ export default function BlogIndexPage() {
                     <BlockStack gap="150">
                       <InlineStack gap="200" blockAlign="center">
                         <Text as="h3" variant="headingSm">
-                          {fr ? "Vérification mot-clé" : "Keyword check"}
+                          {t(locale, "blogKeywordCheck")}
                         </Text>
                         {draft.target_keyword && <Badge tone="info">{draft.target_keyword}</Badge>}
                         <Badge tone={scoreTone(draft.keyword_check.score)}>
@@ -1634,9 +1608,7 @@ export default function BlogIndexPage() {
                         </BlockStack>
                       ) : (
                         <Text as="p" variant="bodySm" tone="subdued">
-                          {fr
-                            ? "Le mot-clé cible est bien placé (titre, sous-titres, début d'article, densité)."
-                            : "The target keyword is well placed (title, subheadings, opening, density)."}
+                          {t(locale, "blogKeywordOk")}
                         </Text>
                       )}
                     </BlockStack>
@@ -1645,8 +1617,8 @@ export default function BlogIndexPage() {
 
                 <Tabs
                   tabs={[
-                    { id: "edit", content: fr ? "Édition" : "Edit" },
-                    { id: "preview", content: fr ? "Aperçu" : "Preview" },
+                    { id: "edit", content: t(locale, "blogTabEdit") },
+                    { id: "preview", content: t(locale, "blogTabPreview") },
                   ]}
                   selected={tabIndex}
                   onSelect={setTabIndex}
@@ -1655,7 +1627,7 @@ export default function BlogIndexPage() {
                 {tabIndex === 0 ? (
                   <>
                     <TextField
-                      label={fr ? "Titre" : "Title"}
+                      label={t(locale, "blogTitleLabel")}
                       value={draft.blog_title}
                       onChange={(v) => setDraft((p) => p ? { ...p, blog_title: v } : p)}
                       autoComplete="off"
@@ -1672,16 +1644,14 @@ export default function BlogIndexPage() {
                     <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
                       <InlineStack gap="300" blockAlign="center" wrap>
                         <Badge tone={wordCount >= 1000 ? "success" : wordCount >= 600 ? "warning" : "critical"}>
-                          {`${wordCount.toLocaleString(fr ? "fr-FR" : "en-US")} / ${TARGET_WORDS.toLocaleString(fr ? "fr-FR" : "en-US")} ${fr ? "mots min." : "words min."}`}
+                          {`${wordCount.toLocaleString(dateLocale)} / ${TARGET_WORDS.toLocaleString(dateLocale)} ${t(locale, "blogWordsMin")}`}
                         </Badge>
                         <Text as="span" variant="bodySm" tone="subdued">
-                          {fr ? `⏱ ${readingMinutes} min de lecture` : `⏱ ${readingMinutes} min read`}
+                          {t(locale, "blogReadingTime").replace("{min}", String(readingMinutes))}
                         </Text>
                         {wordCount < 1000 && (
                           <Text as="span" variant="bodySm" tone="subdued">
-                            {fr
-                              ? "Sous 1 000 mots, Google peut considérer l'article comme « thin content »."
-                              : "Below 1,000 words Google may treat the article as thin content."}
+                            {t(locale, "blogThinContentNote")}
                           </Text>
                         )}
                       </InlineStack>
@@ -1689,7 +1659,7 @@ export default function BlogIndexPage() {
 
                     {/* Meta description — what shows in Google + sent as Shopify GEO description */}
                     <TextField
-                      label={fr ? "Meta description (Google)" : "Meta description (Google)"}
+                      label={"Meta description (Google)"}
                       value={draft.meta_description ?? ""}
                       onChange={(v) => setDraft((p) => p ? { ...p, meta_description: v } : p)}
                       multiline={2}
@@ -1698,10 +1668,10 @@ export default function BlogIndexPage() {
                       showCharacterCount
                       helpText={(() => {
                         const len = (draft.meta_description ?? "").length;
-                        if (len === 0) return fr ? "Résumé affiché dans les résultats Google (70-155 caractères)." : "Summary shown in Google results (70-155 chars).";
-                        if (len < 70) return fr ? "Un peu court — visez 70-155 caractères." : "A bit short — aim for 70-155 characters.";
-                        if (len > 155) return fr ? "Un peu long — Google tronque au-delà de 155 caractères." : "A bit long — Google truncates beyond 155 characters.";
-                        return fr ? "Longueur idéale ✓" : "Ideal length ✓";
+                        if (len === 0) return t(locale, "blogMetaEmpty");
+                        if (len < 70) return t(locale, "blogMetaShort");
+                        if (len > 155) return t(locale, "blogMetaLong");
+                        return t(locale, "blogMetaIdeal");
                       })()}
                     />
 
@@ -1716,13 +1686,13 @@ export default function BlogIndexPage() {
 
                     {draft.image_url && (
                       <Select
-                        label={fr ? "Format et emplacement de l'image" : "Image format & placement"}
+                        label={t(locale, "blogImageFormatLabel")}
                         options={[
-                          { label: fr ? "Couverture pleine largeur" : "Full-width cover", value: "hero" },
-                          { label: fr ? "Bandeau cinématique (plus court)" : "Cinematic banner (shorter)", value: "banner" },
-                          { label: fr ? "Image centrée" : "Centered image", value: "centered" },
-                          { label: fr ? "Flottant à gauche (texte à droite)" : "Float left (text wraps right)", value: "float-left" },
-                          { label: fr ? "Flottant à droite (texte à gauche)" : "Float right (text wraps left)", value: "float-right" },
+                          { label: t(locale, "blogImgHero"), value: "hero" },
+                          { label: t(locale, "blogImgBanner"), value: "banner" },
+                          { label: t(locale, "blogImgCentered"), value: "centered" },
+                          { label: t(locale, "blogImgFloatLeft"), value: "float-left" },
+                          { label: t(locale, "blogImgFloatRight"), value: "float-right" },
                         ]}
                         value={draft.image_style ?? "hero"}
                         onChange={(v) => setDraft((p) => p ? { ...p, image_style: v as Draft["image_style"] } : p)}
@@ -1730,46 +1700,40 @@ export default function BlogIndexPage() {
                     )}
 
                     <Checkbox
-                      label={fr ? "Afficher la table des matières" : "Show table of contents"}
-                      helpText={fr
-                        ? "Génère automatiquement une liste des sections de l'article."
-                        : "Automatically generates a list of article sections."}
+                      label={t(locale, "blogShowToc")}
+                      helpText={t(locale, "blogShowTocHelp")}
                       checked={draft.show_toc ?? true}
                       onChange={(v) => setDraft((p) => p ? { ...p, show_toc: v } : p)}
                     />
 
                     <Checkbox
-                      label={fr ? "Format guide numéroté (étape par étape)" : "Numbered guide format (step by step)"}
-                      helpText={fr
-                        ? "Numérote les sections (1, 2, 3…) et ajoute le schema HowTo pour les tutoriels."
-                        : "Numbers the sections (1, 2, 3…) and adds HowTo schema for tutorials."}
+                      label={t(locale, "blogNumberedSteps")}
+                      helpText={t(locale, "blogNumberedStepsHelp")}
                       checked={draft.numbered_steps ?? false}
                       onChange={(v) => setDraft((p) => p ? { ...p, numbered_steps: v } : p)}
                     />
 
                     {/* Open Graph / social share preview — how the article looks when shared */}
                     <BlockStack gap="150">
-                      <Text as="p" variant="headingSm">{fr ? "Aperçu du partage social" : "Social share preview"}</Text>
+                      <Text as="p" variant="headingSm">{t(locale, "blogSocialPreviewTitle")}</Text>
                       <Text as="p" variant="bodySm" tone="subdued">
-                        {fr
-                          ? "Ce que voient vos clients quand l'article est partagé sur WhatsApp, Instagram, LinkedIn ou Facebook."
-                          : "What customers see when the article is shared on WhatsApp, Instagram, LinkedIn or Facebook."}
+                        {t(locale, "blogSocialPreviewDesc")}
                       </Text>
                       <div style={{ maxWidth: 420, border: "1px solid #E1E3E5", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
                         <div style={{ width: "100%", aspectRatio: "1200 / 630", background: "#F1F2F4", display: "flex", alignItems: "center", justifyContent: "center" }}>
                           {draft.image_url ? (
                             <img src={draft.image_url} alt={draft.image_alt || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           ) : (
-                            <Text as="span" variant="bodySm" tone="subdued">{fr ? "Aucune image" : "No image"}</Text>
+                            <Text as="span" variant="bodySm" tone="subdued">{t(locale, "blogNoImage")}</Text>
                           )}
                         </div>
                         <div style={{ padding: "10px 12px" }}>
                           <div style={{ fontSize: 11, textTransform: "uppercase", color: "#6D7175", letterSpacing: 0.3 }}>{shop}</div>
                           <div style={{ fontSize: 15, fontWeight: 600, color: "#202223", margin: "2px 0", lineHeight: 1.3 }}>
-                            {draft.blog_title || (fr ? "(titre de l'article)" : "(article title)")}
+                            {draft.blog_title || (t(locale, "blogArticleTitlePlaceholder"))}
                           </div>
                           <div style={{ fontSize: 13, color: "#6D7175", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                            {draft.meta_description || draft.intro || (fr ? "Ajoutez une meta description ci-dessus." : "Add a meta description above.")}
+                            {draft.meta_description || draft.intro || (t(locale, "blogAddMetaAbove"))}
                           </div>
                         </div>
                       </div>
@@ -1782,19 +1746,19 @@ export default function BlogIndexPage() {
                             <Text as="h3" variant="headingSm">H{idx + 2} · Section {idx + 1}</Text>
                             <Button size="slim" onClick={() => onRegenerate(section.h2)}
                               loading={isBusy && fetcher.formData?.get("intent") === "regenerateSection" && String(fetcher.formData?.get("payload") ?? "").includes(section.h2)}>
-                              {fr ? "Régénérer" : "Regenerate"}
+                              {t(locale, "blogRegenerate")}
                             </Button>
                           </InlineStack>
-                          <TextField label={fr ? "Question (H2)" : "Question (H2)"} value={section.h2}
+                          <TextField label={"Question (H2)"} value={section.h2}
                             onChange={(v) => setSection(idx, { h2: v })} autoComplete="off" />
-                          <TextField label={fr ? "Réponse directe (40-60 mots)" : "Direct answer (40-60 words)"}
+                          <TextField label={t(locale, "blogDirectAnswer")}
                             value={section.direct_answer} onChange={(v) => setSection(idx, { direct_answer: v })}
                             multiline={3} autoComplete="off" />
-                          <TextField label={fr ? "Corps" : "Body"} value={section.body}
+                          <TextField label={t(locale, "blogBody")} value={section.body}
                             onChange={(v) => setSection(idx, { body: v })} multiline={6} autoComplete="off" />
                           <ShopifyImagePicker
                             locale={locale}
-                            label={fr ? "Image de la section (optionnel)" : "Section image (optional)"}
+                            label={t(locale, "blogSectionImage")}
                             imageUrl={section.image_url ?? null}
                             imageAlt={section.image_alt ?? null}
                             onSelect={(url, alt) => setSection(idx, { image_url: url, image_alt: alt || section.image_alt })}
@@ -1809,11 +1773,9 @@ export default function BlogIndexPage() {
                     <Box padding="400" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
                       <BlockStack gap="300">
                         <BlockStack gap="050">
-                          <Text as="h3" variant="headingSm">{fr ? "Questions fréquentes (FAQ)" : "Frequently asked questions (FAQ)"}</Text>
+                          <Text as="h3" variant="headingSm">{t(locale, "blogFaqTitle")}</Text>
                           <Text as="p" variant="bodySm" tone="subdued">
-                            {fr
-                              ? "Affichée en bas de l'article. Signal fort pour ChatGPT, Perplexity et Google AI Overviews."
-                              : "Shown at the end of the article. Strong signal for ChatGPT, Perplexity and Google AI Overviews."}
+                            {t(locale, "blogFaqDesc")}
                           </Text>
                         </BlockStack>
                         {(draft.faq ?? []).map((item, idx) => (
@@ -1821,21 +1783,21 @@ export default function BlogIndexPage() {
                             <InlineStack align="space-between" blockAlign="center">
                               <Text as="span" variant="bodySm" fontWeight="semibold">{`FAQ ${idx + 1}`}</Text>
                               <Button size="slim" variant="plain" tone="critical" onClick={() => removeFaqItem(idx)}>
-                                {fr ? "Retirer" : "Remove"}
+                                {t(locale, "dashRemove")}
                               </Button>
                             </InlineStack>
                             <TextField
-                              label={fr ? "Question" : "Question"}
+                              label={"Question"}
                               labelHidden
-                              placeholder={fr ? "Question" : "Question"}
+                              placeholder={"Question"}
                               value={item.q}
                               onChange={(v) => setFaqItem(idx, { q: v })}
                               autoComplete="off"
                             />
                             <TextField
-                              label={fr ? "Réponse" : "Answer"}
+                              label={t(locale, "blogAnswer")}
                               labelHidden
-                              placeholder={fr ? "Réponse" : "Answer"}
+                              placeholder={t(locale, "blogAnswer")}
                               value={item.a}
                               onChange={(v) => setFaqItem(idx, { a: v })}
                               multiline={2}
@@ -1845,7 +1807,7 @@ export default function BlogIndexPage() {
                         ))}
                         <InlineStack>
                           <Button size="slim" variant="plain" onClick={addFaqItem}>
-                            {fr ? "Ajouter une question" : "Add a question"}
+                            {t(locale, "blogAddQuestion")}
                           </Button>
                         </InlineStack>
                       </BlockStack>
@@ -1855,43 +1817,41 @@ export default function BlogIndexPage() {
                     <Box padding="400" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
                       <BlockStack gap="300">
                         <Checkbox
-                          label={fr ? "Bouton d'appel à l'action (CTA)" : "Call-to-action button (CTA)"}
-                          helpText={fr
-                            ? "Encart bouton vers le produit. C'est ce qui transforme le trafic du blog en ventes."
-                            : "Button box linking to the product. This turns blog traffic into sales."}
+                          label={t(locale, "blogCtaCheckbox")}
+                          helpText={t(locale, "blogCtaCheckboxHelp")}
                           checked={draft.cta_enabled ?? false}
                           onChange={(v) => setDraft((p) => p ? { ...p, cta_enabled: v } : p)}
                         />
                         {draft.cta_enabled && (
                           <>
                             <TextField
-                              label={fr ? "Texte du bouton" : "Button label"}
+                              label={t(locale, "blogCtaButtonLabel")}
                               value={draft.cta_label ?? ""}
                               onChange={(v) => setDraft((p) => p ? { ...p, cta_label: v } : p)}
                               autoComplete="off"
-                              placeholder={fr ? "Découvrir le produit" : "Discover the product"}
+                              placeholder={t(locale, "blogCtaButtonPlaceholder")}
                             />
                             <TextField
-                              label={fr ? "Lien du bouton (URL)" : "Button link (URL)"}
+                              label={t(locale, "blogCtaUrlLabel")}
                               value={draft.cta_url ?? ""}
                               onChange={(v) => setDraft((p) => p ? { ...p, cta_url: v } : p)}
                               autoComplete="off"
                               placeholder="/products/..."
-                              helpText={fr ? "Pré-rempli avec le produit source de l'article." : "Pre-filled with the article's source product."}
+                              helpText={t(locale, "blogCtaUrlHelp")}
                             />
                             <TextField
-                              label={fr ? "Phrase d'accroche (optionnel)" : "Tagline (optional)"}
+                              label={t(locale, "blogCtaTagline")}
                               value={draft.cta_description ?? ""}
                               onChange={(v) => setDraft((p) => p ? { ...p, cta_description: v } : p)}
                               autoComplete="off"
                               multiline={2}
-                              placeholder={fr ? "Ex. Le harnais préféré des petits chiens frileux." : "e.g. The harness small dogs love."}
+                              placeholder={t(locale, "blogCtaTaglinePlaceholder")}
                             />
                             <Select
-                              label={fr ? "Position du bouton" : "Button position"}
+                              label={t(locale, "blogCtaPosition")}
                               options={[
-                                { label: fr ? "Fin de l'article" : "End of article", value: "end" },
-                                { label: fr ? "Milieu (après le contenu, avant la FAQ)" : "Middle (after content, before FAQ)", value: "mid" },
+                                { label: t(locale, "blogCtaEnd"), value: "end" },
+                                { label: t(locale, "blogCtaMid"), value: "mid" },
                               ]}
                               value={draft.cta_position ?? "end"}
                               onChange={(v) => setDraft((p) => p ? { ...p, cta_position: v as "mid" | "end" } : p)}
@@ -1911,12 +1871,10 @@ export default function BlogIndexPage() {
                       <BlockStack gap="300">
                         <BlockStack gap="050">
                           <Text as="h3" variant="headingSm">
-                            {fr ? "Liens internes" : "Internal links"}
+                            {t(locale, "blogInternalLinks")}
                           </Text>
                           <Text as="p" variant="bodySm" tone="subdued">
-                            {fr
-                              ? "Liens vers produits, collections ou autres articles. Ajuste l'ancre avant publication."
-                              : "Links to products, collections, or other articles. Adjust anchors before publishing."}
+                            {t(locale, "blogInternalLinksDesc")}
                           </Text>
                         </BlockStack>
                         {(draft.internal_links ?? []).map((link, idx) => (
@@ -1925,7 +1883,7 @@ export default function BlogIndexPage() {
                             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
                           >
                             <TextField
-                              label={fr ? "Ancre" : "Anchor"}
+                              label={t(locale, "blogAnchor")}
                               value={link.anchor}
                               onChange={(v) => setInternalLink(idx, { anchor: v })}
                               autoComplete="off"
@@ -1943,7 +1901,7 @@ export default function BlogIndexPage() {
                         ))}
                         <InlineStack gap="200">
                           <Button size="slim" variant="plain" onClick={onLoadArticles}>
-                            {fr ? "Ajouter un lien vers un autre article" : "Add link to another article"}
+                            {t(locale, "blogAddArticleLink")}
                           </Button>
                         </InlineStack>
                         {showArticlePicker && (
@@ -1957,20 +1915,20 @@ export default function BlogIndexPage() {
                             <BlockStack gap="200">
                               <InlineStack align="space-between" blockAlign="center">
                                 <Text as="p" variant="bodySm" fontWeight="semibold">
-                                  {fr ? "Choisir un article" : "Choose an article"}
+                                  {t(locale, "blogChooseArticle")}
                                 </Text>
                                 <Button size="slim" variant="plain" onClick={() => setShowArticlePicker(false)}>
-                                  {fr ? "Fermer" : "Close"}
+                                  {t(locale, "blogClose")}
                                 </Button>
                               </InlineStack>
                               {articlesFetcher.state !== "idle" ? (
                                 <InlineStack gap="200" blockAlign="center">
                                   <Spinner size="small" />
-                                  <Text as="span" variant="bodySm">{fr ? "Chargement…" : "Loading…"}</Text>
+                                  <Text as="span" variant="bodySm">{t(locale, "blogLoading")}</Text>
                                 </InlineStack>
                               ) : (articlesFetcher.data?.articles ?? []).length === 0 ? (
                                 <Text as="p" variant="bodySm" tone="subdued">
-                                  {fr ? "Aucun autre article disponible." : "No other articles available."}
+                                  {t(locale, "blogNoOtherArticles")}
                                 </Text>
                               ) : (
                                 <BlockStack gap="150">
@@ -1983,12 +1941,12 @@ export default function BlogIndexPage() {
                                           size="small"
                                         >
                                           {article.status === "published_to_shopify"
-                                            ? (fr ? "Publié" : "Published")
-                                            : (fr ? "Brouillon" : "Draft")}
+                                            ? (t(locale, "blogPublishedBadge"))
+                                            : (t(locale, "blogStatusDraft"))}
                                         </Badge>
                                       </BlockStack>
                                       <Button size="slim" onClick={() => addArticleLink(article)}>
-                                        {fr ? "Ajouter" : "Add"}
+                                        {t(locale, "dashAdd")}
                                       </Button>
                                     </InlineStack>
                                   ))}
@@ -1999,7 +1957,7 @@ export default function BlogIndexPage() {
                         )}
                         <InlineStack gap="200">
                           <Button size="slim" variant="plain" onClick={onFetchSuggestions} loading={suggestionsFetcher.state !== "idle"}>
-                            {fr ? "Rafraîchir les suggestions" : "Refresh suggestions"}
+                            {t(locale, "blogRefreshSuggestions")}
                           </Button>
                         </InlineStack>
                         {showSuggestions && (
@@ -2013,25 +1971,25 @@ export default function BlogIndexPage() {
                             <BlockStack gap="200">
                               <InlineStack align="space-between" blockAlign="center">
                                 <Text as="p" variant="bodySm" fontWeight="semibold">
-                                  {fr ? "Suggestions de liens" : "Link suggestions"}
+                                  {t(locale, "blogLinkSuggestions")}
                                 </Text>
                                 <Button size="slim" variant="plain" onClick={() => setShowSuggestions(false)}>
-                                  {fr ? "Fermer" : "Close"}
+                                  {t(locale, "blogClose")}
                                 </Button>
                               </InlineStack>
                               {suggestionsFetcher.state !== "idle" ? (
                                 <InlineStack gap="200" blockAlign="center">
                                   <Spinner size="small" />
-                                  <Text as="span" variant="bodySm">{fr ? "Analyse en cours…" : "Analyzing…"}</Text>
+                                  <Text as="span" variant="bodySm">{t(locale, "blogAnalyzing")}</Text>
                                 </InlineStack>
                               ) : (suggestionsFetcher.data?.suggestions ?? []).length === 0 ? (
                                 <Text as="p" variant="bodySm" tone="subdued">
-                                  {fr ? "Aucune suggestion trouvée pour ces mots-clés." : "No suggestions found for these keywords."}
+                                  {t(locale, "blogNoSuggestions")}
                                 </Text>
                               ) : (
                                 <BlockStack gap="150">
                                   {(suggestionsFetcher.data?.suggestions ?? []).map((s, i) => {
-                                    const badge = linkReasonBadge(s.reason, fr);
+                                    const badge = linkReasonBadge(s.reason, locale);
                                     return (
                                       <InlineStack key={`${s.target_url}-${i}`} align="space-between" blockAlign="center">
                                         <BlockStack gap="025">
@@ -2039,7 +1997,7 @@ export default function BlogIndexPage() {
                                           <Badge tone={badge.tone} size="small">{badge.label}</Badge>
                                         </BlockStack>
                                         <Button size="slim" onClick={() => addSuggestedLink(s)}>
-                                          {fr ? "Ajouter" : "Add"}
+                                          {t(locale, "dashAdd")}
                                         </Button>
                                       </InlineStack>
                                     );
@@ -2063,16 +2021,16 @@ export default function BlogIndexPage() {
                     <article style={{ maxWidth: 720, margin: "0 auto", lineHeight: 1.65, overflow: "hidden" }}>
                       {/* 1. Title */}
                       <h1 style={{ marginBottom: 8, fontSize: 28 }}>
-                        {draft.blog_title || (fr ? "(sans titre)" : "(untitled)")}
+                        {draft.blog_title || (t(locale, "blogUntitled"))}
                       </h1>
                       {/* 2. Reading time + last updated date */}
                       <p style={{ color: "#6D7175", fontSize: 13, marginBottom: 16 }}>
-                        {fr ? `⏱ ${readingMinutes} min de lecture` : `⏱ ${readingMinutes} min read`}
+                        {t(locale, "blogReadingTime").replace("{min}", String(readingMinutes))}
                         {draft.updated_at && (() => {
                           const d = new Date(draft.updated_at);
                           if (Number.isNaN(d.getTime())) return null;
-                          const formatted = d.toLocaleDateString(fr ? "fr-FR" : "en-US", { day: "numeric", month: "long", year: "numeric" });
-                          return ` · ${fr ? "Mis à jour le" : "Updated"} ${formatted}`;
+                          const formatted = d.toLocaleDateString(dateLocale, { day: "numeric", month: "long", year: "numeric" });
+                          return ` · ${t(locale, "blogUpdatedOn")} ${formatted}`;
                         })()}
                       </p>
                       {/* 3. Description (intro) */}
@@ -2086,7 +2044,7 @@ export default function BlogIndexPage() {
                       {draft.show_toc && draft.sections.length > 0 && (
                         <nav style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px", marginBottom: 28 }}>
                           <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>
-                            {fr ? "Sommaire" : "Table of contents"}
+                            {t(locale, "blogToc")}
                           </p>
                           <ol style={{ margin: 0, paddingLeft: 20 }}>
                             {draft.sections.map((section, idx) => (
@@ -2101,7 +2059,7 @@ export default function BlogIndexPage() {
                       {!draft.image_url && (
                         <div style={{ marginBottom: 24 }}>
                           <Button fullWidth icon={ImageIcon} onClick={() => setCoverOpen(true)}>
-                            {fr ? "Ajouter une image" : "Add an image"}
+                            {t(locale, "blogAddImage")}
                           </Button>
                         </div>
                       )}
@@ -2128,7 +2086,7 @@ export default function BlogIndexPage() {
                             <button
                               type="button"
                               onClick={() => setCoverOpen(true)}
-                              aria-label={fr ? "Modifier l'image" : "Edit image"}
+                              aria-label={t(locale, "blogEditImage")}
                               style={{
                                 position: "absolute", top: 8, left: 8, width: 32, height: 32,
                                 borderRadius: "50%", border: "none", cursor: "pointer",
@@ -2182,7 +2140,7 @@ export default function BlogIndexPage() {
                       {(draft.faq ?? []).filter((f) => f.q && f.a).length > 0 && (
                         <section style={{ marginTop: 32, borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
                           <h2 style={{ fontSize: 22, marginBottom: 16 }}>
-                            {fr ? "Questions fréquentes" : "Frequently asked questions"}
+                            {t(locale, "blogFaqHeading")}
                           </h2>
                           {(draft.faq ?? []).filter((f) => f.q && f.a).map((item, idx) => (
                             <div key={`prev-faq-${idx}`} style={{ marginBottom: 16 }}>
@@ -2196,7 +2154,7 @@ export default function BlogIndexPage() {
                       {(draft.author_bio ?? "").trim() && (
                         <aside style={{ marginTop: 32, background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px" }}>
                           <h2 style={{ fontSize: 18, marginBottom: 6 }}>
-                            {fr ? "À propos de l'auteur" : "About the author"}
+                            {t(locale, "blogAboutAuthor")}
                           </h2>
                           <p style={{ color: "#374151" }}>
                             {draft.author_name && <strong>{draft.author_name}<br /></strong>}
@@ -2217,7 +2175,7 @@ export default function BlogIndexPage() {
                       {(draft.internal_links ?? []).length > 0 && (
                         <aside style={{ marginTop: 32, borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
                           <h2 style={{ fontSize: 20, marginBottom: 10 }}>
-                            {fr ? "À lire aussi" : "Related reading"}
+                            {t(locale, "blogRelatedReading")}
                           </h2>
                           <ul>
                             {(draft.internal_links ?? []).map((link, idx) => (
@@ -2250,12 +2208,10 @@ export default function BlogIndexPage() {
             <BlockStack gap="400">
               <BlockStack gap="100">
                 <Text as="h2" variant="headingLg">
-                  {fr ? "Inspiration pour améliorer son référencement organique" : "Inspiration to improve your organic ranking"}
+                  {t(locale, "dashInspirationTitle")}
                 </Text>
                 <Text as="p" variant="bodySm" tone="subdued">
-                  {fr
-                    ? "Les meilleures idées d'articles à réaliser. Clique sur « Découvrir » pour voir le plan et générer l'article."
-                    : "The best article ideas to create. Click \"Discover\" to see the outline and generate the article."}
+                  {t(locale, "blogInspirationDesc")}
                 </Text>
               </BlockStack>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 32, alignItems: "stretch", width: "100%" }}>
@@ -2278,13 +2234,13 @@ export default function BlogIndexPage() {
                           {idea.source_label}
                         </Badge>
                       )}
-                      <Text as="h3" variant="headingMd">{idea.title || (fr ? "(sans titre)" : "(untitled)")}</Text>
+                      <Text as="h3" variant="headingMd">{idea.title || (t(locale, "blogUntitled"))}</Text>
                       {idea.product_title && (
                         <Text as="p" variant="bodySm" tone="subdued">{idea.product_title}</Text>
                       )}
                       {idea.intro && (
                         <BlockStack gap="050">
-                          <Text as="p" variant="headingXs" tone="subdued">{fr ? "Introduction" : "Introduction"}</Text>
+                          <Text as="p" variant="headingXs" tone="subdued">{"Introduction"}</Text>
                           <Text as="p" variant="bodySm">{idea.intro}</Text>
                         </BlockStack>
                       )}
@@ -2292,7 +2248,7 @@ export default function BlogIndexPage() {
                     {/* Push the button to the bottom so it lines up across all cards. */}
                     <div style={{ marginTop: "auto", paddingTop: 16 }}>
                       <Button variant="primary" fullWidth onClick={() => selectIdea(idea)}>
-                        {fr ? "Découvrir" : "Discover"}
+                        {t(locale, "blogDiscover")}
                       </Button>
                     </div>
                   </div>
@@ -2302,14 +2258,12 @@ export default function BlogIndexPage() {
           ) : (
             <Card>
               <EmptyState
-                heading={fr ? "Aucun brouillon sélectionné" : "No draft selected"}
-                action={{ content: fr ? "Aller à Produits" : "Go to Products", url: "/app/products" }}
+                heading={t(locale, "blogNoDraftSelected")}
+                action={{ content: t(locale, "blogGoToProducts"), url: "/app/products" }}
                 image=""
               >
                 <p>
-                  {fr
-                    ? "Génère un brouillon depuis Produits pour le retrouver ici."
-                    : "Generate a draft from Products to see it here."}
+                  {t(locale, "blogEmptyBody")}
                 </p>
               </EmptyState>
             </Card>
@@ -2320,32 +2274,30 @@ export default function BlogIndexPage() {
       <Modal
         open={publishOpen}
         onClose={() => setPublishOpen(false)}
-        title={fr ? "Publier sur Shopify" : "Publish to Shopify"}
+        title={t(locale, "blogPublishToShopify")}
         primaryAction={{
-          content: fr ? "Publier" : "Publish",
+          content: t(locale, "blogPublish"),
           onAction: onPublish,
           loading: isBusy && fetcher.formData?.get("intent") === "publishDraft",
         }}
-        secondaryActions={[{ content: fr ? "Annuler" : "Cancel", onAction: () => setPublishOpen(false) }]}
+        secondaryActions={[{ content: t(locale, "dashCancel"), onAction: () => setPublishOpen(false) }]}
       >
         <Modal.Section>
           <BlockStack gap="300">
             {!blogsFetcher.data ? (
               <InlineStack gap="200" blockAlign="center">
                 <Spinner size="small" />
-                <Text as="span">{fr ? "Chargement des blogs…" : "Loading blogs…"}</Text>
+                <Text as="span">{t(locale, "blogLoadingBlogs")}</Text>
               </InlineStack>
             ) : (blogsFetcher.data.blogs ?? []).length === 0 ? (
               <Banner tone="info">
                 <p>
-                  {fr
-                    ? "Aucun blog Shopify détecté — un blog « Blog » sera créé automatiquement."
-                    : "No Shopify blog detected — a default \"Blog\" container will be created automatically."}
+                  {t(locale, "blogNoBlogBanner")}
                 </p>
               </Banner>
             ) : (
               <Select
-                label={fr ? "Blog de destination" : "Target blog"}
+                label={t(locale, "blogTargetBlog")}
                 options={(blogsFetcher.data.blogs ?? []).map((b) => ({ label: b.title, value: b.id }))}
                 value={selectedBlog}
                 onChange={setSelectedBlog}
@@ -2353,16 +2305,14 @@ export default function BlogIndexPage() {
             )}
             <Divider />
             <Select
-              label={fr ? "Auteur" : "Author"}
+              label={t(locale, "blogAuthor")}
               options={[
-                { label: fr ? "Marque (par défaut)" : "Brand (default)", value: "" },
+                { label: t(locale, "blogBrandDefault"), value: "" },
                 ...authors.map((a) => ({ label: a.name, value: a.id })),
               ]}
               value={selectedAuthorId}
               onChange={(id) => applyAuthor(authors.find((a) => a.id === id) ?? null)}
-              helpText={fr
-                ? "Sélectionne un auteur déjà créé. Sa bio renforce l'E-E-A-T (crédibilité Google)."
-                : "Pick an author you already created. Their bio strengthens E-E-A-T."}
+              helpText={t(locale, "blogAuthorHelp")}
             />
             {selectedAuthorId && (() => {
               const a = authors.find((x) => x.id === selectedAuthorId);
@@ -2373,7 +2323,7 @@ export default function BlogIndexPage() {
             {!newAuthorOpen ? (
               <InlineStack gap="200">
                 <Button variant="plain" onClick={() => setNewAuthorOpen(true)}>
-                  {fr ? "＋ Nouvel auteur" : "＋ New author"}
+                  {t(locale, "blogNewAuthorBtn")}
                 </Button>
                 {selectedAuthorId && (
                   <Button
@@ -2381,40 +2331,40 @@ export default function BlogIndexPage() {
                     tone="critical"
                     onClick={() => authorsFetcher.submit({ intent: "deleteAuthor", id: selectedAuthorId }, { method: "post" })}
                   >
-                    {fr ? "Supprimer cet auteur" : "Delete this author"}
+                    {t(locale, "blogDeleteAuthor")}
                   </Button>
                 )}
               </InlineStack>
             ) : (
               <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
                 <BlockStack gap="200">
-                  <Text as="p" variant="bodySm" fontWeight="semibold">{fr ? "Nouvel auteur" : "New author"}</Text>
+                  <Text as="p" variant="bodySm" fontWeight="semibold">{t(locale, "blogNewAuthor")}</Text>
                   <TextField
-                    label={fr ? "Nom" : "Name"}
+                    label={t(locale, "dashName")}
                     value={newAuthor.name}
                     onChange={(v) => setNewAuthor((p) => ({ ...p, name: v }))}
                     autoComplete="off"
                   />
                   <TextField
-                    label={fr ? "Bio (E-E-A-T)" : "Bio (E-E-A-T)"}
+                    label={"Bio (E-E-A-T)"}
                     value={newAuthor.bio}
                     onChange={(v) => setNewAuthor((p) => ({ ...p, bio: v }))}
                     multiline={3}
                     autoComplete="off"
-                    helpText={fr ? "2-3 phrases sur l'expertise de l'auteur." : "2-3 sentences on the author's expertise."}
+                    helpText={t(locale, "blogBioHelp")}
                   />
                   <TextField
-                    label={fr ? "URL profil (optionnel)" : "Profile URL (optional)"}
+                    label={t(locale, "blogProfileUrl")}
                     value={newAuthor.url}
                     onChange={(v) => setNewAuthor((p) => ({ ...p, url: v }))}
                     autoComplete="off"
                   />
                   <InlineStack gap="200">
                     <Button onClick={onCreateAuthor} loading={authorsFetcher.state !== "idle"} disabled={!newAuthor.name.trim()}>
-                      {fr ? "Créer" : "Create"}
+                      {t(locale, "blogCreate")}
                     </Button>
                     <Button variant="plain" onClick={() => setNewAuthorOpen(false)}>
-                      {fr ? "Annuler" : "Cancel"}
+                      {t(locale, "dashCancel")}
                     </Button>
                   </InlineStack>
                 </BlockStack>
