@@ -238,10 +238,10 @@ export function ProductContentProposals({
       {editing ? (
         <>
           <Text as="p" variant="bodySm" tone="subdued">
-            {locale === "fr" ? "Actuel" : "Current"} : {pack.current_meta_title || "—"}
+            {t(locale, "pcpCurrent")} : {pack.current_meta_title || "—"}
           </Text>
           <TextField
-            label={locale === "fr" ? "Proposé (c'est ce texte qui sera appliqué)" : "Proposed (this text will be applied)"}
+            label={t(locale, "pcpProposedApplyM")}
             value={editedPack.proposed_meta_title}
             onChange={(v) => updateProp("proposed_meta_title", v)}
             autoComplete="off"
@@ -253,7 +253,7 @@ export function ProductContentProposals({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div>
             <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
-              {locale === "fr" ? "Actuel" : "Current"}
+              {t(locale, "pcpCurrent")}
             </Text>
             <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
               <Text as="p" variant="bodySm" tone="subdued">{pack.current_meta_title || "—"}</Text>
@@ -261,7 +261,7 @@ export function ProductContentProposals({
           </div>
           <div>
             <Text as="p" variant="bodySm" fontWeight="semibold">
-              {locale === "fr" ? "Proposé" : "Proposed"}
+              {t(locale, "pcpProposed")}
             </Text>
             <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
               <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_meta_title, kwQueries)}</Text>
@@ -278,11 +278,11 @@ export function ProductContentProposals({
       {editing ? (
         <>
           <Text as="p" variant="bodySm" tone="subdued">
-            {locale === "fr" ? "Actuelle" : "Current"} :{" "}
-            {pack.current_meta_description || (locale === "fr" ? "absente" : "missing")}
+            {t(locale, "pcpCurrentF")} :{" "}
+            {pack.current_meta_description || t(locale, "pcpMissingF")}
           </Text>
           <TextField
-            label={locale === "fr" ? "Proposée (c'est ce texte qui sera appliqué)" : "Proposed (this text will be applied)"}
+            label={t(locale, "pcpProposedApplyF")}
             value={editedPack.proposed_meta_description}
             onChange={(v) => updateProp("proposed_meta_description", v)}
             multiline={3}
@@ -295,17 +295,17 @@ export function ProductContentProposals({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div>
             <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
-              {locale === "fr" ? "Actuelle" : "Current"}
+              {t(locale, "pcpCurrentF")}
             </Text>
             <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
               <Text as="p" variant="bodySm" tone="subdued">
-                {pack.current_meta_description || (locale === "fr" ? "— absente" : "— missing")}
+                {pack.current_meta_description || t(locale, "pcpMissingDashF")}
               </Text>
             </Box>
           </div>
           <div>
             <Text as="p" variant="bodySm" fontWeight="semibold">
-              {locale === "fr" ? "Proposée" : "Proposed"}
+              {t(locale, "pcpProposedF")}
             </Text>
             <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
               <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_meta_description, kwQueries)}</Text>
@@ -325,11 +325,11 @@ export function ProductContentProposals({
         <>
           {pack.current_product_description_summary && (
             <Text as="p" variant="bodySm" tone="subdued">
-              {locale === "fr" ? "Actuelle" : "Current"} : {pack.current_product_description_summary}
+              {t(locale, "pcpCurrentF")} : {pack.current_product_description_summary}
             </Text>
           )}
           <TextField
-            label={locale === "fr" ? "Proposée (c'est ce texte qui sera appliqué)" : "Proposed (this text will be applied)"}
+            label={t(locale, "pcpProposedApplyF")}
             value={editedPack.proposed_product_description}
             onChange={(v) => updateProp("proposed_product_description", v)}
             multiline={5}
@@ -340,7 +340,7 @@ export function ProductContentProposals({
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <div>
             <Text as="p" variant="bodySm" tone="subdued" fontWeight="semibold">
-              {locale === "fr" ? "Actuelle" : "Current"}
+              {t(locale, "pcpCurrentF")}
             </Text>
             <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
               <Text as="p" variant="bodySm" tone="subdued">
@@ -350,7 +350,7 @@ export function ProductContentProposals({
           </div>
           <div>
             <Text as="p" variant="bodySm" fontWeight="semibold">
-              {locale === "fr" ? "Proposée" : "Proposed"}
+              {t(locale, "pcpProposedF")}
             </Text>
             <Box padding="200" borderWidth="025" borderRadius="200" borderColor="border" background="bg-surface-secondary">
               <Text as="p" variant="bodySm">{highlightKeywords(editedPack.proposed_product_description, kwQueries)}</Text>
@@ -367,14 +367,15 @@ export function ProductContentProposals({
         {layout === "sections" && <Text as="h4" variant="headingXs">FAQ</Text>}
         {editedPack.faq_sync?.applied && editedPack.faq_sync.applied_at && (
           <Badge tone="success" size="small">
-            {locale === "fr"
-              ? `Synchronisée sur Shopify le ${new Date(editedPack.faq_sync.applied_at).toLocaleDateString("fr-FR")}`
-              : `Synced to Shopify on ${new Date(editedPack.faq_sync.applied_at).toLocaleDateString("en-US")}`}
+            {t(locale, "pcpFaqSynced").replace(
+              "{date}",
+              new Date(editedPack.faq_sync.applied_at).toLocaleDateString(locale),
+            )}
           </Badge>
         )}
         {editedPack.faq_sync?.applied === false && editedPack.faq_sync.error && (
           <Badge tone="attention" size="small">
-            {locale === "fr" ? "Synchro Shopify en attente" : "Shopify sync pending"}
+            {t(locale, "pcpFaqSyncPending")}
           </Badge>
         )}
       </InlineStack>
@@ -386,7 +387,7 @@ export function ProductContentProposals({
                 <InlineStack gap="200" align="space-between" blockAlign="start">
                   <Box width="100%">
                     <TextField
-                      label={locale === "fr" ? "Question" : "Question"}
+                      label={t(locale, "pcpQuestion")}
                       value={item.q}
                       onChange={(v) => updateFaq(i, "q", v)}
                       autoComplete="off"
@@ -397,7 +398,7 @@ export function ProductContentProposals({
                   </Button>
                 </InlineStack>
                 <TextField
-                  label={locale === "fr" ? "Réponse" : "Answer"}
+                  label={t(locale, "pcpAnswer")}
                   value={item.a}
                   onChange={(v) => updateFaq(i, "a", v)}
                   multiline={3}
@@ -415,7 +416,7 @@ export function ProductContentProposals({
       ))}
       {editing && (
         <Button size="slim" variant="plain" onClick={addFaqItem}>
-          {locale === "fr" ? "+ Ajouter une question" : "+ Add question"}
+          {t(locale, "pcpAddQuestion")}
         </Button>
       )}
     </BlockStack>
@@ -425,13 +426,13 @@ export function ProductContentProposals({
     <BlockStack gap="100">
       {layout === "sections" && (
         <Text as="h4" variant="headingXs">
-          {locale === "fr" ? "Idée d'article de blog" : "Blog article idea"}
+          {t(locale, "pcpBlogIdea")}
         </Text>
       )}
       {editing ? (
         <BlockStack gap="200">
           <TextField
-            label={locale === "fr" ? "Titre" : "Title"}
+            label={t(locale, "pcpTitle")}
             value={editedPack.proposed_blog_title}
             onChange={(v) => updateProp("proposed_blog_title", v)}
             autoComplete="off"
@@ -444,7 +445,7 @@ export function ProductContentProposals({
             autoComplete="off"
           />
           <TextField
-            label={locale === "fr" ? "Plan (une section par ligne)" : "Outline (one section per line)"}
+            label={t(locale, "pcpOutline")}
             value={(editedPack.proposed_blog_outline ?? []).join("\n")}
             onChange={(v) =>
               setEditedPack((prev) => ({ ...prev, proposed_blog_outline: v.split("\n") }))
@@ -488,7 +489,7 @@ export function ProductContentProposals({
                             loading={generatingIndex === String(index)}
                             disabled={isGenerating && generatingIndex !== String(index)}
                           >
-                            {locale === "fr" ? "Générer l'article" : "Generate article"}
+                            {t(locale, "pcpGenerateArticle")}
                           </Button>
                         </Form>
                       </InlineStack>
@@ -511,14 +512,12 @@ export function ProductContentProposals({
           <BlockStack gap="200">
             <InlineStack gap="200">
               <Button size="slim" variant="plain" url="/app/blog">
-                {locale === "fr" ? "Voir tous les blogs" : "View all blogs"}
+                {t(locale, "pcpViewAllBlogs")}
               </Button>
             </InlineStack>
             {isGenerating && (
               <Text as="p" variant="bodySm" tone="subdued">
-                {locale === "fr"
-                  ? "Génération en cours — environ 20-40 secondes selon le nombre de sections."
-                  : "Generating — about 20-40 seconds depending on the number of sections."}
+                {t(locale, "pcpGenerating")}
               </Text>
             )}
           </BlockStack>
@@ -541,10 +540,10 @@ export function ProductContentProposals({
               <Box width="100%">
                 <BlockStack gap="100">
                   <Text as="p" variant="bodySm" tone="subdued">
-                    {locale === "fr" ? `Image ${i + 1}` : `Image ${i + 1}`}
+                    {`Image ${i + 1}`}
                     {image.current_alt
-                      ? ` — ${locale === "fr" ? "Actuel" : "Current"} : ${image.current_alt}`
-                      : ` — ${locale === "fr" ? "aucun alt actuel" : "no current alt"}`}
+                      ? ` — ${t(locale, "pcpCurrent")} : ${image.current_alt}`
+                      : ` — ${t(locale, "pcpNoCurrentAlt")}`}
                   </Text>
                   {editing ? (
                     <TextField
@@ -583,15 +582,15 @@ export function ProductContentProposals({
   const editButtons = editMode ? (
     <>
       <Button size="slim" loading={isSaving} onClick={handleSaveProposals}>
-        {locale === "fr" ? "Sauvegarder" : "Save"}
+        {t(locale, "pcpSave")}
       </Button>
       <Button size="slim" variant="plain" onClick={() => { setEditMode(false); setEditedPack({ ...pack }); }}>
-        {locale === "fr" ? "Annuler" : "Cancel"}
+        {t(locale, "pcpCancel")}
       </Button>
     </>
   ) : (
     <Button size="slim" variant="plain" onClick={() => setEditMode(true)}>
-      {locale === "fr" ? "Modifier" : "Edit"}
+      {t(locale, "pcpEdit")}
     </Button>
   );
 
@@ -605,15 +604,14 @@ export function ProductContentProposals({
     <Banner tone="success">
       <BlockStack gap="050">
         <Text as="p" variant="bodySm">
-          {locale === "fr"
-            ? "Validation GEO réussie : cette proposition est éligible à une publication automatisée."
-            : "GEO validation passed: this proposal is eligible for automated publishing."}
+          {t(locale, "pcpGeoValidated")}
         </Text>
         {(editedPack.content_quality.evidence_ledger?.length ?? 0) > 0 && (
           <Text as="p" variant="bodySm">
-            {locale === "fr"
-              ? `${editedPack.content_quality.evidence_ledger?.length} affirmation(s) reliée(s) à des faits Shopify confirmés.`
-              : `${editedPack.content_quality.evidence_ledger?.length} claim(s) linked to confirmed Shopify facts.`}
+            {t(locale, "pcpClaimsLinked").replace(
+              "{count}",
+              String(editedPack.content_quality.evidence_ledger?.length),
+            )}
           </Text>
         )}
       </BlockStack>
@@ -686,7 +684,7 @@ export function ProductContentProposals({
               pressed={showEnrichmentQuestions}
               onClick={() => setShowEnrichmentQuestions((v) => !v)}
             >
-              {locale === "fr" ? "Améliorer le contenu" : "Improve content"}
+              {t(locale, "pcpImproveContent")}
               {activeEnrichmentQuestions.length > 0 ? ` (${activeEnrichmentQuestions.length})` : ""}
             </Button>
           </InlineStack>
@@ -694,9 +692,7 @@ export function ProductContentProposals({
         <Collapsible id={`enrichment-${product.product_id}`} open={enrichmentIsOpen}>
           <BlockStack gap="300">
             <Text as="p" variant="bodySm" tone="subdued">
-              {locale === "fr"
-                ? "Vos réponses sont enregistrées et intégrées à la description ci-dessous. Validez la description pour les publier sur Shopify."
-                : "Your answers are saved and woven into the description below. Validate the description to publish them to Shopify."}
+              {t(locale, "pcpAnswersSaved")}
             </Text>
 
             {/* Questions actives — toujours visibles, bouton Retirer inline */}
@@ -720,10 +716,10 @@ export function ProductContentProposals({
                     disabled={!(enrichmentAnswers[question.key] ?? "").trim()}
                     onClick={() => handleValidate(question.key)}
                   >
-                    {locale === "fr" ? "Valider" : "Save"}
+                    {t(locale, "pcpValidate")}
                   </Button>
                   <Button size="slim" variant="plain" tone="critical" onClick={() => handleRetire(question.key)}>
-                    {locale === "fr" ? "Retirer" : "Dismiss"}
+                    {t(locale, "pcpDismiss")}
                   </Button>
                 </div>
               </InlineStack>
@@ -738,8 +734,8 @@ export function ProductContentProposals({
                   onClick={() => setShowCompletedQuestions((v) => !v)}
                 >
                   {showCompletedQuestions
-                    ? (locale === "fr" ? "Masquer" : "Hide")
-                    : `${locale === "fr" ? "Déjà complété" : "Already completed"} (${allCompletedQuestions.length})`}
+                    ? t(locale, "pcpHide")
+                    : `${t(locale, "pcpAlreadyCompleted")} (${allCompletedQuestions.length})`}
                 </Button>
                 <Collapsible id={`completed-questions-${product.product_id}`} open={showCompletedQuestions}>
                   <BlockStack gap="200">
@@ -752,13 +748,13 @@ export function ProductContentProposals({
                           )}
                           {!question.answer && (
                             <Text as="p" variant="bodySm" tone="subdued">
-                              {locale === "fr" ? "Non pertinente" : "Not relevant"}
+                              {t(locale, "pcpNotRelevant")}
                             </Text>
                           )}
                         </BlockStack>
                         {question.is_retired && (
                           <Button size="slim" variant="plain" onClick={() => handleRestore(question.key)}>
-                            {locale === "fr" ? "Restaurer" : "Restore"}
+                            {t(locale, "pcpRestore")}
                           </Button>
                         )}
                       </InlineStack>
@@ -775,7 +771,7 @@ export function ProductContentProposals({
                 disabled={analyzeDisabled}
                 onClick={() => onEnrichAndAnalyze(enrichmentAnswers)}
               >
-                {locale === "fr" ? "Améliorer le contenu avec mes réponses" : "Improve content with my answers"}
+                {t(locale, "pcpImproveWithAnswers")}
               </Button>
             </InlineStack>
           </BlockStack>
@@ -865,7 +861,7 @@ export function ProductContentProposals({
           />
         )}
         {appliedAt && (
-          <span style={{ display: "inline-flex" }} title={locale === "fr" ? "Validé" : "Applied"}>
+          <span style={{ display: "inline-flex" }} title={t(locale, "pcpApplied")}>
             <Icon source={CheckIcon} tone="success" />
           </span>
         )}
@@ -898,8 +894,8 @@ export function ProductContentProposals({
     return (
       <Text as="p" variant="bodySm" tone="subdued">
         {daysLeft > 0
-          ? locale === "fr" ? `Résultats dans ${daysLeft} j` : `Results in ${daysLeft}d`
-          : locale === "fr" ? "Résultats disponibles dans Mesure" : "Results available in Measure"}
+          ? t(locale, "pcpResultsInDays").replace("{days}", String(daysLeft))
+          : t(locale, "pcpResultsInMeasure")}
       </Text>
     );
   };
@@ -937,20 +933,20 @@ export function ProductContentProposals({
                 {editingField === f.key ? (
                   <InlineStack gap="150">
                     <Button size="slim" loading={isSaving} onClick={handleSaveProposals}>
-                      {locale === "fr" ? "Sauvegarder" : "Save"}
+                      {t(locale, "pcpSave")}
                     </Button>
                     <Button
                       size="slim"
                       variant="plain"
                       onClick={() => { setEditingField(null); setEditedPack({ ...pack }); }}
                     >
-                      {locale === "fr" ? "Annuler" : "Cancel"}
+                      {t(locale, "pcpCancel")}
                     </Button>
                   </InlineStack>
                 ) : (
                   <InlineStack>
                     <Button size="slim" variant="plain" onClick={() => setEditingField(f.key)}>
-                      {locale === "fr" ? "Modifier" : "Edit"}
+                      {t(locale, "pcpEdit")}
                     </Button>
                   </InlineStack>
                 )}
