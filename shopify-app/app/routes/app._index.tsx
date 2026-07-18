@@ -892,17 +892,12 @@ function DataSourcesPanel({
   /** True on the free plan: the theme extension is a Pro feature. */
   themeExtLocked?: boolean;
 }) {
-  const fr = locale === "fr";
   // Post-onboarding, connections are managed in Réglages — sending an onboarded
   // merchant back into the wizard (step framing + sales pitch) is jarring.
   const connectionsUrl = localizedPath("/app/account", locale);
   const themeEnabled = themeExt?.available ? themeExt.enabled === true : null;
-  const themeWhat = fr
-    ? "Publie sur votre boutique la FAQ, les données structurées et le fil d'Ariane."
-    : "Publishes the FAQ, structured data and breadcrumb on your storefront.";
-  const themeHowTo = fr
-    ? "Activez « GEO by Organically » dans Boutique en ligne → Personnaliser → Intégrations d'app."
-    : "Enable “GEO by Organically” in Online Store → Customize → App embeds.";
+  const themeWhat = t(locale, "dashThemeExtWhat");
+  const themeHowTo = t(locale, "dashThemeExtHowTo");
   const themeTooltip = themeEnabled === false ? `${themeWhat} ${themeHowTo}` : themeWhat;
 
   return (
@@ -911,29 +906,29 @@ function DataSourcesPanel({
         <InlineStack gap="400" wrap>
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="bodySm">Shopify</Text>
-            <Badge tone="info">{fr ? "Connecté" : "Connected"}</Badge>
+            <Badge tone="info">{t(locale, "dashConnected")}</Badge>
           </InlineStack>
 
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="bodySm">Google Search Console</Text>
             {gscConnected ? (
-              <Badge tone="info">{fr ? "Connecté" : "Connected"}</Badge>
+              <Badge tone="info">{t(locale, "dashConnected")}</Badge>
             ) : (
-              <Button url={connectionsUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
+              <Button url={connectionsUrl} size="micro">{t(locale, "dashConnect")}</Button>
             )}
           </InlineStack>
 
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" variant="bodySm">Google Analytics 4</Text>
             {ga4Connected ? (
-              <Badge tone="info">{fr ? "Connecté" : "Connected"}</Badge>
+              <Badge tone="info">{t(locale, "dashConnected")}</Badge>
             ) : (
-              <Button url={connectionsUrl} size="micro">{fr ? "Connecter" : "Connect"}</Button>
+              <Button url={connectionsUrl} size="micro">{t(locale, "dashConnect")}</Button>
             )}
           </InlineStack>
 
           <InlineStack gap="100" blockAlign="center" wrap={false}>
-            <Text as="span" variant="bodySm">{fr ? "Extension de thème" : "Theme extension"}</Text>
+            <Text as="span" variant="bodySm">{t(locale, "dashThemeExtension")}</Text>
             <Tooltip content={themeTooltip}>
               <span style={{ display: "inline-flex", cursor: "help" }}>
                 <Icon source={QuestionCircleIcon} tone="subdued" />
@@ -957,11 +952,11 @@ function DataSourcesPanel({
                 Pro
               </a>
             ) : themeEnabled === true ? (
-              <Badge tone="info">{fr ? "Activée" : "Enabled"}</Badge>
+              <Badge tone="info">{t(locale, "dashEnabled")}</Badge>
             ) : themeEnabled === false ? (
-              <Badge tone="critical">{fr ? "Non activée" : "Not enabled"}</Badge>
+              <Badge tone="critical">{t(locale, "dashNotEnabled")}</Badge>
             ) : (
-              <Badge tone="info">{fr ? "Indéterminé" : "Unknown"}</Badge>
+              <Badge tone="info">{t(locale, "dashUnknownStatus")}</Badge>
             )}
           </InlineStack>
         </InlineStack>
@@ -973,9 +968,7 @@ function DataSourcesPanel({
               rel="noreferrer"
               style={{ color: "inherit" }}
             >
-              {fr
-                ? "Vérifiez si vos pages sont indexées sur Google Search Console →"
-                : "Check if your pages are indexed on Google Search Console →"}
+              {t(locale, "dashCheckIndexed")}
             </a>
           </Text>
         )}
@@ -1008,117 +1001,68 @@ function EducationPanel({
   /** Lets a parent open a specific topic modal by id (e.g. the setup guide). */
   openerRef?: React.MutableRefObject<((id: string) => void) | null>;
 }) {
-  const fr = locale === "fr";
   const [openTopic, setOpenTopic] = useState<EduTopic | null>(null);
 
   const topics: EduTopic[] = [
     {
       id: "number-one",
       icon: StarFilledIcon,
-      question: fr ? "Comment être numéro 1 sur les IA ?" : "How do I rank #1 on AI?",
-      lead: fr
-        ? "Être 1er sur Google ne suffit plus : moins de 20 % des sources citées par les IA viennent du top Google. ChatGPT, Perplexity ou Gemini recommandent les boutiques qu'ils comprennent le mieux — des pages claires, factuelles et structurées font toute la différence."
-        : "Ranking #1 on Google is no longer enough: less than 20% of AI-cited sources come from Google's top results. ChatGPT, Perplexity and Gemini recommend the stores they understand best — clear, factual, structured pages make all the difference.",
-      steps: fr
-        ? ["Un client pose une question à l'IA", "L'IA lit vos pages structurées + FAQ", "Elle vous recommande comme référence"]
-        : ["A customer asks the AI a question", "The AI reads your structured pages + FAQ", "It recommends you as the reference"],
-      stat: fr
-        ? "Un contenu riche en faits et structuré (FAQ, données structurées) augmente la visibilité dans les réponses IA jusqu'à +40 %."
-        : "Fact-rich, structured content (FAQ, structured data) boosts visibility in AI answers by up to +40%.",
-      close: fr
-        ? "L'app optimise vos titres, descriptions, FAQ et données structurées pour que les IA vous choisissent — pendant que vos concurrents optimisent encore pour l'ancien Google."
-        : "The app optimizes your titles, descriptions, FAQ and structured data so AIs pick you — while your competitors still optimize for the old Google.",
-      cta: { label: fr ? "Lancer une analyse" : "Run an analysis", url: localizedPath("/app/analyse", locale) },
+      question: t(locale, "dashEduRankQ"),
+      lead: t(locale, "dashEduRankLead"),
+      steps: [t(locale, "dashEduRankStep1"), t(locale, "dashEduRankStep2"), t(locale, "dashEduRankStep3")],
+      stat: t(locale, "dashEduRankStat"),
+      close: t(locale, "dashEduRankClose"),
+      cta: { label: t(locale, "dashEduRankCta"), url: localizedPath("/app/analyse", locale) },
     },
     {
       id: "why-28-days",
       icon: CalendarIcon,
-      question: fr ? "Pourquoi attendre 28 jours ?" : "Why wait 28 days?",
-      lead: fr
-        ? "Google mesure l'impact d'un changement SEO sur une fenêtre d'environ 28 jours. Réagir avant, c'est décider sans données."
-        : "Google measures the impact of an SEO change over a ~28-day window. Reacting sooner means deciding without data.",
-      steps: fr
-        ? ["J0 : optimisation publiée", "J+14 : premier signal", "J+28 : verdict fiable", "On garde ce qui marche"]
-        : ["Day 0: change published", "Day 14: first signal", "Day 28: reliable verdict", "Keep what works"],
-      stat: fr
-        ? "L'app mesure chaque optimisation à J+14, J+28 et J+60 avec vos vraies données Google."
-        : "The app measures every change at day 14, 28 and 60 with your real Google data.",
-      close: fr
-        ? "Chaque cycle améliore le précédent, sans jamais dégrader ce qui fonctionne."
-        : "Each cycle improves on the last, without ever degrading what works.",
-      cta: { label: fr ? "Suivre mes résultats" : "Track my results", url: localizedPath("/app/analyse", locale) },
+      question: t(locale, "dashEdu28Q"),
+      lead: t(locale, "dashEdu28Lead"),
+      steps: [t(locale, "dashEdu28Step1"), t(locale, "dashEdu28Step2"), t(locale, "dashEdu28Step3"), t(locale, "dashEdu28Step4")],
+      stat: t(locale, "dashEdu28Stat"),
+      close: t(locale, "dashEdu28Close"),
+      cta: { label: t(locale, "dashEdu28Cta"), url: localizedPath("/app/analyse", locale) },
     },
     {
       id: "llms-txt",
       icon: ContentIcon,
-      question: fr ? "L'importance du llms.txt ?" : "Why does llms.txt matter?",
-      lead: fr
-        ? "Le llms.txt est le panneau d'accueil de votre boutique pour les IA : un fichier qu'elles lisent pour comprendre vos produits et vous citer correctement."
-        : "llms.txt is your store's welcome sign for AIs: a file they read to understand your products and cite you correctly.",
-      steps: fr
-        ? ["L'app génère votre llms.txt", "Publié en 1 clic sur votre boutique", "Les IA vous lisent et vous citent"]
-        : ["The app generates your llms.txt", "Published to your store in 1 click", "AIs read you and cite you"],
-      stat: fr
-        ? "Seulement ~10 % des sites en ont un : un vrai avantage de pionnier."
-        : "Only ~10% of websites have one: a real first-mover advantage.",
-      close: fr
-        ? "Pendant que vos concurrents attendent, les IA apprennent à vous connaître."
-        : "While your competitors wait, AIs are getting to know you.",
-      cta: { label: fr ? "Publier mon llms.txt" : "Publish my llms.txt", url: localizedPath("/app/geo-llms-txt", locale) },
+      question: t(locale, "dashEduLlmsQ"),
+      lead: t(locale, "dashEduLlmsLead"),
+      steps: [t(locale, "dashEduLlmsStep1"), t(locale, "dashEduLlmsStep2"), t(locale, "dashEduLlmsStep3")],
+      stat: t(locale, "dashEduLlmsStat"),
+      close: t(locale, "dashEduLlmsClose"),
+      cta: { label: t(locale, "dashEduLlmsCta"), url: localizedPath("/app/geo-llms-txt", locale) },
     },
     {
       id: "keywords",
       icon: CompassIcon,
-      question: fr ? "L'importance des mots-clés ?" : "Why do keywords matter?",
-      lead: fr
-        ? "53 % du trafic web vient de la recherche organique. Les bons mots-clés, placés au bon endroit, amènent des clients — pas juste des visiteurs."
-        : "53% of web traffic comes from organic search. The right keywords, in the right place, bring customers — not just visitors.",
-      steps: fr
-        ? ["Vraies données Google (GSC)", "Volumes et difficulté réels", "Injectés au bon endroit"]
-        : ["Real Google data (GSC)", "Real volumes and difficulty", "Placed where they count"],
-      stat: fr
-        ? "Une boutique moyenne se positionne sur ~1 800 mots-clés : chacun est une porte d'entrée."
-        : "An average store ranks for ~1,800 keywords: each one is a door into your shop.",
-      close: fr
-        ? "L'app s'appuie sur vos données réelles, pas sur des estimations — et vous donne une longueur d'avance sur les tendances avant vos concurrents."
-        : "The app relies on your real data, not guesses — and puts you one step ahead of the trends before your competitors.",
-      cta: { label: fr ? "Explorer mes mots-clés" : "Explore my keywords", url: localizedPath("/app/market-analysis", locale) },
+      question: t(locale, "dashEduKwQ"),
+      lead: t(locale, "dashEduKwLead"),
+      steps: [t(locale, "dashEduKwStep1"), t(locale, "dashEduKwStep2"), t(locale, "dashEduKwStep3")],
+      stat: t(locale, "dashEduKwStat"),
+      close: t(locale, "dashEduKwClose"),
+      cta: { label: t(locale, "dashEduKwCta"), url: localizedPath("/app/market-analysis", locale) },
     },
     {
       id: "auto-analysis",
       icon: AutomationIcon,
-      question: fr ? "L'importance de l'analyse automatique" : "Why auto-analysis matters",
-      lead: fr
-        ? "Le GEO n'est jamais « fini » : les requêtes, les concurrents et les tendances bougent en permanence. L'analyse automatique fait travailler un agent pour vous chaque jour — il optimise, publie, mesure, puis recommence, uniquement sur les champs que vous avez validés."
-        : "GEO is never \"done\": queries, competitors and trends shift constantly. Auto-analysis puts an agent to work for you every day — it optimizes, publishes, measures, then repeats, only on the fields you approved.",
-      steps: fr
-        ? ["Analyser", "Publier", "Mesurer (28 j)", "Améliorer ↺"]
-        : ["Analyze", "Publish", "Measure (28 d)", "Improve ↺"],
-      stat: fr
-        ? "Tous les 28 jours, vos produits sont réanalysés et seules les versions qui performent mieux sont conservées."
-        : "Every 28 days your products are re-analyzed, and only better-performing versions are kept.",
-      close: fr
-        ? "Votre GEO progresse en continu, même quand vous dormez. Activez-la dans « Mode de publication » ci-dessous."
-        : "Your GEO keeps improving, even while you sleep. Enable it in “Publish mode” below.",
+      question: t(locale, "dashEduAutoQ"),
+      lead: t(locale, "dashEduAutoLead"),
+      steps: [t(locale, "dashEduAutoStep1"), t(locale, "dashEduAutoStep2"), t(locale, "dashEduAutoStep3"), t(locale, "dashEduAutoStep4")],
+      stat: t(locale, "dashEduAutoStat"),
+      close: t(locale, "dashEduAutoClose"),
       relatedTopicId: "seo-vs-geo",
-      relatedTopicLabel: fr ? "Différence entre SEO et GEO" : "SEO vs GEO",
+      relatedTopicLabel: t(locale, "dashEduSeoGeoQ"),
     },
     {
       id: "seo-vs-geo",
       icon: CompassIcon,
-      question: fr ? "Différence entre SEO et GEO" : "SEO vs GEO",
-      lead: fr
-        ? "Le GEO, c'est le SEO en plus avancé. Le SEO fait remonter votre boutique dans les résultats Google ; le GEO fait citer votre boutique dans les réponses des IA (ChatGPT, Perplexity, Gemini)."
-        : "GEO is SEO taken further. SEO lifts your store in Google results; GEO gets your store cited inside AI answers (ChatGPT, Perplexity, Gemini).",
-      steps: fr
-        ? ["SEO : mieux classé sur Google", "GEO : cité par les IA", "Mêmes bases, IA plus exigeantes"]
-        : ["SEO: rank higher on Google", "GEO: cited by AIs", "Same basics, stricter AIs"],
-      stat: fr
-        ? "Les deux reposent sur les mêmes fondamentaux (clarté, autorité, structure) — un bon SEO vous met déjà à mi-chemin du GEO."
-        : "Both rely on the same fundamentals (clarity, authority, structure) — strong SEO gets you halfway to GEO.",
-      close: fr
-        ? "L'app couvre les deux : elle optimise pour Google ET structure vos pages pour que les IA vous choisissent."
-        : "The app covers both: it optimizes for Google AND structures your pages so AIs pick you.",
+      question: t(locale, "dashEduSeoGeoQ"),
+      lead: t(locale, "dashEduSeoGeoLead"),
+      steps: [t(locale, "dashEduSeoGeoStep1"), t(locale, "dashEduSeoGeoStep2"), t(locale, "dashEduSeoGeoStep3")],
+      stat: t(locale, "dashEduSeoGeoStat"),
+      close: t(locale, "dashEduSeoGeoClose"),
     },
   ];
 
@@ -1155,7 +1099,7 @@ function EducationPanel({
         primaryAction={
           openTopic?.cta
             ? { content: openTopic.cta.label, url: openTopic.cta.url }
-            : { content: fr ? "Compris" : "Got it", onAction: () => setOpenTopic(null) }
+            : { content: t(locale, "dashGotIt"), onAction: () => setOpenTopic(null) }
         }
         secondaryActions={[
           ...(openTopic?.relatedTopicId
@@ -1166,7 +1110,7 @@ function EducationPanel({
               }]
             : []),
           ...(openTopic?.cta
-            ? [{ content: fr ? "Fermer" : "Close", onAction: () => setOpenTopic(null) }]
+            ? [{ content: t(locale, "dashClose"), onAction: () => setOpenTopic(null) }]
             : []),
         ]}
       >
@@ -1272,7 +1216,6 @@ function StepMarker({ done, locked }: { done: boolean; locked: boolean }) {
  * onboarding step with a done marker, a "why it helps organic traffic" line and
  * a CTA. Paid features show a lock (free plan) or an "unlocked" star (paid). */
 function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: Locale; shop: string }) {
-  const fr = locale === "fr";
   const isFree = signals.plan === "free";
   const eduOpener = useRef<((id: string) => void) | null>(null);
   const autoFetcher = useFetcher();
@@ -1293,45 +1236,37 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
   const steps: GuideStep[] = [
     {
       id: "gsc",
-      label: fr ? "Connecter Google Search Console" : "Connect Google Search Console",
-      why: fr
-        ? "Donne à l'app vos vraies requêtes Google : les recommandations ciblent les mots-clés qui vous amènent déjà du trafic."
-        : "Gives the app your real Google queries so recommendations target the keywords already bringing you traffic.",
+      label: t(locale, "dashStepGscLabel"),
+      why: t(locale, "dashStepGscWhy"),
       done: signals.gscConnected,
-      ctaLabel: fr ? "Connecter" : "Connect",
+      ctaLabel: t(locale, "dashConnect"),
       ctaUrl: localizedPath("/app/account", locale),
     },
     {
       id: "ga4",
-      label: fr ? "Connecter Google Analytics 4" : "Connect Google Analytics 4",
-      why: fr
-        ? "Mesure les sessions organiques et les conversions : l'app sait quelles optimisations rapportent vraiment des ventes."
-        : "Tracks organic sessions and conversions so the app knows which optimizations actually drive sales.",
+      label: t(locale, "dashStepGa4Label"),
+      why: t(locale, "dashStepGa4Why"),
       done: signals.ga4Connected,
-      ctaLabel: fr ? "Connecter" : "Connect",
+      ctaLabel: t(locale, "dashConnect"),
       ctaUrl: localizedPath("/app/account", locale),
     },
     {
       id: "analysis",
-      label: fr ? "Faire la première analyse" : "Run your first analysis",
-      why: fr
-        ? "Détecte les mots-clés, questions clients et lacunes de chaque produit — la base de tout gain de trafic organique."
-        : "Finds the keywords, customer questions and gaps of each product — the foundation of every organic-traffic gain.",
+      label: t(locale, "dashStepAnalysisLabel"),
+      why: t(locale, "dashStepAnalysisWhy"),
       done: signals.firstAnalysisDone,
-      ctaLabel: fr ? "Analyser" : "Analyze",
+      ctaLabel: t(locale, "dashAnalyze"),
       ctaUrl: localizedPath("/app/products", locale),
     },
     {
       id: "improve",
-      label: fr ? "Améliorer les produits (répondre aux questions)" : "Improve products (answer the questions)",
-      why: fr
-        ? "Vos réponses nourrissent l'IA en faits vérifiables : des pages plus riches, mieux citées par Google et les IA."
-        : "Your answers feed the AI verifiable facts: richer pages, better cited by Google and AIs.",
+      label: t(locale, "dashStepImproveLabel"),
+      why: t(locale, "dashStepImproveWhy"),
       done: signals.improveDone,
       // Free plans get a single product analysis; once used, improving requires an upgrade.
       ctaLabel: isFree
-        ? (signals.firstAnalysisDone ? (fr ? "Débloquer" : "Unlock") : (fr ? "Essayer" : "Try"))
-        : (fr ? "Améliorer" : "Improve"),
+        ? (signals.firstAnalysisDone ? t(locale, "dashUnlock") : t(locale, "dashTry"))
+        : t(locale, "dashImprove"),
       ctaUrl:
         isFree && signals.firstAnalysisDone
           ? localizedPath("/app/billing", locale)
@@ -1340,66 +1275,54 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
     },
     {
       id: "proposals",
-      label: fr ? "Publier les propositions" : "Publish the proposals",
-      why: fr
-        ? "Applique sur Shopify les titres, méta-descriptions et textes optimisés : c'est ce qui fait grimper vos pages."
-        : "Pushes the optimized titles, meta descriptions and copy to Shopify: this is what lifts your pages.",
+      label: t(locale, "dashStepProposalsLabel"),
+      why: t(locale, "dashStepProposalsWhy"),
       done: signals.proposalsPublished,
-      ctaLabel: fr ? "Publier" : "Publish",
+      ctaLabel: t(locale, "dashPublish"),
       ctaUrl: `${localizedPath("/app", locale)}?panel=publish`,
     },
     {
       id: "blog",
-      label: fr ? "Publier le premier blog" : "Publish your first blog post",
-      why: fr
-        ? "Chaque article se positionne sur des requêtes que vos fiches produits ne couvrent pas : autant de portes d'entrée en plus."
-        : "Each article ranks for queries your product pages don't cover: that many more doors into your store.",
+      label: t(locale, "dashStepBlogLabel"),
+      why: t(locale, "dashStepBlogWhy"),
       done: signals.blogPublished,
-      ctaLabel: fr ? "Rédiger" : "Write",
+      ctaLabel: t(locale, "dashWrite"),
       ctaUrl: localizedPath("/app/blog", locale),
     },
     {
       id: "llms",
-      label: fr ? "Publier les llms.txt" : "Publish your llms.txt",
-      why: fr
-        ? "Le fichier que ChatGPT, Claude et Perplexity lisent pour comprendre votre boutique et vous recommander."
-        : "The file ChatGPT, Claude and Perplexity read to understand your store and recommend it.",
+      label: t(locale, "dashStepLlmsLabel"),
+      why: t(locale, "dashStepLlmsWhy"),
       done: signals.llmsPublished,
-      ctaLabel: fr ? "Fichiers IA" : "AI files",
+      ctaLabel: t(locale, "dashAiFiles"),
       ctaUrl: "/app/geo-llms-txt",
     },
     {
       id: "theme",
-      label: fr ? "Connecter l'extension de thème" : "Connect the theme extension",
-      why: fr
-        ? "Affiche FAQ et données structurées sur votre boutique : les IA et Google comprennent mieux vos pages et vous citent."
-        : "Shows FAQ and structured data on your storefront so AIs and Google understand and cite your pages.",
+      label: t(locale, "dashStepThemeLabel"),
+      why: t(locale, "dashStepThemeWhy"),
       done: signals.themeEnabled === true,
-      ctaLabel: isFree ? (fr ? "Débloquer" : "Unlock") : (fr ? "Activer" : "Enable"),
+      ctaLabel: isFree ? t(locale, "dashUnlock") : t(locale, "dashEnable"),
       ctaUrl: isFree ? localizedPath("/app/billing", locale) : undefined,
       onCta: isFree ? undefined : () => setShowThemeHelp(true),
       paid: true,
     },
     {
       id: "auto",
-      label: fr ? "Activer l'analyse automatique" : "Enable auto-analysis",
-      why: fr
-        ? "Un agent ré-analyse, publie et mesure tout seul : votre trafic organique progresse en continu, sans y penser."
-        : "An agent re-analyzes, publishes and measures on its own: your organic traffic keeps growing hands-free.",
+      label: t(locale, "dashStepAutoLabel"),
+      why: t(locale, "dashStepAutoWhy"),
       done: signals.autoActive,
-      ctaLabel: isFree ? (fr ? "Débloquer" : "Unlock") : (fr ? "Activer" : "Enable"),
+      ctaLabel: isFree ? t(locale, "dashUnlock") : t(locale, "dashEnable"),
       ctaUrl: isFree ? localizedPath("/app/billing", locale) : undefined,
       onCta: isFree ? undefined : activateAuto,
       paid: true,
     },
     {
       id: "wait",
-      label: fr ? "Attendre 28 jours" : "Wait 28 days",
-      why: fr
-        ? "Google mesure l'impact d'un changement sur ~28 jours. L'app patiente, mesure, puis garde ce qui marche."
-        : "Google measures a change's impact over ~28 days. The app waits, measures, then keeps what works.",
+      label: t(locale, "dashStepWaitLabel"),
+      why: t(locale, "dashStepWaitWhy"),
       done: signals.reanalysisDone,
-      ctaLabel: fr ? "Comprendre" : "Learn why",
+      ctaLabel: t(locale, "dashLearnWhy"),
       onCta: () => eduOpener.current?.("why-28-days"),
     },
   ];
@@ -1420,12 +1343,10 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
         <InlineStack align="space-between" blockAlign="center" gap="200" wrap={false}>
           <BlockStack gap="050">
             <Text as="h2" variant="headingMd">
-              {fr ? "Passez à la vitesse supérieure" : "Move up a gear"}
+              {t(locale, "dashGuideTitle")}
             </Text>
             <Text as="p" variant="bodySm" tone="subdued">
-              {fr
-                ? "Votre guide pas à pas pour booster votre trafic organique."
-                : "Your step-by-step guide to boost your organic traffic."}
+              {t(locale, "dashGuideSubtitle")}
             </Text>
           </BlockStack>
           <InlineStack gap="200" blockAlign="center" wrap={false}>
@@ -1436,9 +1357,9 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
               variant="tertiary"
               disclosure={open ? "up" : "down"}
               onClick={() => setOpen((v) => !v)}
-              accessibilityLabel={open ? (fr ? "Réduire" : "Collapse") : (fr ? "Déplier" : "Expand")}
+              accessibilityLabel={open ? t(locale, "dashCollapse") : t(locale, "dashExpand")}
             >
-              {open ? (fr ? "Réduire" : "Collapse") : (fr ? "Déplier" : "Expand")}
+              {open ? t(locale, "dashCollapse") : t(locale, "dashExpand")}
             </Button>
           </InlineStack>
         </InlineStack>
@@ -1528,15 +1449,13 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
               <Box padding="300" background="bg-surface-secondary" borderRadius="200">
                 <BlockStack gap="200">
                   <Text as="p" variant="bodySm">
-                    {fr
-                      ? "Débloquez l'analyse automatique et l'extension de thème — vos concurrents n'attendent pas."
-                      : "Unlock auto-analysis and the theme extension — your competitors aren't waiting."}
+                    {t(locale, "dashUnlockPitch")}
                   </Text>
                   <Button url={localizedPath("/app/billing", locale)} variant="primary" fullWidth>
-                    {fr ? "Essayer Pro 7 jours gratuitement" : "Try Pro free for 7 days"}
+                    {t(locale, "dashTryProCta")}
                   </Button>
                   <Text as="p" variant="bodySm" tone="subdued" alignment="center">
-                    {fr ? "Sans engagement · Annulation en 1 clic" : "No commitment · Cancel in 1 click"}
+                    {t(locale, "dashNoCommitment")}
                   </Text>
                 </BlockStack>
               </Box>
@@ -1548,9 +1467,9 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
       <Modal
         open={showThemeHelp}
         onClose={() => setShowThemeHelp(false)}
-        title={fr ? "Activer l'extension de thème" : "Enable the theme extension"}
+        title={t(locale, "dashThemeModalTitle")}
         primaryAction={{
-          content: fr ? "Ouvrir l'éditeur de thème" : "Open the theme editor",
+          content: t(locale, "dashThemeModalOpenEditor"),
           // Open at the top level in a new tab — the Shopify admin refuses to load
           // inside the app's embedded iframe (X-Frame-Options).
           onAction: () => {
@@ -1558,41 +1477,31 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
             setShowThemeHelp(false);
           },
         }}
-        secondaryActions={[{ content: fr ? "Fermer" : "Close", onAction: () => setShowThemeHelp(false) }]}
+        secondaryActions={[{ content: t(locale, "dashClose"), onAction: () => setShowThemeHelp(false) }]}
       >
         <Modal.Section>
           <BlockStack gap="300">
             <Text as="p">
-              {fr
-                ? "L'extension affiche la FAQ, les données structurées et le fil d'Ariane sur votre boutique — ce qui aide les IA et Google à comprendre et citer vos pages."
-                : "The extension shows the FAQ, structured data and breadcrumb on your storefront — helping AIs and Google understand and cite your pages."}
+              {t(locale, "dashThemeModalIntro")}
             </Text>
             <Box padding="300" background="bg-surface-secondary" borderRadius="200">
               <BlockStack gap="150">
                 <Text as="p" variant="bodySm" fontWeight="medium">
-                  {fr ? "Comment faire :" : "How to do it:"}
+                  {t(locale, "dashThemeModalHowTitle")}
                 </Text>
                 <Text as="p" variant="bodySm">
-                  {fr
-                    ? "1. Cliquez sur « Ouvrir l'éditeur de thème » ci-dessous."
-                    : "1. Click “Open the theme editor” below."}
+                  {t(locale, "dashThemeModalStep1")}
                 </Text>
                 <Text as="p" variant="bodySm">
-                  {fr
-                    ? "2. Dans le panneau qui s'ouvre, activez « GEO by Organically »."
-                    : "2. In the panel that opens, toggle on “GEO by Organically”."}
+                  {t(locale, "dashThemeModalStep2")}
                 </Text>
                 <Text as="p" variant="bodySm">
-                  {fr
-                    ? "3. Cliquez sur « Enregistrer » en haut à droite."
-                    : "3. Click “Save” at the top right."}
+                  {t(locale, "dashThemeModalStep3")}
                 </Text>
               </BlockStack>
             </Box>
             <Text as="p" variant="bodySm" tone="subdued">
-              {fr
-                ? "L'éditeur s'ouvre dans un nouvel onglet. Vous pouvez aussi y accéder via Boutique en ligne → Personnaliser → Intégrations d'app."
-                : "The editor opens in a new tab. You can also reach it via Online Store → Customize → App embeds."}
+              {t(locale, "dashThemeModalNote")}
             </Text>
           </BlockStack>
         </Modal.Section>
@@ -1660,7 +1569,7 @@ function Zone1({
           )
         ) : (
           <Text as="p" tone="subdued">
-            {locale === "fr" ? "Importation Shopify en cours…" : "Shopify import in progress…"}
+            {t(locale, "dashImportInProgress")}
           </Text>
         )}
         <Box background="bg-surface-secondary" padding="200" borderRadius="200">
@@ -1721,10 +1630,10 @@ function ActionCard({
         )}
         <InlineStack gap="200">
           {action.estimates?.effort && (
-            <Badge>{`${locale === "fr" ? "Effort" : "Effort"}: ${action.estimates.effort}`}</Badge>
+            <Badge>{`Effort: ${action.estimates.effort}`}</Badge>
           )}
           {action.estimates?.impact && (
-            <Badge tone="success">{`${locale === "fr" ? "Impact" : "Impact"}: ${action.estimates.impact}`}</Badge>
+            <Badge tone="success">{`Impact: ${action.estimates.impact}`}</Badge>
           )}
         </InlineStack>
         <Button
@@ -1954,7 +1863,7 @@ function Zone3({
             {data.search_performance_sparkline.length > 0 && (
               <Sparkline
                 data={data.search_performance_sparkline}
-                label={locale === "fr" ? "Vues Google (30 j)" : "Google views (30d)"}
+                label={t(locale, "dashSparklineLabel")}
                 formatValue={(v: number) => Math.round(v).toLocaleString("fr-FR")}
               />
             )}
@@ -2007,7 +1916,7 @@ function Zone4({
               variant="plain"
               size="slim"
             >
-              {locale === "fr" ? "Configurer" : "Set up"}
+              {t(locale, "dashSetUp")}
             </Button>
           </InlineStack>
         ))}
@@ -2144,11 +2053,11 @@ function PublishModeCard({
                 <div style={{ flex: "1 1 auto" }} />
                 {manualActive ? (
                   <span style={{ fontWeight: 700, fontSize: "0.8125rem", color: "#000" }}>
-                    {locale === "fr" ? "Actif" : "Active"}
+                    {t(locale, "dashActive")}
                   </span>
                 ) : (
                   <Button size="slim" loading={busy} onClick={handleActivateManual}>
-                    {locale === "fr" ? "Activer" : "Activate"}
+                    {t(locale, "dashActivate")}
                   </Button>
                 )}
               </div>
@@ -2219,7 +2128,7 @@ function PublishModeCard({
                     }}
                   >
                     <RocketIcon size={14} />
-                    {locale === "fr" ? "Actif" : "Active"}
+                    {t(locale, "dashActive")}
                   </span>
                   {/* Native select styled explicitly so it stays dark-on-white on the black panel. */}
                   <select
@@ -2241,10 +2150,10 @@ function PublishModeCard({
                     }}
                   >
                     <option value="semi_auto">
-                      {locale === "fr" ? "Publication manuelle" : "Manual publishing"}
+                      {t(locale, "dashManualPublishing")}
                     </option>
                     <option value="auto_apply">
-                      {locale === "fr" ? "Publication automatique" : "Automatic publishing"}
+                      {t(locale, "dashAutoPublishing")}
                     </option>
                   </select>
                 </BlockStack>
@@ -2259,7 +2168,7 @@ function PublishModeCard({
                   } as React.CSSProperties}
                 >
                   <Button fullWidth variant="primary" loading={busy} onClick={handleActivateAuto}>
-                    {locale === "fr" ? "Activer" : "Activate"}
+                    {t(locale, "dashActivate")}
                   </Button>
                 </span>
               ) : (
@@ -2274,10 +2183,10 @@ function PublishModeCard({
                 >
                   <BlockStack gap="100">
                     <Button fullWidth variant="primary" url={localizedPath("/app/billing", locale)} icon={LockIcon}>
-                      {locale === "fr" ? "Débloquer avec Pro" : "Unlock with Pro"}
+                      {t(locale, "dashUnlockWithPro")}
                     </Button>
                     <Text as="p" variant="bodySm" tone="subdued">
-                      {locale === "fr" ? "Essai gratuit 7 jours" : "7-day free trial"}
+                      {t(locale, "dashFreeTrial7")}
                     </Text>
                   </BlockStack>
                 </span>
@@ -2442,11 +2351,9 @@ function CompetitorsCard({
   return (
     <Card>
       <BlockStack gap="300">
-        <SectionTitle source={GlobeIcon}>{locale === "fr" ? "Concurrents" : "Competitors"}</SectionTitle>
+        <SectionTitle source={GlobeIcon}>{t(locale, "ccPageTitle")}</SectionTitle>
         <Text as="p" tone="subdued" variant="bodySm">
-          {locale === "fr"
-            ? "Ces concurrents nourrissent l'analyse produit. Ajoute les tiens ou retire ceux qui ne sont pas pertinents."
-            : "These competitors feed the product analysis. Add your own or remove the irrelevant ones."}
+          {t(locale, "dashCompetitorsDesc")}
         </Text>
 
         {displayed.length > 0 ? (
@@ -2456,14 +2363,14 @@ function CompetitorsCard({
                 <InlineStack gap="150" blockAlign="center">
                   <Text as="span" variant="bodyMd">{d}</Text>
                   {!manualSet.has(d) && (
-                    <Badge tone="info" size="small">{locale === "fr" ? "auto" : "auto"}</Badge>
+                    <Badge tone="info" size="small">auto</Badge>
                   )}
                 </InlineStack>
                 <Button
                   variant="plain"
                   tone="critical"
                   onClick={() => handleRemove(d)}
-                  accessibilityLabel={`${locale === "fr" ? "Retirer" : "Remove"} ${d}`}
+                  accessibilityLabel={`${t(locale, "dashRemove")} ${d}`}
                 >
                   ✕
                 </Button>
@@ -2472,23 +2379,23 @@ function CompetitorsCard({
           </BlockStack>
         ) : (
           <Text as="p" tone="subdued" variant="bodySm">
-            {locale === "fr" ? "Aucun concurrent pour l'instant." : "No competitor yet."}
+            {t(locale, "dashNoCompetitorYet")}
           </Text>
         )}
 
         <InlineStack gap="200" blockAlign="end">
           <div style={{ flex: 1 }}>
             <TextField
-              label={locale === "fr" ? "Ajouter un concurrent" : "Add a competitor"}
+              label={t(locale, "dashAddCompetitor")}
               labelHidden
-              placeholder={locale === "fr" ? "exemple.fr" : "example.com"}
+              placeholder={t(locale, "dashDomainPlaceholder")}
               autoComplete="off"
               value={draft}
               onChange={setDraft}
             />
           </div>
           <Button onClick={handleAdd} disabled={!normalizeDomain(draft)}>
-            {locale === "fr" ? "Ajouter" : "Add"}
+            {t(locale, "dashAdd")}
           </Button>
         </InlineStack>
 
@@ -2507,7 +2414,6 @@ function CompetitorsCard({
 type ProfileSection = null | "niche" | "voice" | "personas" | "style" | "seasonal";
 
 function BizProfileCards({ profile, competitorSignals, manualCompetitors, excludedDomains, locale, afterRow1, variant = "all" }: { profile: BusinessProfile; competitorSignals: string[]; manualCompetitors: string[]; excludedDomains: string[]; locale: Locale; afterRow1?: React.ReactNode; variant?: "all" | "top" | "bottom" }) {
-  const fr = locale === "fr";
   const intensityTone = (i: string): "success" | "warning" | "info" =>
     i === "high" ? "success" : i === "medium" ? "warning" : "info";
   const NicheIcon = getNicheIcon(profile);
@@ -2541,15 +2447,15 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
   const saving = saveFetcher.state !== "idle";
   const openEdit = (section: ProfileSection) => { setDraft(profile); setEditSection(section); };
   const EditBtn = ({ section }: { section: ProfileSection }) => (
-    <Button variant="tertiary" icon={EditIcon} accessibilityLabel={fr ? "Modifier" : "Edit"} onClick={() => openEdit(section)} />
+    <Button variant="tertiary" icon={EditIcon} accessibilityLabel={t(locale, "dashEdit")} onClick={() => openEdit(section)} />
   );
 
   const sectionTitles: Record<NonNullable<ProfileSection>, string> = {
-    niche: fr ? "Niche & Marque" : "Niche & Brand",
-    voice: fr ? "Voix de marque" : "Brand voice",
+    niche: t(locale, "dashSectionNiche"),
+    voice: t(locale, "dashSectionVoice"),
     personas: "Personas",
-    style: fr ? "Style de contenu" : "Content style",
-    seasonal: fr ? "Saisonnalité & Opportunités" : "Seasonality & Gaps",
+    style: t(locale, "dashSectionStyle"),
+    seasonal: t(locale, "dashSectionSeasonal"),
   };
 
   const showTop = variant !== "bottom";
@@ -2669,7 +2575,7 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
             {(profile.content_gaps ?? []).length > 0 && (
               <BlockStack gap="050">
                 <Text as="p" variant="bodySm" fontWeight="semibold">
-                  {fr ? "Lacunes de contenu" : "Content gaps"}
+                  {t(locale, "dashContentGaps")}
                 </Text>
                 {profile.content_gaps.map((g) => (<Text as="p" tone="subdued" variant="bodySm" key={g}>• {g}</Text>))}
               </BlockStack>
@@ -2684,30 +2590,28 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
       <Modal
         open={editSection !== null}
         onClose={() => setEditSection(null)}
-        title={editSection ? `${fr ? "Modifier" : "Edit"} — ${sectionTitles[editSection]}` : ""}
-        primaryAction={{ content: fr ? "Enregistrer" : "Save", onAction: onSave, loading: saving }}
-        secondaryActions={[{ content: fr ? "Annuler" : "Cancel", onAction: () => setEditSection(null) }]}
+        title={editSection ? `${t(locale, "dashEdit")} — ${sectionTitles[editSection]}` : ""}
+        primaryAction={{ content: t(locale, "dashSave"), onAction: onSave, loading: saving }}
+        secondaryActions={[{ content: t(locale, "dashCancel"), onAction: () => setEditSection(null) }]}
       >
         <Modal.Section>
           <BlockStack gap="300">
             <Text as="p" variant="bodySm" tone="subdued">
-              {fr
-                ? "Tes modifications sont prises en compte dans les prochaines analyses (génération de contenu, fiches, articles)."
-                : "Your edits are applied to future analyses (content generation, products, articles)."}
+              {t(locale, "dashEditNote")}
             </Text>
             {editSection === "niche" && (
               <FormLayout>
-                <TextField label={fr ? "Nom de marque" : "Brand name"} value={draft.brand_name ?? ""} onChange={(v) => setField({ brand_name: v })} autoComplete="off" />
-                <TextField label={fr ? "Résumé de la niche" : "Niche summary"} value={draft.niche_summary ?? ""} onChange={(v) => setField({ niche_summary: v })} multiline={3} autoComplete="off" />
-                <TextField label={fr ? "Thèmes clés (un par ligne)" : "Key themes (one per line)"} value={textFromLines(draft.key_themes)} onChange={(v) => setField({ key_themes: linesFromText(v) })} multiline={4} autoComplete="off" />
+                <TextField label={t(locale, "dashBrandName")} value={draft.brand_name ?? ""} onChange={(v) => setField({ brand_name: v })} autoComplete="off" />
+                <TextField label={t(locale, "dashNicheSummary")} value={draft.niche_summary ?? ""} onChange={(v) => setField({ niche_summary: v })} multiline={3} autoComplete="off" />
+                <TextField label={t(locale, "dashKeyThemes")} value={textFromLines(draft.key_themes)} onChange={(v) => setField({ key_themes: linesFromText(v) })} multiline={4} autoComplete="off" />
               </FormLayout>
             )}
             {editSection === "voice" && (
               <FormLayout>
-                <TextField label={fr ? "Ton éditorial" : "Editorial tone"} value={cs.tone ?? ""} onChange={(v) => setCS({ tone: v })} autoComplete="off" />
-                <TextField label={fr ? "Voix de marque" : "Brand voice"} value={draft.brand_voice ?? ""} onChange={(v) => setField({ brand_voice: v })} multiline={3} autoComplete="off" />
-                <TextField label={fr ? "Vocabulaire à utiliser (un par ligne)" : "Vocabulary to use (one per line)"} value={textFromLines(cs.vocabulary_to_use)} onChange={(v) => setCS({ vocabulary_to_use: linesFromText(v) })} multiline={3} autoComplete="off" />
-                <TextField label={fr ? "Vocabulaire à éviter (un par ligne)" : "Vocabulary to avoid (one per line)"} value={textFromLines(cs.vocabulary_to_avoid)} onChange={(v) => setCS({ vocabulary_to_avoid: linesFromText(v) })} multiline={3} autoComplete="off" />
+                <TextField label={t(locale, "dashEditorialTone")} value={cs.tone ?? ""} onChange={(v) => setCS({ tone: v })} autoComplete="off" />
+                <TextField label={t(locale, "dashSectionVoice")} value={draft.brand_voice ?? ""} onChange={(v) => setField({ brand_voice: v })} multiline={3} autoComplete="off" />
+                <TextField label={t(locale, "dashVocabUse")} value={textFromLines(cs.vocabulary_to_use)} onChange={(v) => setCS({ vocabulary_to_use: linesFromText(v) })} multiline={3} autoComplete="off" />
+                <TextField label={t(locale, "dashVocabAvoid")} value={textFromLines(cs.vocabulary_to_avoid)} onChange={(v) => setCS({ vocabulary_to_avoid: linesFromText(v) })} multiline={3} autoComplete="off" />
               </FormLayout>
             )}
             {editSection === "personas" && (
@@ -2716,27 +2620,27 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
                   <Box key={i} padding="300" background="bg-surface-secondary" borderRadius="200">
                     <BlockStack gap="200">
                       <InlineStack align="space-between" blockAlign="center">
-                        <Text as="p" variant="bodySm" fontWeight="semibold">{`${fr ? "Persona" : "Persona"} ${i + 1}`}</Text>
+                        <Text as="p" variant="bodySm" fontWeight="semibold">{`Persona ${i + 1}`}</Text>
                         <Button variant="plain" tone="critical" onClick={() => setField({ target_personas: personas.filter((_, idx) => idx !== i) })}>
-                          {fr ? "Retirer" : "Remove"}
+                          {t(locale, "dashRemove")}
                         </Button>
                       </InlineStack>
-                      <TextField label={fr ? "Nom" : "Name"} value={p.name ?? ""} onChange={(v) => setPersona(i, { name: v })} autoComplete="off" />
-                      <TextField label={fr ? "Besoin principal" : "Main need"} value={p.main_need ?? ""} onChange={(v) => setPersona(i, { main_need: v })} autoComplete="off" />
-                      <TextField label={fr ? "Déclencheur d'achat" : "Buying trigger"} value={p.buying_trigger ?? ""} onChange={(v) => setPersona(i, { buying_trigger: v })} autoComplete="off" />
+                      <TextField label={t(locale, "dashName")} value={p.name ?? ""} onChange={(v) => setPersona(i, { name: v })} autoComplete="off" />
+                      <TextField label={t(locale, "dashMainNeed")} value={p.main_need ?? ""} onChange={(v) => setPersona(i, { main_need: v })} autoComplete="off" />
+                      <TextField label={t(locale, "dashBuyingTrigger")} value={p.buying_trigger ?? ""} onChange={(v) => setPersona(i, { buying_trigger: v })} autoComplete="off" />
                     </BlockStack>
                   </Box>
                 ))}
                 <Button onClick={() => setField({ target_personas: [...personas, { name: "", description: "", main_need: "", buying_trigger: "" }] })}>
-                  {fr ? "Ajouter un persona" : "Add a persona"}
+                  {t(locale, "dashAddPersona")}
                 </Button>
               </BlockStack>
             )}
             {editSection === "style" && (
               <FormLayout>
-                <TextField label={fr ? "Longueur d'article typique" : "Typical article length"} value={cs.typical_article_length ?? ""} onChange={(v) => setCS({ typical_article_length: v })} autoComplete="off" />
-                <TextField label={fr ? "Structure H2 (un par ligne)" : "H2 structure (one per line)"} value={textFromLines(cs.h2_structure)} onChange={(v) => setCS({ h2_structure: linesFromText(v) })} multiline={4} autoComplete="off" />
-                <TextField label={fr ? "Accroches (une par ligne)" : "Hook patterns (one per line)"} value={textFromLines(cs.hook_patterns)} onChange={(v) => setCS({ hook_patterns: linesFromText(v) })} multiline={3} autoComplete="off" />
+                <TextField label={t(locale, "dashArticleLength")} value={cs.typical_article_length ?? ""} onChange={(v) => setCS({ typical_article_length: v })} autoComplete="off" />
+                <TextField label={t(locale, "dashH2Structure")} value={textFromLines(cs.h2_structure)} onChange={(v) => setCS({ h2_structure: linesFromText(v) })} multiline={4} autoComplete="off" />
+                <TextField label={t(locale, "dashHookPatterns")} value={textFromLines(cs.hook_patterns)} onChange={(v) => setCS({ hook_patterns: linesFromText(v) })} multiline={3} autoComplete="off" />
               </FormLayout>
             )}
             {editSection === "seasonal" && (
@@ -2745,15 +2649,15 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
                   <Box key={i} padding="300" background="bg-surface-secondary" borderRadius="200">
                     <BlockStack gap="200">
                       <InlineStack align="space-between" blockAlign="center">
-                        <Text as="p" variant="bodySm" fontWeight="semibold">{`${fr ? "Période" : "Period"} ${i + 1}`}</Text>
+                        <Text as="p" variant="bodySm" fontWeight="semibold">{`${t(locale, "dashPeriod")} ${i + 1}`}</Text>
                         <Button variant="plain" tone="critical" onClick={() => setField({ seasonal_patterns: seasonal.filter((_, idx) => idx !== i) })}>
-                          {fr ? "Retirer" : "Remove"}
+                          {t(locale, "dashRemove")}
                         </Button>
                       </InlineStack>
-                      <TextField label={fr ? "Période" : "Period"} value={s.period ?? ""} onChange={(v) => setSeason(i, { period: v })} autoComplete="off" />
-                      <TextField label={fr ? "Thème" : "Theme"} value={s.theme ?? ""} onChange={(v) => setSeason(i, { theme: v })} autoComplete="off" />
+                      <TextField label={t(locale, "dashPeriod")} value={s.period ?? ""} onChange={(v) => setSeason(i, { period: v })} autoComplete="off" />
+                      <TextField label={t(locale, "dashTheme")} value={s.theme ?? ""} onChange={(v) => setSeason(i, { theme: v })} autoComplete="off" />
                       <Select
-                        label={fr ? "Intensité" : "Intensity"}
+                        label={t(locale, "dashIntensity")}
                         options={[{ label: "high", value: "high" }, { label: "medium", value: "medium" }, { label: "low", value: "low" }]}
                         value={s.intensity ?? "medium"}
                         onChange={(v) => setSeason(i, { intensity: v })}
@@ -2762,13 +2666,13 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
                   </Box>
                 ))}
                 <Button onClick={() => setField({ seasonal_patterns: [...seasonal, { period: "", theme: "", intensity: "medium" }] })}>
-                  {fr ? "Ajouter une période" : "Add a period"}
+                  {t(locale, "dashAddPeriod")}
                 </Button>
-                <TextField label={fr ? "Lacunes de contenu (une par ligne)" : "Content gaps (one per line)"} value={textFromLines(draft.content_gaps)} onChange={(v) => setField({ content_gaps: linesFromText(v) })} multiline={4} autoComplete="off" />
+                <TextField label={t(locale, "dashContentGapsPerLine")} value={textFromLines(draft.content_gaps)} onChange={(v) => setField({ content_gaps: linesFromText(v) })} multiline={4} autoComplete="off" />
               </BlockStack>
             )}
             {saveFetcher.data?.ok === false && (
-              <Banner tone="critical"><p>{fr ? "Échec de l'enregistrement." : "Save failed."}</p></Banner>
+              <Banner tone="critical"><p>{t(locale, "dashSaveFailed")}</p></Banner>
             )}
           </BlockStack>
         </Modal.Section>
@@ -3087,21 +2991,15 @@ export default function IndexPage() {
         {gscReauthRequired ? (
           <Banner
             tone="critical"
-            title={
-              locale === "fr"
-                ? "Reconnexion à Google requise"
-                : "Google reconnection required"
-            }
+            title={t(locale, "dashGoogleReauthTitle")}
           >
             <BlockStack gap="200">
               <Text as="p">
-                {locale === "fr"
-                  ? "Google a déconnecté votre compte. Reconnectez-le pour que les analyses continuent d'utiliser vos vraies données de recherche."
-                  : "Google disconnected your account. Reconnect it so analyses keep using your real search data."}
+                {t(locale, "dashGoogleReauthBody")}
               </Text>
               <InlineStack>
                 <Button url="/app/onboarding" variant="primary">
-                  {locale === "fr" ? "Reconnecter Google" : "Reconnect Google"}
+                  {t(locale, "dashReconnectGoogle")}
                 </Button>
               </InlineStack>
             </BlockStack>
@@ -3109,21 +3007,15 @@ export default function IndexPage() {
         ) : !gscConnected ? (
           <Banner
             tone="warning"
-            title={
-              locale === "fr"
-                ? "Google n'est pas connecté"
-                : "Google is not connected"
-            }
+            title={t(locale, "dashGoogleNotConnectedTitle")}
           >
             <BlockStack gap="200">
               <Text as="p">
-                {locale === "fr"
-                  ? "Sans Google, les recommandations seront basées sur le marché général, pas sur les vraies requêtes de vos clients."
-                  : "Without Google, recommendations will be based on the general market, not on your customers' real queries."}
+                {t(locale, "dashGoogleNotConnectedBody")}
               </Text>
               <InlineStack>
                 <Button url="/app/onboarding" variant="primary">
-                  {locale === "fr" ? "Connecter Google" : "Connect Google"}
+                  {t(locale, "dashConnectGoogle")}
                 </Button>
               </InlineStack>
             </BlockStack>
@@ -3229,7 +3121,7 @@ export default function IndexPage() {
           <Card>
             <BlockStack gap="300">
               <SectionTitle source={BookOpenIcon}>
-                {locale === "fr" ? "Inspiration pour améliorer son référencement organique" : "Inspiration to improve your organic ranking"}
+                {t(locale, "dashInspirationTitle")}
               </SectionTitle>
               <InlineGrid columns={{ xs: 1, md: 2 }} gap="300">
                 {inspirationIdeas.map((idea, i) => (
@@ -3244,7 +3136,7 @@ export default function IndexPage() {
                 ))}
               </InlineGrid>
               <Button url={localizedPath("/app/blog", locale)} variant="primary" fullWidth>
-                {locale === "fr" ? "Voir toutes les idées sur le Blog" : "See all ideas on the Blog"}
+                {t(locale, "dashSeeAllBlogIdeas")}
               </Button>
             </BlockStack>
           </Card>
@@ -3316,6 +3208,16 @@ function hasProposalFor(pack: ProductResult["content_test_pack"], field: Validat
 // render per-day markers, so we build a lightweight Monday-first grid instead.
 type CalendarMarker = { date: Date; color: string; tooltip: string };
 
+const DATE_LOCALES: Record<Locale, string> = { fr: "fr-FR", en: "en-US", de: "de-DE", es: "es-ES" };
+
+// Monday-first single-letter weekday headers.
+const WEEKDAYS: Record<Locale, string[]> = {
+  fr: ["L", "M", "M", "J", "V", "S", "D"],
+  en: ["M", "T", "W", "T", "F", "S", "S"],
+  de: ["M", "D", "M", "D", "F", "S", "S"],
+  es: ["L", "M", "X", "J", "V", "S", "D"],
+};
+
 function MiniCalendar({
   month,
   year,
@@ -3331,15 +3233,12 @@ function MiniCalendar({
   onNext: () => void;
   locale: Locale;
 }) {
-  const intl = locale === "fr" ? "fr-FR" : "en-US";
+  const intl = DATE_LOCALES[locale];
   const monthLabel = new Date(year, month, 1).toLocaleDateString(intl, {
     month: "long",
     year: "numeric",
   });
-  const weekdays =
-    locale === "fr"
-      ? ["L", "M", "M", "J", "V", "S", "D"]
-      : ["M", "T", "W", "T", "F", "S", "S"];
+  const weekdays = WEEKDAYS[locale];
   const offset = (new Date(year, month, 1).getDay() + 6) % 7; // Monday-first
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells: (number | null)[] = [];
@@ -3456,7 +3355,7 @@ function AnalysisSchedulePanels({
   startRef?: React.MutableRefObject<(() => void) | null>;
 }) {
   const isGreen = geoLevel ? LEVEL_TONES[geoLevel] === "success" : false;
-  const dateLocale = locale === "fr" ? "fr-FR" : "en-US";
+  const dateLocale = DATE_LOCALES[locale];
   const fmt = (iso: string | null | undefined): string | null => {
     if (!iso) return null;
     const d = new Date(iso);
@@ -3875,8 +3774,8 @@ function AnalysisSchedulePanels({
                   const pct = Math.min(100, Math.round((done / total) * 100));
                   const phaseLabel =
                     job?.phase === "targeting"
-                      ? (locale === "fr" ? "Ciblage des mots-clés" : "Keyword targeting")
-                      : (locale === "fr" ? "Génération de contenu" : "Content generation");
+                      ? t(locale, "dashPhaseTargeting")
+                      : t(locale, "dashPhaseContent");
                   return (
                     <BlockStack gap="100">
                       <Text as="p" variant="bodySm" tone="subdued">
