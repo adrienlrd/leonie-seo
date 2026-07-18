@@ -165,9 +165,9 @@ _FAQ: list[dict] = [
         "question_fr": "Comment contacter le support ?",
         "question_en": "How do I contact support?",
         "answer_fr": (
-            "Ouvrez une issue sur le dépôt GitHub ou envoyez un email à support@leonie-seo.com."
+            "Ouvrez une issue sur le dépôt GitHub ou envoyez un email à contact.leoniedelacroix@gmail.com."
         ),
-        "answer_en": ("Open an issue on the GitHub repository or email support@leonie-seo.com."),
+        "answer_en": ("Open an issue on the GitHub repository or email contact.leoniedelacroix@gmail.com."),
     },
     {
         "id": "theme-compatibility",

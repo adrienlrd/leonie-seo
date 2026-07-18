@@ -65,12 +65,14 @@ def test_privacy_policy_bilingual(client):
 
 
 def test_privacy_policy_app_store_mode_mentions_neon_and_publisher(client):
-    """In default app_store mode: must declare Neon Postgres host and that
-    the publisher is the data controller — NOT 'self-hosted'."""
+    """In default app_store mode: must name the legal publisher (Léonie
+    Delacroix SASU) as data controller and its EU database host — NOT
+    'self-hosted'."""
     with patch.dict("os.environ", {"LEONIE_MODE": "app_store"}):
         resp = client.get("/privacy")
-    assert "Neon Postgres" in resp.text
-    assert "publisher" in resp.text or "éditeur" in resp.text
+    assert "Neon" in resp.text
+    assert "Léonie Delacroix SASU" in resp.text
+    assert "987 948 106" in resp.text  # SIREN — legal identity is mandatory
     # Must NOT claim the app is self-hosted
     assert "auto-hébergé" not in resp.text
 
@@ -89,7 +91,7 @@ def test_privacy_policy_default_is_app_store_mode(client):
     env_no_mode = {k: v for k, v in ENV.items() if k != "LEONIE_MODE"}
     with patch.dict("os.environ", env_no_mode, clear=True):
         resp = client.get("/privacy")
-    assert "Neon Postgres" in resp.text
+    assert "Léonie Delacroix SASU" in resp.text
 
 
 # ── GET /api/gdpr/export ──────────────────────────────────────────────────────
