@@ -3,7 +3,7 @@
 Two privacy modes are supported, controlled by the LEONIE_MODE env var:
 
 - `app_store` (default) — SaaS deployment. Tokens and metadata are stored on
-  GEO by Organically managed infrastructure (Neon Postgres) and the data controller
+  GEO by Organically managed infrastructure (Render Postgres, EU) and the data controller
   is the app vendor. This is the canonical mode for App Store distribution.
 - `self_hosted` — CLI/agency deployment. The merchant runs the app on their
   own infrastructure; no data leaves their environment. The data controller
@@ -102,8 +102,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
   <h2>4. Sous-traitants et transferts hors UE</h2>
   <table>
     <tr><th>Sous-traitant</th><th>Rôle</th><th>Localisation</th><th>Encadrement du transfert</th></tr>
-    <tr><td>Render Services, Inc.</td><td>Hébergement applicatif</td><td>UE (Francfort, Allemagne)</td><td>Données hébergées en UE ; DPA</td></tr>
-    <tr><td>Neon, Inc.</td><td>Base de données Postgres</td><td>UE</td><td>Données hébergées en UE ; DPA</td></tr>
+    <tr><td>Render Services, Inc.</td><td>Hébergement applicatif et base de données Postgres</td><td>UE (Francfort, Allemagne)</td><td>Données hébergées en UE ; DPA</td></tr>
     <tr><td>Shopify International Ltd.</td><td>Plateforme e-commerce, facturation</td><td>Irlande / Canada</td><td>Clauses contractuelles types (SCC) ; décision d'adéquation Canada</td></tr>
     <tr><td>OpenAI, LLC</td><td>Génération de contenu IA</td><td>USA</td><td>SCC ; DPA ; contenu non utilisé pour l'entraînement</td></tr>
     <tr><td>Google LLC (Gemini, Search Console, GA4)</td><td>IA avec recherche web, données SEO</td><td>USA</td><td>SCC ; EU-US Data Privacy Framework</td></tr>
@@ -202,8 +201,7 @@ _PRIVACY_HTML_APP_STORE = """<!DOCTYPE html>
   <h2>4. Subprocessors and Transfers Outside the EU</h2>
   <table>
     <tr><th>Subprocessor</th><th>Role</th><th>Location</th><th>Transfer safeguard</th></tr>
-    <tr><td>Render Services, Inc.</td><td>Application hosting</td><td>EU (Frankfurt, Germany)</td><td>Data hosted in the EU; DPA</td></tr>
-    <tr><td>Neon, Inc.</td><td>Postgres database</td><td>EU</td><td>Data hosted in the EU; DPA</td></tr>
+    <tr><td>Render Services, Inc.</td><td>Application hosting and Postgres database</td><td>EU (Frankfurt, Germany)</td><td>Data hosted in the EU; DPA</td></tr>
     <tr><td>Shopify International Ltd.</td><td>E-commerce platform, billing</td><td>Ireland / Canada</td><td>SCCs; Canada adequacy decision</td></tr>
     <tr><td>OpenAI, LLC</td><td>AI content generation</td><td>USA</td><td>SCCs; DPA; content not used for training</td></tr>
     <tr><td>Google LLC (Gemini, Search Console, GA4)</td><td>AI with web search, SEO data</td><td>USA</td><td>SCCs; EU-US Data Privacy Framework</td></tr>
@@ -513,7 +511,7 @@ async def privacy_policy() -> str:
     """Public privacy policy page — required for Shopify App Store listing.
 
     Returns the variant matching the active deployment mode (LEONIE_MODE):
-    - 'app_store' (default): SaaS — vendor is data controller, Neon Postgres host.
+    - 'app_store' (default): SaaS — vendor is data controller, Render Postgres (EU) host.
     - 'self_hosted': merchant is data controller, no third-party hosting.
     """
     return _PRIVACY_HTML_APP_STORE if _mode() == "app_store" else _PRIVACY_HTML_SELF_HOSTED

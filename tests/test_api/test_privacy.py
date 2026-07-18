@@ -70,7 +70,7 @@ def test_privacy_policy_app_store_mode_mentions_neon_and_publisher(client):
     'self-hosted'."""
     with patch.dict("os.environ", {"LEONIE_MODE": "app_store"}):
         resp = client.get("/privacy")
-    assert "Neon" in resp.text
+    assert "Render" in resp.text
     assert "Léonie Delacroix SASU" in resp.text
     assert "987 948 106" in resp.text  # SIREN — legal identity is mandatory
     # Must NOT claim the app is self-hosted
