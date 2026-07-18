@@ -20,7 +20,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
-import { loaderPhrases, localizedPath, type Locale } from "../lib/i18n";
+import { loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
 import { resolveLocale } from "../lib/i18n.server";
 import { ResearchConsole, type ResearchJobEvent } from "../components/ResearchConsole";
 import { buildCrawlSteps } from "../lib/researchSteps";
@@ -137,7 +137,7 @@ function asList(value: unknown): string[] {
 }
 
 function yesNo(value: unknown, locale: Locale): string {
-  return value ? (locale === "fr" ? "Oui" : "Yes") : locale === "fr" ? "Non" : "No";
+  return value ? t(locale, "ccYes") : t(locale, "ccNo");
 }
 
 function yesNoBadge(value: unknown, locale: Locale) {
@@ -193,7 +193,7 @@ function SynthesisBlock({
             locale={locale}
             phrases={loaderPhrases(locale, "crawl")}
             estimateMs={120_000}
-            title={locale === "fr" ? "Analyse détaillée en cours…" : "Detailed analysis in progress…"}
+            title={t(locale, "ccDetailedRunning")}
           />
         </Box>
       );
@@ -201,9 +201,7 @@ function SynthesisBlock({
     return (
       <Box padding="300" background="bg-surface-secondary" borderRadius="200">
         <Text as="p" tone="subdued">
-          {locale === "fr"
-            ? "Clique sur « Générer l'analyse détaillée » pour obtenir les forces, opportunités et actions inspirées de ce concurrent."
-            : "Click “Generate detailed analysis” to get this competitor's strengths, opportunities and inspired actions."}
+          {t(locale, "ccClickGenerate")}
         </Text>
       </Box>
     );
@@ -215,7 +213,7 @@ function SynthesisBlock({
         <Box padding="300" background="bg-surface-secondary" borderRadius="200">
           <BlockStack gap="050">
             <Text as="p" variant="bodySm" tone="subdued">
-              {locale === "fr" ? "Style de titres" : "Title style"}
+              {t(locale, "ccTitleStyle")}
             </Text>
             <Text as="p">{synthesis.title_style}</Text>
           </BlockStack>
@@ -226,7 +224,7 @@ function SynthesisBlock({
           <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
             <BlockStack gap="150">
               <Text as="p" fontWeight="semibold">
-                {locale === "fr" ? "✓ Ce qu'ils font bien" : "✓ What they do well"}
+                {t(locale, "ccDoWell")}
               </Text>
               <List type="bullet">
                 {synthesis.strengths.map((s, i) => (
@@ -240,7 +238,7 @@ function SynthesisBlock({
           <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
             <BlockStack gap="150">
               <Text as="p" fontWeight="semibold">
-                {locale === "fr" ? "⚡ Opportunités pour toi" : "⚡ Your opportunities"}
+                {t(locale, "ccOpportunities")}
               </Text>
               <List type="bullet">
                 {synthesis.opportunities.map((o, i) => (
@@ -255,7 +253,7 @@ function SynthesisBlock({
         <Box padding="300" background="bg-surface-success" borderRadius="200">
           <BlockStack gap="150">
             <Text as="p" fontWeight="semibold">
-              {locale === "fr" ? "→ À faire pour t'en inspirer" : "→ Actions to take"}
+              {t(locale, "ccActions")}
             </Text>
             <List type="number">
               {synthesis.inspiration.map((a, i) => (
@@ -317,16 +315,16 @@ function TechnicalDetail({ page, locale }: { page: CompetitorCrawlTopUrl; locale
       </BlockStack>
 
       <BlockStack gap="200">
-        <SectionHeading>{locale === "fr" ? "Structure et contenu" : "Structure & content"}</SectionHeading>
+        <SectionHeading>{t(locale, "ccStructure")}</SectionHeading>
         <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="300">
           {metricLabel("H1", asNumber(structure.h1_count))}
           {metricLabel("H2", asNumber(structure.h2_count))}
           {metricLabel("H3", asNumber(structure.h3_count))}
-          {metricLabel(locale === "fr" ? "Longueur" : "Length", `${asNumber(structure.word_count)} ${locale === "fr" ? "mots" : "words"}`)}
-          {metricLabel(locale === "fr" ? "Listes" : "Lists", yesNoBadge(structure.has_bullet_lists, locale))}
-          {metricLabel(locale === "fr" ? "Tableau comparatif" : "Comparison table", yesNoBadge(structure.has_comparison_table, locale))}
+          {metricLabel(t(locale, "ccLength"), `${asNumber(structure.word_count)} ${t(locale, "ccWords")}`)}
+          {metricLabel(t(locale, "ccLists"), yesNoBadge(structure.has_bullet_lists, locale))}
+          {metricLabel(t(locale, "ccComparisonTable"), yesNoBadge(structure.has_comparison_table, locale))}
           {metricLabel("Specs produit", yesNoBadge(structure.has_product_specs_table, locale))}
-          {metricLabel(locale === "fr" ? "Av./Inconv." : "Pros/Cons", yesNoBadge(structure.has_pros_cons, locale))}
+          {metricLabel(t(locale, "ccProsCons"), yesNoBadge(structure.has_pros_cons, locale))}
         </InlineGrid>
         {h2.length > 0 && (
           <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
@@ -346,18 +344,18 @@ function TechnicalDetail({ page, locale }: { page: CompetitorCrawlTopUrl; locale
         <SectionHeading>GEO / AEO / Schema</SectionHeading>
         <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="300">
           {metricLabel("FAQ visible", `${yesNo(geo.has_faq_block, locale)} · ${asNumber(geo.faq_question_count)} q.`)}
-          {metricLabel(locale === "fr" ? "Blocs réponse" : "Answer blocks", yesNoBadge(geo.has_short_answer_block, locale))}
+          {metricLabel(t(locale, "ccAnswerBlocks"), yesNoBadge(geo.has_short_answer_block, locale))}
           {metricLabel("Answerability", `${asNumber(geo.answerability_score)}/100`)}
           {metricLabel("AI readability", `${asNumber(geo.ai_readability_score)}/100`)}
           {metricLabel("JSON-LD", `${asNumber(schema.jsonld_count)} blocs`)}
           {metricLabel("Product / Offer", `${yesNo(schema.has_product_schema, locale)} / ${yesNo(schema.has_offer_schema, locale)}`)}
           {metricLabel("Breadcrumb / FAQPage", `${yesNo(schema.has_breadcrumb_schema, locale)} / ${yesNo(schema.has_faq_schema, locale)}`)}
-          {metricLabel(locale === "fr" ? "Liens internes" : "Internal links", asNumber(links.internal_link_count))}
+          {metricLabel(t(locale, "ccInternalLinks"), asNumber(links.internal_link_count))}
         </InlineGrid>
         {schemaTypes.length > 0 && (
           <Box padding="300" borderWidth="025" borderRadius="200" borderColor="border">
             <BlockStack gap="150">
-              <Text as="p" variant="bodySm" tone="subdued">{locale === "fr" ? "Schémas détectés" : "Detected schemas"}</Text>
+              <Text as="p" variant="bodySm" tone="subdued">{t(locale, "ccSchemas")}</Text>
               <InlineStack gap="100" wrap>
                 {schemaTypes.map((item) => <Badge key={item}>{item}</Badge>)}
               </InlineStack>
@@ -365,8 +363,8 @@ function TechnicalDetail({ page, locale }: { page: CompetitorCrawlTopUrl; locale
           </Box>
         )}
         <InlineStack gap="100" wrap>
-          {metricLabel(locale === "fr" ? "Images (alt)" : "Images (alt)", `${asNumber(images.descriptive_image_alt_count)}/${asNumber(images.image_count)}`)}
-          {metricLabel(locale === "fr" ? "Confiance" : "Trust", yesNoBadge(trust.has_trust_proof || trust.has_reviews_or_social_proof, locale))}
+          {metricLabel(t(locale, "ccImagesAlt"), `${asNumber(images.descriptive_image_alt_count)}/${asNumber(images.image_count)}`)}
+          {metricLabel(t(locale, "ccTrust"), yesNoBadge(trust.has_trust_proof || trust.has_reviews_or_social_proof, locale))}
         </InlineStack>
       </BlockStack>
     </BlockStack>
@@ -395,24 +393,23 @@ function CompetitorCard({
             <InlineStack gap="150" blockAlign="center" wrap>
               <Text as="h2" variant="headingMd">{profile.domain}</Text>
               <Badge tone={strengthTone(profile.strength_label)}>
-                {`${locale === "fr" ? "Force" : "Strength"} ${profile.strength_label}`}
+                {`${t(locale, "ccStrength")} ${profile.strength_label}`}
               </Badge>
             </InlineStack>
             <Text as="p" tone="subdued">
               {profile.ranked_keyword_count > 0
-                ? locale === "fr"
-                  ? `${profile.ranked_keyword_count} mots-clés rankés · meilleure position #${profile.best_rank} · moyenne #${profile.avg_rank}`
-                  : `${profile.ranked_keyword_count} ranked keywords · best #${profile.best_rank} · avg #${profile.avg_rank}`
+                ? t(locale, "ccRankedSummary")
+                    .replace("{count}", String(profile.ranked_keyword_count))
+                    .replace("{best}", String(profile.best_rank))
+                    .replace("{avg}", String(profile.avg_rank))
                 : profile.content_angle
                   ? profile.content_angle
-                  : locale === "fr"
-                    ? "Concurrent identifié au niveau du domaine"
-                    : "Competitor identified at domain level"}
+                  : t(locale, "ccDomainLevel")}
             </Text>
           </BlockStack>
           {profile.top_page_url && (
             <Button url={profile.top_page_url} target="_blank" variant="secondary" size="slim">
-              {locale === "fr" ? "Voir leur page" : "View their page"}
+              {t(locale, "ccViewPage")}
             </Button>
           )}
         </InlineStack>
@@ -423,7 +420,7 @@ function CompetitorCard({
 
         {topKeywords.length > 0 && (
           <BlockStack gap="200">
-            <SectionHeading>{locale === "fr" ? "Mots-clés où ils apparaissent" : "Keywords they rank for"}</SectionHeading>
+            <SectionHeading>{t(locale, "ccKeywordsRank")}</SectionHeading>
             <InlineStack gap="100" wrap>
               {topKeywords.map((kw, i) => (
                 <Badge key={`${kw.keyword}-${i}`} tone={kw.rank <= 3 ? "success" : undefined}>
@@ -437,7 +434,7 @@ function CompetitorCard({
         {profile.top_page && (
           <BlockStack gap="200">
             <Button variant="plain" onClick={() => setDetailOpen((o) => !o)} disclosure={detailOpen ? "up" : "down"}>
-              {locale === "fr" ? "Détail technique de leur page" : "Technical detail of their page"}
+              {t(locale, "ccTechDetail")}
             </Button>
             <Collapsible id={`detail-${profile.domain}`} open={detailOpen}>
               <TechnicalDetail page={profile.top_page} locale={locale} />
@@ -548,7 +545,7 @@ export default function CompetitorCrawlPage() {
   );
 
   const domainOptions = [
-    { label: locale === "fr" ? "Tous les concurrents" : "All competitors", value: "all" },
+    { label: t(locale, "ccAllCompetitors"), value: "all" },
     ...competitors.map((c) => ({ label: c.domain, value: c.domain })),
   ];
 
@@ -557,18 +554,16 @@ export default function CompetitorCrawlPage() {
 
   return (
     <Page
-      title={locale === "fr" ? "Concurrents" : "Competitors"}
+      title={t(locale, "ccPageTitle")}
       subtitle={
-        locale === "fr"
-          ? "Ce que font tes concurrents et comment t'en inspirer pour ton GEO."
-          : "What your competitors do and how to take inspiration for your GEO."
+        t(locale, "ccPageSubtitle")
       }
       primaryAction={
         hasData
           ? {
               content: isEnriched
-                ? locale === "fr" ? "Régénérer l'analyse" : "Regenerate analysis"
-                : locale === "fr" ? "Générer l'analyse détaillée" : "Generate detailed analysis",
+                ? t(locale, "ccRegenerate")
+                : t(locale, "ccGenerateDetailed"),
               onAction: handleEnrich,
               loading: isRunning,
               disabled: isRunning,
@@ -585,12 +580,10 @@ export default function CompetitorCrawlPage() {
           <Banner tone="warning">
             <BlockStack gap="200">
               <Text as="p">
-                {locale === "fr"
-                  ? "Aucune analyse marché trouvée. Lance d'abord une analyse marché pour identifier tes concurrents."
-                  : "No market analysis found. Run a market analysis first to identify your competitors."}
+                {t(locale, "ccNoMarketAnalysis")}
               </Text>
               <Button url={localizedPath("/app/products", locale)} variant="plain">
-                {locale === "fr" ? "Lancer l'analyse marché" : "Run market analysis"}
+                {t(locale, "ccRunMarket")}
               </Button>
             </BlockStack>
           </Banner>
@@ -602,30 +595,26 @@ export default function CompetitorCrawlPage() {
               <InlineStack align="space-between" blockAlign="center" wrap gap="300">
                 <BlockStack gap="050">
                   <Text as="h2" variant="headingMd">
-                    {locale === "fr" ? "Vue d'ensemble" : "Overview"}
+                    {t(locale, "ccOverview")}
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
                     {isEnriched
-                      ? locale === "fr"
-                        ? "Analyse détaillée disponible"
-                        : "Detailed analysis available"
-                      : locale === "fr"
-                        ? "Profils SERP — génère l'analyse détaillée pour les recommandations"
-                        : "SERP profiles — generate the detailed analysis for recommendations"}
+                      ? t(locale, "ccDetailedAvailable")
+                      : t(locale, "ccSerpProfiles")}
                   </Text>
                 </BlockStack>
               </InlineStack>
               <InlineGrid columns={{ xs: 1, sm: 3 }} gap="300">
-                {metricLabel(locale === "fr" ? "Concurrents" : "Competitors", competitors.length)}
-                {metricLabel(locale === "fr" ? "Mots-clés SERP" : "SERP keywords", asNumber(result?.keywords_used))}
+                {metricLabel(t(locale, "ccCompetitors"), competitors.length)}
+                {metricLabel(t(locale, "ccSerpKeywords"), asNumber(result?.keywords_used))}
                 {metricLabel(
-                  locale === "fr" ? "Analyse détaillée" : "Detailed analysis",
-                  isEnriched ? (locale === "fr" ? "Oui" : "Yes") : (locale === "fr" ? "Non" : "No"),
+                  t(locale, "ccDetailedAnalysis"),
+                  isEnriched ? t(locale, "ccYes") : t(locale, "ccNo"),
                 )}
               </InlineGrid>
               {competitors.length > 1 && (
                 <Select
-                  label={locale === "fr" ? "Filtrer par concurrent" : "Filter by competitor"}
+                  label={t(locale, "ccFilterBy")}
                   options={domainOptions}
                   value={domainFilter}
                   onChange={setDomainFilter}
@@ -641,9 +630,7 @@ export default function CompetitorCrawlPage() {
               locale={locale}
               phrases={loaderPhrases(locale, "crawl")}
               estimateMs={30_000}
-              title={locale === "fr"
-                ? "Génération de l'analyse détaillée — ~30 s. Les recommandations apparaîtront ci-dessous."
-                : "Generating detailed analysis — ~30s. Recommendations will appear below."}
+              title={t(locale, "ccGeneratingDetailed")}
               steps={buildCrawlSteps(locale, jobStatus ?? undefined, jobEvents)}
               events={jobEvents}
             />
@@ -652,17 +639,15 @@ export default function CompetitorCrawlPage() {
 
         {!hasData && !noMarketAnalysis && (
           <EmptyState
-            heading={locale === "fr" ? "Aucun concurrent identifié" : "No competitor identified"}
+            heading={t(locale, "ccNoCompetitor")}
             action={{
-              content: locale === "fr" ? "Lancer l'analyse marché" : "Run market analysis",
+              content: t(locale, "ccRunMarket"),
               url: localizedPath("/app/products", locale),
             }}
             image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
           >
             <Text as="p">
-              {locale === "fr"
-                ? "Lance une analyse marché : elle interroge DataForSeo et alimente cette page avec tes concurrents réels."
-                : "Run a market analysis: it queries DataForSeo and populates this page with your real competitors."}
+              {t(locale, "ccEmptyBody")}
             </Text>
           </EmptyState>
         )}
@@ -673,7 +658,7 @@ export default function CompetitorCrawlPage() {
 
         {hasData && filtered.length === 0 && (
           <Banner tone="info">
-            <Text as="p">{locale === "fr" ? "Aucun concurrent ne correspond au filtre." : "No competitor matches the filter."}</Text>
+            <Text as="p">{t(locale, "ccNoFilterMatch")}</Text>
           </Banner>
         )}
       </BlockStack>
