@@ -1767,9 +1767,6 @@ export default function ProductsPage() {
           const ps = job?.provider_status ?? latestJob?.provider_status;
           const src = job ?? latestJob;
           const degraded: string[] = [];
-          if (ps?.trends?.status === "error" || ps?.trends?.status === "unavailable") {
-            degraded.push(t(locale, "provStatusTrendsDown"));
-          }
           const rt = src?.realtime_status?.status;
           if (rt === "llm_error" || rt === "parse_error" || rt === "partial") {
             degraded.push(t(locale, "provStatusRealtimeDown"));
