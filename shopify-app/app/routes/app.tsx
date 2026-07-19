@@ -16,8 +16,8 @@ export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
 
-  // "Forfaits" nav entry is shown only to free-plan merchants. Fail closed
-  // (hidden) on backend timeout so the nav never nags paying merchants.
+  // Plan feeds the PlanBadge on every page title; the "Forfait" nav entry is
+  // always visible.
   let plan = "free";
   try {
     const resp = await callBackendForShop(session.shop, `/api/shops/${session.shop}/billing/status`, {
@@ -39,18 +39,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     supportChatSrc: process.env.LEONIE_SUPPORT_CHAT_SRC || "",
     shop: session.shop,
     plan,
-    isFreePlan: plan === "free",
   });
 };
 
 export default function App() {
-  const { apiKey, locale, supportChatSrc, shop, isFreePlan } = useLoaderData<typeof loader>() as {
+  const { apiKey, locale, supportChatSrc, shop } = useLoaderData<typeof loader>() as {
     apiKey: string;
     locale: Locale;
     supportChatSrc: string;
     shop: string;
     plan: string;
-    isFreePlan: boolean;
   };
 
   // Hide the secondary nav links while the merchant is on the onboarding screen
@@ -69,10 +67,10 @@ export default function App() {
         {!onOnboarding && <a href={localizedPath("/app/blog", locale)}>Blog</a>}
         {!onOnboarding && <a href={localizedPath("/app/analyse", locale)}>{t(locale, "analyseNav")}</a>}
         {!onOnboarding && <a href={localizedPath("/app/geo-llms-txt", locale)}>{t(locale, "llmsTxtTitle")}</a>}
-        {!onOnboarding && <a href={localizedPath("/app/account", locale)}>{t(locale, "settings")}</a>}
-        {!onOnboarding && isFreePlan && (
+        {!onOnboarding && (
           <a href={localizedPath("/app/billing", locale)}>{t(locale, "navPlans")}</a>
         )}
+        {!onOnboarding && <a href={localizedPath("/app/account", locale)}>{t(locale, "settings")}</a>}
       </NavMenu>
       <Outlet />
     </AppProvider>

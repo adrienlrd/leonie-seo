@@ -253,6 +253,12 @@ export default function AccountHub() {
       href: "/app/billing",
       description: t(locale, "acctBillingDesc"),
     },
+    {
+      titleKey: "privacyPolicy",
+      href: `${backendUrl}/privacy`,
+      external: true,
+      description: t(locale, "acctPrivacyDesc"),
+    },
   ];
 
   const onResetConfirm = () => {
@@ -277,22 +283,7 @@ export default function AccountHub() {
       subtitle={t(locale, "hubSettingsSubtitle")}
     >
       <BlockStack gap="600">
-        <HubGrid items={items} locale={locale} />
-
         <LanguageCard locale={locale} />
-
-        <Card>
-          <BlockStack gap="200">
-            <Text as="h2" variant="headingMd">
-              {t(locale, "privacyPolicy")}
-            </Text>
-            <InlineStack>
-              <Button url={`${backendUrl}/privacy`} target="_blank">
-                {t(locale, "openPolicy")}
-              </Button>
-            </InlineStack>
-          </BlockStack>
-        </Card>
 
         <Card>
           <BlockStack gap="300">
@@ -499,6 +490,8 @@ export default function AccountHub() {
             )}
           </BlockStack>
         </Card>
+        <HubGrid items={items} locale={locale} />
+
       </BlockStack>
     </Page>
   );

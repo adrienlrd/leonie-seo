@@ -42,7 +42,7 @@ const FR: Dictionary = {
   settings: "Réglages",
   privacy: "Confidentialité",
   jobs: "Jobs GEO",
-  billing: "Facturation",
+  billing: "Forfait",
   backDashboard: "Dashboard",
   language: "Langue",
   currentPlan: "Plan actuel",
@@ -1361,7 +1361,7 @@ const FR: Dictionary = {
   pcardRerunForDetail: "Relancez une analyse pour voir le détail par critère.",
 
   // recovered keys (account, billing, products, analyse, onboarding, settings, nav, usage)
-  acctBillingDesc: "Plan actuel, facturation et passage Pro ou Agency.",
+  acctBillingDesc: "Votre forfait actuel et le passage à Pro ou Grande boutique.",
   acctGeoSourcesTitle: "Analyse GEO — sources de données",
   acctGeoSourcesDesc: "L'analyse utilise le profil entreprise validé quand il existe et remonte des signaux pour l'améliorer.",
   acctLive: "Réel",
@@ -1446,6 +1446,11 @@ const FR: Dictionary = {
   stgLiveWritesEnabled: "Écritures live activées",
   stgLiveWritesDesc: "Les écritures Shopify live sont activées; chaque application est confirmée explicitement.",
   umUpgrade: "Passer à la vitesse supérieure",
+  // plan badge
+  pbFree: "Gratuit",
+  pbPro: "Pro",
+  pbAgency: "Grande boutique",
+  acctPrivacyDesc: "Consultez comment vos données sont traitées (RGPD).",
 };
 
 const EN: Dictionary = {
@@ -1482,7 +1487,7 @@ const EN: Dictionary = {
   settings: "Settings",
   privacy: "Privacy",
   jobs: "GEO jobs",
-  billing: "Billing",
+  billing: "Plan",
   backDashboard: "Dashboard",
   language: "Language",
   currentPlan: "Current plan",
@@ -2799,7 +2804,7 @@ const EN: Dictionary = {
   pcardRerunForDetail: "Re-run an analysis to see the per-criterion breakdown.",
 
   // recovered keys (account, billing, products, analyse, onboarding, settings, nav, usage)
-  acctBillingDesc: "Current plan, billing, and upgrade to Pro or Agency.",
+  acctBillingDesc: "Your current plan and upgrading to Pro or Large store.",
   acctGeoSourcesTitle: "GEO Analysis — data sources",
   acctGeoSourcesDesc: "The analysis uses the validated business profile when available and surfaces signals to improve it.",
   acctLive: "Live",
@@ -2884,6 +2889,11 @@ const EN: Dictionary = {
   stgLiveWritesEnabled: "Live writes enabled",
   stgLiveWritesDesc: "Live Shopify writes are enabled; each apply is explicitly confirmed.",
   umUpgrade: "Move up a gear",
+  // plan badge
+  pbFree: "Free",
+  pbPro: "Pro",
+  pbAgency: "Large store",
+  acctPrivacyDesc: "See how your data is processed (GDPR).",
 };
 
 const DE: Dictionary = {
@@ -2920,7 +2930,7 @@ const DE: Dictionary = {
   settings: "Einstellungen",
   privacy: "Datenschutz",
   jobs: "GEO-Jobs",
-  billing: "Abrechnung",
+  billing: "Tarif",
   backDashboard: "Dashboard",
   language: "Sprache",
   currentPlan: "Aktueller Plan",
@@ -4237,7 +4247,7 @@ const DE: Dictionary = {
   pcardRerunForDetail: "Führen Sie eine Analyse erneut aus, um das Detail pro Kriterium zu sehen.",
 
   // recovered keys (account, billing, products, analyse, onboarding, settings, nav, usage)
-  acctBillingDesc: "Aktueller Tarif, Abrechnung und Upgrade auf Pro oder Agency.",
+  acctBillingDesc: "Ihr aktueller Tarif und das Upgrade auf Pro oder Großer Shop.",
   acctGeoSourcesTitle: "GEO-Analyse — Datenquellen",
   acctGeoSourcesDesc: "Die Analyse verwendet das validierte Unternehmensprofil, sofern vorhanden, und liefert Signale zu seiner Verbesserung.",
   acctLive: "Live",
@@ -4322,6 +4332,11 @@ const DE: Dictionary = {
   stgLiveWritesEnabled: "Live-Schreibvorgänge aktiviert",
   stgLiveWritesDesc: "Live-Schreibvorgänge in Shopify sind aktiviert; jede Anwendung wird ausdrücklich bestätigt.",
   umUpgrade: "Einen Gang hochschalten",
+  // plan badge
+  pbFree: "Kostenlos",
+  pbPro: "Pro",
+  pbAgency: "Großer Shop",
+  acctPrivacyDesc: "Erfahren Sie, wie Ihre Daten verarbeitet werden (DSGVO).",
 };
 
 const ES: Dictionary = {
@@ -4358,7 +4373,7 @@ const ES: Dictionary = {
   settings: "Configuración",
   privacy: "Privacidad",
   jobs: "Trabajos GEO",
-  billing: "Facturación",
+  billing: "Plan",
   backDashboard: "Panel",
   language: "Idioma",
   currentPlan: "Plan actual",
@@ -5675,7 +5690,7 @@ const ES: Dictionary = {
   pcardRerunForDetail: "Vuelva a ejecutar un análisis para ver el detalle por criterio.",
 
   // recovered keys (account, billing, products, analyse, onboarding, settings, nav, usage)
-  acctBillingDesc: "Plan actual, facturación y cambio a Pro o Agency.",
+  acctBillingDesc: "Su plan actual y el cambio a Pro o Tienda grande.",
   acctGeoSourcesTitle: "Análisis GEO — fuentes de datos",
   acctGeoSourcesDesc: "El análisis utiliza el perfil de empresa validado cuando existe y aporta señales para mejorarlo.",
   acctLive: "Real",
@@ -5760,6 +5775,11 @@ const ES: Dictionary = {
   stgLiveWritesEnabled: "Escrituras en vivo activadas",
   stgLiveWritesDesc: "Las escrituras en vivo en Shopify están activadas; cada aplicación se confirma explícitamente.",
   umUpgrade: "Subir de nivel",
+  // plan badge
+  pbFree: "Gratis",
+  pbPro: "Pro",
+  pbAgency: "Tienda grande",
+  acctPrivacyDesc: "Consulte cómo se tratan sus datos (RGPD).",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };

@@ -8,6 +8,8 @@ export interface HubItem {
   description: string;
   /** Path within the embedded app (e.g. "/app/audit"). Will be locale-suffixed. */
   href: string;
+  /** External URL: opens in a new tab, no locale suffix. */
+  external?: boolean;
 }
 
 interface HubGridProps {
@@ -42,7 +44,11 @@ export function HubGrid({ items, locale, columns = 2 }: HubGridProps) {
               </Text>
             </Box>
             <InlineStack align="end">
-              <Link url={localizedPath(item.href, locale)} removeUnderline>
+              <Link
+                url={item.external ? item.href : localizedPath(item.href, locale)}
+                target={item.external ? "_blank" : undefined}
+                removeUnderline
+              >
                 {t(locale, "open")} →
               </Link>
             </InlineStack>
