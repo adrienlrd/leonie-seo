@@ -354,6 +354,10 @@ def test_reset_shop_data_preserves_plan_override(tmp_path, monkeypatch):
             (SHOP,),
         )
         conn.execute(
+            "INSERT INTO shop_config (shop, key, value) VALUES (?, 'app_language', 'fr')",
+            (SHOP,),
+        )
+        conn.execute(
             "INSERT INTO shop_config (shop, key, value) VALUES (?, 'managed_product_ids', '[]')",
             (SHOP,),
         )
@@ -366,5 +370,5 @@ def test_reset_shop_data_preserves_plan_override(tmp_path, monkeypatch):
                 "SELECT key, value FROM shop_config WHERE shop = ?", (SHOP,)
             ).fetchall()
         )
-    # plan_override survives; everything else in shop_config is wiped.
-    assert rows == {"plan_override": "agency"}
+    # plan_override and the app language survive; everything else is wiped.
+    assert rows == {"plan_override": "agency", "app_language": "fr"}

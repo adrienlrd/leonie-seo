@@ -122,19 +122,22 @@ def reset_shop_data(shop: str) -> dict[str, Any]:
     if not _SHOP_DOMAIN_RE.match(shop):
         raise ValueError(f"Invalid shop domain: {shop!r}")
     tables = [t for t in _SHOP_SCOPED_TABLES if t not in _RESET_PRESERVED_TABLES]
-    # The plan override is billing state, not merchant data — losing it on
-    # reset silently downgraded overridden shops to the free plan.
-    plan_override: str | None = None
+    # Billing state and the app language are preferences, not merchant data —
+    # losing them on reset silently downgraded overridden shops to free and
+    # flipped the AI output language back to English mid-onboarding.
+    _PRESERVED_CONFIG_KEYS = ("plan_override", "app_language")
+    preserved_config: dict[str, str] = {}
     try:
         with get_conn(DB_PATH) as conn:
-            row = conn.execute(
-                "SELECT value FROM shop_config WHERE shop = ? AND key = 'plan_override'",
-                (shop,),
-            ).fetchone()
-        if row:
-            plan_override = row["value"] if isinstance(row, dict) else row[0]
+            for key in _PRESERVED_CONFIG_KEYS:
+                row = conn.execute(
+                    "SELECT value FROM shop_config WHERE shop = ? AND key = ?",
+                    (shop, key),
+                ).fetchone()
+                if row:
+                    preserved_config[key] = row["value"] if isinstance(row, dict) else row[0]
     except Exception as exc:  # noqa: BLE001 - best-effort: a missing table must not block the reset
-        logger.warning("reset_shop_data(%s): plan_override read failed: %s", shop, exc)
+        logger.warning("reset_shop_data(%s): config read failed: %s", shop, exc)
     deleted = 0
     failed: list[str] = []
     for table in tables:
@@ -153,17 +156,17 @@ def reset_shop_data(shop: str) -> dict[str, Any]:
         except OSError as exc:
             failed.append("data/raw")
             logger.warning("reset_shop_data(%s): raw dir removal failed: %s", shop, exc)
-    if plan_override:
+    for key, value in preserved_config.items():
         try:
             with get_conn(DB_PATH) as conn:
                 conn.execute(
-                    "INSERT INTO shop_config (shop, key, value) VALUES (?, 'plan_override', ?)"
+                    "INSERT INTO shop_config (shop, key, value) VALUES (?, ?, ?)"
                     " ON CONFLICT(shop, key) DO UPDATE SET value = excluded.value",
-                    (shop, plan_override),
+                    (shop, key, value),
                 )
         except Exception as exc:  # noqa: BLE001 - best-effort restore, reported but non-fatal
-            failed.append("plan_override_restore")
-            logger.warning("reset_shop_data(%s): plan_override restore failed: %s", shop, exc)
+            failed.append(f"{key}_restore")
+            logger.warning("reset_shop_data(%s): %s restore failed: %s", shop, key, exc)
     logger.info(
         "reset_shop_data(%s): deleted %d rows + raw dir; failed=%s",
         shop, deleted, failed,

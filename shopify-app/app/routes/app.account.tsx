@@ -106,6 +106,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       { accessToken: session.accessToken, method: "DELETE", signal: AbortSignal.timeout(25_000) },
     );
     if (resp.ok) {
+      invalidateLocaleCache(session.shop);
       // Server-side redirect (followed by the fetcher) is the reliable way to
       // navigate inside the embedded iframe. Land the merchant back on the now
       // first-open home page.
