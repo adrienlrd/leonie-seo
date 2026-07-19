@@ -2070,22 +2070,23 @@ function PublishModeCard({
           </div>
 
           <Box
-            padding="300"
             borderWidth="025"
             borderRadius="200"
             borderColor="border"
             background="bg-surface-secondary"
             minHeight="100%"
+            overflowX="hidden"
+            overflowY="hidden"
           >
-            <div style={{ display: "flex", alignItems: "stretch" }}>
+            <div style={{ display: "flex", alignItems: "stretch", height: "100%" }}>
             <div style={{ flex: "0 0 30%", minWidth: 88, maxWidth: 160 }}>
               <img
                 src="/Logo.png"
                 alt="GEO by Organically"
-                style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", display: "block" }}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
               />
             </div>
-            <div style={{ flex: 1, minWidth: 0, paddingInlineStart: "var(--p-space-300)", display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)" }}>
+            <div style={{ flex: 1, minWidth: 0, padding: "var(--p-space-300)", display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)" }}>
               <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-start" }}>
                 <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
                   <RocketIcon size={20} />
