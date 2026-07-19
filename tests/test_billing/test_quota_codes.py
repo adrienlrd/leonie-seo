@@ -25,6 +25,10 @@ def db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "test.db"
     init_db(path)
     monkeypatch.setenv("QUOTA_CODE_SECRET", SECRET)
+    # plan grants write plan_override via shop_config_store, which uses its
+    # own module-level DB_PATH — point it at the test DB (never the real one).
+    monkeypatch.setattr("app.shop_config_store.DB_PATH", path)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     return path
 
 
