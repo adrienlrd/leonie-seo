@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher, useRevalidator } from "@remix-run/react";
 import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
+  EmptyState,
   Badge,
   Banner,
   BlockStack,
@@ -1974,10 +1975,15 @@ export default function ProductsPage() {
             {(!job?.status || job.status === "failed" || isRunning) && (
               <Card>
                 <BlockStack gap="300">
-                  {!isInProgress && !job && (
-                    <Text as="p" tone="subdued">{t(locale, "marketAnalysisEmpty")}</Text>
-                  )}
-                  {!job?.status || job.status === "failed" ? (
+                  {!isInProgress && !job ? (
+                    <EmptyState
+                      heading={t(locale, "prodEmptyTitle")}
+                      action={{ content: t(locale, "marketAnalysisRun"), onAction: handleRerun }}
+                      image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                    >
+                      <p>{t(locale, "prodEmptyBody")}</p>
+                    </EmptyState>
+                  ) : !job?.status || job.status === "failed" ? (
                     <Button
                       variant="primary"
                       onClick={handleRerun}

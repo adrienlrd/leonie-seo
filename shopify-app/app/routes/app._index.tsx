@@ -3,6 +3,7 @@ import { json, redirect } from "@remix-run/node";
 import { useFetcher, useLoaderData, useRevalidator } from "@remix-run/react";
 import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
+  EmptyState,
   Badge,
   Banner,
   BlockStack,
@@ -1706,7 +1707,13 @@ function ActiveProductsCard({
           </Tooltip>
         </InlineStack>
         {products.length === 0 ? (
-          <Text as="p" tone="subdued">{t(locale, "dashboardActiveProductsEmpty")}</Text>
+          <EmptyState
+            heading={t(locale, "dashEmptyProductsTitle")}
+            action={{ content: t(locale, "dashEmptyProductsCta"), url: localizedPath("/app/onboarding", locale) }}
+            image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+          >
+            <p>{t(locale, "dashEmptyProductsBody")}</p>
+          </EmptyState>
         ) : (
           <BlockStack gap="300">
             {products.slice(0, 2).map((product) => {

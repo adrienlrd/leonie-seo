@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import { useFetcher, useLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
 import {
+  EmptyState,
   Badge,
   Banner,
   BlockStack,
@@ -455,13 +456,18 @@ export default function AnalysePage() {
 
         {products.length === 0 ? (
           <Card>
-            <BlockStack gap="300">
-              <Text as="h2" variant="headingMd">{t(locale, "analyseEmptyPublishTitle")}</Text>
-              <Text as="p">{t(locale, "analyseEmptyPublishBody")}</Text>
-              <Text as="h3" variant="headingSm">{t(locale, "analyseEmptyWhy28Title")}</Text>
-              <Text as="p" tone="subdued">{t(locale, "analyseEmptyWhy28Body")}</Text>
-              <Text as="p" tone="subdued">{t(locale, "analyseEmptyImpactBody")}</Text>
-            </BlockStack>
+            <EmptyState
+              heading={t(locale, "analyseEmptyPublishTitle")}
+              action={{ content: t(locale, "navProducts"), url: localizedPath("/app/products", locale) }}
+              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+            >
+              <BlockStack gap="200">
+                <Text as="p">{t(locale, "analyseEmptyPublishBody")}</Text>
+                <Text as="h3" variant="headingSm">{t(locale, "analyseEmptyWhy28Title")}</Text>
+                <Text as="p" tone="subdued">{t(locale, "analyseEmptyWhy28Body")}</Text>
+                <Text as="p" tone="subdued">{t(locale, "analyseEmptyImpactBody")}</Text>
+              </BlockStack>
+            </EmptyState>
           </Card>
         ) : (
           <>

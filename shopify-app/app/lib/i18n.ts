@@ -1461,6 +1461,12 @@ const FR: Dictionary = {
   provStatusTrendsDown: "Google Trends n'a pas répondu — les tendances 12 mois n'ont pas alimenté cette analyse.",
   provStatusRealtimeDown: "La recherche web temps réel a partiellement échoué — certains produits n'ont pas de vérification marché.",
   provStatusDataforseoOff: "DataForSEO indisponible — les volumes de recherche affichés sont des estimations.",
+  // empty states
+  prodEmptyTitle: "Lancez votre première analyse",
+  prodEmptyBody: "L'analyse étudie vos produits gérés, votre marché et vos concurrents pour proposer mots-clés et contenus optimisés.",
+  dashEmptyProductsTitle: "Aucun produit géré pour l'instant",
+  dashEmptyProductsBody: "Choisissez les produits que l'app doit optimiser pour démarrer.",
+  dashEmptyProductsCta: "Choisir mes produits",
 };
 
 const EN: Dictionary = {
@@ -2914,6 +2920,12 @@ const EN: Dictionary = {
   provStatusTrendsDown: "Google Trends did not respond — 12-month trends did not feed this analysis.",
   provStatusRealtimeDown: "Real-time web search partially failed — some products have no market verification.",
   provStatusDataforseoOff: "DataForSEO unavailable — displayed search volumes are estimates.",
+  // empty states
+  prodEmptyTitle: "Run your first analysis",
+  prodEmptyBody: "The analysis studies your managed products, market and competitors to propose optimized keywords and content.",
+  dashEmptyProductsTitle: "No managed products yet",
+  dashEmptyProductsBody: "Choose the products the app should optimize to get started.",
+  dashEmptyProductsCta: "Choose my products",
 };
 
 const DE: Dictionary = {
@@ -4367,6 +4379,12 @@ const DE: Dictionary = {
   provStatusTrendsDown: "Google Trends hat nicht geantwortet — die 12-Monats-Trends sind nicht in diese Analyse eingeflossen.",
   provStatusRealtimeDown: "Die Echtzeit-Websuche ist teilweise fehlgeschlagen — einige Produkte haben keine Marktverifizierung.",
   provStatusDataforseoOff: "DataForSEO nicht verfügbar — die angezeigten Suchvolumina sind Schätzungen.",
+  // empty states
+  prodEmptyTitle: "Starten Sie Ihre erste Analyse",
+  prodEmptyBody: "Die Analyse untersucht Ihre verwalteten Produkte, Ihren Markt und Ihre Wettbewerber, um optimierte Keywords und Inhalte vorzuschlagen.",
+  dashEmptyProductsTitle: "Noch keine verwalteten Produkte",
+  dashEmptyProductsBody: "Wählen Sie die Produkte aus, die die App optimieren soll, um zu starten.",
+  dashEmptyProductsCta: "Meine Produkte auswählen",
 };
 
 const ES: Dictionary = {
@@ -5820,6 +5838,12 @@ const ES: Dictionary = {
   provStatusTrendsDown: "Google Trends no respondió — las tendencias de 12 meses no alimentaron este análisis.",
   provStatusRealtimeDown: "La búsqueda web en tiempo real falló parcialmente — algunos productos no tienen verificación de mercado.",
   provStatusDataforseoOff: "DataForSEO no disponible — los volúmenes de búsqueda mostrados son estimaciones.",
+  // empty states
+  prodEmptyTitle: "Ejecute su primer análisis",
+  prodEmptyBody: "El análisis estudia sus productos gestionados, su mercado y sus competidores para proponer palabras clave y contenidos optimizados.",
+  dashEmptyProductsTitle: "Aún no hay productos gestionados",
+  dashEmptyProductsBody: "Elija los productos que la app debe optimizar para empezar.",
+  dashEmptyProductsCta: "Elegir mis productos",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };
