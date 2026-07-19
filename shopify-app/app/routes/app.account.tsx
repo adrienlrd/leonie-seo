@@ -17,6 +17,7 @@ import {
   Text,
 } from "@shopify/polaris";
 import { PlanBadge } from "../components/PlanBadge";
+import { SaveBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { localizedPath, t, type Locale } from "../lib/i18n";
@@ -198,6 +199,8 @@ export default function AccountHub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [learningSettings]);
 
+  const automationDirty = reanalysisFrequency !== String(learningSettings?.reanalysis_frequency_days ?? 28);
+
   const saveAutomation = () => {
     const fd = new FormData();
     fd.set("intent", "saveAutomation");
@@ -318,16 +321,18 @@ export default function AccountHub() {
               {t(locale, "automationScopesMovedNote")}
             </Text>
 
-            <InlineStack align="space-between" blockAlign="center" wrap>
-              <div />
-              <Button
-                variant="primary"
-                loading={automationFetcher.state !== "idle"}
-                onClick={saveAutomation}
-              >
+            <SaveBar open={automationDirty && automationFetcher.state === "idle"}>
+              <button variant="primary" onClick={saveAutomation}>
                 {t(locale, "automationSave")}
-              </Button>
-            </InlineStack>
+              </button>
+              <button
+                onClick={() =>
+                  setReanalysisFrequency(String(learningSettings?.reanalysis_frequency_days ?? 28))
+                }
+              >
+                {t(locale, "pcpCancel")}
+              </button>
+            </SaveBar>
 
             {automationFetcher.data?.ok && (
               <Banner tone="success">
