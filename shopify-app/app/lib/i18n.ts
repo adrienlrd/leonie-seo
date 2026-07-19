@@ -1490,6 +1490,7 @@ const FR: Dictionary = {
   srcHistory: "Historique d'optimisation",
   srcBusinessProfile: "Profil d'activité",
   srcNiche: "Hypothèse de niche",
+  marketAnalysisSingleRunning: "Analyse du nouveau produit en cours — environ 2 minutes…",
 };
 
 const EN: Dictionary = {
@@ -2972,6 +2973,7 @@ const EN: Dictionary = {
   srcHistory: "Optimization history",
   srcBusinessProfile: "Business profile",
   srcNiche: "Niche hypothesis",
+  marketAnalysisSingleRunning: "Analyzing the new product — about 2 minutes…",
 };
 
 const DE: Dictionary = {
@@ -4454,6 +4456,7 @@ const DE: Dictionary = {
   srcHistory: "Optimierungsverlauf",
   srcBusinessProfile: "Unternehmensprofil",
   srcNiche: "Nischen-Hypothese",
+  marketAnalysisSingleRunning: "Analyse des neuen Produkts läuft — etwa 2 Minuten…",
 };
 
 const ES: Dictionary = {
@@ -5936,6 +5939,7 @@ const ES: Dictionary = {
   srcHistory: "Historial de optimización",
   srcBusinessProfile: "Perfil de negocio",
   srcNiche: "Hipótesis de nicho",
+  marketAnalysisSingleRunning: "Analizando el nuevo producto — unos 2 minutos…",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };

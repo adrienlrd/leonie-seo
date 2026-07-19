@@ -1452,9 +1452,26 @@ export default function ProductsPage() {
   // Poll analysis job
   useEffect(() => {
     if (pollFetcher.data?.type === "poll") {
-      if (pollFetcher.data.job) setJob(pollFetcher.data.job);
+      const polled = pollFetcher.data.job;
+      if (polled) {
+        // A targeted job (product_ids) carries only its own products. When it
+        // completes while a fuller analysis exists, merge instead of
+        // replacing — otherwise the page collapsed to that single product.
+        if (
+          polled.status === "completed" &&
+          latestJob &&
+          (polled.products?.length ?? 0) < (latestJob.products?.length ?? 0)
+        ) {
+          const merged = new Map(latestJob.products.map((pr) => [pr.product_id, pr]));
+          for (const pr of polled.products ?? []) merged.set(pr.product_id, pr);
+          setJob({ ...latestJob, ...polled, products: [...merged.values()] });
+        } else {
+          setJob(polled);
+        }
+      }
       if (pollFetcher.data.error) setPollError(pollFetcher.data.error);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pollFetcher.data]);
 
   // Notify the merchant via an App Bridge toast when an analysis just finished
@@ -2004,6 +2021,21 @@ export default function ProductsPage() {
                 locale={locale}
               />
             ) : null}
+
+            {/* Console for a targeted analysis of a product not yet in the list
+                (fresh add): without a card to host it, nothing was visible. */}
+            {isSingleRunning &&
+              singleProductId != null &&
+              !(job?.products ?? []).some((pr) => pr.product_id === singleProductId) && (
+                <Card>
+                  <ResearchConsole
+                    locale={locale}
+                    phrases={loaderPhrases(locale, "analysis")}
+                    estimateMs={150_000}
+                    title={t(locale, "marketAnalysisSingleRunning")}
+                  />
+                </Card>
+              )}
 
             {/* Launch card — only shown when no job yet, job failed, or analysis running */}
             {(!job?.status || job.status === "failed" || isRunning) && (

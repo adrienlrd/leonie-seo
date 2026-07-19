@@ -343,11 +343,15 @@ def replace_product_analysis(
     product_result: dict[str, Any],
     analyzed_at: str | None = None,
 ) -> bool:
-    """Replace one persisted product analysis after a fact-enriched regeneration."""
-    path = _DATA_DIR / shop / "market_analysis_latest.json"
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    """Upsert one persisted product analysis (replace, or APPEND when new).
+
+    Appending matters for the add-product flow: a freshly added product's
+    targeted analysis previously matched nothing here and was silently
+    dropped — it vanished on reload and the dashboard kept prompting to
+    re-analyze it.
+    """
+    data = load_latest_result(shop)
+    if not data:
         return False
 
     product_id = str(product_result.get("product_id", ""))
@@ -355,17 +359,19 @@ def replace_product_analysis(
     if not isinstance(products, list):
         return False
     for index, product in enumerate(products):
-        if str(product.get("product_id", "")) != product_id:
-            continue
-        products[index] = product_result
-        if analyzed_at:
-            data["analyzed_at"] = analyzed_at
-        data["analyzed_product_count"] = len(products)
-        data["total_opportunity_count"] = sum(
-            len(item.get("seo_keywords", [])) + len(item.get("geo_questions", []))
-            for item in products
-            if isinstance(item, dict)
-        )
-        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        return True
-    return False
+        if str(product.get("product_id", "")) == product_id:
+            products[index] = product_result
+            break
+    else:
+        products.append(product_result)
+        data["products"] = products
+    if analyzed_at:
+        data["analyzed_at"] = analyzed_at
+    data["analyzed_product_count"] = len(products)
+    data["total_opportunity_count"] = sum(
+        len(item.get("seo_keywords", [])) + len(item.get("geo_questions", []))
+        for item in products
+        if isinstance(item, dict)
+    )
+    save_latest_result(shop, data)
+    return True
