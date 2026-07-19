@@ -62,8 +62,16 @@ def _app_embed_enabled(settings_json: str, diag: dict | None = None) -> bool | N
     ``diag`` (optional) collects the observed JSON shape so a live None status
     is diagnosable (top-level keys, current type) without dumping the file.
     """
+    # Shopify themes traditionally open settings_data.json with a /* ... */
+    # comment header before the JSON body — strip it or json.loads fails
+    # (this was the root cause of the status staying "unknown" live).
+    cleaned = settings_json.lstrip()
+    if cleaned.startswith("/*"):
+        end = cleaned.find("*/")
+        if end != -1:
+            cleaned = cleaned[end + 2 :].lstrip()
     try:
-        data = json.loads(settings_json)
+        data = json.loads(cleaned)
     except (json.JSONDecodeError, TypeError):
         if diag is not None:
             diag["shape"] = "not json"

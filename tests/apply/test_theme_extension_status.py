@@ -71,3 +71,15 @@ def test_disabled_when_preset_block_disabled() -> None:
         },
     })
     assert _app_embed_enabled(settings) is False
+
+
+def test_enabled_despite_shopify_comment_header() -> None:
+    """Real themes prefix settings_data.json with a /* ... */ comment block —
+    verified live: this alone kept the embed status 'unknown' forever."""
+    settings = (
+        "/*\n * IMPORTANT: The contents of this file are auto-generated.\n */\n"
+        + json.dumps({"current": {"blocks": {
+            "abc": {"type": "shopify://apps/x/blocks/faq_embed/41c38ef1", "disabled": False}
+        }}})
+    )
+    assert _app_embed_enabled(settings) is True
