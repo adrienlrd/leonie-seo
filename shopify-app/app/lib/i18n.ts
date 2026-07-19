@@ -1451,6 +1451,11 @@ const FR: Dictionary = {
   pbPro: "Pro",
   pbAgency: "Grande boutique",
   acctPrivacyDesc: "Consultez comment vos données sont traitées (RGPD).",
+  // dynamic-key stragglers
+  acctNotConnected: "À connecter",
+  acctSelectProperty: "Propriété à choisir",
+  umLast28: "Sur les 28 derniers jours.",
+  umLimitReached: "Limite atteinte — se libère au fil des 28 jours.",
 };
 
 const EN: Dictionary = {
@@ -2894,6 +2899,11 @@ const EN: Dictionary = {
   pbPro: "Pro",
   pbAgency: "Large store",
   acctPrivacyDesc: "See how your data is processed (GDPR).",
+  // dynamic-key stragglers
+  acctNotConnected: "Not connected",
+  acctSelectProperty: "Property to select",
+  umLast28: "Over the last 28 days.",
+  umLimitReached: "Limit reached — frees up over the 28-day window.",
 };
 
 const DE: Dictionary = {
@@ -4337,6 +4347,11 @@ const DE: Dictionary = {
   pbPro: "Pro",
   pbAgency: "Großer Shop",
   acctPrivacyDesc: "Erfahren Sie, wie Ihre Daten verarbeitet werden (DSGVO).",
+  // dynamic-key stragglers
+  acctNotConnected: "Zu verbinden",
+  acctSelectProperty: "Property auswählen",
+  umLast28: "In den letzten 28 Tagen.",
+  umLimitReached: "Limit erreicht — wird über das 28-Tage-Fenster wieder frei.",
 };
 
 const ES: Dictionary = {
@@ -5780,6 +5795,11 @@ const ES: Dictionary = {
   pbPro: "Pro",
   pbAgency: "Tienda grande",
   acctPrivacyDesc: "Consulte cómo se tratan sus datos (RGPD).",
+  // dynamic-key stragglers
+  acctNotConnected: "Por conectar",
+  acctSelectProperty: "Propiedad por elegir",
+  umLast28: "En los últimos 28 días.",
+  umLimitReached: "Límite alcanzado — se libera a lo largo de la ventana de 28 días.",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };
