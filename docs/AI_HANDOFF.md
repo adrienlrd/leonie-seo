@@ -10,6 +10,24 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-19
+- **Agent:** Claude (Fable 5)
+- **Goal:** Built for Shopify preparation — 7 ergonomics/data-quality actions from the BfS audit, executed per the approved plan, then a control re-audit.
+- **Changes (7 commits, `bfs:` prefix):**
+  1. Provider failure banners (products page): completed analyses surface degraded sources (Trends error, partial/failed realtime grounding, DataForSEO off → "estimates shown") instead of silent gaps.
+  2. Skeleton loading: `PageSkeleton.tsx` rendered by the app shell during page-to-page navigations (same-page revalidations keep live UI — fetcher polling unaffected).
+  3. EmptyStates: products first run, dashboard zero-managed (CTA to selection), Analyse zero state (kept publish-then-wait texts).
+  4. Typed toasts: `lib/toast.ts` central helper (single window cast); confirmations on analysis done, enrich saved, settings saved, code redeemed.
+  5. Freshness: catalog + analysis dates line on products with a Refresh button queueing a forced `seo_audit` crawl (toast on queued).
+  6. `SourcesUsedCard`: per-analysis provenance badges (real sources green, contextual blue) under the products summary.
+  7. App Bridge v4 `SaveBar` on the account automation form (dirty detection + discard reset).
+  - Prior same-day work: full Polaris alignment (black brand card → `bg-fill-inverse`, zero hardcoded hex, dead `AdvancedToolList` removed), 85+3+4 lost i18n keys restored, language-preference priority fix, privacy tile, Forfait rename/nav.
+- **Control re-audit (Explore agent):** 7/7 verdicts OK with file:line evidence; regression checks clean — 1425 keys ×4 locales (parity, 0 dups), zero missing t() keys incl. dynamic tables, zero hardcoded fr/en ternaries in components.
+- **Validations:** pytest 2188 passed, ruff OK, typecheck + build OK.
+- **Open:** BfS remaining pillar not covered here: performance/Web Vitals audit. Deferred from audit: provenance badges on dashboard KPIs (L effort). DE/ES native review still recommended pre-App Store.
+
+## Task before that
+
 - **Date:** 2026-07-18
 - **Agent:** Claude (Fable 5)
 - **Goal:** Full 4-language support (FR/EN/DE/ES) — UI AND algorithms driven by one per-shop language setting. Adrien's decisions: single setting drives everything; EN market = United States; AI-generated DE/ES translations (native review later). Default = Shopify primaryLocale (persisted on first read), else EN.
