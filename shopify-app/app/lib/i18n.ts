@@ -1469,6 +1469,10 @@ const FR: Dictionary = {
   dashEmptyProductsCta: "Choisir mes produits",
   toastSaved: "Réglages enregistrés",
   toastCodeRedeemed: "Code appliqué !",
+  // data freshness
+  freshnessLine: "Catalogue : {snap} · Analyse : {ana}",
+  freshnessRefresh: "Rafraîchir les données",
+  freshnessRefreshQueued: "Rafraîchissement du catalogue lancé",
 };
 
 const EN: Dictionary = {
@@ -2930,6 +2934,10 @@ const EN: Dictionary = {
   dashEmptyProductsCta: "Choose my products",
   toastSaved: "Settings saved",
   toastCodeRedeemed: "Code applied!",
+  // data freshness
+  freshnessLine: "Catalog: {snap} · Analysis: {ana}",
+  freshnessRefresh: "Refresh data",
+  freshnessRefreshQueued: "Catalog refresh started",
 };
 
 const DE: Dictionary = {
@@ -4391,6 +4399,10 @@ const DE: Dictionary = {
   dashEmptyProductsCta: "Meine Produkte auswählen",
   toastSaved: "Einstellungen gespeichert",
   toastCodeRedeemed: "Code eingelöst!",
+  // data freshness
+  freshnessLine: "Katalog: {snap} · Analyse: {ana}",
+  freshnessRefresh: "Daten aktualisieren",
+  freshnessRefreshQueued: "Katalog-Aktualisierung gestartet",
 };
 
 const ES: Dictionary = {
@@ -5852,6 +5864,10 @@ const ES: Dictionary = {
   dashEmptyProductsCta: "Elegir mis productos",
   toastSaved: "Ajustes guardados",
   toastCodeRedeemed: "¡Código aplicado!",
+  // data freshness
+  freshnessLine: "Catálogo: {snap} · Análisis: {ana}",
+  freshnessRefresh: "Actualizar los datos",
+  freshnessRefreshQueued: "Actualización del catálogo iniciada",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };

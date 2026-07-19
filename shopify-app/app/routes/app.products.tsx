@@ -377,6 +377,7 @@ interface LoaderData {
   /** Product IDs present in the latest analysis but no longer active. */
   removedProductIds: string[];
   analysisUsage: { used: number; quota: number; productCap: number; plan: string } | null;
+  snapshotDate: string | null;
 }
 
 // ── Revalidation guard — polling actions must not re-run the loader ───────────
@@ -397,7 +398,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const fetchOpt = { accessToken: session.accessToken, method: "GET" as const };
 
-  const [latestJobResp, identifyResp, gscResp, ga4Resp, activeProductsResp, activeJobResp, billingResp] = await Promise.allSettled([
+  const [latestJobResp, identifyResp, gscResp, ga4Resp, activeProductsResp, activeJobResp, billingResp, shopStatusResp] = await Promise.allSettled([
     callBackendForShop(session.shop, `/api/shops/${session.shop}/market-analysis/latest`, {
       ...fetchOpt,
       signal: AbortSignal.timeout(5_000),
@@ -426,7 +427,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ...fetchOpt,
       signal: AbortSignal.timeout(5_000),
     }),
+    callBackendForShop(session.shop, `/api/shops/${session.shop}/status`, {
+      ...fetchOpt,
+      signal: AbortSignal.timeout(5_000),
+    }),
   ]);
+
+  let snapshotDate: string | null = null;
+  if (shopStatusResp.status === "fulfilled" && shopStatusResp.value.ok) {
+    try {
+      const st = (await shopStatusResp.value.json()) as { snapshot_date?: string | null };
+      snapshotDate = st.snapshot_date ?? null;
+    } catch { /* ignore */ }
+  }
 
   let analysisUsage: { used: number; quota: number; productCap: number; plan: string } | null = null;
   if (billingResp.status === "fulfilled" && billingResp.value.ok) {
@@ -499,7 +512,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .map((p) => p.product_id);
   }
 
-  return json({ locale, shop: session.shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, removedProductIds, analysisUsage });
+  return json({ locale, shop: session.shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, removedProductIds, analysisUsage, snapshotDate });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -692,6 +705,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return json({ type: "pollSingle", job, productId, error: null });
     } catch (err) {
       return json({ type: "pollSingle", job: null, productId, error: String(err) });
+    }
+  }
+
+  if (intent === "refreshCatalog") {
+    try {
+      const resp = await callBackendForShop(session.shop, "/api/jobs", {
+        accessToken: session.accessToken,
+        method: "POST",
+        body: JSON.stringify({ queue: "seo_audit", payload: { force: true } }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      return json({ type: "refreshCatalog", ok: resp.ok, error: resp.ok ? null : `${resp.status}` });
+    } catch (err) {
+      return json({ type: "refreshCatalog", ok: false, error: String(err) });
     }
   }
 
@@ -1219,7 +1246,7 @@ function CannibalizationBanner({
 // ── Page component ────────────────────────────────────────────────────────────
 
 export default function ProductsPage() {
-  const { locale, shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, removedProductIds, analysisUsage } =
+  const { locale, shop, latestJob, activeJob, latestIdentification, gscConnected, gscReauthRequired, ga4Connected, activeHandles, removedProductIds, analysisUsage, snapshotDate } =
     useLoaderData<LoaderData>();
 
   const revalidator = useRevalidator();
@@ -1270,6 +1297,13 @@ export default function ProductsPage() {
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const managedFetcher = useFetcher<{ type: string; managed: ManagedState | null; error?: string | null }>();
   const addProductFetcher = useFetcher<{ type: string; added?: boolean; productId?: string | null; error?: string | null }>();
+  const refreshFetcher = useFetcher<{ type: string; ok?: boolean }>();
+  useEffect(() => {
+    if (refreshFetcher.data?.type === "refreshCatalog" && refreshFetcher.data.ok) {
+      showToast(t(locale, "freshnessRefreshQueued"));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshFetcher.data]);
   const managed = managedFetcher.data?.managed ?? null;
   const openAddProductModal = () => {
     setShowAddProductModal(true);
@@ -2074,6 +2108,25 @@ export default function ProductsPage() {
                   onEditIdentification={handleEditIdentification}
                   analyzeDisabled={isInProgress}
                 />
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {t(locale, "freshnessLine")
+                      .replace("{snap}", snapshotDate ? new Date(snapshotDate).toLocaleDateString(locale) : "—")
+                      .replace("{ana}", job.analyzed_at ? new Date(job.analyzed_at).toLocaleDateString(locale) : "—")}
+                  </Text>
+                  <Button
+                    variant="plain"
+                    size="slim"
+                    loading={refreshFetcher.state !== "idle"}
+                    onClick={() => {
+                      const fd = new FormData();
+                      fd.set("intent", "refreshCatalog");
+                      refreshFetcher.submit(fd, { method: "post" });
+                    }}
+                  >
+                    {t(locale, "freshnessRefresh")}
+                  </Button>
+                </InlineStack>
               </>
             )}
 
