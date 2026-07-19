@@ -678,7 +678,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
       const resp = await callBackendForShop(
         session.shop,
-        `/api/shops/${session.shop}/market-analysis/jobs?product_ids=${encodeURIComponent(productId)}${intent === "saveFactsAndStartSingle" ? "&persist_product_result=true" : ""}`,
+        `/api/shops/${session.shop}/market-analysis/jobs?product_ids=${encodeURIComponent(productId)}&persist_product_result=true`,
         { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(30_000) },
       );
       if (!resp.ok) {
@@ -1326,7 +1326,10 @@ export default function ProductsPage() {
       // Analyze the newly added product right away — adding without analyzing
       // left the page unchanged, which read as "nothing happened".
       const addedId = addProductFetcher.data.productId;
-      if (addedId) handleAnalyzeSingle(addedId);
+      if (addedId) {
+        setStep("analysis");
+        handleAnalyzeSingle(addedId);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addProductFetcher.data]);
