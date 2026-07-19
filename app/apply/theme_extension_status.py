@@ -56,19 +56,31 @@ def _post(shop: str, access_token: str, query: str, variables: dict[str, Any]) -
     return resp.json()
 
 
-def _app_embed_enabled(settings_json: str) -> bool | None:
-    """Return True/False if our app embed is found, else None when undetermined."""
+def _app_embed_enabled(settings_json: str, diag: dict | None = None) -> bool | None:
+    """Return True/False if our app embed is found, else None when undetermined.
+
+    ``diag`` (optional) collects the observed JSON shape so a live None status
+    is diagnosable (top-level keys, current type) without dumping the file.
+    """
     try:
         data = json.loads(settings_json)
     except (json.JSONDecodeError, TypeError):
+        if diag is not None:
+            diag["shape"] = "not json"
         return None
     current = data.get("current")
+    if diag is not None:
+        diag["shape"] = (
+            f"top-level keys: {sorted(data)[:8]}; current type: {type(current).__name__}"
+        )
     if isinstance(current, str):
         # "current" can be a preset NAME pointing into "presets" — themes saved
         # from the editor's preset picker use this form. Not resolving it made
         # the status stay "unknown" forever even after the merchant enabled the
         # embed by hand.
         current = (data.get("presets") or {}).get(current)
+        if diag is not None and not isinstance(current, dict):
+            diag["shape"] += f"; preset names: {sorted(data.get('presets') or {})[:5]}"
     if not isinstance(current, dict):
         return None
     blocks = current.get("blocks")
@@ -161,6 +173,7 @@ def _embed_state_for_theme(shop: str, access_token: str, theme_id: str) -> dict[
             return {"enabled": None, "detail": "settings body undecodable"}
     if not content:
         return {"enabled": None, "detail": "settings body empty"}
-    enabled = _app_embed_enabled(content)
-    detail = "ok" if enabled is not None else "no app-embed blocks section found"
+    diag: dict = {}
+    enabled = _app_embed_enabled(content, diag)
+    detail = "ok" if enabled is not None else f"settings shape not understood ({diag.get('shape', '?')})"
     return {"enabled": enabled, "detail": detail}
