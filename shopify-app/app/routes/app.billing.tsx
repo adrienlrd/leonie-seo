@@ -101,7 +101,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "redeem") {
     const code = String(formData.get("code") ?? "").trim();
     // GEO- codes are single-use quota reset codes; others are partner plan codes.
-    if (code.toUpperCase().startsWith("GEO-")) {
+    if (/^GEO(PRO|BIG)?-/i.test(code)) {
       const resp = await callBackendForShop(shop, `/api/shops/${shop}/quota-code/redeem`, {
         method: "POST",
         accessToken: session.accessToken,

@@ -1,11 +1,14 @@
-"""Mint single-use quota reset codes (operator-only).
+"""Mint single-use signed codes (operator-only).
 
 Usage:
     QUOTA_CODE_SECRET=<secret> python scripts/generate_quota_code.py BASE [BASE ...]
+    QUOTA_CODE_SECRET=<secret> python scripts/generate_quota_code.py --plan pro BASE
+    QUOTA_CODE_SECRET=<secret> python scripts/generate_quota_code.py --plan agency BASE
 
-Each BASE (4-32 uppercase letters/digits, e.g. LAUNCH01) yields one code
-like GEO-LAUNCH01-3F2A9C1B. A code is valid on any shop/plan and burns
-globally on first redemption — mint a new BASE for each recipient.
+Without --plan: quota reset codes (GEO-...). With --plan pro/agency: plan
+grant codes (GEOPRO-.../GEOBIG-...) that switch the redeeming shop to that
+plan. Each BASE (4-32 uppercase letters/digits) yields one code; every code
+burns globally on first redemption — mint a new BASE per recipient.
 """
 
 from __future__ import annotations
@@ -21,12 +24,19 @@ def main() -> int:
     if not secret:
         print("QUOTA_CODE_SECRET env var is required", file=sys.stderr)
         return 1
-    bases = sys.argv[1:]
-    if not bases:
+    args = sys.argv[1:]
+    plan: str | None = None
+    if args and args[0] == "--plan":
+        if len(args) < 2 or args[1] not in ("pro", "agency"):
+            print("--plan requires 'pro' or 'agency'", file=sys.stderr)
+            return 1
+        plan = args[1]
+        args = args[2:]
+    if not args:
         print(__doc__, file=sys.stderr)
         return 1
-    for base in bases:
-        print(build_code(base, secret))
+    for base in args:
+        print(build_code(base, secret, plan))
     return 0
 
 

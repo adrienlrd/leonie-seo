@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -99,3 +100,40 @@ def test_reset_analysis_usage_clears_only_analysis_kinds(db: Path) -> None:
     assert reset_analysis_usage(SHOP, db) == 2
     assert get_usage(SHOP, "analysis", db) == 0
     assert get_usage(SHOP, "blog", db) == 1
+
+
+def test_plan_grant_codes_switch_plan_and_reset_quotas(db: Path) -> None:
+    from app.billing.subscription_store import get_plan_for_shop
+
+    record_usage(SHOP, "analysis", db)
+    code = build_code("VIPPRO1", SECRET, "pro")
+    assert code.startswith("GEOPRO-")
+    with patch("app.apply.theme_entitlement.set_theme_entitlement"):
+        result = redeem_quota_code(SHOP, code, db_path=db)
+    assert result["granted_plan"] == "pro"
+    assert result["reset_events"] == 1  # free→pro upgrade resets usage
+    assert get_plan_for_shop(SHOP, db) == "pro"
+
+
+def test_agency_grant_code_uses_geobig_prefix(db: Path) -> None:
+    code = build_code("VIPBIG1", SECRET, "agency")
+    assert code.startswith("GEOBIG-")
+    with patch("app.apply.theme_entitlement.set_theme_entitlement"):
+        result = redeem_quota_code(SHOP, code, db_path=db)
+    assert result["granted_plan"] == "agency"
+
+
+def test_plan_grant_signature_is_plan_bound(db: Path) -> None:
+    """A GEO- reset signature must not validate as a GEOPRO- grant."""
+    reset_code = build_code("SAME1", SECRET)
+    sig = reset_code.split("-")[-1]
+    with pytest.raises(InvalidQuotaCode):
+        redeem_quota_code(SHOP, f"GEOPRO-SAME1-{sig}", db_path=db)
+
+
+def test_plan_grant_code_is_single_use(db: Path) -> None:
+    code = build_code("VIPPRO2", SECRET, "pro")
+    with patch("app.apply.theme_entitlement.set_theme_entitlement"):
+        redeem_quota_code(SHOP, code, db_path=db)
+        with pytest.raises(QuotaCodeAlreadyUsed):
+            redeem_quota_code("other.myshopify.com", code, db_path=db)
