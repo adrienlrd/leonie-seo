@@ -106,7 +106,14 @@ export async function resolveLocale(
 
   const url = new URL(request.url);
   const requested = url.searchParams.get("locale");
-  if (isSupportedLocale(requested)) return requested;
+  if (isSupportedLocale(requested)) {
+    // No preference exists yet: persist this one. Returning without
+    // persisting left the BACKEND on its English default while the UI
+    // showed French — analyses and the business profile came out in
+    // English despite a French interface.
+    await persistPreference(shop, accessToken, requested);
+    return requested;
+  }
 
   if (admin) {
     const fromShopify = await shopifyPrimaryLocale(admin);
