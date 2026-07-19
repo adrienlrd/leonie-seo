@@ -43,9 +43,7 @@ export function ShopifyImagePicker({ locale, imageUrl, imageAlt, onSelect, onAlt
       {imageUrl ? (
         <BlockStack gap="200">
           <InlineStack gap="300" blockAlign="center">
-            <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid var(--p-color-border)" }}>
-              <img src={imageUrl} alt={imageAlt ?? ""} style={{ maxWidth: 200, maxHeight: 140, display: "block" }} />
-            </div>
+            <Thumbnail source={imageUrl} alt={imageAlt ?? ""} size="large" />
             <BlockStack gap="100">
               <Button size="slim" onClick={() => setOpen(true)}>{t(locale, "coverImageChange")}</Button>
               <Button size="slim" tone="critical" variant="plain" onClick={onRemove}>{t(locale, "coverImageRemove")}</Button>

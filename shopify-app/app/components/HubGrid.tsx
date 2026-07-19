@@ -58,39 +58,3 @@ export function HubGrid({ items, locale, columns = 2 }: HubGridProps) {
     </InlineGrid>
   );
 }
-
-export function AdvancedToolList({
-  title,
-  items,
-  locale,
-}: {
-  title: string;
-  items: HubItem[];
-  locale: Locale;
-}) {
-  if (items.length === 0) return null;
-
-  return (
-    <Card>
-      <details>
-        <summary>{title}</summary>
-        <Box paddingBlockStart="300">
-          <BlockStack gap="200">
-            {items.map((item) => (
-              <InlineStack key={item.href} align="space-between" blockAlign="start" gap="300">
-                <BlockStack gap="050">
-                  <Link url={localizedPath(item.href, locale)} removeUnderline>
-                    {t(locale, item.titleKey)}
-                  </Link>
-                  <Text as="p" tone="subdued" variant="bodySm">
-                    {item.description}
-                  </Text>
-                </BlockStack>
-              </InlineStack>
-            ))}
-          </BlockStack>
-        </Box>
-      </details>
-    </Card>
-  );
-}

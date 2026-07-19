@@ -1279,7 +1279,7 @@ export default function BlogIndexPage() {
                 <>
                   <Divider />
                   <InlineStack gap="150" blockAlign="center" wrap={false}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#D72C0D", flex: "0 0 auto" }} />
+                    <Box background="bg-fill-critical" borderRadius="full" minWidth="8px" minHeight="8px" />
                     <div style={{ flex: 1 }}>
                       <Button
                         onClick={() => setShowIdeas((p) => !p)}
@@ -1350,7 +1350,7 @@ export default function BlogIndexPage() {
                 <>
                   <Divider />
                   <InlineStack gap="150" blockAlign="center" wrap={false}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#D72C0D", flex: "0 0 auto" }} />
+                    <Box background="bg-fill-critical" borderRadius="full" minWidth="8px" minHeight="8px" />
                     <div style={{ flex: 1 }}>
                       <Button
                         onClick={() => setShowSuggested((p) => !p)}
@@ -1719,8 +1719,8 @@ export default function BlogIndexPage() {
                       <Text as="p" variant="bodySm" tone="subdued">
                         {t(locale, "blogSocialPreviewDesc")}
                       </Text>
-                      <div style={{ maxWidth: 420, border: "1px solid #E1E3E5", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
-                        <div style={{ width: "100%", aspectRatio: "1200 / 630", background: "#F1F2F4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ maxWidth: 420, border: "1px solid var(--p-color-border)", borderRadius: 8, overflow: "hidden", background: "var(--p-color-bg-surface)" }}>
+                        <div style={{ width: "100%", aspectRatio: "1200 / 630", background: "var(--p-color-bg-surface-secondary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                           {draft.image_url ? (
                             <img src={draft.image_url} alt={draft.image_alt || ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           ) : (
@@ -1728,11 +1728,11 @@ export default function BlogIndexPage() {
                           )}
                         </div>
                         <div style={{ padding: "10px 12px" }}>
-                          <div style={{ fontSize: 11, textTransform: "uppercase", color: "#6D7175", letterSpacing: 0.3 }}>{shop}</div>
-                          <div style={{ fontSize: 15, fontWeight: 600, color: "#202223", margin: "2px 0", lineHeight: 1.3 }}>
+                          <div style={{ fontSize: 11, textTransform: "uppercase", color: "var(--p-color-text-secondary)", letterSpacing: 0.3 }}>{shop}</div>
+                          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--p-color-bg-fill-inverse)", margin: "2px 0", lineHeight: 1.3 }}>
                             {draft.blog_title || (t(locale, "blogArticleTitlePlaceholder"))}
                           </div>
-                          <div style={{ fontSize: 13, color: "#6D7175", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          <div style={{ fontSize: 13, color: "var(--p-color-text-secondary)", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                             {draft.meta_description || draft.intro || (t(locale, "blogAddMetaAbove"))}
                           </div>
                         </div>
@@ -2024,7 +2024,7 @@ export default function BlogIndexPage() {
                         {draft.blog_title || (t(locale, "blogUntitled"))}
                       </h1>
                       {/* 2. Reading time + last updated date */}
-                      <p style={{ color: "#6D7175", fontSize: 13, marginBottom: 16 }}>
+                      <p style={{ color: "var(--p-color-text-secondary)", fontSize: 13, marginBottom: 16 }}>
                         {t(locale, "blogReadingTime").replace("{min}", String(readingMinutes))}
                         {draft.updated_at && (() => {
                           const d = new Date(draft.updated_at);
@@ -2036,20 +2036,20 @@ export default function BlogIndexPage() {
                       {/* 3. Description (intro) */}
                       {draft.intro && (
                         <p
-                          style={{ color: "#374151", fontSize: 17, marginBottom: 24 }}
+                          style={{ color: "var(--p-color-text)", fontSize: 17, marginBottom: 24 }}
                           dangerouslySetInnerHTML={{ __html: renderInlineMd(draft.intro) }}
                         />
                       )}
                       {/* 4. Table of contents — below title + description, above text/image */}
                       {draft.show_toc && draft.sections.length > 0 && (
-                        <nav style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px", marginBottom: 28 }}>
+                        <nav style={{ background: "var(--p-color-bg-surface-secondary)", border: "1px solid var(--p-color-border)", borderRadius: 8, padding: "16px 20px", marginBottom: 28 }}>
                           <p style={{ fontWeight: 600, marginBottom: 8, fontSize: 15 }}>
                             {t(locale, "blogToc")}
                           </p>
                           <ol style={{ margin: 0, paddingLeft: 20 }}>
                             {draft.sections.map((section, idx) => (
                               <li key={`toc-${idx}`} style={{ marginBottom: 4 }}>
-                                <span style={{ color: "#2563EB", fontSize: 14 }}>{section.h2}</span>
+                                <span style={{ color: "var(--p-color-text-link)", fontSize: 14 }}>{section.h2}</span>
                               </li>
                             ))}
                           </ol>
@@ -2129,34 +2129,34 @@ export default function BlogIndexPage() {
                       )}
                       {/* CTA — mid position (after content, before FAQ) */}
                       {draft.cta_enabled && draft.cta_position === "mid" && draft.cta_label && draft.cta_url && (
-                        <div style={{ margin: "32px 0", padding: 24, borderRadius: 12, background: "#F4F6F8", border: "1px solid #E1E3E5", textAlign: "center" }}>
-                          {draft.cta_description && <p style={{ margin: "0 0 12px", color: "#374151" }}>{draft.cta_description}</p>}
-                          <a href={draft.cta_url} style={{ display: "inline-block", padding: "12px 28px", borderRadius: 8, background: "#202223", color: "#fff", textDecoration: "none", fontWeight: 600 }}>
+                        <div style={{ margin: "32px 0", padding: 24, borderRadius: 12, background: "var(--p-color-bg-surface-secondary)", border: "1px solid var(--p-color-border)", textAlign: "center" }}>
+                          {draft.cta_description && <p style={{ margin: "0 0 12px", color: "var(--p-color-text)" }}>{draft.cta_description}</p>}
+                          <a href={draft.cta_url} style={{ display: "inline-block", padding: "12px 28px", borderRadius: 8, background: "var(--p-color-bg-fill-inverse)", color: "var(--p-color-text-inverse)", textDecoration: "none", fontWeight: 600 }}>
                             {draft.cta_label}
                           </a>
                         </div>
                       )}
                       {/* 7. FAQ block */}
                       {(draft.faq ?? []).filter((f) => f.q && f.a).length > 0 && (
-                        <section style={{ marginTop: 32, borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
+                        <section style={{ marginTop: 32, borderTop: "1px solid var(--p-color-border)", paddingTop: 20 }}>
                           <h2 style={{ fontSize: 22, marginBottom: 16 }}>
                             {t(locale, "blogFaqHeading")}
                           </h2>
                           {(draft.faq ?? []).filter((f) => f.q && f.a).map((item, idx) => (
                             <div key={`prev-faq-${idx}`} style={{ marginBottom: 16 }}>
                               <h3 style={{ fontSize: 17, marginBottom: 4 }} dangerouslySetInnerHTML={{ __html: renderInlineMd(item.q) }} />
-                              <p style={{ color: "#374151" }} dangerouslySetInnerHTML={{ __html: renderInlineMd(item.a) }} />
+                              <p style={{ color: "var(--p-color-text)" }} dangerouslySetInnerHTML={{ __html: renderInlineMd(item.a) }} />
                             </div>
                           ))}
                         </section>
                       )}
                       {/* 8. Author bio */}
                       {(draft.author_bio ?? "").trim() && (
-                        <aside style={{ marginTop: 32, background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 8, padding: "16px 20px" }}>
+                        <aside style={{ marginTop: 32, background: "var(--p-color-bg-surface-secondary)", border: "1px solid var(--p-color-border)", borderRadius: 8, padding: "16px 20px" }}>
                           <h2 style={{ fontSize: 18, marginBottom: 6 }}>
                             {t(locale, "blogAboutAuthor")}
                           </h2>
-                          <p style={{ color: "#374151" }}>
+                          <p style={{ color: "var(--p-color-text)" }}>
                             {draft.author_name && <strong>{draft.author_name}<br /></strong>}
                             {draft.author_bio}
                           </p>
@@ -2164,16 +2164,16 @@ export default function BlogIndexPage() {
                       )}
                       {/* CTA — end position (after author bio) */}
                       {draft.cta_enabled && draft.cta_position !== "mid" && draft.cta_label && draft.cta_url && (
-                        <div style={{ margin: "32px 0", padding: 24, borderRadius: 12, background: "#F4F6F8", border: "1px solid #E1E3E5", textAlign: "center" }}>
-                          {draft.cta_description && <p style={{ margin: "0 0 12px", color: "#374151" }}>{draft.cta_description}</p>}
-                          <a href={draft.cta_url} style={{ display: "inline-block", padding: "12px 28px", borderRadius: 8, background: "#202223", color: "#fff", textDecoration: "none", fontWeight: 600 }}>
+                        <div style={{ margin: "32px 0", padding: 24, borderRadius: 12, background: "var(--p-color-bg-surface-secondary)", border: "1px solid var(--p-color-border)", textAlign: "center" }}>
+                          {draft.cta_description && <p style={{ margin: "0 0 12px", color: "var(--p-color-text)" }}>{draft.cta_description}</p>}
+                          <a href={draft.cta_url} style={{ display: "inline-block", padding: "12px 28px", borderRadius: 8, background: "var(--p-color-bg-fill-inverse)", color: "var(--p-color-text-inverse)", textDecoration: "none", fontWeight: 600 }}>
                             {draft.cta_label}
                           </a>
                         </div>
                       )}
                       {/* 9. Internal links */}
                       {(draft.internal_links ?? []).length > 0 && (
-                        <aside style={{ marginTop: 32, borderTop: "1px solid #E5E7EB", paddingTop: 20 }}>
+                        <aside style={{ marginTop: 32, borderTop: "1px solid var(--p-color-border)", paddingTop: 20 }}>
                           <h2 style={{ fontSize: 20, marginBottom: 10 }}>
                             {t(locale, "blogRelatedReading")}
                           </h2>

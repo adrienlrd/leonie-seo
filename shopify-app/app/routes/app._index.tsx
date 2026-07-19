@@ -2052,9 +2052,7 @@ function PublishModeCard({
                 </Text>
                 <div style={{ flex: "1 1 auto" }} />
                 {manualActive ? (
-                  <span style={{ fontWeight: 700, fontSize: "0.8125rem", color: "#000" }}>
-                    {t(locale, "dashActive")}
-                  </span>
+                  <Badge tone="success">{t(locale, "dashActive")}</Badge>
                 ) : (
                   <Button size="slim" loading={busy} onClick={handleActivateManual}>
                     {t(locale, "dashActivate")}
@@ -2064,19 +2062,8 @@ function PublishModeCard({
             </Box>
           </div>
 
-          <div
-            style={{
-              background: "#000",
-              color: "#fff",
-              borderRadius: "var(--p-border-radius-200)",
-              overflow: "hidden",
-              display: "flex",
-              alignItems: "stretch",
-              ["--p-color-text"]: "#fff",
-              ["--p-color-text-secondary"]: "#fff",
-              ["--p-color-icon"]: "#fff",
-            } as React.CSSProperties}
-          >
+          <Box background="bg-fill-inverse" borderRadius="200" overflowX="hidden" overflowY="hidden">
+            <div style={{ display: "flex", alignItems: "stretch" }}>
             <div style={{ flex: "0 0 30%", minWidth: 88, maxWidth: 160 }}>
               <img
                 src="/Logo.png"
@@ -2084,14 +2071,14 @@ function PublishModeCard({
                 style={{ width: "100%", aspectRatio: "1 / 1", objectFit: "cover", display: "block" }}
               />
             </div>
-            <div style={{ flex: 1, minWidth: 0, padding: "var(--p-space-300)", display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)" }}>
+            <div style={{ flex: 1, minWidth: 0, padding: "var(--p-space-300)", display: "flex", flexDirection: "column", height: "100%", gap: "var(--p-space-200)", color: "var(--p-color-text-inverse)" }}>
               <div style={{ display: "flex", width: "100%", alignItems: "center", gap: "0.5rem", justifyContent: "flex-start" }}>
                 <span style={{ display: "inline-flex", flex: "0 0 auto", width: "1.25rem", height: "1.25rem" }}>
                   <RocketIcon size={20} />
                 </span>
                 <Text as="p" variant="bodyMd" fontWeight="semibold">
                   {t(locale, "publishModeAutoTitle")}{" "}
-                  <span style={{ color: "#4285F4" }} aria-hidden="true">✦</span>
+                  <span style={{ color: "var(--p-color-text-info)" }} aria-hidden="true">✦</span>
                 </Text>
                 <span style={{ marginLeft: "auto", flex: "0 0 auto", display: "inline-flex" }}>
                   <Tooltip content={t(locale, "publishModeAutoDisclaimer")}>
@@ -2112,87 +2099,39 @@ function PublishModeCard({
                 </BlockStack>
               ) : autoActive ? (
                 <BlockStack gap="150">
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.375rem",
-                      alignSelf: "flex-start",
-                      background: "#fff",
-                      color: "#000",
-                      borderRadius: "999px",
-                      padding: "0.25rem 0.625rem",
-                      fontSize: "0.75rem",
-                      lineHeight: 1,
-                      fontWeight: 600,
-                    }}
-                  >
-                    <RocketIcon size={14} />
-                    {t(locale, "dashActive")}
-                  </span>
-                  {/* Native select styled explicitly so it stays dark-on-white on the black panel. */}
-                  <select
-                    aria-label={t(locale, "publishModeSelectLabel")}
+                  <InlineStack>
+                    <Badge tone="success">{t(locale, "dashActive")}</Badge>
+                  </InlineStack>
+                  <Select
+                    label={t(locale, "publishModeSelectLabel")}
+                    labelHidden
                     value={selected}
-                    onChange={(e) =>
-                      e.target.value === "auto_apply" ? handleActivateAuto() : handleActivateManual()
+                    onChange={(value) =>
+                      value === "auto_apply" ? handleActivateAuto() : handleActivateManual()
                     }
-                    style={{
-                      width: "100%",
-                      padding: "0.5rem 0.625rem",
-                      borderRadius: "8px",
-                      border: "1px solid #8a8a8a",
-                      background: "#ffffff",
-                      color: "#303030",
-                      fontSize: "0.8125rem",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                    }}
-                  >
-                    <option value="semi_auto">
-                      {t(locale, "dashManualPublishing")}
-                    </option>
-                    <option value="auto_apply">
-                      {t(locale, "dashAutoPublishing")}
-                    </option>
-                  </select>
+                    options={[
+                      { label: t(locale, "dashManualPublishing"), value: "semi_auto" },
+                      { label: t(locale, "dashAutoPublishing"), value: "auto_apply" },
+                    ]}
+                  />
                 </BlockStack>
               ) : autoAllowed ? (
-                <span
-                  style={{
-                    display: "block",
-                    ["--p-color-bg-fill-brand"]: "#fff",
-                    ["--p-color-bg-fill-brand-hover"]: "#f0f0f0",
-                    ["--p-color-bg-fill-brand-active"]: "#e0e0e0",
-                    ["--p-color-text-brand-on-bg-fill"]: "#000",
-                  } as React.CSSProperties}
-                >
-                  <Button fullWidth variant="primary" loading={busy} onClick={handleActivateAuto}>
-                    {t(locale, "dashActivate")}
-                  </Button>
-                </span>
+                <Button fullWidth loading={busy} onClick={handleActivateAuto}>
+                  {t(locale, "dashActivate")}
+                </Button>
               ) : (
-                <span
-                  style={{
-                    display: "block",
-                    ["--p-color-bg-fill-brand"]: "#fff",
-                    ["--p-color-bg-fill-brand-hover"]: "#f0f0f0",
-                    ["--p-color-bg-fill-brand-active"]: "#e0e0e0",
-                    ["--p-color-text-brand-on-bg-fill"]: "#000",
-                  } as React.CSSProperties}
-                >
-                  <BlockStack gap="100">
-                    <Button fullWidth variant="primary" url={localizedPath("/app/billing", locale)} icon={LockIcon}>
-                      {t(locale, "dashUnlockWithPro")}
-                    </Button>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {t(locale, "dashFreeTrial7")}
-                    </Text>
-                  </BlockStack>
-                </span>
+                <BlockStack gap="100">
+                  <Button fullWidth url={localizedPath("/app/billing", locale)} icon={LockIcon}>
+                    {t(locale, "dashUnlockWithPro")}
+                  </Button>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {t(locale, "dashFreeTrial7")}
+                  </Text>
+                </BlockStack>
               )}
             </div>
-          </div>
+            </div>
+          </Box>
       </InlineGrid>
     </BlockStack>
   );

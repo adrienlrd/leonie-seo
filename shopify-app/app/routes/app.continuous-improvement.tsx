@@ -6,8 +6,10 @@ import {
   Badge,
   Banner,
   BlockStack,
+  Box,
   Button,
   Card,
+  Divider,
   InlineStack,
   Page,
   Select,
@@ -622,13 +624,13 @@ function ApprovalCard({
           </InlineStack>
         </InlineStack>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-          <div style={{ border: "1px solid #dfe3e8", borderRadius: 8, padding: 12 }}>
+          <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
             <BlockStack gap="100">
               <Text as="p" variant="headingSm">{t(locale, "ciBefore")}</Text>
               <Text as="p" variant="bodySm">{approval.old_value || "n/a"}</Text>
             </BlockStack>
-          </div>
-          <div style={{ border: "1px solid #dfe3e8", borderRadius: 8, padding: 12 }}>
+          </Box>
+          <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
             <BlockStack gap="100">
               <Text as="p" variant="headingSm">{t(locale, "ciAfter")}</Text>
               <TextField
@@ -640,7 +642,7 @@ function ApprovalCard({
                 autoComplete="off"
               />
             </BlockStack>
-          </div>
+          </Box>
         </div>
         <Text as="p" variant="bodySm" tone="subdued">
           {String(
@@ -977,7 +979,8 @@ export default function ContinuousImprovement() {
               )}
             </InlineStack>
 
-            <div style={{ borderTop: "1px solid #e1e3e5", paddingTop: 12 }}>
+            <Divider />
+            <Box paddingBlockStart="300">
               <BlockStack gap="200">
                 <InlineStack align="space-between" blockAlign="center" wrap>
                   <Text as="h3" variant="headingSm">
@@ -1012,7 +1015,7 @@ export default function ContinuousImprovement() {
                   </InlineStack>
                 )}
               </BlockStack>
-            </div>
+            </Box>
 
             {scheduleFetcher.data?.ok && (
               <Banner tone="success">
