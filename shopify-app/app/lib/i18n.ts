@@ -1491,6 +1491,7 @@ const FR: Dictionary = {
   srcBusinessProfile: "Profil d'activité",
   srcNiche: "Hypothèse de niche",
   marketAnalysisSingleRunning: "Analyse du nouveau produit en cours — environ 2 minutes…",
+  addProductAddCount: "Ajouter et analyser ({n})",
 };
 
 const EN: Dictionary = {
@@ -2974,6 +2975,7 @@ const EN: Dictionary = {
   srcBusinessProfile: "Business profile",
   srcNiche: "Niche hypothesis",
   marketAnalysisSingleRunning: "Analyzing the new product — about 2 minutes…",
+  addProductAddCount: "Add and analyze ({n})",
 };
 
 const DE: Dictionary = {
@@ -4457,6 +4459,7 @@ const DE: Dictionary = {
   srcBusinessProfile: "Unternehmensprofil",
   srcNiche: "Nischen-Hypothese",
   marketAnalysisSingleRunning: "Analyse des neuen Produkts läuft — etwa 2 Minuten…",
+  addProductAddCount: "Hinzufügen und analysieren ({n})",
 };
 
 const ES: Dictionary = {
@@ -5940,6 +5943,7 @@ const ES: Dictionary = {
   srcBusinessProfile: "Perfil de negocio",
   srcNiche: "Hipótesis de nicho",
   marketAnalysisSingleRunning: "Analizando el nuevo producto — unos 2 minutos…",
+  addProductAddCount: "Añadir y analizar ({n})",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };

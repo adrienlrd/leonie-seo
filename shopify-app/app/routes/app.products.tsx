@@ -4,6 +4,7 @@ import { useLoaderData, useFetcher, useRevalidator } from "@remix-run/react";
 import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
   EmptyState,
+  Checkbox,
   Badge,
   Banner,
   BlockStack,
@@ -739,9 +740,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "addManagedProduct") {
-    const productId = String(formData.get("productId") ?? "");
+    const productIdsRaw = String(formData.get("productIds") ?? "[]");
     const currentIdsRaw = String(formData.get("currentIds") ?? "[]");
     try {
+      const productIds = JSON.parse(productIdsRaw) as string[];
       const currentIds = JSON.parse(currentIdsRaw) as string[];
       const resp = await callBackendForShop(
         session.shop,
@@ -749,7 +751,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         {
           accessToken: session.accessToken,
           method: "PUT",
-          body: JSON.stringify({ product_ids: [...currentIds, productId] }),
+          body: JSON.stringify({ product_ids: [...currentIds, ...productIds] }),
           signal: AbortSignal.timeout(20_000),
         },
       );
@@ -757,7 +759,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const detail = await resp.text();
         return json({ type: "addManagedProduct", added: false, error: `HTTP ${resp.status}: ${detail}` });
       }
-      return json({ type: "addManagedProduct", added: true, productId, error: null });
+      // One grouped targeted analysis for every product just added.
+      const qs = productIds.map((id) => `product_ids=${encodeURIComponent(id)}`).join("&");
+      const jobResp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs?${qs}&persist_product_result=true`,
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(20_000) },
+      );
+      if (!jobResp.ok) {
+        const detail = await jobResp.text();
+        return json({ type: "addManagedProduct", added: true, jobId: null, productIds, error: `HTTP ${jobResp.status}: ${detail}` });
+      }
+      const jobData = (await jobResp.json()) as { job_id: string };
+      return json({ type: "addManagedProduct", added: true, jobId: jobData.job_id, productIds, error: null });
     } catch (err) {
       return json({ type: "addManagedProduct", added: false, error: String(err) });
     }
@@ -1297,7 +1311,8 @@ export default function ProductsPage() {
   };
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const managedFetcher = useFetcher<{ type: string; managed: ManagedState | null; error?: string | null }>();
-  const addProductFetcher = useFetcher<{ type: string; added?: boolean; productId?: string | null; error?: string | null }>();
+  const addProductFetcher = useFetcher<{ type: string; added?: boolean; jobId?: string | null; productIds?: string[]; error?: string | null }>();
+  const [addSelection, setAddSelection] = useState<Set<string>>(new Set());
   const refreshFetcher = useFetcher<{ type: string; ok?: boolean }>();
   useEffect(() => {
     if (refreshFetcher.data?.type === "refreshCatalog" && refreshFetcher.data.ok) {
@@ -1312,23 +1327,27 @@ export default function ProductsPage() {
     fd.set("intent", "loadManagedProducts");
     managedFetcher.submit(fd, { method: "post" });
   };
-  const handleAddProduct = (productId: string) => {
+  const handleAddProducts = () => {
     const fd = new FormData();
     fd.set("intent", "addManagedProduct");
-    fd.set("productId", productId);
+    fd.set("productIds", JSON.stringify([...addSelection]));
     fd.set("currentIds", JSON.stringify(managed?.selected_ids ?? []));
     addProductFetcher.submit(fd, { method: "post" });
   };
   useEffect(() => {
     if (addProductFetcher.data?.type === "addManagedProduct" && addProductFetcher.data.added) {
       setShowAddProductModal(false);
+      setAddSelection(new Set());
       revalidator.revalidate();
-      // Analyze the newly added product right away — adding without analyzing
-      // left the page unchanged, which read as "nothing happened".
-      const addedId = addProductFetcher.data.productId;
-      if (addedId) {
+      // Follow the grouped analysis launched by the action for every added
+      // product — adding without a visible analysis read as "nothing happened".
+      const { jobId, productIds } = addProductFetcher.data;
+      if (jobId && productIds?.length) {
         setStep("analysis");
-        handleAnalyzeSingle(addedId);
+        setSingleProductJobId(jobId);
+        setSingleProductId(productIds[0]);
+        setSingleProductJob(null);
+        setSingleProductError(null);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1522,18 +1541,15 @@ export default function ProductsPage() {
       if (d.job) {
         setSingleProductJob(d.job);
         if (d.job.status === "completed" && d.job.products && d.job.products.length > 0) {
-          const updated = d.job.products[0];
+          const updatedList = d.job.products;
           setJob((prev) => {
             if (!prev) {
-              // No prior job — create one so the new product card can be shown
-              return { ...d.job!, status: "completed", products: [updated] };
+              // No prior job — create one so the new product cards can be shown
+              return { ...d.job!, status: "completed", products: updatedList };
             }
-            const idx = prev.products.findIndex((p) => p.product_id === updated.product_id);
-            const updatedProducts =
-              idx >= 0
-                ? prev.products.map((p, i) => (i === idx ? updated : p))
-                : [...prev.products, updated];
-            return { ...prev, products: updatedProducts };
+            const merged = new Map(prev.products.map((p) => [p.product_id, p]));
+            for (const up of updatedList) merged.set(up.product_id, up);
+            return { ...prev, products: [...merged.values()] };
           });
           if (enrichTriggeredRef.current) {
             showToast(t(locale, "enrichSavedToast"));
@@ -1949,25 +1965,49 @@ export default function ProductsPage() {
                               <Text as="p" tone="subdued">{t(locale, "addProductNoneLeft")}</Text>
                             );
                           }
-                          return addable.map((ap) => (
-                            <InlineStack key={ap.id} align="space-between" blockAlign="center" wrap={false}>
-                              <InlineStack gap="300" blockAlign="center" wrap={false}>
-                                <Thumbnail
-                                  source={ap.image_url || ProductAddIcon}
-                                  alt={ap.title}
-                                  size="small"
-                                />
-                                <Text as="span">{ap.title}</Text>
+                          const remaining = managed.cap - (managed.selected_ids ?? []).length;
+                          return (
+                            <>
+                              {addable.map((ap) => {
+                                const checked = addSelection.has(ap.id);
+                                const atCap = !checked && addSelection.size >= remaining;
+                                return (
+                                  <InlineStack key={ap.id} gap="300" blockAlign="center" wrap={false}>
+                                    <Checkbox
+                                      label=""
+                                      labelHidden
+                                      checked={checked}
+                                      disabled={atCap}
+                                      onChange={(value: boolean) =>
+                                        setAddSelection((prev) => {
+                                          const next = new Set(prev);
+                                          if (value) next.add(ap.id);
+                                          else next.delete(ap.id);
+                                          return next;
+                                        })
+                                      }
+                                    />
+                                    <Thumbnail
+                                      source={ap.image_url || ProductAddIcon}
+                                      alt={ap.title}
+                                      size="small"
+                                    />
+                                    <Text as="span">{ap.title}</Text>
+                                  </InlineStack>
+                                );
+                              })}
+                              <InlineStack align="end">
+                                <Button
+                                  variant="primary"
+                                  disabled={addSelection.size === 0}
+                                  loading={addProductFetcher.state !== "idle"}
+                                  onClick={handleAddProducts}
+                                >
+                                  {t(locale, "addProductAddCount").replace("{n}", String(addSelection.size))}
+                                </Button>
                               </InlineStack>
-                              <Button
-                                size="slim"
-                                loading={addProductFetcher.state !== "idle"}
-                                onClick={() => handleAddProduct(ap.id)}
-                              >
-                                {t(locale, "addProductAdd")}
-                              </Button>
-                            </InlineStack>
-                          ));
+                            </>
+                          );
                         })()
                       )}
                     </>
