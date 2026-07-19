@@ -1473,6 +1473,23 @@ const FR: Dictionary = {
   freshnessLine: "Catalogue : {snap} · Analyse : {ana}",
   freshnessRefresh: "Rafraîchir les données",
   freshnessRefreshQueued: "Rafraîchissement du catalogue lancé",
+  // sources used
+  sourcesUsedTitle: "Sources de données de cette analyse",
+  srcGsc: "Search Console",
+  srcDataforseo: "DataForSEO (volumes réels)",
+  srcDataforseoIdeas: "Idées de mots-clés DataForSEO",
+  srcDataforseoSerp: "SERP Google (DataForSEO)",
+  srcGa4: "Google Analytics 4",
+  srcGoogleAds: "Google Ads",
+  srcSuggest: "Google Suggest",
+  srcTrends: "Google Trends",
+  srcRealtime: "Recherche web temps réel",
+  srcRealtimeVerify: "Vérification marché temps réel",
+  srcShopify: "Catalogue Shopify",
+  srcCandidatePool: "Pool de mots-clés réels",
+  srcHistory: "Historique d'optimisation",
+  srcBusinessProfile: "Profil d'activité",
+  srcNiche: "Hypothèse de niche",
 };
 
 const EN: Dictionary = {
@@ -2938,6 +2955,23 @@ const EN: Dictionary = {
   freshnessLine: "Catalog: {snap} · Analysis: {ana}",
   freshnessRefresh: "Refresh data",
   freshnessRefreshQueued: "Catalog refresh started",
+  // sources used
+  sourcesUsedTitle: "Data sources for this analysis",
+  srcGsc: "Search Console",
+  srcDataforseo: "DataForSEO (real volumes)",
+  srcDataforseoIdeas: "DataForSEO keyword ideas",
+  srcDataforseoSerp: "Google SERP (DataForSEO)",
+  srcGa4: "Google Analytics 4",
+  srcGoogleAds: "Google Ads",
+  srcSuggest: "Google Suggest",
+  srcTrends: "Google Trends",
+  srcRealtime: "Real-time web search",
+  srcRealtimeVerify: "Real-time market verification",
+  srcShopify: "Shopify catalog",
+  srcCandidatePool: "Real keyword pool",
+  srcHistory: "Optimization history",
+  srcBusinessProfile: "Business profile",
+  srcNiche: "Niche hypothesis",
 };
 
 const DE: Dictionary = {
@@ -4403,6 +4437,23 @@ const DE: Dictionary = {
   freshnessLine: "Katalog: {snap} · Analyse: {ana}",
   freshnessRefresh: "Daten aktualisieren",
   freshnessRefreshQueued: "Katalog-Aktualisierung gestartet",
+  // sources used
+  sourcesUsedTitle: "Datenquellen dieser Analyse",
+  srcGsc: "Search Console",
+  srcDataforseo: "DataForSEO (echte Volumina)",
+  srcDataforseoIdeas: "DataForSEO-Keyword-Ideen",
+  srcDataforseoSerp: "Google-SERP (DataForSEO)",
+  srcGa4: "Google Analytics 4",
+  srcGoogleAds: "Google Ads",
+  srcSuggest: "Google Suggest",
+  srcTrends: "Google Trends",
+  srcRealtime: "Echtzeit-Websuche",
+  srcRealtimeVerify: "Echtzeit-Marktverifizierung",
+  srcShopify: "Shopify-Katalog",
+  srcCandidatePool: "Pool echter Keywords",
+  srcHistory: "Optimierungsverlauf",
+  srcBusinessProfile: "Unternehmensprofil",
+  srcNiche: "Nischen-Hypothese",
 };
 
 const ES: Dictionary = {
@@ -5868,6 +5919,23 @@ const ES: Dictionary = {
   freshnessLine: "Catálogo: {snap} · Análisis: {ana}",
   freshnessRefresh: "Actualizar los datos",
   freshnessRefreshQueued: "Actualización del catálogo iniciada",
+  // sources used
+  sourcesUsedTitle: "Fuentes de datos de este análisis",
+  srcGsc: "Search Console",
+  srcDataforseo: "DataForSEO (volúmenes reales)",
+  srcDataforseoIdeas: "Ideas de palabras clave DataForSEO",
+  srcDataforseoSerp: "SERP de Google (DataForSEO)",
+  srcGa4: "Google Analytics 4",
+  srcGoogleAds: "Google Ads",
+  srcSuggest: "Google Suggest",
+  srcTrends: "Google Trends",
+  srcRealtime: "Búsqueda web en tiempo real",
+  srcRealtimeVerify: "Verificación de mercado en tiempo real",
+  srcShopify: "Catálogo de Shopify",
+  srcCandidatePool: "Grupo de palabras clave reales",
+  srcHistory: "Historial de optimización",
+  srcBusinessProfile: "Perfil de negocio",
+  srcNiche: "Hipótesis de nicho",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };

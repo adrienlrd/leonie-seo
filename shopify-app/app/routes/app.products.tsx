@@ -32,6 +32,7 @@ import { resolveLocale } from "../lib/i18n.server";
 import { ResearchConsole, type ResearchJobEvent } from "../components/ResearchConsole";
 import { QuotaPill } from "../components/UsageMeter";
 import { showToast } from "../lib/toast";
+import { SourcesUsedCard } from "../components/SourcesUsedCard";
 import { buildAnalysisCounters, buildAnalysisSteps } from "../lib/researchSteps";
 import { ProductContentProposals, type FieldKey } from "../components/ProductContentProposals";
 import { ProductCard } from "../components/ProductCard";
@@ -2127,6 +2128,9 @@ export default function ProductsPage() {
                     {t(locale, "freshnessRefresh")}
                   </Button>
                 </InlineStack>
+                {(job.sources_used?.length ?? 0) > 0 && (
+                  <SourcesUsedCard sources={job.sources_used ?? []} locale={locale} />
+                )}
               </>
             )}
 
