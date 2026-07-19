@@ -334,6 +334,8 @@ interface JobState {
   total_opportunity_count: number;
   sources_used: string[];
   provider_status?: ProviderStatus;
+  realtime_status?: { status?: string; products_attempted?: number; products_ok?: number };
+  market_verification_status?: { status?: string };
   competitor_signals?: CompetitorSignal[];
   cannibalization_alerts?: CannibalizationAlert[];
   orphan_products?: string[];
@@ -1728,8 +1730,29 @@ export default function ProductsPage() {
         {/* Free-mode limits + paid recommendations — only when provider status is known */}
         {(() => {
           const ps = job?.provider_status ?? latestJob?.provider_status;
+          const src = job ?? latestJob;
+          const degraded: string[] = [];
+          if (ps?.trends?.status === "error" || ps?.trends?.status === "unavailable") {
+            degraded.push(t(locale, "provStatusTrendsDown"));
+          }
+          const rt = src?.realtime_status?.status;
+          if (rt === "llm_error" || rt === "parse_error" || rt === "partial") {
+            degraded.push(t(locale, "provStatusRealtimeDown"));
+          }
+          if (ps && ps.dataforseo === false) {
+            degraded.push(t(locale, "provStatusDataforseoOff"));
+          }
           return ps !== undefined && step === "analysis" ? (
             <>
+              {degraded.length > 0 && src?.status === "completed" && (
+                <Banner tone="warning" title={t(locale, "provStatusTitle")}>
+                  <BlockStack gap="100">
+                    {degraded.map((line) => (
+                      <Text as="p" variant="bodySm" key={line}>{line}</Text>
+                    ))}
+                  </BlockStack>
+                </Banner>
+              )}
               <FreeLimitsCard providerStatus={ps} locale={locale} />
               <PaidRecommendedCard providerStatus={ps} locale={locale} />
             </>

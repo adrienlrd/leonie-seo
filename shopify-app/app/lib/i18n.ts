@@ -1456,6 +1456,11 @@ const FR: Dictionary = {
   acctSelectProperty: "Propriété à choisir",
   umLast28: "Sur les 28 derniers jours.",
   umLimitReached: "Limite atteinte — se libère au fil des 28 jours.",
+  // provider status banner
+  provStatusTitle: "Certaines sources de données étaient indisponibles",
+  provStatusTrendsDown: "Google Trends n'a pas répondu — les tendances 12 mois n'ont pas alimenté cette analyse.",
+  provStatusRealtimeDown: "La recherche web temps réel a partiellement échoué — certains produits n'ont pas de vérification marché.",
+  provStatusDataforseoOff: "DataForSEO indisponible — les volumes de recherche affichés sont des estimations.",
 };
 
 const EN: Dictionary = {
@@ -2904,6 +2909,11 @@ const EN: Dictionary = {
   acctSelectProperty: "Property to select",
   umLast28: "Over the last 28 days.",
   umLimitReached: "Limit reached — frees up over the 28-day window.",
+  // provider status banner
+  provStatusTitle: "Some data sources were unavailable",
+  provStatusTrendsDown: "Google Trends did not respond — 12-month trends did not feed this analysis.",
+  provStatusRealtimeDown: "Real-time web search partially failed — some products have no market verification.",
+  provStatusDataforseoOff: "DataForSEO unavailable — displayed search volumes are estimates.",
 };
 
 const DE: Dictionary = {
@@ -4352,6 +4362,11 @@ const DE: Dictionary = {
   acctSelectProperty: "Property auswählen",
   umLast28: "In den letzten 28 Tagen.",
   umLimitReached: "Limit erreicht — wird über das 28-Tage-Fenster wieder frei.",
+  // provider status banner
+  provStatusTitle: "Einige Datenquellen waren nicht verfügbar",
+  provStatusTrendsDown: "Google Trends hat nicht geantwortet — die 12-Monats-Trends sind nicht in diese Analyse eingeflossen.",
+  provStatusRealtimeDown: "Die Echtzeit-Websuche ist teilweise fehlgeschlagen — einige Produkte haben keine Marktverifizierung.",
+  provStatusDataforseoOff: "DataForSEO nicht verfügbar — die angezeigten Suchvolumina sind Schätzungen.",
 };
 
 const ES: Dictionary = {
@@ -5800,6 +5815,11 @@ const ES: Dictionary = {
   acctSelectProperty: "Propiedad por elegir",
   umLast28: "En los últimos 28 días.",
   umLimitReached: "Límite alcanzado — se libera a lo largo de la ventana de 28 días.",
+  // provider status banner
+  provStatusTitle: "Algunas fuentes de datos no estaban disponibles",
+  provStatusTrendsDown: "Google Trends no respondió — las tendencias de 12 meses no alimentaron este análisis.",
+  provStatusRealtimeDown: "La búsqueda web en tiempo real falló parcialmente — algunos productos no tienen verificación de mercado.",
+  provStatusDataforseoOff: "DataForSEO no disponible — los volúmenes de búsqueda mostrados son estimaciones.",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };
