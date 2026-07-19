@@ -54,7 +54,15 @@ export default function App() {
   // Hide the secondary nav links while the merchant is on the onboarding screen
   // (their target pages are empty until setup completes). The rel="home" link
   // must always stay — App Bridge requires it as the app root.
-  const onOnboarding = useLocation().pathname.endsWith("/onboarding");
+  const location = useLocation();
+  const onOnboarding = location.pathname.endsWith("/onboarding");
+  const navigation = useNavigation();
+  // Skeleton only for real page-to-page navigations; revalidations of the
+  // current page (fetcher polls, save redirects to self) keep the live UI.
+  const navigatingToNewPage =
+    navigation.state === "loading" &&
+    navigation.location != null &&
+    navigation.location.pathname !== location.pathname;
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
