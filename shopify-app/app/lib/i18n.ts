@@ -1467,6 +1467,8 @@ const FR: Dictionary = {
   dashEmptyProductsTitle: "Aucun produit géré pour l'instant",
   dashEmptyProductsBody: "Choisissez les produits que l'app doit optimiser pour démarrer.",
   dashEmptyProductsCta: "Choisir mes produits",
+  toastSaved: "Réglages enregistrés",
+  toastCodeRedeemed: "Code appliqué !",
 };
 
 const EN: Dictionary = {
@@ -2926,6 +2928,8 @@ const EN: Dictionary = {
   dashEmptyProductsTitle: "No managed products yet",
   dashEmptyProductsBody: "Choose the products the app should optimize to get started.",
   dashEmptyProductsCta: "Choose my products",
+  toastSaved: "Settings saved",
+  toastCodeRedeemed: "Code applied!",
 };
 
 const DE: Dictionary = {
@@ -4385,6 +4389,8 @@ const DE: Dictionary = {
   dashEmptyProductsTitle: "Noch keine verwalteten Produkte",
   dashEmptyProductsBody: "Wählen Sie die Produkte aus, die die App optimieren soll, um zu starten.",
   dashEmptyProductsCta: "Meine Produkte auswählen",
+  toastSaved: "Einstellungen gespeichert",
+  toastCodeRedeemed: "Code eingelöst!",
 };
 
 const ES: Dictionary = {
@@ -5844,6 +5850,8 @@ const ES: Dictionary = {
   dashEmptyProductsTitle: "Aún no hay productos gestionados",
   dashEmptyProductsBody: "Elija los productos que la app debe optimizar para empezar.",
   dashEmptyProductsCta: "Elegir mis productos",
+  toastSaved: "Ajustes guardados",
+  toastCodeRedeemed: "¡Código aplicado!",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };

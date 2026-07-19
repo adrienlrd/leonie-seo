@@ -21,6 +21,7 @@ import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { localizedPath, t, type Locale } from "../lib/i18n";
 import { invalidateLocaleCache, resolveLocale } from "../lib/i18n.server";
+import { showToast } from "../lib/toast";
 import { HubGrid, type HubItem } from "../components/HubGrid";
 import { GoogleConnectionsCard } from "../components/GoogleConnectionsCard";
 import type { GA4Property, GA4Status, GSCStatus, OnboardingActionData } from "../components/onboarding/types";
@@ -174,6 +175,10 @@ export default function AccountHub() {
   const resetFetcher = useFetcher<{ type: string; ok: boolean; reset: number }>();
   const resetAllFetcher = useFetcher<{ type: string; ok: boolean; error?: string | null }>();
   const automationFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
+  useEffect(() => {
+    if (automationFetcher.data?.ok) showToast(t(locale, "toastSaved"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [automationFetcher.data]);
   const onboardingFetcher = useFetcher<OnboardingActionData>();
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmResetAll, setConfirmResetAll] = useState(false);

@@ -31,6 +31,7 @@ import { loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
 import { resolveLocale } from "../lib/i18n.server";
 import { ResearchConsole, type ResearchJobEvent } from "../components/ResearchConsole";
 import { QuotaPill } from "../components/UsageMeter";
+import { showToast } from "../lib/toast";
 import { buildAnalysisCounters, buildAnalysisSteps } from "../lib/researchSteps";
 import { ProductContentProposals, type FieldKey } from "../components/ProductContentProposals";
 import { ProductCard } from "../components/ProductCard";
@@ -1430,8 +1431,7 @@ export default function ProductsPage() {
   useEffect(() => {
     const prev = prevJobStatusForToast.current;
     if (job?.status === "completed" && prev && prev !== "completed") {
-      (window as unknown as { shopify?: { toast?: { show: (m: string) => void } } }).shopify
-        ?.toast?.show(t(locale, "marketAnalysisDoneToast"));
+      showToast(t(locale, "marketAnalysisDoneToast"));
       // Post-success upsell: the moment of realized value is the natural
       // breaking point where free merchants convert best.
       if (analysisUsage?.plan === "free") setShowSuccessUpsell(true);
@@ -1481,8 +1481,7 @@ export default function ProductsPage() {
             return { ...prev, products: updatedProducts };
           });
           if (enrichTriggeredRef.current) {
-            (window as unknown as { shopify?: { toast?: { show: (m: string) => void } } }).shopify
-              ?.toast?.show(t(locale, "enrichSavedToast"));
+            showToast(t(locale, "enrichSavedToast"));
             enrichTriggeredRef.current = false;
           }
           setSingleProductJobId(null);

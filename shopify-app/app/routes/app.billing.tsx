@@ -18,11 +18,12 @@ import {
 } from "@shopify/polaris";
 import { PlanBadge } from "../components/PlanBadge";
 import { CheckCircleIcon, LockIcon } from "@shopify/polaris-icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { pickLang, t, type Locale } from "../lib/i18n";
 import { resolveLocale } from "../lib/i18n.server";
+import { showToast } from "../lib/toast";
 import { UsageMeter } from "../components/UsageMeter";
 
 interface PlanQuotas {
@@ -217,6 +218,10 @@ export default function Billing() {
   const [code, setCode] = useState("");
 
   const redeemed = redeemFetcher.data?.redeemed;
+  useEffect(() => {
+    if (redeemFetcher.data?.redeemed) showToast(t(locale, "toastCodeRedeemed"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redeemFetcher.data]);
   const redeemError = redeemFetcher.data?.redeemError;
 
   const formatPrice = (plan: Plan) => {
