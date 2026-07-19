@@ -199,6 +199,8 @@ interface GscStatus {
 interface ThemeExtStatus {
   available?: boolean;
   enabled?: boolean | null;
+  /** Extension uuid Shopify actually deployed (from the theme settings). */
+  embed_uid?: string | null;
 }
 
 interface ScheduleStatus {
@@ -1157,6 +1159,7 @@ interface SetupSignals {
   gscConnected: boolean;
   ga4Connected: boolean;
   themeEnabled: boolean | null;
+  themeEmbedUid?: string | null;
   llmsPublished: boolean;
   autoActive: boolean;
   blogPublished: boolean;
@@ -1232,7 +1235,11 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
   // redirect could drop the activateAppId param, landing on an empty "no apps
   // with embeds" panel); uuid = the extension uid from shopify.extension.toml.
   const storeHandle = shop.replace(".myshopify.com", "");
-  const themeEditorUrl = `https://admin.shopify.com/store/${storeHandle}/themes/current/editor?context=apps&template=index&activateAppId=41c38ef1-2770-74ac-364b-b4cff7f918b20d1602f9/faq_embed`;
+  // Prefer the uuid observed in the theme settings (the one Shopify actually
+  // deployed) — the local toml uid can differ, which made the editor open on
+  // "app embed does not exist". Falls back to the build-time uid.
+  const embedUid = signals.themeEmbedUid || "41c38ef1-2770-74ac-364b-b4cff7f918b20d1602f9";
+  const themeEditorUrl = `https://admin.shopify.com/store/${storeHandle}/themes/current/editor?context=apps&template=index&activateAppId=${embedUid}/faq_embed`;
 
   const steps: GuideStep[] = [
     {
@@ -2871,6 +2878,7 @@ export default function IndexPage() {
     gscConnected,
     ga4Connected,
     themeEnabled: themeExt?.available ? themeExt.enabled === true : null,
+    themeEmbedUid: themeExt?.embed_uid ?? null,
     llmsPublished,
     autoActive: learningMode === "auto_apply",
     blogPublished,

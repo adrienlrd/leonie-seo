@@ -102,6 +102,10 @@ def _app_embed_enabled(settings_json: str, diag: dict | None = None) -> bool | N
             continue
         block_type = str(block.get("type") or "")
         if any(marker in block_type for marker in _EXTENSION_MARKERS):
+            if diag is not None:
+                # e.g. shopify://apps/<app>/blocks/faq_embed/<uuid> — the LAST
+                # segment is the extension uuid Shopify actually deployed.
+                diag["embed_uid"] = block_type.rstrip("/").rsplit("/", 1)[-1]
             # disabled defaults to False (i.e. enabled) when the key is absent.
             if not bool(block.get("disabled", False)):
                 return True
@@ -126,7 +130,12 @@ def get_theme_extension_status(shop: str, access_token: str) -> dict[str, Any]:
 
         main_status = _embed_state_for_theme(shop, access_token, main_id)
         if main_status.get("enabled"):
-            return {"available": True, "enabled": True, "detail": "ok"}
+            return {
+                "available": True,
+                "enabled": True,
+                "detail": "ok",
+                "embed_uid": main_status.get("embed_uid"),
+            }
 
         # Not enabled on the published theme — check drafts: the theme editor
         # deep link sometimes opens an unpublished copy, so the merchant can
@@ -148,11 +157,13 @@ def get_theme_extension_status(shop: str, access_token: str) -> dict[str, Any]:
                     "available": True,
                     "enabled": False,
                     "detail": f"enabled on unpublished theme: {name}",
+                    "embed_uid": other.get("embed_uid"),
                 }
         return {
             "available": True,
             "enabled": main_status.get("enabled"),
             "detail": main_status.get("detail", "ok"),
+            "embed_uid": main_status.get("embed_uid"),
         }
     except requests.RequestException as exc:
         logger.warning("Theme extension status check failed for %s: %s", shop, exc)
@@ -184,4 +195,7 @@ def _embed_state_for_theme(shop: str, access_token: str, theme_id: str) -> dict[
     diag: dict = {}
     enabled = _app_embed_enabled(content, diag)
     detail = "ok" if enabled is not None else f"settings shape not understood ({diag.get('shape', '?')})"
-    return {"enabled": enabled, "detail": detail}
+    out: dict[str, Any] = {"enabled": enabled, "detail": detail}
+    if diag.get("embed_uid"):
+        out["embed_uid"] = diag["embed_uid"]
+    return out
