@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { Outlet, useLoaderData, useLocation, useRouteError } from "@remix-run/react";
+import { Outlet, useLoaderData, useLocation, useNavigation, useRouteError } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
@@ -8,6 +8,7 @@ import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { localizedPath, t, type Locale } from "../lib/i18n";
+import { PageSkeleton } from "../components/PageSkeleton";
 import { resolveLocale } from "../lib/i18n.server";
 import { SupportChat } from "../components/SupportChat";
 
@@ -80,7 +81,7 @@ export default function App() {
         )}
         {!onOnboarding && <a href={localizedPath("/app/account", locale)}>{t(locale, "settings")}</a>}
       </NavMenu>
-      <Outlet />
+      {navigatingToNewPage ? <PageSkeleton /> : <Outlet />}
     </AppProvider>
   );
 }
