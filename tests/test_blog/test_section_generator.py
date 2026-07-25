@@ -63,7 +63,7 @@ def test_agency_shop_uses_grounded_tier_and_returns_citations():
     router.complete.return_value = CompletionResult(
         text=json.dumps({"direct_answer": "x", "body": "y", "claims_used": []}),
         provider="gemini",
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.5-flash-lite",
         citations=[{"url": "https://example.com", "title": "Example"}],
     )
     with (
@@ -99,7 +99,7 @@ def test_agency_shop_reads_sources_the_model_wrote_into_its_own_json():
             }
         ),
         provider="gemini",
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.5-flash-lite",
         citations=[],
     )
     with (

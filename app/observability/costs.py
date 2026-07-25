@@ -24,7 +24,7 @@ _PRICING: dict[str, dict[str, float]] = {
     # tracks token cost — the separate Google Search grounding fee (5,000
     # free grounded prompts/month, then $14/1,000) is not token-based and has
     # no tracking mechanism here; see docs/AI_HANDOFF.md.
-    "gemini-3.1-flash-lite": {"input": 0.25, "output": 1.50},
+    "gemini-3.5-flash-lite": {"input": 0.30, "output": 2.50},
 }
 
 _UNKNOWN_PRICING: dict[str, float] = {"input": 0.0, "output": 0.0}

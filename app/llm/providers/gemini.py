@@ -12,7 +12,7 @@ from app.llm.provider import (
     LLMUnavailableError,
 )
 
-_DEFAULT_MODEL = "gemini-3.1-flash-lite"
+_DEFAULT_MODEL = "gemini-3.5-flash-lite"
 _BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 

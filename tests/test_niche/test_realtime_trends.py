@@ -67,7 +67,7 @@ def test_force_bypasses_plan_gate_for_pro_plan(
     mock_router.complete.return_value = CompletionResult(
         text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
         provider="gemini",
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.5-flash-lite",
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, force=True)
@@ -109,7 +109,7 @@ def test_agency_with_key_calls_grounded_router(
     mock_router.complete.return_value = CompletionResult(
         text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
         provider="gemini",
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.5-flash-lite",
         citations=[{"url": "https://example.com", "title": "Example"}],
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router) as get_router_mock:
@@ -133,7 +133,7 @@ def test_persists_result_to_json_file(db: Path, data_dir: Path, monkeypatch: pyt
             }
         ),
         provider="gemini",
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.5-flash-lite",
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
@@ -154,7 +154,7 @@ def test_persist_false_does_not_write_file(
     mock_router.complete.return_value = CompletionResult(
         text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
         provider="gemini",
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.5-flash-lite",
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, persist=False)
@@ -197,7 +197,7 @@ def test_fail_open_when_response_is_not_valid_json(
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
     mock_router.complete.return_value = CompletionResult(
-        text="not json at all", provider="gemini", model="gemini-3.1-flash-lite"
+        text="not json at all", provider="gemini", model="gemini-3.5-flash-lite"
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
@@ -235,7 +235,7 @@ def test_status_out_ok(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
     mock_router.complete.return_value = CompletionResult(
         text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
         provider="gemini",
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.5-flash-lite",
     )
     status: dict = {}
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
@@ -260,7 +260,7 @@ def test_status_out_parse_error(db: Path, data_dir: Path, monkeypatch: pytest.Mo
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
     mock_router.complete.return_value = CompletionResult(
-        text="not json", provider="gemini", model="gemini-3.1-flash-lite"
+        text="not json", provider="gemini", model="gemini-3.5-flash-lite"
     )
     status: dict = {}
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
@@ -313,7 +313,7 @@ def test_verify_parses_verifications_by_query(
             }
         ),
         provider="gemini",
-        model="gemini-3.1-flash-lite",
+        model="gemini-3.5-flash-lite",
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         result = verify_keywords_against_market(
@@ -330,7 +330,7 @@ def test_verify_caps_keyword_list(db: Path, data_dir: Path, monkeypatch: pytest.
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
     mock_router.complete.return_value = CompletionResult(
-        text=json.dumps({"verifications": []}), provider="gemini", model="gemini-3.1-flash-lite"
+        text=json.dumps({"verifications": []}), provider="gemini", model="gemini-3.5-flash-lite"
     )
     keywords = [f"kw{i}" for i in range(50)]
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
@@ -354,7 +354,7 @@ def test_verify_batches_keywords_into_calls_of_ten_and_merges_results(
                 {"verifications": [{"query": f"kw{i}", "market_evidence": "confirmed"}]}
             ),
             provider="gemini",
-            model="gemini-3.1-flash-lite",
+            model="gemini-3.5-flash-lite",
         )
         for i in (0, 10, 20)
     ]
@@ -386,7 +386,7 @@ def test_verify_partial_status_when_one_batch_fails(
                 {"verifications": [{"query": "kw0", "market_evidence": "rising"}]}
             ),
             provider="gemini",
-            model="gemini-3.1-flash-lite",
+            model="gemini-3.5-flash-lite",
         ),
         LLMError("boom"),
     ]
@@ -420,7 +420,7 @@ def test_verify_force_bypasses_plan_gate(
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
     mock_router.complete.return_value = CompletionResult(
-        text=json.dumps({"verifications": []}), provider="gemini", model="gemini-3.1-flash-lite"
+        text=json.dumps({"verifications": []}), provider="gemini", model="gemini-3.5-flash-lite"
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         result = verify_keywords_against_market(SHOP, ["fontaine à eau chat"], "niche", db_path=db, force=True)

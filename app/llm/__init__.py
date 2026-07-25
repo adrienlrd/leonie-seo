@@ -68,7 +68,7 @@ def _build_grounded_providers() -> list[LLMProvider]:
 
     providers: list[LLMProvider] = []
     if key := os.getenv("GEMINI_API_KEY"):
-        model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+        model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
         providers.append(GeminiProvider(api_key=key, model=model, grounded=True, timeout=60.0))
     providers.extend(_build_providers())
     return providers

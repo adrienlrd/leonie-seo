@@ -22,7 +22,7 @@ Adrien is not a developer. Walk him through, step by step, waiting for his confi
 1. Open https://aistudio.google.com/ and sign in with a Google account (his standard Google account works; no Cloud project setup is required for the Gemini Developer API).
 2. Click **"Get API key"** (left sidebar) → **"Create API key"**. AI Studio creates the backing project automatically.
 3. Copy the key (starts with `AIza…`). It must be pasted into the chat or directly into `.env` — never committed.
-4. Free tier notes to tell him: token pricing for `gemini-3.1-flash-lite` is ~$0.25/M input, $1.50/M output; **Google Search grounding: 5,000 grounded prompts/month free**, then $14/1,000 queries (verify current numbers at https://ai.google.dev/gemini-api/docs/pricing). Billing must be enabled in AI Studio for paid tier — but start on free tier.
+4. Free tier notes to tell him: token pricing for `gemini-3.5-flash-lite` is ~$0.30/M input, $2.50/M output; **Google Search grounding: 5,000 grounded prompts/month free**, then $14/1,000 queries (verify current numbers at https://ai.google.dev/gemini-api/docs/pricing). Billing must be enabled in AI Studio for paid tier — but start on free tier.
 5. Add to local `.env`: `GEMINI_API_KEY=...` and add the same env var on the **Render API service** (he knows how; it's the same place as `LEONIE_ACCESS_CODE_PRO`).
 6. Update `.env.example` with a commented `# GEMINI_API_KEY=` entry (no value).
 
@@ -54,7 +54,7 @@ Reference doc for grounding: https://ai.google.dev/gemini-api/docs/google-search
 
 ### Step 1 — `GeminiProvider` (`app/llm/providers/gemini.py`)
 - Mirror `openai.py`. Use plain `httpx` against the REST endpoint `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key=...` (avoid adding the `google-genai` SDK unless Adrien approves a new dependency — AGENTS.md forbids undocumented deps; httpx is already used).
-- Model: `gemini-3.1-flash-lite` (constant, overridable via `GEMINI_MODEL` env).
+- Model: `gemini-3.5-flash-lite` (constant, overridable via `GEMINI_MODEL` env).
 - Constructor flag `grounded: bool` — when True, send `"tools": [{"google_search": {}}]`.
 - `json_mode`: use `generationConfig.responseMimeType = "application/json"`. **Caveat:** grounding + forced-JSON can conflict on some model versions; if the API rejects the combination, fall back to prompt-level "answer in JSON" + robust parsing (the codebase already parses LLM JSON defensively in `_complete_json`).
 - Map errors: 429 → `LLMRateLimitError`, 5xx/network → `LLMUnavailableError`, else `LLMError`.
