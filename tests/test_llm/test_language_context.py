@@ -64,6 +64,6 @@ def test_pass1_prompt_carries_language_context() -> None:
 def test_grounding_prompt_targets_the_selected_market() -> None:
     from app.niche.signals.realtime_trends import _build_prompt
 
-    prompt = _build_prompt("tienda de mascotas", ["Arnés para perros"], "es")
+    prompt = _build_prompt("es")
     assert "España" in prompt
     assert "español" in prompt

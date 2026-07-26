@@ -57,7 +57,7 @@ def _grounded_completion(payload: dict | str, **kwargs) -> CompletionResult:
 def test_returns_none_for_free_plan(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     with patch("app.niche.signals.realtime_trends.get_router") as mock_router:
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
+        result = fetch_realtime_signals(SHOP, db_path=db)
     assert result is None
     mock_router.assert_not_called()
 
@@ -70,13 +70,11 @@ def test_pro_plan_is_eligible_for_grounding(
     upsert_subscription(SHOP, "pro", "active", "gid://sub/1", db_path=db)
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
-    mock_router.complete.return_value = _grounded_completion(
-        {"events": [], "rising_queries": [], "competitor_moves": []}
-    )
+    mock_router.complete.return_value = _grounded_completion({"events": [{"title": "Canicule", "kind": "weather"}]})
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
+        result = fetch_realtime_signals(SHOP, db_path=db)
     assert result is not None
-    mock_router.complete.assert_called_once()
+    assert mock_router.complete.call_count == 2  # grounded prose + structuring
 
 
 def test_force_bypasses_plan_gate_for_free_plan(
@@ -88,11 +86,9 @@ def test_force_bypasses_plan_gate_for_free_plan(
     upsert_subscription(SHOP, "free", "active", "gid://sub/1", db_path=db)
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
-    mock_router.complete.return_value = _grounded_completion(
-        {"events": [], "rising_queries": [], "competitor_moves": []}
-    )
+    mock_router.complete.return_value = _grounded_completion({"events": [{"title": "Canicule", "kind": "weather"}]})
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, force=True)
+        result = fetch_realtime_signals(SHOP, db_path=db, force=True)
     assert result is not None
     # Real plan is untouched — still "free" in the subscription store.
     from app.billing.subscription_store import get_plan_for_shop
@@ -106,7 +102,7 @@ def test_force_still_requires_gemini_key(
     upsert_subscription(SHOP, "pro", "active", "gid://sub/1", db_path=db)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     with patch("app.niche.signals.realtime_trends.get_router") as mock_router:
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, force=True)
+        result = fetch_realtime_signals(SHOP, db_path=db, force=True)
     assert result is None
     mock_router.assert_not_called()
 
@@ -117,7 +113,7 @@ def test_returns_none_without_gemini_key(
     _agency(db)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     with patch("app.niche.signals.realtime_trends.get_router") as mock_router:
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
+        result = fetch_realtime_signals(SHOP, db_path=db)
     assert result is None
     mock_router.assert_not_called()
 
@@ -129,81 +125,18 @@ def test_agency_with_key_calls_grounded_router(
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
     mock_router.complete.return_value = CompletionResult(
-        text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
+        text=json.dumps({"events": [{"title": "Canicule", "kind": "weather"}]}),
         provider="gemini",
         model="gemini-3.5-flash-lite",
         search_queries=["recherche exécutée"],
         citations=[{"url": "https://example.com", "title": "Example"}],
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router) as get_router_mock:
-        result = fetch_realtime_signals(SHOP, {"niche_summary": "alimentation chat"}, ["Fontaine à eau"], db_path=db)
-    get_router_mock.assert_called_once_with(shop=SHOP, tier="grounded")
+        result = fetch_realtime_signals(SHOP, db_path=db)
+    assert get_router_mock.call_args_list[0].kwargs == {"shop": SHOP, "tier": "grounded"}
     assert result is not None
     assert result["citations"] == [{"url": "https://example.com", "title": "Example"}]
     assert "fetched_at" in result
-
-
-def test_persists_result_to_json_file(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _agency(db)
-    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
-    mock_router = MagicMock()
-    mock_router.complete.return_value = CompletionResult(
-        text=json.dumps(
-            {
-                "events": [{"title": "Canicule", "description": "...", "source_url": "https://meteo.fr"}],
-                "rising_queries": [],
-                "competitor_moves": [],
-            }
-        ),
-        provider="gemini",
-        model="gemini-3.5-flash-lite",
-        search_queries=["recherche exécutée"],
-    )
-    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
-
-    saved = json.loads((data_dir / SHOP / "realtime_signals.json").read_text())
-    assert saved["events"][0]["title"] == "Canicule"
-
-
-def test_persist_false_does_not_write_file(
-    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The per-product grounding loop (engine.py) calls this once per product
-    with persist=False, then merges + saves once itself — a per-product call
-    must never silently overwrite a previous product's saved snapshot."""
-    _agency(db)
-    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
-    mock_router = MagicMock()
-    mock_router.complete.return_value = CompletionResult(
-        text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
-        provider="gemini",
-        model="gemini-3.5-flash-lite",
-        search_queries=["recherche exécutée"],
-    )
-    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, persist=False)
-
-    assert result is not None
-    assert not (data_dir / SHOP / "realtime_signals.json").exists()
-
-
-def test_persist_realtime_signals_writes_the_merged_snapshot(
-    db: Path, data_dir: Path
-) -> None:
-    from app.niche.signals.realtime_trends import persist_realtime_signals
-
-    merged = {"events": [{"title": "Merged event"}], "rising_queries": [], "competitor_moves": []}
-    persist_realtime_signals(SHOP, merged, db_path=db)
-
-    saved = json.loads((data_dir / SHOP / "realtime_signals.json").read_text())
-    assert saved["events"][0]["title"] == "Merged event"
-
-    loaded = load_realtime_signals(SHOP, db_path=db)
-    assert loaded is not None
-    assert loaded["events"][0]["title"] == "Merged event"
-
-
 def test_fail_open_when_llm_raises(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _agency(db)
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
@@ -211,7 +144,7 @@ def test_fail_open_when_llm_raises(db: Path, data_dir: Path, monkeypatch: pytest
         "app.niche.signals.realtime_trends.get_router",
         side_effect=LLMError("all providers failed"),
     ):
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
+        result = fetch_realtime_signals(SHOP, db_path=db)
     assert result is None
 
 
@@ -225,7 +158,7 @@ def test_fail_open_when_response_is_not_valid_json(
         text="not json at all", provider="gemini", model="gemini-3.5-flash-lite"
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
+        result = fetch_realtime_signals(SHOP, db_path=db)
     assert result is None
 
 
@@ -257,7 +190,7 @@ def test_discards_answer_from_the_non_grounded_fallback_provider(
     )
     status: dict = {}
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+        result = fetch_realtime_signals(SHOP, db_path=db, status_out=status)
     assert result is None
     assert status["status"] == "not_grounded"
 
@@ -272,17 +205,13 @@ def test_discards_gemini_answer_that_ran_no_web_search(
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
     mock_router.complete.return_value = _grounded_completion(
-        {
-            "events": [{"title": "Canicule", "source_url": "https://invented.example"}],
-            "rising_queries": [],
-            "competitor_moves": [],
-        },
+        {"events": [{"title": "Canicule", "source_url": "https://invented.example"}]},
         search_queries=[],
         citations=[],
     )
     status: dict = {}
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+        result = fetch_realtime_signals(SHOP, db_path=db, status_out=status)
     assert result is None
     assert status["status"] == "not_grounded"
 
@@ -312,7 +241,7 @@ def test_reuses_snapshot_younger_than_the_ttl_without_calling_gemini(
     _persisted_snapshot(data_dir, (datetime.now(UTC) - timedelta(hours=2)).isoformat())
     status: dict = {}
     with patch("app.niche.signals.realtime_trends.get_router") as get_router_mock:
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+        result = fetch_realtime_signals(SHOP, db_path=db, status_out=status)
     get_router_mock.assert_not_called()
     assert result is not None
     assert result["events"][0]["title"] == "Canicule"
@@ -328,15 +257,15 @@ def test_refetches_when_snapshot_is_older_than_the_ttl(
     mock_router = MagicMock()
     mock_router.complete.return_value = CompletionResult(
         text=json.dumps(
-            {"events": [{"title": "Rentrée"}], "rising_queries": [], "competitor_moves": []}
+            {"events": [{"title": "Rentrée"}]}
         ),
         provider="gemini",
         model="gemini-3.5-flash-lite",
         search_queries=["recherche exécutée"],
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
-    mock_router.complete.assert_called_once()
+        result = fetch_realtime_signals(SHOP, db_path=db)
+    assert mock_router.complete.call_count == 2  # grounded prose + structuring
     assert result is not None
     assert result["events"][0]["title"] == "Rentrée"
 
@@ -349,14 +278,14 @@ def test_refetches_when_snapshot_has_an_unparseable_timestamp(
     _persisted_snapshot(data_dir, "hier soir")
     mock_router = MagicMock()
     mock_router.complete.return_value = CompletionResult(
-        text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
+        text=json.dumps({"events": [{"title": "Canicule", "kind": "weather"}]}),
         provider="gemini",
         model="gemini-3.5-flash-lite",
         search_queries=["recherche exécutée"],
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
-    mock_router.complete.assert_called_once()
+        fetch_realtime_signals(SHOP, db_path=db)
+    assert mock_router.complete.call_count == 2  # grounded prose + structuring
 
 
 # ── status_out diagnostics (fetch_realtime_signals) ─────────────────────────
@@ -366,14 +295,14 @@ def test_status_out_no_gemini_key(db: Path, data_dir: Path, monkeypatch: pytest.
     _agency(db)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     status: dict = {}
-    fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+    fetch_realtime_signals(SHOP, db_path=db, status_out=status)
     assert status["status"] == "no_gemini_key"
 
 
 def test_status_out_plan_not_eligible(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     status: dict = {}
-    fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+    fetch_realtime_signals(SHOP, db_path=db, status_out=status)
     assert status["status"] == "plan_not_eligible"
 
 
@@ -382,14 +311,14 @@ def test_status_out_ok(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
     mock_router.complete.return_value = CompletionResult(
-        text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
+        text=json.dumps({"events": [{"title": "Canicule", "kind": "weather"}]}),
         provider="gemini",
         model="gemini-3.5-flash-lite",
         search_queries=["recherche exécutée"],
     )
     status: dict = {}
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+        fetch_realtime_signals(SHOP, db_path=db, status_out=status)
     assert status["status"] == "ok"
 
 
@@ -401,7 +330,7 @@ def test_status_out_llm_error(db: Path, data_dir: Path, monkeypatch: pytest.Monk
         "app.niche.signals.realtime_trends.get_router",
         side_effect=LLMError("all providers failed"),
     ):
-        fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+        fetch_realtime_signals(SHOP, db_path=db, status_out=status)
     assert status["status"] == "llm_error"
 
 
@@ -412,5 +341,5 @@ def test_status_out_parse_error(db: Path, data_dir: Path, monkeypatch: pytest.Mo
     mock_router.complete.return_value = _grounded_completion("not json")
     status: dict = {}
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
-        fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+        fetch_realtime_signals(SHOP, db_path=db, status_out=status)
     assert status["status"] == "parse_error"

@@ -44,8 +44,7 @@ def _fake_run_market_analysis(products, *args, **kwargs):  # noqa: ARG001
     if grounded:
         sources.append("realtime_grounding")
         result["realtime_signals"] = {
-            "events": [{"title": "Canicule"}],
-            "rising_queries": [{"query": "fontaine à eau chat"}],
+            "events": [{"title": "Canicule"}, {"title": "Vacances scolaires"}],
         }
         result["realtime_status"] = {"status": "ok"}
     return result

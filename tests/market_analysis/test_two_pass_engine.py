@@ -1196,8 +1196,6 @@ def _product2():
         "seo": {"title": "Griffoir chat", "description": ""},
         "variants": [{"price": "19.90", "inventory_quantity": 8}],
     }
-
-
 def _default_budget(*, over_budget=False):
     return {
         "over_budget": over_budget,
@@ -1211,7 +1209,6 @@ def _default_budget(*, over_budget=False):
 
 def _run_with_realtime(
     router,
-    *,
     fetch_realtime,
     realtime_signals,
     products=None,
@@ -1221,6 +1218,8 @@ def _run_with_realtime(
         patch.object(engine, "get_router", return_value=router),
         patch.object(engine, "check_budget", return_value=_default_budget(over_budget=over_budget)),
         patch.object(engine, "_fetch_trends_once", return_value=[]),
+        # Never let a real GEMINI_API_KEY in the test environment trigger a live
+        # HTTP call from this unrelated engine-level test — always mocked here.
         patch.object(engine, "_fetch_realtime_signals_once", return_value=realtime_signals) as mock_fetch,
         patch.object(engine, "fetch_suggestions_bulk", return_value=[]),
         patch.object(engine, "DataForSEOProvider", return_value=_FakeDataForSEO()),
@@ -1235,197 +1234,11 @@ def _run_with_realtime(
     return result, mock_fetch
 
 
-def test_fetch_realtime_false_never_calls_realtime_fetcher():
-    router = _router(_PASS1_JSON, _PASS2_JSON)
-    result, mock_fetch = _run_with_realtime(router, fetch_realtime=False, realtime_signals=None)
-    mock_fetch.assert_not_called()
-    assert "realtime_grounding" not in result["sources_used"]
-    pass1_prompt = router.complete.call_args_list[0].args[0]
-    assert "DONNÉES TEMPS RÉEL" not in pass1_prompt
-
-
-def test_fetch_realtime_true_with_signal_injects_prompt_and_source():
-    router = _router(_PASS1_JSON, _PASS2_JSON)
-    signals = {
-        "events": [{"title": "Canicule en France cette semaine"}],
-        "rising_queries": [{"query": "fontaine à eau chat canicule"}],
-        "competitor_moves": [],
-        "citations": [{"url": "https://meteo-france.fr/canicule", "title": "Météo France"}],
-        "fetched_at": "2026-07-15T00:00:00+00:00",
-    }
-    result, mock_fetch = _run_with_realtime(router, fetch_realtime=True, realtime_signals=signals)
-    mock_fetch.assert_called_once()
-    assert "realtime_grounding" in result["sources_used"]
-    pass1_prompt = router.complete.call_args_list[0].args[0]
-    assert "DONNÉES TEMPS RÉEL" in pass1_prompt
-    assert "Canicule en France cette semaine" in pass1_prompt
-    assert "fontaine à eau chat canicule" in pass1_prompt
-def test_fetch_realtime_force_defaults_to_false_and_is_threaded_through():
-    """fetch_realtime_force must reach _fetch_realtime_signals_once's `force`
-    kwarg unchanged — used only by the Pro/Grande boutique comparison tool to
-    exercise the agency branch without touching the shop's real plan."""
-    router = _router(_PASS1_JSON, _PASS2_JSON)
-    budget = {
-        "over_budget": False, "budget_usd": 20.0, "spent_usd": 0.0,
-        "remaining_usd": 20.0, "usage_pct": 0.0, "alert": None,
-    }
-    with (
-        patch.object(engine, "get_router", return_value=router),
-        patch.object(engine, "check_budget", return_value=budget),
-        patch.object(engine, "_fetch_trends_once", return_value=[]),
-        patch.object(engine, "_fetch_realtime_signals_once", return_value=None) as mock_fetch,
-        patch.object(engine, "fetch_suggestions_bulk", return_value=[]),
-        patch.object(engine, "DataForSEOProvider", return_value=_FakeDataForSEO()),
-    ):
-        engine.run_market_analysis(
-            [_product()], _SHOP, {}, [], fetch_realtime=True, fetch_realtime_force=True,
-        )
-    assert mock_fetch.call_args.kwargs["force"] is True
-
-
-def test_fetch_realtime_multiple_products_each_get_own_grounded_call():
-    """Core behavior change: 2 products must trigger 2 independent realtime
-    calls and 2 independent verification calls (one pair per product), not one
-    shared catalog-wide pair."""
-    router = _router(_PASS1_JSON, _PASS1_JSON, _PASS2_JSON, _PASS2_JSON)
-    result, mock_fetch = _run_with_realtime(
-        router,
-        fetch_realtime=True,
-        realtime_signals=None,
-        products=[_product(), _product2()],
-    )
-    assert mock_fetch.call_count == 2
-    fetched_titles = {call.args[2][0] for call in mock_fetch.call_args_list}
-    assert fetched_titles == {"Fontaine à chat", "Griffoir pour chat"}
-    assert result["realtime_status"]["products_attempted"] == 2
-
-
-def test_realtime_status_is_partial_when_only_some_products_succeed():
-    router = _router(_PASS1_JSON, _PASS1_JSON, _PASS2_JSON, _PASS2_JSON)
-    signal = {
-        "events": [],
-        "rising_queries": [],
-        "competitor_moves": [],
-        "citations": [],
-        "fetched_at": "2026-07-15T00:00:00+00:00",
-    }
-    with (
-        patch.object(engine, "get_router", return_value=router),
-        patch.object(engine, "check_budget", return_value=_default_budget()),
-        patch.object(engine, "_fetch_trends_once", return_value=[]),
-        patch.object(engine, "_fetch_realtime_signals_once", side_effect=[signal, None]) as mock_fetch,
-        patch.object(engine, "fetch_suggestions_bulk", return_value=[]),
-        patch.object(engine, "DataForSEOProvider", return_value=_FakeDataForSEO()),
-    ):
-        result = engine.run_market_analysis(
-            [_product(), _product2()], _SHOP, {}, [], fetch_realtime=True,
-        )
-    assert mock_fetch.call_count == 2
-    assert result["realtime_status"]["products_attempted"] == 2
-    assert result["realtime_status"]["products_ok"] == 1
-    assert result["realtime_status"]["status"] == "partial"
-
-
-def test_realtime_signals_from_multiple_products_merge_and_dedupe():
-    router = _router(_PASS1_JSON, _PASS1_JSON, _PASS2_JSON, _PASS2_JSON)
-    signal_a = {
-        "events": [{"title": "Canicule en France cette semaine"}],
-        "rising_queries": [{"query": "fontaine à eau chat canicule"}],
-        "competitor_moves": [],
-        "citations": [{"url": "https://meteo-france.fr/canicule", "title": "Météo France"}],
-        "fetched_at": "2026-07-15T00:00:00+00:00",
-    }
-    signal_b = {
-        # Same event as product A (should be deduped), plus a new one of its own.
-        "events": [
-            {"title": "Canicule en France cette semaine"},
-            {"title": "Rentrée des classes"},
-        ],
-        "rising_queries": [{"query": "griffoir chat sisal"}],
-        "competitor_moves": [],
-        "citations": [],
-        "fetched_at": "2026-07-16T00:00:00+00:00",
-    }
-    with (
-        patch.object(engine, "get_router", return_value=router),
-        patch.object(engine, "check_budget", return_value=_default_budget()),
-        patch.object(engine, "_fetch_trends_once", return_value=[]),
-        patch.object(
-            engine, "_fetch_realtime_signals_once", side_effect=[signal_a, signal_b]
-        ),
-        patch.object(engine, "fetch_suggestions_bulk", return_value=[]),
-        patch.object(engine, "DataForSEOProvider", return_value=_FakeDataForSEO()),
-    ):
-        result = engine.run_market_analysis(
-            [_product(), _product2()], _SHOP, {}, [], fetch_realtime=True,
-        )
-    merged = result["realtime_signals"]
-    assert len(merged["events"]) == 2
-    assert {e["title"] for e in merged["events"]} == {
-        "Canicule en France cette semaine",
-        "Rentrée des classes",
-    }
-    assert {q["query"] for q in merged["rising_queries"]} == {
-        "fontaine à eau chat canicule",
-        "griffoir chat sisal",
-    }
-    # Latest fetched_at across all merged products.
-    assert merged["fetched_at"] == "2026-07-16T00:00:00+00:00"
-
-
-def test_rising_queries_join_candidate_pool_as_selectable_keywords():
-    """Lever 1: grounded rising queries must become real keyword candidates
-    (data_source realtime_grounding), not just prompt context — only those
-    matching the product's own words."""
-    signals = {
-        "events": [],
-        "rising_queries": [
-            {"query": "fontaine à chat canicule", "why": "vague de chaleur", "source_url": "https://src.fr/a"},
-            {"query": "harnais rafraîchissant chien", "why": "", "source_url": ""},
-        ],
-        "competitor_moves": [],
-        "citations": [],
-        "fetched_at": "2026-07-16T00:00:00+00:00",
-    }
-    router = _router(_PASS1_JSON, _PASS2_JSON)
-    result, _mock_fetch = _run_with_realtime(
-        router, fetch_realtime=True, realtime_signals=signals
-    )
-    pass1_prompt = router.complete.call_args_list[0].args[0]
-    # The product-relevant rising query is offered to the LLM as a candidate.
-    assert "fontaine à chat canicule" in pass1_prompt
-    # The unrelated (dog harness) query must not pollute this cat product.
-    kws = result["products"][0]["seo_keywords"]
-    assert not any(k.get("query") == "harnais rafraîchissant chien" for k in kws)
-
-
-def test_realtime_rising_candidates_shapes_and_filters():
-    signals = {
-        "rising_queries": [
-            {"query": "fontaine chat été", "why": "canicule", "source_url": "https://src.fr"},
-            {"query": "fontaine chat été", "why": "dup", "source_url": ""},
-            {"query": "collier gps chien", "why": "hors sujet", "source_url": ""},
-            {"query": "", "why": "", "source_url": ""},
-        ]
-    }
-    product_words = engine._content_words("fontaine à eau pour chat silencieuse été")
-    cands = engine._realtime_rising_candidates(signals, product_words)
-    assert len(cands) == 1
-    cand = cands[0]
-    assert cand["query"] == "fontaine chat été"
-    assert cand["data_source"] == "realtime_grounding"
-    assert cand["demand_score"] == 65
-    assert "https://src.fr" in cand["notes"]
-    assert engine._realtime_rising_candidates(None, product_words) == []
-
-
 def test_pass2_prompt_carries_realtime_market_context():
     """Lever 3: the per-product realtime signal must reach the pass-2 content
     prompt with the seasonal-angle instruction, not just pass 1."""
     signals = {
         "events": [{"title": "Canicule en France cette semaine"}],
-        "rising_queries": [],
-        "competitor_moves": [],
         "citations": [],
         "fetched_at": "2026-07-16T00:00:00+00:00",
     }

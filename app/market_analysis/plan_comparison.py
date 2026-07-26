@@ -68,13 +68,11 @@ def _plan_diff(result: dict[str, Any]) -> dict[str, Any]:
     events_used = 0
     signals = result.get("realtime_signals")
     if signals:
-        events_used = len(signals.get("events") or []) + len(signals.get("rising_queries") or [])
+        events_used = len(signals.get("events") or [])
     realtime_status = result.get("realtime_status") or {}
     return {
         "realtime_grounding_used": result.get("realtime_grounding_used", False),
         "realtime_status": realtime_status.get("status"),
-        "realtime_products_attempted": realtime_status.get("products_attempted", 0),
-        "realtime_products_ok": realtime_status.get("products_ok", 0),
         "events_used": events_used,
     }
 

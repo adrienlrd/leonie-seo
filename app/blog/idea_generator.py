@@ -183,31 +183,6 @@ def _event_ideas(
         if len(ideas) >= limit:
             return ideas
 
-    for query_item in realtime_signals.get("rising_queries") or []:
-        query = str((query_item or {}).get("query") or "").strip()
-        if not query:
-            continue
-        product = _best_product(query)
-        p_title = product.get("product_title") or _primary_keyword(product)
-        source_url = str(query_item.get("source_url") or "") or default_source_url
-        ideas.append(
-            _idea(
-                title=f"{query.capitalize()} : ce qu'il faut savoir maintenant",
-                target_keyword=query,
-                intro=f"« {query} » est en hausse en ce moment. Voici une réponse claire, avec {p_title.lower()}.",
-                outline=[
-                    f"Pourquoi « {query} » est recherché en ce moment",
-                    f"Comment {p_title.lower()} répond à ce besoin",
-                    "Nos recommandations",
-                ],
-                angle="event",
-                source_label="Tendance en temps réel (Google Search)",
-                source_url=source_url,
-                product=product,
-            )
-        )
-        if len(ideas) >= limit:
-            return ideas
     return ideas
 
 

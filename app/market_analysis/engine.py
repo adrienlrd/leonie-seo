@@ -581,18 +581,15 @@ def _fetch_trends_once(
 
 def _fetch_realtime_signals_once(
     shop: str,
-    niche_hypothesis: dict[str, Any] | None,
-    top_titles: list[str],
     db_path: Path | None,
     *,
     force: bool = False,
     status_out: dict[str, Any] | None = None,
-    persist: bool = True,
     language: str = "fr",
 ) -> dict[str, Any] | None:
-    """Call the grounded real-time signal fetcher once per product. Fail-open.
+    """Call the grounded world-events fetcher once per job. Fail-open.
 
-    Already gated to the "agency" plan + a configured GEMINI_API_KEY inside
+    Already gated to `GROUNDED_PLANS` + a configured GEMINI_API_KEY inside
     `fetch_realtime_signals` itself — this wrapper only adds the same
     exception safety net as `_fetch_trends_once` for the unlikely case of an
     error the fetcher itself didn't already catch. ``force`` bypasses the
@@ -600,21 +597,15 @@ def _fetch_realtime_signals_once(
     (optional) is populated with why the call did or didn't run — so a
     silent no-op (e.g. missing GEMINI_API_KEY) is diagnosable in the result
     instead of just leaving `realtime_grounding` out of `sources_used`.
-    ``persist=False`` (used by the per-product Pass 1 loop) skips writing to
-    disk immediately — the caller merges every product's signal and persists
-    once via `persist_realtime_signals`.
     """
     try:
         from app.niche.signals.realtime_trends import fetch_realtime_signals  # noqa: PLC0415
 
         return fetch_realtime_signals(
             shop,
-            niche_hypothesis,
-            [t for t in top_titles if t],
             db_path=db_path,
             force=force,
             status_out=status_out,
-            persist=persist,
             language=language,
         )
     except Exception as exc:
@@ -624,76 +615,12 @@ def _fetch_realtime_signals_once(
         return None
 
 
-def _merge_realtime_signals(per_product_signals: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Combine each product's own grounded signal (events/rising_queries/
-    competitor_moves/citations) into one deduplicated catalog-wide snapshot.
-
-    Each product now gets its own grounded realtime-signal call (see the Pass 1
-    loop), so the same event/query can legitimately be returned by several
-    products — dedup by title/query text keeps the merged file from repeating
-    the same canicule alert once per product. Returns None if nothing was
-    fetched (fail-open — mirrors every other grounded-call caller here).
-    """
-    if not per_product_signals:
-        return None
-    events: list[dict[str, Any]] = []
-    rising_queries: list[dict[str, Any]] = []
-    competitor_moves: list[dict[str, Any]] = []
-    citations: list[dict[str, Any]] = []
-    seen_events: set[str] = set()
-    seen_queries: set[str] = set()
-    seen_moves: set[str] = set()
-    seen_citation_urls: set[str] = set()
-    latest_fetched_at = ""
-    for signal in per_product_signals:
-        for event in signal.get("events") or []:
-            key = str((event or {}).get("title") or "").strip().lower()
-            if key and key not in seen_events:
-                seen_events.add(key)
-                events.append(event)
-        for query in signal.get("rising_queries") or []:
-            key = str((query or {}).get("query") or "").strip().lower()
-            if key and key not in seen_queries:
-                seen_queries.add(key)
-                rising_queries.append(query)
-        for move in signal.get("competitor_moves") or []:
-            key = str((move or {}).get("summary") or "").strip().lower()
-            if key and key not in seen_moves:
-                seen_moves.add(key)
-                competitor_moves.append(move)
-        for citation in signal.get("citations") or []:
-            url = str((citation or {}).get("url") or "").strip()
-            if url and url not in seen_citation_urls:
-                seen_citation_urls.add(url)
-                citations.append(citation)
-        fetched_at = str(signal.get("fetched_at") or "")
-        if fetched_at > latest_fetched_at:
-            latest_fetched_at = fetched_at
-    if not events and not rising_queries and not competitor_moves:
-        return None
-    return {
-        "events": events,
-        "rising_queries": rising_queries,
-        "competitor_moves": competitor_moves,
-        "citations": citations,
-        "fetched_at": latest_fetched_at or datetime.now(UTC).isoformat(),
-    }
-
-
 def _format_realtime_signals(signals: dict[str, Any] | None) -> str:
-    """Render events + rising queries into one prompt-ready line, or "" if none."""
+    """Render the sourced world events into one prompt-ready line, or "" if none."""
     if not signals:
         return ""
-    parts: list[str] = []
-    for event in signals.get("events") or []:
-        title = str((event or {}).get("title") or "").strip()
-        if title:
-            parts.append(title)
-    for query in signals.get("rising_queries") or []:
-        q = str((query or {}).get("query") or "").strip()
-        if q:
-            parts.append(q)
-    return ", ".join(parts)
+    titles = [str((event or {}).get("title") or "").strip() for event in signals.get("events") or []]
+    return ", ".join(t for t in titles if t)
 
 
 def _match_trends(
@@ -1941,7 +1868,6 @@ _SOURCE_PRIORITY = {
     "dataforseo": 4,
     "gsc": 3,
     "google_suggest": 2,
-    "realtime_grounding": 2,
     "trends": 1,
     "market_seed": 1,
     "llm_proposed": 0,
@@ -2203,46 +2129,6 @@ def _trend_candidates(
     return out
 
 
-def _realtime_rising_candidates(
-    signals: dict[str, Any] | None,
-    product_words: frozenset[str],
-) -> list[dict[str, Any]]:
-    """Grounded rising queries (web-sourced, THIS week) matched to the product.
-
-    These are the best-timed queries the analysis sees — until now they only
-    reached the pass-1 prompt as context and never competed as actual keyword
-    candidates, leaving immediate seasonal traffic on the table.
-    """
-    out: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for item in (signals or {}).get("rising_queries") or []:
-        query = str((item or {}).get("query") or "").strip()
-        key = query.lower()
-        if not query or key in seen or not (_content_words(query) & product_words):
-            continue
-        seen.add(key)
-        why = str(item.get("why") or "").strip()
-        source_url = str(item.get("source_url") or "").strip()
-        notes = ["Requête en hausse cette semaine (recherche web sourcée)"]
-        if source_url:
-            notes.append(source_url)
-        out.append(
-            {
-                "query": query,
-                "intent_type": "unknown",
-                "demand_score": 65,
-                "competition_score": 50,
-                "product_fit_score": 0,
-                "reason": why or "En hausse en ce moment (recherche web du jour)",
-                "data_source": "realtime_grounding",
-                "difficulty_source": "free_estimated",
-                "search_volume": None,
-                "notes": notes,
-            }
-        )
-    return out
-
-
 def _merge_pool_candidate(pool: dict[str, dict[str, Any]], cand: dict[str, Any]) -> None:
     """Insert a candidate into the pool, deduplicating by normalised query.
 
@@ -2385,7 +2271,7 @@ def _is_real_keyword(keyword: dict[str, Any]) -> bool:
     """True when a keyword is backed by observed demand, not an LLM estimate."""
     return (
         str(keyword.get("data_source", ""))
-        in ("gsc", "dataforseo", "google_ads", "google_suggest", "trends", "realtime_grounding")
+        in ("gsc", "dataforseo", "google_ads", "google_suggest", "trends")
         or bool(keyword.get("search_volume"))
         or bool(keyword.get("gsc_impressions"))
     )
@@ -5755,25 +5641,31 @@ def run_market_analysis(
     if trend_signals:
         sources_used.append("trends")
 
-    # Grounded calls now run once PER PRODUCT (events/trends + keyword market
-    # verification), not once for the whole catalog — see the per-product
-    # accumulators + budget gate below, and the calls inside the Pass 1 loop.
-    # `per_product_realtime_signals` collects each product's own signal dict
-    # for the final merge+persist; `_grounding_budget_exhausted` (checked once,
-    # before the loop) skips ALL per-product grounded calls for this job if the
-    # shop is already over its monthly LLM budget — protects against a large
-    # catalog (up to 35 products × 2 calls) draining the whole budget on
-    # grounding alone.
-    per_product_realtime_signals: list[dict[str, Any]] = []
-    realtime_products_attempted = 0
-    realtime_products_ok = 0
-    last_realtime_status = "not_attempted"
-    _grounding_budget_exhausted = False
+    # One grounded call for the whole job: the question is about the country's
+    # weather/news/calendar, not about a product, so there is nothing per-product
+    # to ask. Crossing these events with the catalog happens in Python.
+    realtime_signals: dict[str, Any] | None = None
+    realtime_status: dict[str, Any] = {"status": "not_attempted", "detail": ""}
     if fetch_realtime:
         _budget_usd = _PLAN_BUDGETS_USD.get(plan or "", _DEFAULT_BUDGET_USD)
-        _grounding_budget_exhausted = check_budget(shop, _budget_usd, days=30)["over_budget"]
-        if _grounding_budget_exhausted:
-            last_realtime_status = "budget_skipped"
+        if check_budget(shop, _budget_usd, days=30)["over_budget"]:
+            realtime_status = {"status": "budget_skipped", "detail": ""}
+        else:
+            _rt_status: dict[str, Any] = {}
+            realtime_signals = _fetch_realtime_signals_once(
+                shop,
+                db_path,
+                force=fetch_realtime_force,
+                status_out=_rt_status,
+                language=language,
+            )
+            realtime_status = {
+                "status": _rt_status.get("status", "llm_error"),
+                "detail": str(_rt_status.get("detail", "")),
+            }
+    realtime_text = _format_realtime_signals(realtime_signals)
+    if realtime_signals:
+        sources_used.append("realtime_grounding")
 
     try:
         llm_router = get_router(shop=shop)
@@ -5846,55 +5738,6 @@ def run_market_analysis(
         optimization_history_block = format_optimization_history(optimization_history)
         if optimization_history_block and "optimization_history" not in sources_used:
             sources_used.append("optimization_history")
-
-        # Grounded real-time signal for THIS product only (agency plan / force,
-        # gated internally; no-op + zero cost otherwise). One call per product,
-        # never persisted individually — merged + saved once after the loop.
-        product_realtime_signal: dict[str, Any] | None = None
-        if fetch_realtime and not _grounding_budget_exhausted:
-            realtime_products_attempted += 1
-            _rt_status: dict[str, Any] = {}
-            product_realtime_signal = _fetch_realtime_signals_once(
-                shop,
-                niche_hypothesis,
-                [fields["product_title"]],
-                db_path,
-                force=fetch_realtime_force,
-                status_out=_rt_status,
-                persist=False,
-                language=language,
-            )
-            last_realtime_status = _rt_status.get("status", "llm_error")
-            if product_realtime_signal:
-                realtime_products_ok += 1
-                per_product_realtime_signals.append(product_realtime_signal)
-        realtime_text = _format_realtime_signals(product_realtime_signal)
-
-        # Grounded rising queries join the candidate pool as real, selectable
-        # keywords (not just prompt context) — best-timed traffic available.
-        if product_realtime_signal:
-            product_words = _content_words(
-                " ".join(
-                    [
-                        fields.get("source_product_text", "") or fields["product_title"],
-                        fields.get("merchant_label", ""),
-                        str(fields.get("handle", "")).replace("-", " "),
-                    ]
-                )
-            )
-            existing_queries = {
-                str(c.get("query", "")).strip().lower() for c in candidate_pool
-            }
-            rising_cands = [
-                c
-                for c in _realtime_rising_candidates(product_realtime_signal, product_words)
-                if c["query"].lower() not in existing_queries
-            ]
-            if rising_cands:
-                rising_cands = _enrich_keyword_dicts(
-                    rising_cands, free_provider, paid_providers, shop=shop
-                )
-                candidate_pool = candidate_pool + rising_cands
 
         prompt = _build_pass1_prompt(
             product_title=fields["product_title"],
@@ -6128,25 +5971,6 @@ def run_market_analysis(
         }
         for state in pass1_states
     ]
-
-    # Aggregate the per-product grounded calls made during the Pass 1 loop
-    # above into one catalog-wide status + one merged, deduplicated signal
-    # snapshot, persisted once (see `fetch_realtime_signals(persist=False)`).
-    realtime_signals = _merge_realtime_signals(per_product_realtime_signals)
-    if realtime_signals:
-        sources_used.append("realtime_grounding")
-        from app.niche.signals.realtime_trends import persist_realtime_signals  # noqa: PLC0415
-
-        persist_realtime_signals(shop, realtime_signals, db_path=db_path)
-
-    realtime_status: dict[str, Any] = {
-        "status": last_realtime_status,
-        "products_attempted": realtime_products_attempted,
-        "products_ok": realtime_products_ok,
-        "detail": "",
-    }
-    if realtime_products_attempted > 0 and 0 < realtime_products_ok < realtime_products_attempted:
-        realtime_status["status"] = "partial"
 
     cannibalization_alerts = cn.detect_alerts(pass1_product_views)
     cannibalization_hints_by_product: dict[str, dict[str, Any]] = {}
