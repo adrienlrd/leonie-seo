@@ -12,6 +12,23 @@
 
 - **Date:** 2026-07-26
 - **Agent:** Claude (Opus 5)
+- **Goal:** Fix the 12h grounding cache + the "Gemini skips keywords" note. Root-caused a **live outage of the whole grounded feature** instead.
+- **Root cause (verified live, 4/4 runs + a trivial control prompt):** on `gemini-3.5-flash-lite`, Google Search grounding **plus** `responseMimeType: application/json` returns HTTP 200 with an **empty candidate list** and zero output tokens. Both grounded callers sent exactly that combination, so `fetch_realtime_signals` and `verify_keywords_against_market` raised `LLMError` → fail-open → `None` on every call. The Grande boutique differentiator has produced nothing since the model upgrade (21c4547); the fail-open design hid it. The old `400`-handling branch never fired because the API answers 200, not 400.
+- **Changes:**
+  - `app/llm/providers/gemini.py`: when `grounded`, never send `responseMimeType` — grounding wins, JSON comes from the prompt, and both parsers already strip the ```json fence. Removed the now-unreachable grounded+json 400 branch.
+  - `app/niche/signals/realtime_trends.py`:
+    - **12h snapshot cache** (`_CACHE_TTL_HOURS`, `_fresh_cached_signals`): a snapshot younger than 12h is returned with status `cached`, no API call. Cross-job only — the per-product loop is unchanged, so a re-analysis within the day costs **zero** grounded signal calls. An unparseable/absent `fetched_at` counts as expired.
+    - **`not_grounded` guard** (`_is_grounded`): a completion that came from the fallback chain instead of Gemini is discarded. That model has no web access yet the prompt demands a `source_url` per item — it would invent them, and fabricated sources are worse than no signal.
+    - Corrected the stale `_VERIFY_BATCH_SIZE` rationale ("only ~6 verdicts come back" was measuring the empty-response bug).
+- **Measured after the fix (live):** keyword verification covers **10/10** keywords, twice, all with source URLs (was: nothing at all). A single 30-keyword call covers ~29/30 but burns 3101/4096 output tokens, so batches of 10 stay — a truncated batch loses every verdict in it. Second identical call → `status=cached`, no API hit. de/en/es shops return market-correct content with local sources (otto.de, cats.com, tiendanimal.com) despite French prompt instructions — the `grounding_market()` parameterization works.
+- **Validations:** pytest 2201 passed / 174 skipped; ruff clean; live end-to-end per above.
+- **Open issues:** (1) `verify_keywords_against_market` is **not** cached — per-product keyword sets differ, so a re-analysis still pays ~3 calls/product; a per-keyword cache would need new storage. (2) Prompts still hardcoded in `realtime_trends.py`, no `version` field (violates `docs/llm-strategy.md` §10) — discussed with Adrien, not yet decided. (3) No operator alert when an agency shop's `realtime_status` is not `ok`/`cached`; that silence is exactly what hid this outage.
+- **Next recommended action:** surface `realtime_status` / `market_verification_status` somewhere an operator actually looks, so the next grounded regression is visible within a day instead of a month.
+
+## Task before that
+
+- **Date:** 2026-07-26
+- **Agent:** Claude (Opus 5)
 - **Goal:** Switch the default OpenAI model from `gpt-4o-mini` to `gpt-5.4-nano`.
 - **Probe first (Adrien's call — no code written on assumption):** a throwaway script hit the real API to settle the GPT-5 parameter question. Results: `max_tokens` is **rejected** ("Unsupported parameter ... use `max_completion_tokens` instead"), `max_completion_tokens` is accepted by gpt-5.4-nano **and** gpt-4o-mini, `temperature=0.0` **is** accepted (3 identical runs → identical output, so pass-1 determinism is preserved), `response_format=json_object` works, `reasoning_tokens=0`, throughput ~145 tok/s vs ~109 for gpt-4o-mini.
 - **Changes:**

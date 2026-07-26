@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -208,6 +209,136 @@ def test_load_returns_none_when_nothing_persisted(
     db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     assert load_realtime_signals(SHOP, db_path=db) is None
+
+
+def test_discards_answer_from_the_non_grounded_fallback_provider(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The grounded router falls back to a model with no web access, which
+    would invent the source_url the prompt demands. Fabricated sources are
+    worse than no signal."""
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text=json.dumps(
+            {
+                "events": [{"title": "Canicule", "source_url": "https://invented.example"}],
+                "rising_queries": [],
+                "competitor_moves": [],
+            }
+        ),
+        provider="openai",
+        model="gpt-5.4-nano",
+    )
+    status: dict = {}
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+    assert result is None
+    assert status["status"] == "not_grounded"
+
+
+def test_verify_discards_answer_from_the_non_grounded_fallback_provider(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text=json.dumps(
+            {
+                "verifications": [
+                    {
+                        "query": "fontaine chat",
+                        "market_evidence": "confirmed",
+                        "source_url": "https://invented.example",
+                    }
+                ]
+            }
+        ),
+        provider="groq",
+        model="llama-3.3-70b-versatile",
+    )
+    status: dict = {}
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        result = verify_keywords_against_market(
+            SHOP, ["fontaine chat"], "accessoires chats", db_path=db, status_out=status
+        )
+    assert result is None
+    assert status["status"] == "not_grounded"
+
+
+# ── 12h snapshot cache (fetch_realtime_signals) ─────────────────────────────
+
+
+def _persisted_snapshot(data_dir: Path, fetched_at: str) -> None:
+    shop_dir = data_dir / SHOP
+    shop_dir.mkdir(parents=True, exist_ok=True)
+    (shop_dir / "realtime_signals.json").write_text(
+        json.dumps(
+            {
+                "events": [{"title": "Canicule", "source_url": "https://meteo.fr"}],
+                "rising_queries": [],
+                "competitor_moves": [],
+                "citations": [],
+                "fetched_at": fetched_at,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_reuses_snapshot_younger_than_the_ttl_without_calling_gemini(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    _persisted_snapshot(data_dir, (datetime.now(UTC) - timedelta(hours=2)).isoformat())
+    status: dict = {}
+    with patch("app.niche.signals.realtime_trends.get_router") as get_router_mock:
+        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+    get_router_mock.assert_not_called()
+    assert result is not None
+    assert result["events"][0]["title"] == "Canicule"
+    assert status["status"] == "cached"
+
+
+def test_refetches_when_snapshot_is_older_than_the_ttl(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    _persisted_snapshot(data_dir, (datetime.now(UTC) - timedelta(hours=13)).isoformat())
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text=json.dumps(
+            {"events": [{"title": "Rentrée"}], "rising_queries": [], "competitor_moves": []}
+        ),
+        provider="gemini",
+        model="gemini-3.5-flash-lite",
+    )
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
+    mock_router.complete.assert_called_once()
+    assert result is not None
+    assert result["events"][0]["title"] == "Rentrée"
+
+
+def test_refetches_when_snapshot_has_an_unparseable_timestamp(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    _persisted_snapshot(data_dir, "hier soir")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = CompletionResult(
+        text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
+        provider="gemini",
+        model="gemini-3.5-flash-lite",
+    )
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
+    mock_router.complete.assert_called_once()
 
 
 # ── status_out diagnostics (fetch_realtime_signals) ─────────────────────────

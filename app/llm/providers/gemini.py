@@ -51,7 +51,14 @@ class GeminiProvider(LLMProvider):
         }
         if system:
             payload["systemInstruction"] = {"parts": [{"text": system}]}
-        if json_mode:
+        # Grounding and forced-JSON output are mutually exclusive: with both,
+        # gemini-3.5-flash-lite answers 200 with an EMPTY candidate list and
+        # zero output tokens — verified 2026-07-26 on every prompt tried,
+        # including a trivial one. Grounding wins (it is the whole point of
+        # this provider); callers asking for JSON get it via the prompt, and
+        # both `_parse_signals` and `_parse_verifications` already strip the
+        # ```json fence the model then emits.
+        if json_mode and not self._grounded:
             payload["generationConfig"]["responseMimeType"] = "application/json"
         if self._grounded:
             payload["tools"] = [{"google_search": {}}]
@@ -72,14 +79,6 @@ class GeminiProvider(LLMProvider):
             raise LLMRateLimitError(f"Gemini rate limit: {response.text}")
         if response.status_code >= 500:
             raise LLMUnavailableError(f"Gemini server error {response.status_code}: {response.text}")
-        if response.status_code == 400 and self._grounded and json_mode:
-            # Known API quirk: grounding + forced JSON output can be rejected
-            # together on some model versions. Treat as retryable so the
-            # router falls back to gpt-5.4-nano instead of hard-failing the
-            # whole call — a grounded call must never break the feature.
-            raise LLMUnavailableError(
-                f"Gemini rejected grounded+json_mode combination: {response.text}"
-            )
         if not response.is_success:
             raise LLMError(f"Gemini error {response.status_code}: {response.text}")
 

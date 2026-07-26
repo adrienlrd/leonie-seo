@@ -26,6 +26,12 @@ _DATA_DIR = data_dir()
 _ARTIFACT_TYPE = "realtime_signals"
 _FILE_NAME = "realtime_signals.json"
 
+# A grounded fetch runs per product, so a full catalog analysis costs one call
+# per product. Reusing a snapshot younger than this collapses a whole re-run
+# (e.g. the scheduled reanalysis) to zero grounded calls — the signals are
+# weekly events and rising queries, they do not change within half a day.
+_CACHE_TTL_HOURS = 12
+
 _EMPTY_SIGNALS: dict[str, Any] = {
     "events": [],
     "rising_queries": [],
@@ -99,6 +105,38 @@ def _set_status(status_out: dict[str, Any] | None, status: str, detail: str = ""
         status_out.update({"status": status, "detail": detail})
 
 
+def _fresh_cached_signals(shop: str, *, db_path: Path | None) -> dict[str, Any] | None:
+    """Return the persisted snapshot if it is younger than `_CACHE_TTL_HOURS`.
+
+    A snapshot with an unparseable or absent `fetched_at` is treated as
+    expired: better one extra grounded call than serving stale events as
+    current ones.
+    """
+    cached = load_realtime_signals(shop, db_path=db_path)
+    if not cached:
+        return None
+    try:
+        fetched_at = datetime.fromisoformat(str(cached.get("fetched_at") or ""))
+    except ValueError:
+        return None
+    if fetched_at.tzinfo is None:
+        fetched_at = fetched_at.replace(tzinfo=UTC)
+    age_hours = (datetime.now(UTC) - fetched_at).total_seconds() / 3600
+    return cached if 0 <= age_hours < _CACHE_TTL_HOURS else None
+
+
+def _is_grounded(provider: str) -> bool:
+    """True when the completion really came from the grounded provider.
+
+    The "grounded" router falls back to the default chain when Gemini is rate
+    limited or down. That fallback model has no web access, yet the prompt
+    demands a `source_url` per item — it would invent them. Sourced-looking
+    fabrications are worse than no signal at all, so a non-Gemini answer is
+    discarded (see the project rule: real data, sources always shown).
+    """
+    return provider == "gemini"
+
+
 def fetch_realtime_signals(
     shop: str,
     niche_hypothesis: dict[str, Any] | None,
@@ -117,6 +155,10 @@ def fetch_realtime_signals(
     error (network, parsing, missing grounding) so an analysis job never fails
     because this optional signal could not be fetched.
 
+    A snapshot younger than `_CACHE_TTL_HOURS` is returned as-is (status
+    ``cached``, no API call): re-analysing the same shop twice in a day must
+    not pay for the same weekly signal twice.
+
     ``force`` skips the plan gate (still requires GEMINI_API_KEY) — used only
     by the internal Pro/Grande boutique comparison tool so the agency branch
     is exercised even when the shop isn't actually on that plan. Never write
@@ -124,8 +166,9 @@ def fetch_realtime_signals(
 
     ``status_out`` (optional), populated with why the call did or didn't run:
     ``status`` one of ``no_gemini_key`` | ``plan_not_agency`` | ``llm_error`` |
-    ``parse_error`` | ``ok``, plus ``detail``. Lets callers (and the plan
-    comparison export) show *why* grounding was silent instead of guessing.
+    ``parse_error`` | ``not_grounded`` | ``cached`` | ``ok``, plus ``detail``.
+    Lets callers (and the plan comparison export) show *why* grounding was
+    silent instead of guessing.
 
     ``persist`` (default True): when a caller invokes this once per product
     (engine.py's per-product grounding loop), pass False and merge + persist
@@ -138,6 +181,11 @@ def fetch_realtime_signals(
     if not os.getenv("GEMINI_API_KEY"):
         _set_status(status_out, "no_gemini_key")
         return None
+
+    cached = _fresh_cached_signals(shop, db_path=db_path)
+    if cached is not None:
+        _set_status(status_out, "cached", str(cached.get("fetched_at") or ""))
+        return cached
 
     niche_hypothesis = niche_hypothesis or {}
     # "primary_niche" is the field engine.py itself reads off niche_hypothesis
@@ -165,6 +213,14 @@ def fetch_realtime_signals(
     except Exception as exc:  # noqa: BLE001 — this signal is optional, never fail the analysis job for it
         logger.warning("realtime_signals: unexpected error for %s: %s", shop, exc)
         _set_status(status_out, "llm_error", str(exc))
+        return None
+
+    if not _is_grounded(result.provider):
+        logger.warning(
+            "realtime_signals: answer came from %s, not the grounded provider — discarded",
+            result.provider,
+        )
+        _set_status(status_out, "not_grounded", result.provider)
         return None
 
     parsed = _parse_signals(result.text)
@@ -215,9 +271,12 @@ _VERIFY_SYSTEM_PROMPT = (
 )
 
 _MAX_VERIFY_KEYWORDS = 30
-# Verified live (2026-07-16): a single 30-keyword call only ever came back
-# with ~6 verdicts — Gemini skips keywords its search found nothing for,
-# despite explicit instructions. Smaller batches get near-full coverage.
+# Re-measured live 2026-07-26, after grounding stopped being sent together with
+# forced-JSON output (that combination returned empty answers, which is what the
+# earlier "only ~6 verdicts come back" note was really observing): a 10-keyword
+# batch now covers 10/10. A single 30-keyword call also covers ~29/30 but burns
+# 3101 of the 4096 output tokens, so it truncates the JSON — and a truncated
+# batch loses every verdict in it. Keep batches small for the headroom.
 _VERIFY_BATCH_SIZE = 10
 
 
@@ -305,6 +364,9 @@ def verify_keywords_against_market(
     gating, network, parsing — same guarantees as `fetch_realtime_signals`).
     Status is "ok" when every batch succeeded, "partial" when only some did,
     and the last error status when none did.
+
+    Not cached, unlike `fetch_realtime_signals`: the keyword set differs per
+    product and per analysis, so there is no shop-level snapshot to reuse.
     """
     if not force and get_plan_for_shop(shop, db_path) != "agency":
         _set_status(status_out, "plan_not_agency")
@@ -348,6 +410,14 @@ def verify_keywords_against_market(
         except Exception as exc:  # noqa: BLE001 — optional signal, never fail the analysis job for it
             logger.warning("verify_keywords_against_market: unexpected error for %s: %s", shop, exc)
             last_error_status, last_error_detail = "llm_error", str(exc)
+            continue
+        if not _is_grounded(result.provider):
+            logger.warning(
+                "verify_keywords_against_market: answer came from %s, not the grounded "
+                "provider — discarded",
+                result.provider,
+            )
+            last_error_status, last_error_detail = "not_grounded", result.provider
             continue
         verifications = _parse_verifications(result.text)
         if verifications is None:
