@@ -32,6 +32,25 @@ import {
   type ClicksSeriesPoint,
 } from "../components/ValidationClicksChart";
 
+interface RealtimeEvent {
+  title: string;
+  description: string;
+  kind: string;
+}
+
+interface RealtimeSignals {
+  events: RealtimeEvent[];
+  citations: { url: string; title: string }[];
+  fetched_at: string;
+}
+
+type RealtimeState =
+  | "plan_not_eligible"
+  | "no_gemini_key"
+  | "never_measured"
+  | "stale"
+  | "fresh";
+
 interface AiVisibilityQuestion {
   question: string;
   grounded: boolean;
@@ -123,6 +142,8 @@ interface LoaderData {
   clicks: ClicksMap;
   ga4Ready: boolean;
   aiVisibility: AiVisibility | null;
+  realtime: RealtimeSignals | null;
+  realtimeState: RealtimeState;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -148,6 +169,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   } catch {
     // fail-open
+  }
+
+  let realtime: RealtimeSignals | null = null;
+  let realtimeState: RealtimeState = "never_measured";
+  try {
+    const resp = await callBackendForShop(
+      shop,
+      `/api/shops/${shop}/geo/realtime-signals`,
+      { accessToken: session.accessToken },
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      realtime = data.signals ?? null;
+      realtimeState = data.state ?? "never_measured";
+    }
+  } catch {
+    // fail-open — the panel explains it is not measured
   }
 
   let aiVisibility: AiVisibility | null = null;
@@ -180,8 +218,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // fail-open — counters just stay hidden
   }
 
-  return json<LoaderData>({ locale, products, summary, clicks, ga4Ready, aiVisibility });
+  return json<LoaderData>({
+    locale,
+    products,
+    summary,
+    clicks,
+    ga4Ready,
+    aiVisibility,
+    realtime,
+    realtimeState,
+  });
 };
+
+function realtimeKindLabel(kind: string, locale: Locale): string {
+  if (kind === "weather") return t(locale, "rtKindWeather");
+  if (kind === "calendar") return t(locale, "rtKindCalendar");
+  return t(locale, "rtKindNews");
+}
+
+function realtimeStateMessage(state: RealtimeState, locale: Locale): string {
+  if (state === "plan_not_eligible") return t(locale, "rtStatePlan");
+  if (state === "no_gemini_key") return t(locale, "rtStateNoKey");
+  return t(locale, "rtStateNeverMeasured");
+}
 
 function fieldLabel(field: string): string {
   const labels: Record<string, string> = {
@@ -420,6 +479,8 @@ export default function AnalysePage() {
     clicks: initialClicks,
     ga4Ready: initialGa4Ready,
     aiVisibility,
+    realtime,
+    realtimeState,
   } = useLoaderData<typeof loader>() as LoaderData;
   const blogs = products.filter((p) => p.resource_type === "blog_post");
   const prods = products.filter((p) => p.resource_type !== "blog_post");
@@ -468,6 +529,53 @@ export default function AnalysePage() {
       subtitle={t(locale, "analyseSubtitle")}
     >
       <BlockStack gap="400">
+        <Card>
+          <BlockStack gap="300">
+            <BlockStack gap="050">
+              <Text as="h2" variant="headingMd">{t(locale, "rtTitle")}</Text>
+              <Text as="p" variant="bodySm" tone="subdued">{t(locale, "rtSubtitle")}</Text>
+            </BlockStack>
+
+            {realtime === null || realtime.events.length === 0 ? (
+              <Text as="p" variant="bodySm" tone="subdued">
+                {realtimeStateMessage(realtimeState, locale)}
+              </Text>
+            ) : (
+              <BlockStack gap="300">
+                {realtimeState === "stale" && (
+                  <Text as="p" variant="bodySm" tone="subdued">{t(locale, "rtStateStale")}</Text>
+                )}
+                <BlockStack gap="200">
+                  {realtime.events.map((event) => (
+                    <InlineStack key={event.title} gap="200" wrap align="start">
+                      <Badge>{realtimeKindLabel(event.kind, locale)}</Badge>
+                      <BlockStack gap="025">
+                        <Text as="span" variant="bodyMd" fontWeight="semibold">{event.title}</Text>
+                        {event.description ? (
+                          <Text as="span" variant="bodySm" tone="subdued">{event.description}</Text>
+                        ) : null}
+                      </BlockStack>
+                    </InlineStack>
+                  ))}
+                </BlockStack>
+                {realtime.citations.length > 0 && (
+                  <InlineStack gap="150" wrap>
+                    <Text as="span" variant="bodySm" tone="subdued">{t(locale, "rtSources")} :</Text>
+                    {realtime.citations.slice(0, 8).map((c) => (
+                      <Link key={c.url} url={c.url} target="_blank" removeUnderline>
+                        <Text as="span" variant="bodySm">{c.title || c.url}</Text>
+                      </Link>
+                    ))}
+                  </InlineStack>
+                )}
+                <Text as="span" variant="bodySm" tone="subdued">
+                  {`${t(locale, "rtFetchedAt")} ${new Date(realtime.fetched_at).toLocaleDateString(locale)}`}
+                </Text>
+              </BlockStack>
+            )}
+          </BlockStack>
+        </Card>
+
         <Card>
           <BlockStack gap="300">
             <BlockStack gap="050">

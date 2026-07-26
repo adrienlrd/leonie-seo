@@ -420,17 +420,20 @@ async def get_realtime_signals_endpoint(
 ) -> dict:
     """Last persisted real-time market signal snapshot (paid plans only).
 
-    Read-only — never triggers a new grounded call. Returns `signals: null` for
-    Free or before the first eligible analysis has run.
+    Read-only — never triggers a new grounded call. Always carries a `state`
+    explaining why `signals` is null when it is, so the UI can say "not
+    measured yet" instead of implying there is nothing happening in the market.
     """
-    from app.billing.quotas import GROUNDED_PLANS  # noqa: PLC0415
-    from app.billing.subscription_store import get_plan_for_shop  # noqa: PLC0415
-    from app.niche.signals.realtime_trends import load_realtime_signals  # noqa: PLC0415
+    from app.niche.signals.realtime_trends import (  # noqa: PLC0415
+        load_realtime_signals,
+        realtime_signals_state,
+    )
 
-    if get_plan_for_shop(ctx.shop) not in GROUNDED_PLANS:
-        return {"shop": ctx.shop, "signals": None}
+    state = await asyncio.to_thread(realtime_signals_state, ctx.shop)
+    if state["state"] in ("plan_not_eligible", "no_gemini_key", "never_measured"):
+        return {"shop": ctx.shop, "signals": None, **state}
     signals = await asyncio.to_thread(load_realtime_signals, ctx.shop)
-    return {"shop": ctx.shop, "signals": signals}
+    return {"shop": ctx.shop, "signals": signals, **state}
 
 
 @router.get("/shops/{shop}/geo/ai-visibility")

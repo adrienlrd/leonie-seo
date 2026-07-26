@@ -343,3 +343,52 @@ def test_status_out_parse_error(db: Path, data_dir: Path, monkeypatch: pytest.Mo
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         fetch_realtime_signals(SHOP, db_path=db, status_out=status)
     assert status["status"] == "parse_error"
+
+
+# ── realtime_signals_state (why the merchant sees trends or not) ─────────────
+
+
+def test_state_is_plan_not_eligible_for_free(db: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.niche.signals.realtime_trends import realtime_signals_state
+
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    assert realtime_signals_state(SHOP, db_path=db)["state"] == "plan_not_eligible"
+
+
+def test_state_is_no_gemini_key_when_unconfigured(
+    db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.niche.signals.realtime_trends import realtime_signals_state
+
+    _agency(db)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    assert realtime_signals_state(SHOP, db_path=db)["state"] == "no_gemini_key"
+
+
+def test_state_is_never_measured_before_any_snapshot(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An eligible shop with nothing measured must read as "not measured", never
+    as "there is nothing happening in the market"."""
+    from app.niche.signals.realtime_trends import realtime_signals_state
+
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    assert realtime_signals_state(SHOP, db_path=db)["state"] == "never_measured"
+
+
+def test_state_is_fresh_then_stale_around_the_ttl(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.niche.signals.realtime_trends import realtime_signals_state
+
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+
+    _persisted_snapshot(data_dir, (datetime.now(UTC) - timedelta(hours=2)).isoformat())
+    fresh = realtime_signals_state(SHOP, db_path=db)
+    assert fresh["state"] == "fresh"
+    assert fresh["fetched_at"] is not None
+
+    _persisted_snapshot(data_dir, (datetime.now(UTC) - timedelta(hours=20)).isoformat())
+    assert realtime_signals_state(SHOP, db_path=db)["state"] == "stale"

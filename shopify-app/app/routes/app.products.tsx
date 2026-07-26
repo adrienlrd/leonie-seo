@@ -338,7 +338,7 @@ interface JobState {
   total_opportunity_count: number;
   sources_used: string[];
   provider_status?: ProviderStatus;
-  realtime_status?: { status?: string; products_attempted?: number; products_ok?: number };
+  realtime_status?: { status?: string; detail?: string };
   competitor_signals?: CompetitorSignal[];
   cannibalization_alerts?: CannibalizationAlert[];
   orphan_products?: string[];
@@ -1803,7 +1803,15 @@ export default function ProductsPage() {
           const src = job ?? latestJob;
           const degraded: string[] = [];
           const rt = src?.realtime_status?.status;
-          if (rt === "llm_error" || rt === "parse_error" || rt === "partial") {
+          // "not_grounded" = the AI answered without actually searching, so the
+          // signal was discarded rather than shown as sourced. "no_gemini_key"
+          // is an operator misconfiguration and must not stay silent either.
+          if (
+            rt === "llm_error" ||
+            rt === "parse_error" ||
+            rt === "not_grounded" ||
+            rt === "no_gemini_key"
+          ) {
             degraded.push(t(locale, "provStatusRealtimeDown"));
           }
           if (ps && ps.dataforseo === false) {

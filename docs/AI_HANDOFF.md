@@ -25,7 +25,12 @@
 - **AI visibility, new (`app/niche/signals/ai_visibility.py`):** asks the analysis' own `geo_questions` as a shopper would (prose, no schema) and records which domains the AI engine **cited** — `groundingMetadata` is the deliverable, and the model cannot forge it. Returns per-question `grounded`/`domains`/`shop_cited`, aggregated `top_domains`, `shop_cited_count`. An ungrounded answer contributes nothing (it observed nothing). Wired into `run_market_analysis` behind the same gate (result key `ai_visibility`, source `ai_visibility`), read-only endpoint `GET /shops/{shop}/geo/ai-visibility`, panel at the top of `app.analyse.tsx` with the no-promise wording from `app/api/ai_visibility.py`, i18n FR/EN/DE/ES.
   - Verified live: 3/3 questions grounded, top domains goodbro.fr, jardiland.com, zoomalia.com — a real competitor map.
 - **Validations:** pytest 2183 passed / 174 skipped (8 new AI-visibility tests); ruff clean; `npm run typecheck` exit 0; `npm run build` OK; both signals exercised against the live API.
-- **Open:** `GET /geo/realtime-signals` and the new AI visibility panel are the only surfaces; the dashboard still shows neither, so an operator cannot yet see that an eligible shop's `realtime_status` is not `ok`/`cached`. Grounding remains probabilistic — a question that did not fire simply yields no measurement, by design.
+- **Follow-up (same day) — the silence is closed:**
+  - `realtime_signals_state(shop)` derives *why* a shop sees trends or not from state we already have (plan, key, snapshot age): `plan_not_eligible` | `no_gemini_key` | `never_measured` | `stale` | `fresh`. No new storage. `GET /geo/realtime-signals` now always carries `state` + `fetched_at`.
+  - New **"Tendances temps réel"** panel at the top of the Analyse page (above AI visibility): events with a weather/news/calendar badge, clickable sources, fetch date — or the explicit reason when empty. An eligible shop with nothing measured reads "not measured yet", never "the market is quiet".
+  - `app.products.tsx` degraded banner now also fires on `not_grounded` (the AI answered without searching, signal discarded) and `no_gemini_key` (operator misconfiguration), and no longer tests the removed `partial` status; its type and wording were corrected in 4 locales.
+  - Verified: the four states return correctly against a real DB (free → `plan_not_eligible`, pro without data → `never_measured`, fresh snapshot → `fresh`, key removed → `no_gemini_key`).
+- **Open:** grounding remains probabilistic — a question that did not fire yields no measurement, by design. The dashboard (`app._index.tsx`) still has no trends/AI-visibility tile; both live on the Analyse page only.
 
 ## Task before that
 

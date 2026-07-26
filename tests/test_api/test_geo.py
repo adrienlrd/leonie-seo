@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -957,24 +958,30 @@ def test_get_geo_faq_content_returns_content_items(client, tmp_path) -> None:
 def test_realtime_signals_returns_null_for_free_plan(client) -> None:
     with (
         patch("app.api.deps.get_token", return_value=None),
-        patch("app.billing.subscription_store.get_plan_for_shop", return_value="free"),
+        patch("app.niche.signals.realtime_trends.get_plan_for_shop", return_value="free"),
     ):
         resp = client.get(f"/api/shops/{SHOP}/geo/realtime-signals")
     assert resp.status_code == 200
-    assert resp.json() == {"shop": SHOP, "signals": None}
-
-
-def test_realtime_signals_loads_persisted_snapshot_for_agency_plan(client) -> None:
-    saved = {
-        "events": [{"title": "Canicule", "source_url": "https://meteo.fr"}],
-        "rising_queries": [],
-        "competitor_moves": [],
-        "citations": [{"url": "https://meteo.fr", "title": "Météo France"}],
-        "fetched_at": "2026-07-15T00:00:00+00:00",
+    assert resp.json() == {
+        "shop": SHOP,
+        "signals": None,
+        "state": "plan_not_eligible",
+        "fetched_at": None,
     }
+
+
+def test_realtime_signals_loads_persisted_snapshot_for_paid_plan(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved = {
+        "events": [{"title": "Canicule", "kind": "weather"}],
+        "citations": [{"url": "https://meteo.fr", "title": "meteofrance.com"}],
+        "fetched_at": datetime.now(UTC).isoformat(),
+    }
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     with (
         patch("app.api.deps.get_token", return_value=None),
-        patch("app.billing.subscription_store.get_plan_for_shop", return_value="agency"),
+        patch("app.niche.signals.realtime_trends.get_plan_for_shop", return_value="pro"),
         patch("app.niche.signals.realtime_trends.load_realtime_signals", return_value=saved),
     ):
         resp = client.get(f"/api/shops/{SHOP}/geo/realtime-signals")
@@ -982,14 +989,38 @@ def test_realtime_signals_loads_persisted_snapshot_for_agency_plan(client) -> No
     data = resp.json()
     assert data["shop"] == SHOP
     assert data["signals"]["events"][0]["title"] == "Canicule"
+    assert data["state"] == "fresh"
 
 
-def test_realtime_signals_agency_plan_without_snapshot_returns_null(client) -> None:
+def test_realtime_signals_paid_plan_without_snapshot_says_never_measured(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The UI must be able to say "not measured yet" rather than implying the
+    market is quiet."""
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     with (
         patch("app.api.deps.get_token", return_value=None),
-        patch("app.billing.subscription_store.get_plan_for_shop", return_value="agency"),
+        patch("app.niche.signals.realtime_trends.get_plan_for_shop", return_value="agency"),
         patch("app.niche.signals.realtime_trends.load_realtime_signals", return_value=None),
     ):
         resp = client.get(f"/api/shops/{SHOP}/geo/realtime-signals")
     assert resp.status_code == 200
-    assert resp.json() == {"shop": SHOP, "signals": None}
+    assert resp.json() == {
+        "shop": SHOP,
+        "signals": None,
+        "state": "never_measured",
+        "fetched_at": None,
+    }
+
+
+def test_realtime_signals_reports_missing_key_to_the_operator(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    with (
+        patch("app.api.deps.get_token", return_value=None),
+        patch("app.niche.signals.realtime_trends.get_plan_for_shop", return_value="agency"),
+    ):
+        resp = client.get(f"/api/shops/{SHOP}/geo/realtime-signals")
+    assert resp.status_code == 200
+    assert resp.json()["state"] == "no_gemini_key"

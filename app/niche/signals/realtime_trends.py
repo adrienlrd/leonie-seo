@@ -308,6 +308,28 @@ def _persist(shop: str, signals: dict[str, Any], *, db_path: Path | None = None)
     save_artifact(shop, _ARTIFACT_TYPE, signals, db_path=db_path)
 
 
+def realtime_signals_state(shop: str, *, db_path: Path | None = None) -> dict[str, Any]:
+    """Why the merchant is or isn't seeing real-time trends, without calling out.
+
+    Derived from state we already have, so no new storage: the plan, the key,
+    and the age of the persisted snapshot. `state` is one of
+    ``plan_not_eligible`` | ``no_gemini_key`` | ``never_measured`` | ``stale`` |
+    ``fresh``. Grounding is probabilistic — an eligible shop legitimately shows
+    ``never_measured`` when no analysis has produced a grounded answer yet, and
+    that must read as "not measured", never as "no trends exist".
+    """
+    if get_plan_for_shop(shop, db_path) not in GROUNDED_PLANS:
+        return {"state": "plan_not_eligible", "fetched_at": None}
+    if not os.getenv("GEMINI_API_KEY"):
+        return {"state": "no_gemini_key", "fetched_at": None}
+    signals = load_realtime_signals(shop, db_path=db_path)
+    if not signals:
+        return {"state": "never_measured", "fetched_at": None}
+    fetched_at = str(signals.get("fetched_at") or "") or None
+    fresh = _fresh_cached_signals(shop, db_path=db_path) is not None
+    return {"state": "fresh" if fresh else "stale", "fetched_at": fetched_at}
+
+
 def load_realtime_signals(shop: str, *, db_path: Path | None = None) -> dict[str, Any] | None:
     """Load the last persisted real-time signal snapshot, or None if unavailable.
 
