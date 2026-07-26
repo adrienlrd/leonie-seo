@@ -624,33 +624,6 @@ def _fetch_realtime_signals_once(
         return None
 
 
-def _verify_keywords_once(
-    shop: str,
-    keywords: list[str],
-    niche_summary: str,
-    *,
-    force: bool = False,
-    status_out: dict[str, Any] | None = None,
-    language: str = "fr",
-) -> dict[str, dict[str, Any]] | None:
-    """Call the grounded keyword-verification fetcher once per job. Fail-open,
-    same exception safety net as `_fetch_realtime_signals_once`.
-    """
-    try:
-        from app.niche.signals.realtime_trends import (
-            verify_keywords_against_market,  # noqa: PLC0415
-        )
-
-        return verify_keywords_against_market(
-            shop, keywords, niche_summary, force=force, status_out=status_out, language=language
-        )
-    except Exception as exc:
-        logger.warning("Keyword market verification unavailable: %s", exc)
-        if status_out is not None:
-            status_out.update({"status": "llm_error", "detail": f"{type(exc).__name__}: {exc}"})
-        return None
-
-
 def _merge_realtime_signals(per_product_signals: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Combine each product's own grounded signal (events/rising_queries/
     competitor_moves/citations) into one deduplicated catalog-wide snapshot.
@@ -705,45 +678,6 @@ def _merge_realtime_signals(per_product_signals: list[dict[str, Any]]) -> dict[s
         "citations": citations,
         "fetched_at": latest_fetched_at or datetime.now(UTC).isoformat(),
     }
-
-
-def _apply_market_verification(
-    pass1_states: list[dict[str, Any]], verifications: dict[str, dict[str, Any]]
-) -> int:
-    """Write market-verification verdicts onto matching seo_keywords in place.
-
-    Bumps `demand_score` (+10 "rising", +5 "confirmed", -10 "declining",
-    capped 0-100) — the field pass-1's own keyword items already carry and
-    that downstream sorting already reads as a priority signal (see
-    `_repair_keyword_selection...` and the candidate pool sort) — so the
-    agency plan's real market signal actually shifts keyword ranking, not
-    just prompt context. "confirmed" gets a smaller bump than "rising"
-    because most verdicts come back confirmed (17/21 in the live 2026-07-16
-    comparison) — a web-verified keyword should outrank an unverified or
-    no_signal one, without drowning out the rising signal. Returns the count
-    of keywords annotated (surfaced as `keywords_with_market_verification`
-    in the plan-comparison diff summary).
-    """
-    deltas = {"rising": 10.0, "confirmed": 5.0, "declining": -10.0}
-    annotated = 0
-    for state in pass1_states:
-        for kw in state["pack"].get("seo_keywords") or []:
-            if not isinstance(kw, dict):
-                continue
-            query = str(kw.get("query") or "").strip().lower()
-            verdict = verifications.get(query)
-            if not verdict:
-                continue
-            kw["market_verification"] = verdict
-            notes = kw.setdefault("notes", [])
-            if isinstance(notes, list):
-                notes.append("verified_by_market")
-            delta = deltas.get(verdict["evidence"])
-            if delta is not None:
-                base = float(kw.get("demand_score") or 0)
-                kw["demand_score"] = max(0.0, min(100.0, base + delta))
-            annotated += 1
-    return annotated
 
 
 def _format_realtime_signals(signals: dict[str, Any] | None) -> str:
@@ -5833,18 +5767,13 @@ def run_market_analysis(
     per_product_realtime_signals: list[dict[str, Any]] = []
     realtime_products_attempted = 0
     realtime_products_ok = 0
-    verify_products_attempted = 0
-    verify_products_ok = 0
-    keywords_verified_count = 0
     last_realtime_status = "not_attempted"
-    last_verify_status = "not_attempted"
     _grounding_budget_exhausted = False
     if fetch_realtime:
         _budget_usd = _PLAN_BUDGETS_USD.get(plan or "", _DEFAULT_BUDGET_USD)
         _grounding_budget_exhausted = check_budget(shop, _budget_usd, days=30)["over_budget"]
         if _grounding_budget_exhausted:
             last_realtime_status = "budget_skipped"
-            last_verify_status = "budget_skipped"
 
     try:
         llm_router = get_router(shop=shop)
@@ -6030,32 +5959,6 @@ def run_market_analysis(
                 pack["seo_keywords"], free_provider, paid_providers, shop=shop
             )
 
-        # Grounded market verification for THIS product's just-selected
-        # keywords only. One call per product (capped at _MAX_VERIFY_KEYWORDS
-        # inside verify_keywords_against_market) — structurally cannot starve
-        # other products of verification budget, unlike the old catalog-wide
-        # single call this replaces.
-        if fetch_realtime and not _grounding_budget_exhausted:
-            verify_products_attempted += 1
-            _verify_status: dict[str, Any] = {}
-            product_keywords = [
-                str(kw.get("query") or "")
-                for kw in (pack.get("seo_keywords") or [])
-                if isinstance(kw, dict) and kw.get("query")
-            ]
-            verifications = _verify_keywords_once(
-                shop,
-                product_keywords,
-                niche_summary,
-                force=fetch_realtime_force,
-                status_out=_verify_status,
-                language=language,
-            )
-            last_verify_status = _verify_status.get("status", "llm_error")
-            if verifications:
-                verify_products_ok += 1
-                keywords_verified_count += _apply_market_verification([{"pack": pack}], verifications)
-
         pass1_states.append(
             {
                 "product": product,
@@ -6235,8 +6138,6 @@ def run_market_analysis(
         from app.niche.signals.realtime_trends import persist_realtime_signals  # noqa: PLC0415
 
         persist_realtime_signals(shop, realtime_signals, db_path=db_path)
-    if keywords_verified_count > 0:
-        sources_used.append("realtime_market_verification")
 
     realtime_status: dict[str, Any] = {
         "status": last_realtime_status,
@@ -6246,14 +6147,6 @@ def run_market_analysis(
     }
     if realtime_products_attempted > 0 and 0 < realtime_products_ok < realtime_products_attempted:
         realtime_status["status"] = "partial"
-    verify_status: dict[str, Any] = {
-        "status": last_verify_status,
-        "products_attempted": verify_products_attempted,
-        "products_ok": verify_products_ok,
-        "detail": "",
-    }
-    if verify_products_attempted > 0 and 0 < verify_products_ok < verify_products_attempted:
-        verify_status["status"] = "partial"
 
     cannibalization_alerts = cn.detect_alerts(pass1_product_views)
     cannibalization_hints_by_product: dict[str, dict[str, Any]] = {}
@@ -6497,6 +6390,4 @@ def run_market_analysis(
         # instead of only showing up as an absence in `sources_used`.
         "realtime_signals": realtime_signals,
         "realtime_status": realtime_status,
-        "market_verification_status": verify_status,
-        "keywords_with_market_verification": keywords_verified_count,
     }

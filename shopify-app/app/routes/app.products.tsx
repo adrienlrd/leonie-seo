@@ -339,7 +339,6 @@ interface JobState {
   sources_used: string[];
   provider_status?: ProviderStatus;
   realtime_status?: { status?: string; products_attempted?: number; products_ok?: number };
-  market_verification_status?: { status?: string };
   competitor_signals?: CompetitorSignal[];
   cannibalization_alerts?: CannibalizationAlert[];
   orphan_products?: string[];

@@ -56,8 +56,7 @@ class GeminiProvider(LLMProvider):
         # zero output tokens — verified 2026-07-26 on every prompt tried,
         # including a trivial one. Grounding wins (it is the whole point of
         # this provider); callers asking for JSON get it via the prompt, and
-        # both `_parse_signals` and `_parse_verifications` already strip the
-        # ```json fence the model then emits.
+        # `_parse_signals` already strips the ```json fence the model emits.
         if json_mode and not self._grounded:
             payload["generationConfig"]["responseMimeType"] = "application/json"
         if self._grounded:

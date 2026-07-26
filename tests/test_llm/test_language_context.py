@@ -62,10 +62,8 @@ def test_pass1_prompt_carries_language_context() -> None:
 
 
 def test_grounding_prompt_targets_the_selected_market() -> None:
-    from app.niche.signals.realtime_trends import _build_prompt, _build_verify_prompt
+    from app.niche.signals.realtime_trends import _build_prompt
 
     prompt = _build_prompt("tienda de mascotas", ["Arnés para perros"], "es")
     assert "España" in prompt
     assert "español" in prompt
-    verify = _build_verify_prompt(["arnés perro"], "mascotas", "es")
-    assert "España" in verify

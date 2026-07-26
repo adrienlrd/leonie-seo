@@ -40,19 +40,14 @@ def _fake_run_market_analysis(products, *args, **kwargs):  # noqa: ARG001
         "product_count_seen": len(products),
         "realtime_signals": None,
         "realtime_status": {"status": "not_attempted"},
-        "market_verification_status": {"status": "not_attempted"},
-        "keywords_with_market_verification": 0,
     }
     if grounded:
         sources.append("realtime_grounding")
-        sources.append("realtime_market_verification")
         result["realtime_signals"] = {
             "events": [{"title": "Canicule"}],
             "rising_queries": [{"query": "fontaine à eau chat"}],
         }
         result["realtime_status"] = {"status": "ok"}
-        result["market_verification_status"] = {"status": "ok"}
-        result["keywords_with_market_verification"] = 3
     return result
 
 
@@ -114,11 +109,8 @@ def test_diff_summary_shows_value_delta_between_plans() -> None:
     diff = result["diff_summary"]
     assert diff["pro"]["realtime_grounding_used"] is False
     assert diff["pro"]["events_used"] == 0
-    assert diff["pro"]["keywords_with_market_verification"] == 0
     assert diff["agency"]["realtime_grounding_used"] is True
     assert diff["agency"]["realtime_status"] == "ok"
-    assert diff["agency"]["market_verification_status"] == "ok"
-    assert diff["agency"]["keywords_with_market_verification"] == 3
     assert diff["agency"]["events_used"] == 2
 
 

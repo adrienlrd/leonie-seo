@@ -1459,7 +1459,7 @@ const FR: Dictionary = {
   // provider status banner
   provStatusTitle: "Certaines sources de données étaient indisponibles",
   provStatusTrendsDown: "Google Trends n'a pas répondu — les tendances 12 mois n'ont pas alimenté cette analyse.",
-  provStatusRealtimeDown: "La recherche web temps réel a partiellement échoué — certains produits n'ont pas de vérification marché.",
+  provStatusRealtimeDown: "La recherche web temps réel a partiellement échoué — certains produits n'ont pas de signal d'actualité.",
   provStatusDataforseoOff: "DataForSEO indisponible — les volumes de recherche affichés sont des estimations.",
   // empty states
   prodEmptyTitle: "Lancez votre première analyse",
@@ -1484,7 +1484,6 @@ const FR: Dictionary = {
   srcSuggest: "Google Suggest",
   srcTrends: "Google Trends",
   srcRealtime: "Recherche web temps réel",
-  srcRealtimeVerify: "Vérification marché temps réel",
   srcShopify: "Catalogue Shopify",
   srcCandidatePool: "Pool de mots-clés réels",
   srcHistory: "Historique d'optimisation",
@@ -2943,7 +2942,7 @@ const EN: Dictionary = {
   // provider status banner
   provStatusTitle: "Some data sources were unavailable",
   provStatusTrendsDown: "Google Trends did not respond — 12-month trends did not feed this analysis.",
-  provStatusRealtimeDown: "Real-time web search partially failed — some products have no market verification.",
+  provStatusRealtimeDown: "Real-time web search partially failed — some products have no current-events signal.",
   provStatusDataforseoOff: "DataForSEO unavailable — displayed search volumes are estimates.",
   // empty states
   prodEmptyTitle: "Run your first analysis",
@@ -2968,7 +2967,6 @@ const EN: Dictionary = {
   srcSuggest: "Google Suggest",
   srcTrends: "Google Trends",
   srcRealtime: "Real-time web search",
-  srcRealtimeVerify: "Real-time market verification",
   srcShopify: "Shopify catalog",
   srcCandidatePool: "Real keyword pool",
   srcHistory: "Optimization history",
@@ -4427,7 +4425,7 @@ const DE: Dictionary = {
   // provider status banner
   provStatusTitle: "Einige Datenquellen waren nicht verfügbar",
   provStatusTrendsDown: "Google Trends hat nicht geantwortet — die 12-Monats-Trends sind nicht in diese Analyse eingeflossen.",
-  provStatusRealtimeDown: "Die Echtzeit-Websuche ist teilweise fehlgeschlagen — einige Produkte haben keine Marktverifizierung.",
+  provStatusRealtimeDown: "Die Echtzeit-Websuche ist teilweise fehlgeschlagen — einige Produkte haben kein Aktualitätssignal.",
   provStatusDataforseoOff: "DataForSEO nicht verfügbar — die angezeigten Suchvolumina sind Schätzungen.",
   // empty states
   prodEmptyTitle: "Starten Sie Ihre erste Analyse",
@@ -4452,7 +4450,6 @@ const DE: Dictionary = {
   srcSuggest: "Google Suggest",
   srcTrends: "Google Trends",
   srcRealtime: "Echtzeit-Websuche",
-  srcRealtimeVerify: "Echtzeit-Marktverifizierung",
   srcShopify: "Shopify-Katalog",
   srcCandidatePool: "Pool echter Keywords",
   srcHistory: "Optimierungsverlauf",
@@ -5911,7 +5908,7 @@ const ES: Dictionary = {
   // provider status banner
   provStatusTitle: "Algunas fuentes de datos no estaban disponibles",
   provStatusTrendsDown: "Google Trends no respondió — las tendencias de 12 meses no alimentaron este análisis.",
-  provStatusRealtimeDown: "La búsqueda web en tiempo real falló parcialmente — algunos productos no tienen verificación de mercado.",
+  provStatusRealtimeDown: "La búsqueda web en tiempo real falló parcialmente — algunos productos no tienen señal de actualidad.",
   provStatusDataforseoOff: "DataForSEO no disponible — los volúmenes de búsqueda mostrados son estimaciones.",
   // empty states
   prodEmptyTitle: "Ejecute su primer análisis",
@@ -5936,7 +5933,6 @@ const ES: Dictionary = {
   srcSuggest: "Google Suggest",
   srcTrends: "Google Trends",
   srcRealtime: "Búsqueda web en tiempo real",
-  srcRealtimeVerify: "Verificación de mercado en tiempo real",
   srcShopify: "Catálogo de Shopify",
   srcCandidatePool: "Grupo de palabras clave reales",
   srcHistory: "Historial de optimización",

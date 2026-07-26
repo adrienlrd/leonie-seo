@@ -14,7 +14,6 @@ const SOURCE_META: Record<string, [string, Tone]> = {
   google_suggest: ["srcSuggest", "info"],
   trends: ["srcTrends", "info"],
   realtime_grounding: ["srcRealtime", "info"],
-  realtime_market_verification: ["srcRealtimeVerify", "info"],
   shopify_snapshot: ["srcShopify", "info"],
   keyword_candidate_pool: ["srcCandidatePool", undefined],
   optimization_history: ["srcHistory", undefined],

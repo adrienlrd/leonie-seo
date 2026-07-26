@@ -12,6 +12,27 @@
 
 - **Date:** 2026-07-26
 - **Agent:** Claude (Opus 5)
+- **Goal:** Establish whether Gemini grounding can be made to fire reliably, then act on the answer. Adrien's decision after the measurements: remove keyword market verification.
+- **Measurements (live, this is the load-bearing part):**
+  - Stronger models do **not** help: `gemini-3.5-flash` and `gemini-3.6-flash` also ran zero searches on the verification prompt.
+  - There is **no way to force grounding**: `google_search_retrieval` + `dynamicThreshold: 0` returns HTTP 400, "google_search_retrieval is not supported. Please use google_search tool instead."
+  - Grounding itself is healthy: 3 genuinely unknowable questions (Paris weather, latest France football result, Apple share price) × 2 models = **6/6 fired** with citations. Not a key, quota or model problem.
+  - Firing rate on our actual questions: **1/10** for one-keyword-per-call verification, **0/4** for three-keyword calls, **0/10** for the real-time signals prompt across 10 distinct niches.
+  - In all 14 verification calls the model returned a complete, confident verdict with a `source_url` — 13 of them without having searched. It never says "I don't know".
+- **Conclusion:** Gemini triggers search only when it judges it cannot answer. A keyword-popularity or seasonal-context question never meets that bar. This is a mismatch of tool to problem, not a tuning issue. DataForSEO (already integrated) is the right instrument for real search volume.
+- **Changes — keyword market verification removed entirely:**
+  - `app/niche/signals/realtime_trends.py`: deleted `_VERIFY_SYSTEM_PROMPT`, `_MAX_VERIFY_KEYWORDS`, `_VERIFY_BATCH_SIZE`, `_build_verify_prompt`, `_parse_verifications`, `verify_keywords_against_market`.
+  - `app/market_analysis/engine.py`: deleted `_verify_keywords_once`, `_apply_market_verification` (and with it the `demand_score` +10/+5/−10 bump that fabricated verdicts were applying to merchant-facing keyword ranking), the per-product verification block, its counters, the `realtime_market_verification` source and the `market_verification_status` / `keywords_with_market_verification` result keys. Saves ~3 grounded calls per product.
+  - `app/market_analysis/plan_comparison.py`: dropped the four verification fields from `_plan_diff`.
+  - Frontend: `SourcesUsedCard` mapping row, the `market_verification_status` type field in `app.products.tsx`, `srcRealtimeVerify` in all 4 locales; `provStatusRealtimeDown` reworded (4 locales) since it referenced market verification.
+- **Validations:** pytest 2186 passed / 174 skipped; ruff clean; `npm run typecheck` exit 0.
+- **Open decision:** `fetch_realtime_signals` measured **0/10 grounded**, so with the `_grounding_failure` guard in place it will essentially never produce anything — it now only costs money. Removing it too means deleting the grounded provider/tier, the blog `_event_ideas` bucket, `GET /geo/realtime-signals`, and the "tendances temps réel" selling point. Awaiting Adrien's go-ahead on that scope.
+- **Next recommended action:** use Gemini grounding where the question IS genuinely unknowable — measuring AI visibility (ask a buyer question, observe which brands/domains an AI engine cites). There the citations *are* the deliverable and cannot be faked. See `app/api/ai_visibility.py`.
+
+## Task before that
+
+- **Date:** 2026-07-26
+- **Agent:** Claude (Opus 5)
 - **Goal:** Extend grounding to the `pro` plan (Adrien's call: pro and agency should differ by quota only). Found — and blocked — a data-integrity problem while validating it.
 - **Finding (measured live):** the keyword-verification prompt triggers **zero** Google searches (4/4 runs: `webSearchQueries` empty, no `groundingChunks`) yet returns confident `confirmed` verdicts with plausible-looking URLs (selectos.eu, animalis.com, zoomalia.com…) — **invented from memory**. The signals prompt searched in only 1 of 2 runs. Enabling the `google_search` tool makes search *available*; the model decides whether to use it, and no amount of prompt insistence changed that (a reworded "report the top result title" variant also triggered zero searches). Meanwhile `_apply_market_verification` was bumping `demand_score` +5/+10 on those fabricated verdicts, so invented evidence was reordering merchant-facing keywords.
 - **Changes:**
