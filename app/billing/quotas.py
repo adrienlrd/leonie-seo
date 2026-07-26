@@ -11,6 +11,10 @@ from app.db_adapter import get_conn
 
 WINDOW_DAYS = 28
 
+# Plans allowed to spend a Gemini + Google Search grounded call. Free stays out;
+# pro and agency differ by quota only (Adrien's call, 2026-07-26).
+GROUNDED_PLANS = frozenset({"pro", "agency"})
+
 # kind → max events per rolling window; "products" is a cap, not an event count.
 PLAN_QUOTAS: dict[str, dict[str, int | bool]] = {
     "free": {

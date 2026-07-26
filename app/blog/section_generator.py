@@ -12,6 +12,7 @@ import json
 import logging
 from typing import Any
 
+from app.billing.quotas import GROUNDED_PLANS
 from app.billing.subscription_store import get_plan_for_shop
 from app.llm import LLMError, get_router
 
@@ -141,12 +142,12 @@ def generate_section(
 ) -> dict[str, Any]:
     """Generate one blog section. Falls back to empty fields on any LLM/parse failure.
 
-    Grande boutique (agency) shops get a grounded call (Gemini + Google Search),
-    so factual claims can carry cited sources (`citations`). Every other plan
+    Paid plans (see `GROUNDED_PLANS`) get a grounded call (Gemini + Google
+    Search), so factual claims can carry cited sources (`citations`). Free
     keeps the default gpt-5.4-nano chain — `citations` is then always [].
     """
     fallback: dict[str, Any] = {"direct_answer": "", "body": "", "claims_used": [], "citations": []}
-    tier = "grounded" if shop and get_plan_for_shop(shop) == "agency" else "default"
+    tier = "grounded" if shop and get_plan_for_shop(shop) in GROUNDED_PLANS else "default"
     try:
         router = get_router(shop=shop, tier=tier)
     except LLMError:

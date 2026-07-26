@@ -12,6 +12,20 @@
 
 - **Date:** 2026-07-26
 - **Agent:** Claude (Opus 5)
+- **Goal:** Extend grounding to the `pro` plan (Adrien's call: pro and agency should differ by quota only). Found — and blocked — a data-integrity problem while validating it.
+- **Finding (measured live):** the keyword-verification prompt triggers **zero** Google searches (4/4 runs: `webSearchQueries` empty, no `groundingChunks`) yet returns confident `confirmed` verdicts with plausible-looking URLs (selectos.eu, animalis.com, zoomalia.com…) — **invented from memory**. The signals prompt searched in only 1 of 2 runs. Enabling the `google_search` tool makes search *available*; the model decides whether to use it, and no amount of prompt insistence changed that (a reworded "report the top result title" variant also triggered zero searches). Meanwhile `_apply_market_verification` was bumping `demand_score` +5/+10 on those fabricated verdicts, so invented evidence was reordering merchant-facing keywords.
+- **Changes:**
+  - `app/billing/quotas.py`: new public `GROUNDED_PLANS = {"pro", "agency"}` — the plan concept belongs in billing, not in a signals module.
+  - `app/niche/signals/realtime_trends.py`: both gates use `GROUNDED_PLANS`; status `plan_not_agency` → `plan_not_eligible`. `_grounding_failure(result)` replaces `_is_grounded(provider)` and now discards an answer **either** from a fallback provider **or** from Gemini with no `search_queries`/`citations`. `groundingMetadata` is the only witness the model cannot forge.
+  - `app/blog/section_generator.py`: grounded tier for `GROUNDED_PLANS` instead of agency only.
+- **Consequence to accept:** keyword market verification will now mostly return nothing (status `not_grounded`) instead of fabricated verdicts. That is the truthful state, not a regression — but the feature is effectively unavailable until grounding can be made to fire reliably. Alternative Adrien can still choose: keep the verdicts but relabel them as AI estimates (`data_source` untouched, no `demand_score` bump, no "verified_by_market" note).
+- **Validations:** pytest 2203 passed / 174 skipped; ruff clean; findings measured against the live API.
+- **Open issues:** (1) grounding fires unreliably even for the signals prompt — worth testing a stronger model (`gemini-3.5-flash` rather than `-lite`) before giving up on verification. (2) `plan_comparison.py` still labels its two phases "pro"/"agency" while it now really compares *without* vs *with* grounding — labels are misleading, mechanics are fine (it passes `fetch_realtime` explicitly). (3) No UI change was needed: the agency-exclusive "Tendances temps réel" card and billing copy from the original brief were never implemented.
+
+## Task before that
+
+- **Date:** 2026-07-26
+- **Agent:** Claude (Opus 5)
 - **Goal:** Fix the 12h grounding cache + the "Gemini skips keywords" note. Root-caused a **live outage of the whole grounded feature** instead.
 - **Root cause (verified live, 4/4 runs + a trivial control prompt):** on `gemini-3.5-flash-lite`, Google Search grounding **plus** `responseMimeType: application/json` returns HTTP 200 with an **empty candidate list** and zero output tokens. Both grounded callers sent exactly that combination, so `fetch_realtime_signals` and `verify_keywords_against_market` raised `LLMError` → fail-open → `None` on every call. The Grande boutique differentiator has produced nothing since the model upgrade (21c4547); the fail-open design hid it. The old `400`-handling branch never fired because the API answers 200, not 400.
 - **Changes:**

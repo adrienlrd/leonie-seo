@@ -1,4 +1,4 @@
-"""Tests for the real-time market signals fetcher (Grande boutique plan only)."""
+"""Tests for the real-time market signals fetcher (paid plans only)."""
 
 from __future__ import annotations
 
@@ -39,6 +39,22 @@ def _agency(db_path: Path) -> None:
     upsert_subscription(SHOP, "agency", "active", "gid://sub/1", db_path=db_path)
 
 
+def _grounded_completion(payload: dict | str, **kwargs) -> CompletionResult:
+    """A Gemini answer that carries grounding metadata.
+
+    `search_queries` matters: an answer with no executed search and no citation
+    is discarded as ungrounded, because Gemini invents `source_url` values when
+    it replies from memory.
+    """
+    kwargs.setdefault("search_queries", ["recherche exécutée"])
+    return CompletionResult(
+        text=payload if isinstance(payload, str) else json.dumps(payload),
+        provider="gemini",
+        model="gemini-3.5-flash-lite",
+        **kwargs,
+    )
+
+
 def test_returns_none_for_free_plan(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     with patch("app.niche.signals.realtime_trends.get_router") as mock_router:
@@ -47,36 +63,42 @@ def test_returns_none_for_free_plan(db: Path, data_dir: Path, monkeypatch: pytes
     mock_router.assert_not_called()
 
 
-def test_returns_none_for_pro_plan(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    upsert_subscription(SHOP, "pro", "active", "gid://sub/1", db_path=db)
-    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
-    with patch("app.niche.signals.realtime_trends.get_router") as mock_router:
-        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
-    assert result is None
-    mock_router.assert_not_called()
-
-
-def test_force_bypasses_plan_gate_for_pro_plan(
+def test_pro_plan_is_eligible_for_grounding(
     db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """force=True (Pro/Grande boutique comparison tool only) must still exercise
-    the grounded call even on a non-agency plan, without touching the shop's
-    real billing state — this test never writes to the subscription store."""
+    """pro joined agency in GROUNDED_PLANS (2026-07-26) — the two paid plans now
+    differ by quota only."""
     upsert_subscription(SHOP, "pro", "active", "gid://sub/1", db_path=db)
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
-    mock_router.complete.return_value = CompletionResult(
-        text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
-        provider="gemini",
-        model="gemini-3.5-flash-lite",
+    mock_router.complete.return_value = _grounded_completion(
+        {"events": [], "rising_queries": [], "competitor_moves": []}
+    )
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
+    assert result is not None
+    mock_router.complete.assert_called_once()
+
+
+def test_force_bypasses_plan_gate_for_free_plan(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """force=True (comparison tool only) must still exercise the grounded call
+    on an ineligible plan, without touching the shop's real billing state —
+    this test never writes to the subscription store."""
+    upsert_subscription(SHOP, "free", "active", "gid://sub/1", db_path=db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = _grounded_completion(
+        {"events": [], "rising_queries": [], "competitor_moves": []}
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, force=True)
     assert result is not None
-    # Real plan is untouched — still "pro" in the subscription store.
+    # Real plan is untouched — still "free" in the subscription store.
     from app.billing.subscription_store import get_plan_for_shop
 
-    assert get_plan_for_shop(SHOP, db_path=db) == "pro"
+    assert get_plan_for_shop(SHOP, db_path=db) == "free"
 
 
 def test_force_still_requires_gemini_key(
@@ -111,6 +133,7 @@ def test_agency_with_key_calls_grounded_router(
         text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
         provider="gemini",
         model="gemini-3.5-flash-lite",
+        search_queries=["recherche exécutée"],
         citations=[{"url": "https://example.com", "title": "Example"}],
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router) as get_router_mock:
@@ -135,6 +158,7 @@ def test_persists_result_to_json_file(db: Path, data_dir: Path, monkeypatch: pyt
         ),
         provider="gemini",
         model="gemini-3.5-flash-lite",
+        search_queries=["recherche exécutée"],
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
@@ -156,6 +180,7 @@ def test_persist_false_does_not_write_file(
         text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
         provider="gemini",
         model="gemini-3.5-flash-lite",
+        search_queries=["recherche exécutée"],
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, persist=False)
@@ -238,6 +263,59 @@ def test_discards_answer_from_the_non_grounded_fallback_provider(
     assert status["status"] == "not_grounded"
 
 
+def test_discards_gemini_answer_that_ran_no_web_search(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Enabling the search tool only makes search available — Gemini decides.
+    Measured live: it answers confidently from memory with invented source_urls,
+    and `groundingMetadata` is the only witness we cannot be lied to about."""
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = _grounded_completion(
+        {
+            "events": [{"title": "Canicule", "source_url": "https://invented.example"}],
+            "rising_queries": [],
+            "competitor_moves": [],
+        },
+        search_queries=[],
+        citations=[],
+    )
+    status: dict = {}
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
+    assert result is None
+    assert status["status"] == "not_grounded"
+
+
+def test_verify_discards_batch_that_ran_no_web_search(
+    db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _agency(db)
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
+    mock_router = MagicMock()
+    mock_router.complete.return_value = _grounded_completion(
+        {
+            "verifications": [
+                {
+                    "query": "fontaine chat",
+                    "market_evidence": "confirmed",
+                    "source_url": "https://invented.example",
+                }
+            ]
+        },
+        search_queries=[],
+        citations=[],
+    )
+    status: dict = {}
+    with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
+        result = verify_keywords_against_market(
+            SHOP, ["fontaine chat"], "accessoires chats", db_path=db, status_out=status
+        )
+    assert result is None
+    assert status["status"] == "not_grounded"
+
+
 def test_verify_discards_answer_from_the_non_grounded_fallback_provider(
     db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -316,6 +394,7 @@ def test_refetches_when_snapshot_is_older_than_the_ttl(
         ),
         provider="gemini",
         model="gemini-3.5-flash-lite",
+        search_queries=["recherche exécutée"],
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         result = fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
@@ -335,6 +414,7 @@ def test_refetches_when_snapshot_has_an_unparseable_timestamp(
         text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
         provider="gemini",
         model="gemini-3.5-flash-lite",
+        search_queries=["recherche exécutée"],
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db)
@@ -352,11 +432,11 @@ def test_status_out_no_gemini_key(db: Path, data_dir: Path, monkeypatch: pytest.
     assert status["status"] == "no_gemini_key"
 
 
-def test_status_out_plan_not_agency(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_status_out_plan_not_eligible(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     status: dict = {}
     fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
-    assert status["status"] == "plan_not_agency"
+    assert status["status"] == "plan_not_eligible"
 
 
 def test_status_out_ok(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -367,6 +447,7 @@ def test_status_out_ok(db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
         text=json.dumps({"events": [], "rising_queries": [], "competitor_moves": []}),
         provider="gemini",
         model="gemini-3.5-flash-lite",
+        search_queries=["recherche exécutée"],
     )
     status: dict = {}
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
@@ -390,9 +471,7 @@ def test_status_out_parse_error(db: Path, data_dir: Path, monkeypatch: pytest.Mo
     _agency(db)
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
-    mock_router.complete.return_value = CompletionResult(
-        text="not json", provider="gemini", model="gemini-3.5-flash-lite"
-    )
+    mock_router.complete.return_value = _grounded_completion("not json")
     status: dict = {}
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         fetch_realtime_signals(SHOP, {}, ["produit"], db_path=db, status_out=status)
@@ -445,6 +524,7 @@ def test_verify_parses_verifications_by_query(
         ),
         provider="gemini",
         model="gemini-3.5-flash-lite",
+        search_queries=["recherche exécutée"],
     )
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         result = verify_keywords_against_market(
@@ -486,6 +566,7 @@ def test_verify_batches_keywords_into_calls_of_ten_and_merges_results(
             ),
             provider="gemini",
             model="gemini-3.5-flash-lite",
+            search_queries=["recherche exécutée"],
         )
         for i in (0, 10, 20)
     ]
@@ -518,6 +599,7 @@ def test_verify_partial_status_when_one_batch_fails(
             ),
             provider="gemini",
             model="gemini-3.5-flash-lite",
+            search_queries=["recherche exécutée"],
         ),
         LLMError("boom"),
     ]
@@ -547,12 +629,10 @@ def test_verify_fail_open_when_llm_raises(
 def test_verify_force_bypasses_plan_gate(
     db: Path, data_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    upsert_subscription(SHOP, "pro", "active", "gid://sub/1", db_path=db)
+    upsert_subscription(SHOP, "free", "active", "gid://sub/1", db_path=db)
     monkeypatch.setenv("GEMINI_API_KEY", "AIza-test")
     mock_router = MagicMock()
-    mock_router.complete.return_value = CompletionResult(
-        text=json.dumps({"verifications": []}), provider="gemini", model="gemini-3.5-flash-lite"
-    )
+    mock_router.complete.return_value = _grounded_completion({"verifications": []})
     with patch("app.niche.signals.realtime_trends.get_router", return_value=mock_router):
         result = verify_keywords_against_market(SHOP, ["fontaine à eau chat"], "niche", db_path=db, force=True)
     assert result is not None

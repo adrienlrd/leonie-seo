@@ -1,5 +1,5 @@
 """Real-time market signals (events, rising queries, competitor moves) via
-Gemini + Google Search grounding — Grande boutique (agency) plan only.
+Gemini + Google Search grounding — paid plans (pro, agency) only.
 
 Unlike `app/niche/signals/trends.py` (Google Trends, fixed 12-month window),
 this fetches what is happening THIS WEEK, with cited sources, consistent with
@@ -16,8 +16,9 @@ from pathlib import Path
 from typing import Any
 
 from app.analysis_artifacts import load_artifact, save_artifact
+from app.billing.quotas import GROUNDED_PLANS
 from app.billing.subscription_store import get_plan_for_shop
-from app.llm import LLMError, get_router
+from app.llm import CompletionResult, LLMError, get_router
 from app.paths import data_dir
 
 logger = logging.getLogger(__name__)
@@ -125,16 +126,29 @@ def _fresh_cached_signals(shop: str, *, db_path: Path | None) -> dict[str, Any] 
     return cached if 0 <= age_hours < _CACHE_TTL_HOURS else None
 
 
-def _is_grounded(provider: str) -> bool:
-    """True when the completion really came from the grounded provider.
+def _grounding_failure(result: CompletionResult) -> str:
+    """Return "" when the answer is backed by a real web search, else why not.
 
-    The "grounded" router falls back to the default chain when Gemini is rate
-    limited or down. That fallback model has no web access, yet the prompt
-    demands a `source_url` per item — it would invent them. Sourced-looking
-    fabrications are worse than no signal at all, so a non-Gemini answer is
-    discarded (see the project rule: real data, sources always shown).
+    Two distinct ways an answer arrives ungrounded, both of which produce
+    invented `source_url` values because the prompt demands one per item:
+
+    - the "grounded" router fell back to the default chain (no web access);
+    - Gemini answered from memory without calling the search tool at all.
+      Enabling the tool only makes search *available*; the model decides. The
+      prompts insist on searching, and measured live 2026-07-26 that changes
+      nothing: the verification prompt triggered zero searches in 4/4 runs yet
+      still returned confident verdicts with plausible-looking URLs.
+
+    `groundingMetadata` is the only trustworthy witness — the model cannot
+    forge `webSearchQueries`/`groundingChunks`, only prose. Sourced-looking
+    fabrications are worse than no signal at all (project rule: real data
+    first, sources always shown), so an unwitnessed answer is discarded.
     """
-    return provider == "gemini"
+    if result.provider != "gemini":
+        return f"fallback provider: {result.provider}"
+    if not result.search_queries and not result.citations:
+        return "gemini answered without running a web search"
+    return ""
 
 
 def fetch_realtime_signals(
@@ -150,7 +164,7 @@ def fetch_realtime_signals(
 ) -> dict[str, Any] | None:
     """Fetch (and, by default, persist) a real-time market signal snapshot.
 
-    Gated to the "agency" plan and a configured GEMINI_API_KEY — returns None
+    Gated to `GROUNDED_PLANS` and a configured GEMINI_API_KEY — returns None
     immediately (no HTTP call, no cost) for every other shop. Fail-open on any
     error (network, parsing, missing grounding) so an analysis job never fails
     because this optional signal could not be fetched.
@@ -165,8 +179,8 @@ def fetch_realtime_signals(
     the shop's real billing state.
 
     ``status_out`` (optional), populated with why the call did or didn't run:
-    ``status`` one of ``no_gemini_key`` | ``plan_not_agency`` | ``llm_error`` |
-    ``parse_error`` | ``not_grounded`` | ``cached`` | ``ok``, plus ``detail``.
+    ``status`` one of ``no_gemini_key`` | ``plan_not_eligible`` | ``llm_error``
+    | ``parse_error`` | ``not_grounded`` | ``cached`` | ``ok``, plus ``detail``.
     Lets callers (and the plan comparison export) show *why* grounding was
     silent instead of guessing.
 
@@ -175,8 +189,8 @@ def fetch_realtime_signals(
     the combined catalog signal once yourself — otherwise each product's call
     would silently overwrite the previous one's saved snapshot.
     """
-    if not force and get_plan_for_shop(shop, db_path) != "agency":
-        _set_status(status_out, "plan_not_agency")
+    if not force and get_plan_for_shop(shop, db_path) not in GROUNDED_PLANS:
+        _set_status(status_out, "plan_not_eligible")
         return None
     if not os.getenv("GEMINI_API_KEY"):
         _set_status(status_out, "no_gemini_key")
@@ -215,12 +229,10 @@ def fetch_realtime_signals(
         _set_status(status_out, "llm_error", str(exc))
         return None
 
-    if not _is_grounded(result.provider):
-        logger.warning(
-            "realtime_signals: answer came from %s, not the grounded provider — discarded",
-            result.provider,
-        )
-        _set_status(status_out, "not_grounded", result.provider)
+    ungrounded = _grounding_failure(result)
+    if ungrounded:
+        logger.warning("realtime_signals: discarded ungrounded answer (%s)", ungrounded)
+        _set_status(status_out, "not_grounded", ungrounded)
         return None
 
     parsed = _parse_signals(result.text)
@@ -368,8 +380,8 @@ def verify_keywords_against_market(
     Not cached, unlike `fetch_realtime_signals`: the keyword set differs per
     product and per analysis, so there is no shop-level snapshot to reuse.
     """
-    if not force and get_plan_for_shop(shop, db_path) != "agency":
-        _set_status(status_out, "plan_not_agency")
+    if not force and get_plan_for_shop(shop, db_path) not in GROUNDED_PLANS:
+        _set_status(status_out, "plan_not_eligible")
         return None
     if not os.getenv("GEMINI_API_KEY"):
         _set_status(status_out, "no_gemini_key")
@@ -411,13 +423,12 @@ def verify_keywords_against_market(
             logger.warning("verify_keywords_against_market: unexpected error for %s: %s", shop, exc)
             last_error_status, last_error_detail = "llm_error", str(exc)
             continue
-        if not _is_grounded(result.provider):
+        ungrounded = _grounding_failure(result)
+        if ungrounded:
             logger.warning(
-                "verify_keywords_against_market: answer came from %s, not the grounded "
-                "provider — discarded",
-                result.provider,
+                "verify_keywords_against_market: discarded ungrounded batch (%s)", ungrounded
             )
-            last_error_status, last_error_detail = "not_grounded", result.provider
+            last_error_status, last_error_detail = "not_grounded", ungrounded
             continue
         verifications = _parse_verifications(result.text)
         if verifications is None:
