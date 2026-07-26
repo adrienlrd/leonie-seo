@@ -418,18 +418,41 @@ async def get_realtime_signals_endpoint(
     shop: str,
     ctx: Annotated[ShopContext, Depends(get_shop_context)],
 ) -> dict:
-    """Last persisted real-time market signal snapshot (Grande boutique plan only).
+    """Last persisted real-time market signal snapshot (paid plans only).
 
     Read-only — never triggers a new grounded call. Returns `signals: null` for
-    every other plan or before the first agency-plan analysis has run.
+    Free or before the first eligible analysis has run.
     """
+    from app.billing.quotas import GROUNDED_PLANS  # noqa: PLC0415
     from app.billing.subscription_store import get_plan_for_shop  # noqa: PLC0415
     from app.niche.signals.realtime_trends import load_realtime_signals  # noqa: PLC0415
 
-    if get_plan_for_shop(ctx.shop) != "agency":
+    if get_plan_for_shop(ctx.shop) not in GROUNDED_PLANS:
         return {"shop": ctx.shop, "signals": None}
     signals = await asyncio.to_thread(load_realtime_signals, ctx.shop)
     return {"shop": ctx.shop, "signals": signals}
+
+
+@router.get("/shops/{shop}/geo/ai-visibility")
+async def get_ai_visibility_endpoint(
+    shop: str,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict:
+    """Last persisted AI visibility measurement (paid plans only).
+
+    Read-only — never triggers a grounded call; the measurement is produced by
+    the market analysis job. Returns `visibility: null` when nothing has been
+    measured yet, which the UI renders as an explicit "not measured" state
+    rather than as an absence of visibility.
+    """
+    from app.billing.quotas import GROUNDED_PLANS  # noqa: PLC0415
+    from app.billing.subscription_store import get_plan_for_shop  # noqa: PLC0415
+    from app.niche.signals.ai_visibility import load_ai_visibility  # noqa: PLC0415
+
+    if get_plan_for_shop(ctx.shop) not in GROUNDED_PLANS:
+        return {"shop": ctx.shop, "visibility": None}
+    visibility = await asyncio.to_thread(load_ai_visibility, ctx.shop)
+    return {"shop": ctx.shop, "visibility": visibility}
 
 
 @router.get("/shops/{shop}/geo/progress-curve")

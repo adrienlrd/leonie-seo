@@ -4,6 +4,7 @@ import { useLoaderData } from "@remix-run/react";
 import {
   Badge,
   BlockStack,
+  Box,
   Button,
   Card,
   InlineGrid,
@@ -173,6 +174,9 @@ export default function Settings() {
             </Button>
           </InlineStack>
         </Card>
+
+        {/* Bottom breathing room so the last panel isn't glued to the page edge. */}
+        <Box paddingBlockEnd="800" />
       </BlockStack>
     </Page>
   );

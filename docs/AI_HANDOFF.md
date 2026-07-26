@@ -12,6 +12,25 @@
 
 - **Date:** 2026-07-26
 - **Agent:** Claude (Opus 5)
+- **Goal:** Adrien's calls: keep "tendances temps réel" (it is the core selling point) by making it genuinely grounded, and ship AI visibility as a panel at the top of the Analyse page.
+- **Two measurements that determined the design:**
+  - A **niche** question never triggers a search (the model believes it knows). A **world-state** question (weather / news / school calendar) fires reliably: 5/5 with real sources.
+  - Asking for **JSON suppresses the search entirely**: the same prose question scored 3 searches / 6-8 citations, and 0/0 as soon as a schema was requested — with or without a system prompt. This was the root mechanism behind every grounding failure investigated today.
+- **Real-time trends, rebuilt (`app/niche/signals/realtime_trends.py`):**
+  - The grounded call now asks, **in prose**, only about the market's country: notable weather this week, mainstream news, upcoming holidays/school breaks. `_structure_events()` then turns that prose into `{events: [{title, description, kind}]}` with a second cheap **ungrounded** gpt-5.4-nano call that invents nothing, localised via `output_instruction(language)`.
+  - Niche linkage stays in Python — `_event_ideas` and the Pass 1 prompt already cross events with the real catalog.
+  - Dropped `rising_queries` and `competitor_moves` (niche questions the model could only fabricate) and the keyword-pool injection they fed (`_realtime_rising_candidates`, the `realtime_grounding` keyword source).
+  - **One call per shop instead of one per product**: the question no longer depends on a product, so a 35-product analysis costs 1 grounded call per 12h (cache) instead of 35. `_merge_realtime_signals` and the per-product accumulators are gone.
+  - Verified live: FR returns the 28 July heatwave (meteofrance.com), Assomption + la rentrée (service-public.gouv.fr); DE returns German news (zeit.de, deutschlandfunk.de) and Länder holidays, in German; second call → `cached`.
+- **AI visibility, new (`app/niche/signals/ai_visibility.py`):** asks the analysis' own `geo_questions` as a shopper would (prose, no schema) and records which domains the AI engine **cited** — `groundingMetadata` is the deliverable, and the model cannot forge it. Returns per-question `grounded`/`domains`/`shop_cited`, aggregated `top_domains`, `shop_cited_count`. An ungrounded answer contributes nothing (it observed nothing). Wired into `run_market_analysis` behind the same gate (result key `ai_visibility`, source `ai_visibility`), read-only endpoint `GET /shops/{shop}/geo/ai-visibility`, panel at the top of `app.analyse.tsx` with the no-promise wording from `app/api/ai_visibility.py`, i18n FR/EN/DE/ES.
+  - Verified live: 3/3 questions grounded, top domains goodbro.fr, jardiland.com, zoomalia.com — a real competitor map.
+- **Validations:** pytest 2183 passed / 174 skipped (8 new AI-visibility tests); ruff clean; `npm run typecheck` exit 0; `npm run build` OK; both signals exercised against the live API.
+- **Open:** `GET /geo/realtime-signals` and the new AI visibility panel are the only surfaces; the dashboard still shows neither, so an operator cannot yet see that an eligible shop's `realtime_status` is not `ok`/`cached`. Grounding remains probabilistic — a question that did not fire simply yields no measurement, by design.
+
+## Task before that
+
+- **Date:** 2026-07-26
+- **Agent:** Claude (Opus 5)
 - **Goal:** Establish whether Gemini grounding can be made to fire reliably, then act on the answer. Adrien's decision after the measurements: remove keyword market verification.
 - **Measurements (live, this is the load-bearing part):**
   - Stronger models do **not** help: `gemini-3.5-flash` and `gemini-3.6-flash` also ran zero searches on the verification prompt.

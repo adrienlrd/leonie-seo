@@ -32,6 +32,22 @@ import {
   type ClicksSeriesPoint,
 } from "../components/ValidationClicksChart";
 
+interface AiVisibilityQuestion {
+  question: string;
+  grounded: boolean;
+  domains: string[];
+  shop_cited: boolean;
+}
+
+interface AiVisibility {
+  questions: AiVisibilityQuestion[];
+  top_domains: { domain: string; citations: number }[];
+  questions_measured: number;
+  questions_asked: number;
+  shop_cited_count: number;
+  measured_at: string;
+}
+
 interface GscMetrics {
   clicks: number;
   impressions: number;
@@ -106,6 +122,7 @@ interface LoaderData {
   summary: { total_products: number; total_actions: number };
   clicks: ClicksMap;
   ga4Ready: boolean;
+  aiVisibility: AiVisibility | null;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -133,6 +150,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // fail-open
   }
 
+  let aiVisibility: AiVisibility | null = null;
+  try {
+    const resp = await callBackendForShop(
+      shop,
+      `/api/shops/${shop}/geo/ai-visibility`,
+      { accessToken: session.accessToken },
+    );
+    if (resp.ok) {
+      const data = await resp.json();
+      aiVisibility = data.visibility ?? null;
+    }
+  } catch {
+    // fail-open — the panel just shows the not-measured state
+  }
+
   try {
     const resp = await callBackendForShop(
       shop,
@@ -148,7 +180,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // fail-open — counters just stay hidden
   }
 
-  return json<LoaderData>({ locale, products, summary, clicks, ga4Ready });
+  return json<LoaderData>({ locale, products, summary, clicks, ga4Ready, aiVisibility });
 };
 
 function fieldLabel(field: string): string {
@@ -381,8 +413,14 @@ function ZeroClicksHint({
 }
 
 export default function AnalysePage() {
-  const { locale, products, summary, clicks: initialClicks, ga4Ready: initialGa4Ready } =
-    useLoaderData<typeof loader>() as LoaderData;
+  const {
+    locale,
+    products,
+    summary,
+    clicks: initialClicks,
+    ga4Ready: initialGa4Ready,
+    aiVisibility,
+  } = useLoaderData<typeof loader>() as LoaderData;
   const blogs = products.filter((p) => p.resource_type === "blog_post");
   const prods = products.filter((p) => p.resource_type !== "blog_post");
   const [showBlogs, setShowBlogs] = useState(false);
@@ -430,6 +468,73 @@ export default function AnalysePage() {
       subtitle={t(locale, "analyseSubtitle")}
     >
       <BlockStack gap="400">
+        <Card>
+          <BlockStack gap="300">
+            <BlockStack gap="050">
+              <Text as="h2" variant="headingMd">{t(locale, "aiVisTitle")}</Text>
+              <Text as="p" variant="bodySm" tone="subdued">{t(locale, "aiVisSubtitle")}</Text>
+            </BlockStack>
+
+            {aiVisibility === null ? (
+              <Text as="p" variant="bodySm" tone="subdued">{t(locale, "aiVisNotMeasured")}</Text>
+            ) : (
+              <BlockStack gap="300">
+                <InlineStack gap="600" wrap>
+                  <BlockStack gap="050">
+                    <Text as="span" variant="bodySm" tone="subdued">{t(locale, "aiVisShopCited")}</Text>
+                    <Text as="span" variant="headingLg">
+                      {aiVisibility.shop_cited_count}/{aiVisibility.questions_measured}
+                    </Text>
+                  </BlockStack>
+                  <BlockStack gap="050">
+                    <Text as="span" variant="bodySm" tone="subdued">{t(locale, "aiVisQuestionsMeasured")}</Text>
+                    <Text as="span" variant="headingLg">
+                      {aiVisibility.questions_measured}/{aiVisibility.questions_asked}
+                    </Text>
+                  </BlockStack>
+                  <BlockStack gap="050">
+                    <Text as="span" variant="bodySm" tone="subdued">{t(locale, "aiVisMeasuredAt")}</Text>
+                    <Text as="span" variant="bodyMd">
+                      {new Date(aiVisibility.measured_at).toLocaleDateString(locale)}
+                    </Text>
+                  </BlockStack>
+                </InlineStack>
+
+                {aiVisibility.top_domains.length > 0 && (
+                  <BlockStack gap="150">
+                    <Text as="h3" variant="headingSm">{t(locale, "aiVisTopDomains")}</Text>
+                    <InlineStack gap="200" wrap>
+                      {aiVisibility.top_domains.map((d) => (
+                        <Badge key={d.domain} tone={d.domain.includes(".myshopify.com") ? "success" : undefined}>
+                          {`${d.domain} · ${d.citations} ${t(locale, "aiVisCitations")}`}
+                        </Badge>
+                      ))}
+                    </InlineStack>
+                  </BlockStack>
+                )}
+
+                <BlockStack gap="100">
+                  {aiVisibility.questions
+                    .filter((q) => q.grounded)
+                    .map((q) => (
+                      <InlineStack key={q.question} gap="150" wrap align="start">
+                        {q.shop_cited ? (
+                          <Badge tone="success">{t(locale, "aiVisYourShop")}</Badge>
+                        ) : null}
+                        <Text as="span" variant="bodySm">{q.question}</Text>
+                        <Text as="span" variant="bodySm" tone="subdued">
+                          {q.domains.slice(0, 4).join(", ")}
+                        </Text>
+                      </InlineStack>
+                    ))}
+                </BlockStack>
+
+                <Text as="p" variant="bodySm" tone="subdued">{t(locale, "aiVisNotAPromise")}</Text>
+              </BlockStack>
+            )}
+          </BlockStack>
+        </Card>
+
         <Card>
           <InlineStack gap="600" wrap>
             <BlockStack gap="050">

@@ -615,6 +615,38 @@ def _fetch_realtime_signals_once(
         return None
 
 
+def _measure_ai_visibility_once(
+    shop: str,
+    product_results: list[dict[str, Any]],
+    *,
+    shop_domains: list[str],
+    db_path: Path | None,
+) -> dict[str, Any] | None:
+    """Measure AI visibility on the analysis' own GEO questions. Fail-open.
+
+    The questions come from the products just analysed, so the measurement is
+    about what this merchant actually sells rather than a generic query set.
+    """
+    questions: list[str] = []
+    seen: set[str] = set()
+    for product in product_results:
+        for item in _coerce_geo_questions(product.get("geo_questions", [])):
+            question = str(item.get("question") or "").strip()
+            key = question.lower()
+            if question and key not in seen:
+                seen.add(key)
+                questions.append(question)
+    if not questions:
+        return None
+    try:
+        from app.niche.signals.ai_visibility import measure_ai_visibility  # noqa: PLC0415
+
+        return measure_ai_visibility(shop, questions, shop_domains, db_path=db_path)
+    except Exception as exc:  # noqa: BLE001 — optional signal, never fail the analysis job
+        logger.warning("AI visibility unavailable: %s", exc)
+        return None
+
+
 def _format_realtime_signals(signals: dict[str, Any] | None) -> str:
     """Render the sourced world events into one prompt-ready line, or "" if none."""
     if not signals:
@@ -6148,6 +6180,19 @@ def run_market_analysis(
     _apply_catalog_content_conflicts(product_results, active_products)
     _sync_result_quality_fields(product_results)
 
+    # AI visibility: ask the shop's own GEO questions to a grounded AI engine and
+    # record which domains it cites. Same gate as the events signal (paid plan +
+    # key + budget, all checked inside `_fetch_realtime_signals_once`'s callee),
+    # reusing the fact that a real buyer question is exactly the kind of question
+    # the model will actually search for.
+    ai_visibility: dict[str, Any] | None = None
+    if fetch_realtime and realtime_status["status"] in ("ok", "cached"):
+        ai_visibility = _measure_ai_visibility_once(
+            shop, product_results, shop_domains=[shop], db_path=db_path
+        )
+        if ai_visibility:
+            sources_used.append("ai_visibility")
+
     orphan_products: list[str] = []
     blog_gap_suggestions: list[dict[str, Any]] = []
     try:
@@ -6214,4 +6259,5 @@ def run_market_analysis(
         # instead of only showing up as an absence in `sources_used`.
         "realtime_signals": realtime_signals,
         "realtime_status": realtime_status,
+        "ai_visibility": ai_visibility,
     }
