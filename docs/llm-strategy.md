@@ -22,11 +22,11 @@ Trois tiers explicites, choisis par le module consommateur **avant** l'appel —
 
 | Tier | Provider primaire | Modèle | Fallback ordre | Usage |
 |---|---|---|---|---|
-| `low-cost` | Groq | `llama3-70b-8192` (gratuit) | Cloudflare `@cf/meta/llama-3-8b-instruct` → OpenAI `gpt-4o-mini` | Extraction structurée, classification, meta titles, alt text, normalisation |
-| `medium` | OpenAI | `gpt-4o-mini` | Groq `llama3-70b-8192` → Cloudflare `llama-3-8b-instruct` | FAQ, descriptions produits, Answer Blocks, guides courts, opportunity finder, audit synthèse |
-| `advanced` | OpenAI | `gpt-4o-mini` (élevé temperature + max_tokens) ou `gpt-4o` si activé | OpenAI `gpt-4o-mini` standard → Groq `llama3-70b-8192` | Compréhension niche (130), priority engine (133), arbitrage multi-signaux, synthèse stratégique |
+| `low-cost` | Groq | `llama3-70b-8192` (gratuit) | Cloudflare `@cf/meta/llama-3-8b-instruct` → OpenAI `gpt-5.4-nano` | Extraction structurée, classification, meta titles, alt text, normalisation |
+| `medium` | OpenAI | `gpt-5.4-nano` | Groq `llama3-70b-8192` → Cloudflare `llama-3-8b-instruct` | FAQ, descriptions produits, Answer Blocks, guides courts, opportunity finder, audit synthèse |
+| `advanced` | OpenAI | `gpt-5.4-nano` (élevé temperature + max_tokens) | Groq `llama3-70b-8192` | Compréhension niche (130), priority engine (133), arbitrage multi-signaux, synthèse stratégique |
 
-> Note : `gpt-4o` n'est pas activé par défaut. Il reste un opt-in opérateur. Le tier `advanced` peut tourner en `gpt-4o-mini` avec un prompt enrichi tant que le volume n'exige pas l'escalade.
+> ⚠️ **Écart doc/code.** Les trois tiers décrits dans cette section **ne sont pas implémentés**. `get_router()` (`app/llm/__init__.py:77`) ne connaît que `"default"` (OpenAI `gpt-5.4-nano` → Groq → Cloudflare) et `"grounded"` (Gemini + Google Search en tête, ajouté 2026-07-12). Le `tier` calculé dans `app/niche/understanding.py:417-418` est purement informatif : il est stocké dans `llm_meta` et jamais transmis au router. Modèle par défaut réel : `gpt-5.4-nano` depuis le 2026-07-26 (voir `app/llm/providers/openai.py:13`). Le repli Groq réel est `llama-3.3-70b-versatile` (`app/llm/providers/groq.py:13`), pas `llama3-70b-8192`, et il est **absent de `_PRICING`** (`app/observability/costs.py`) — un repli Groq est donc facturé 0,00 $ dans `llm_metrics`, ce qui le rend invisible côté coût.
 
 ### Critères d'escalade vers un tier supérieur
 

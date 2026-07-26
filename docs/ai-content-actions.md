@@ -83,8 +83,8 @@ Cohérent avec `docs/llm-strategy.md` §3 (mapping consommateurs → tier).
 | `content_type` | Tier | Modèle par défaut | Justification |
 |---|---|---|---|
 | `meta_title`, `meta_description`, `alt_text` | `low-cost` | Groq `llama3-70b-8192` | Extraction / reformulation courte, déterministe |
-| `product_description`, `collection_description` | `medium` | OpenAI `gpt-4o-mini` | Synthèse plus longue, ton de marque à respecter |
-| `faq_block`, `answer_block`, `buying_guide` | `medium` | OpenAI `gpt-4o-mini` | Q/R structurée, faits confirmés à mobiliser |
+| `product_description`, `collection_description` | `medium` | OpenAI `gpt-5.4-nano` | Synthèse plus longue, ton de marque à respecter |
+| `faq_block`, `answer_block`, `buying_guide` | `medium` | OpenAI `gpt-5.4-nano` | Q/R structurée, faits confirmés à mobiliser |
 | `jsonld_faqpage` | déterministe Python | — | Construit depuis `faq_block` validé, **pas d'appel LLM** |
 | `meta_multilingual` | `low-cost` × N locales | Groq par défaut | Variation de traduction, prompt court par locale |
 

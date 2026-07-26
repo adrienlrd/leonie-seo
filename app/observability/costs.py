@@ -6,10 +6,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Pricing per 1 million tokens in USD (as of 2025-05).
+# Pricing per 1 million tokens in USD (as of 2026-07).
 # input = prompt tokens, output = completion tokens.
 _PRICING: dict[str, dict[str, float]] = {
     # OpenAI
+    "gpt-5.4-nano": {"input": 0.20, "output": 1.25},
+    # Kept after the switch to gpt-5.4-nano: llm_metrics rows written before it
+    # must still be valued correctly by compute_cost().
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "gpt-4o": {"input": 5.00, "output": 15.00},
     "gpt-4-turbo": {"input": 10.00, "output": 30.00},
@@ -34,7 +37,7 @@ def compute_cost(model: str, tokens_in: int, tokens_out: int) -> float:
     """Return estimated cost in USD for a single LLM call.
 
     Args:
-        model: Model identifier (e.g. "gpt-4o-mini").
+        model: Model identifier (e.g. "gpt-5.4-nano").
         tokens_in: Prompt token count.
         tokens_out: Completion token count.
 

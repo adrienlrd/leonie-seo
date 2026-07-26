@@ -10,6 +10,23 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-26
+- **Agent:** Claude (Opus 5)
+- **Goal:** Switch the default OpenAI model from `gpt-4o-mini` to `gpt-5.4-nano`.
+- **Probe first (Adrien's call — no code written on assumption):** a throwaway script hit the real API to settle the GPT-5 parameter question. Results: `max_tokens` is **rejected** ("Unsupported parameter ... use `max_completion_tokens` instead"), `max_completion_tokens` is accepted by gpt-5.4-nano **and** gpt-4o-mini, `temperature=0.0` **is** accepted (3 identical runs → identical output, so pass-1 determinism is preserved), `response_format=json_object` works, `reasoning_tokens=0`, throughput ~145 tok/s vs ~109 for gpt-4o-mini.
+- **Changes:**
+  - `app/llm/providers/openai.py`: `_DEFAULT_MODEL = "gpt-5.4-nano"`; `complete()` now sends `max_completion_tokens` (unconditionally — both model families accept it, so no branching). Without this the 400 would surface as `APIStatusError` → `LLMUnavailableError` → **silent Groq fallback on every call**.
+  - `app/observability/costs.py`: added `gpt-5.4-nano` at $0.20/$1.25 per 1M in/out. Kept the `gpt-4o-mini` row so pre-switch `llm_metrics` rows stay correctly valued.
+  - Stale comments naming gpt-4o-mini as the default/fallback chain fixed in `app/llm/__init__.py` (incl. the timeout rationale, now citing the measured 145 tok/s), `app/llm/providers/gemini.py`, `app/blog/section_generator.py`.
+  - Tests: default-model assertion + `max_completion_tokens`/no-`max_tokens` assertion (`tests/test_llm/test_providers.py`), pricing test (`tests/test_observability/test_metrics.py`).
+  - Docs: `docs/llm-strategy.md` + `docs/ai-content-actions.md` model names; added an explicit doc/code gap warning to llm-strategy §2 (the low-cost/medium/advanced tiers are **not implemented** — only `default` and `grounded` exist).
+- **Decisions:** no `OPENAI_MODEL` env var (Adrien's call — model stays a hard-coded constant, so a rollback needs a code change + deploy). `gemini-3.5-flash-lite` and the `grounded` tier untouched.
+- **Validations:** pytest 2196 passed / 174 skipped; ruff check clean; live end-to-end through `get_router()` → `llm_metrics` row `('openai', 'gpt-5.4-nano', 47, 30, 4.69e-05, None)` — proves no silent Groq fallback and non-zero cost tracking (probe row deleted afterwards).
+- **Open risks:** output tokens now cost **2×** ($0.60 → $1.25/1M) and input +33 % — per-plan USD budgets (`app/billing/quotas.py`, guard at `engine.py:5841`) were **not** adjusted and will fill faster. Separately: the real Groq fallback model `llama-3.3-70b-versatile` is **missing from `_PRICING`**, so a Groq fallback is billed $0.00 and stays invisible in cost dashboards. Neither was in scope.
+- **Next recommended action:** watch a real merchant analysis for keyword-selection quality — if gpt-5.4-nano respects the "copy exactly from the CANDIDATS list" constraint (`engine.py:862`) less well, the share of `data_source="llm_proposed"` will rise. Then decide on the budget adjustment.
+
+## Task before that
+
 - **Date:** 2026-07-19
 - **Agent:** Claude (Fable 5)
 - **Goal:** Built for Shopify preparation — 7 ergonomics/data-quality actions from the BfS audit, executed per the approved plan, then a control re-audit.

@@ -27,6 +27,21 @@ class TestOpenAIProvider:
         assert result.text == "Meta title generated"
         assert result.provider == "openai"
 
+    def test_default_model_is_gpt_5_4_nano(self):
+        assert self._make_provider().model == "gpt-5.4-nano"
+
+    def test_complete_sends_max_completion_tokens_not_max_tokens(self):
+        """The GPT-5 family rejects `max_tokens` with a 400 — which the router
+        would swallow as a retryable error and silently fall back to Groq."""
+        provider = self._make_provider()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "ok"
+        provider._client.chat.completions.create.return_value = mock_response
+        provider.complete("prompt", max_tokens=1234)
+        kwargs = provider._client.chat.completions.create.call_args.kwargs
+        assert kwargs["max_completion_tokens"] == 1234
+        assert "max_tokens" not in kwargs
+
     def test_complete_raises_rate_limit_on_429(self):
         import openai
 

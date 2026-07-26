@@ -143,7 +143,7 @@ def generate_section(
 
     Grande boutique (agency) shops get a grounded call (Gemini + Google Search),
     so factual claims can carry cited sources (`citations`). Every other plan
-    keeps the default gpt-4o-mini chain — `citations` is then always [].
+    keeps the default gpt-5.4-nano chain — `citations` is then always [].
     """
     fallback: dict[str, Any] = {"direct_answer": "", "body": "", "claims_used": [], "citations": []}
     tier = "grounded" if shop and get_plan_for_shop(shop) == "agency" else "default"

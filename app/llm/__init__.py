@@ -29,7 +29,7 @@ def _build_providers() -> list[LLMProvider]:
     """Build the provider list from environment variables.
 
     Provider order:
-      1. OpenAI GPT-4o mini  (if OPENAI_API_KEY set)
+      1. OpenAI GPT-5.4 nano (if OPENAI_API_KEY set)
       2. Groq Llama 3 70B    (if GROQ_API_KEY set)
       3. Cloudflare Workers  (if CF_ACCOUNT_ID + CF_API_TOKEN set)
     """
@@ -40,7 +40,8 @@ def _build_providers() -> list[LLMProvider]:
     providers: list[LLMProvider] = []
 
     if key := os.getenv("OPENAI_API_KEY"):
-        # 90s — gpt-4o-mini generates ~70 tok/s; 4096 output tokens can take 60s+
+        # 90s — gpt-5.4-nano generates ~145 tok/s (measured 2026-07-26); 4096
+        # output tokens can still take 30s+, and slow first tokens do happen.
         providers.append(OpenAIProvider(api_key=key, timeout=90.0))
 
     if key := os.getenv("GROQ_API_KEY"):
@@ -61,7 +62,7 @@ def _build_providers() -> list[LLMProvider]:
 
 def _build_grounded_providers() -> list[LLMProvider]:
     """Build the "grounded" provider list: Gemini (Google Search grounding)
-    first, falling back to the default chain (gpt-4o-mini, etc.) so a
+    first, falling back to the default chain (gpt-5.4-nano, etc.) so a
     grounded call degrades gracefully if Gemini is unavailable or unconfigured.
     """
     from app.llm.providers.gemini import GeminiProvider  # noqa: PLC0415
@@ -85,7 +86,7 @@ def get_router(*, shop: str | None = None, tier: str = "default") -> LLMRouter:
 
     Args:
         shop: Shopify shop domain (default None for shopless calls).
-        tier: "default" (gpt-4o-mini first) or "grounded" (Gemini + Google
+        tier: "default" (gpt-5.4-nano first) or "grounded" (Gemini + Google
             Search grounding first, falling back to the default chain — e.g.
             when GEMINI_API_KEY is unset, "grounded" behaves exactly like
             "default"). Callers must gate "grounded" to the intended plan

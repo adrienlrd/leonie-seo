@@ -75,7 +75,7 @@ class GeminiProvider(LLMProvider):
         if response.status_code == 400 and self._grounded and json_mode:
             # Known API quirk: grounding + forced JSON output can be rejected
             # together on some model versions. Treat as retryable so the
-            # router falls back to gpt-4o-mini instead of hard-failing the
+            # router falls back to gpt-5.4-nano instead of hard-failing the
             # whole call — a grounded call must never break the feature.
             raise LLMUnavailableError(
                 f"Gemini rejected grounded+json_mode combination: {response.text}"

@@ -1,4 +1,4 @@
-"""OpenAI provider — GPT-4o mini (primary)."""
+"""OpenAI provider — GPT-5.4 nano (primary)."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from app.llm.provider import (
     LLMUnavailableError,
 )
 
-_DEFAULT_MODEL = "gpt-4o-mini"
+_DEFAULT_MODEL = "gpt-5.4-nano"
 
 
 class OpenAIProvider(LLMProvider):
-    """GPT-4o mini via the official OpenAI SDK."""
+    """GPT-5.4 nano via the official OpenAI SDK."""
 
     name = "openai"
 
@@ -51,7 +51,10 @@ class OpenAIProvider(LLMProvider):
             response = self._client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                max_tokens=max_tokens,
+                # The GPT-5 family rejects `max_tokens` outright ("Unsupported
+                # parameter ... use 'max_completion_tokens' instead"); the
+                # gpt-4o family accepts both. Verified live 2026-07-26.
+                max_completion_tokens=max_tokens,
                 temperature=temperature,
                 **extra,
             )

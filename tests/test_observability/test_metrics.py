@@ -47,6 +47,13 @@ def test_compute_cost_gpt4o_mini():
     assert abs(cost - expected) < 1e-9
 
 
+def test_compute_cost_gpt_5_4_nano():
+    # Default model since 2026-07 — a missing pricing row would silently bill 0.
+    cost = compute_cost("gpt-5.4-nano", 1000, 500)
+    expected = (1000 * 0.20 + 500 * 1.25) / 1_000_000
+    assert abs(cost - expected) < 1e-9
+
+
 def test_compute_cost_groq_free():
     assert compute_cost("llama3-70b-8192", 5000, 2000) == 0.0
 
