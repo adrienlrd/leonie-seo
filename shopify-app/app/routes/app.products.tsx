@@ -1773,7 +1773,7 @@ export default function ProductsPage() {
                 {t(locale, "prodGoogleReauthBody")}
               </Text>
               <InlineStack>
-                <Button url={`${localizedPath("/app/onboarding", locale)}&step=3`} variant="primary">
+                <Button url={localizedPath("/app/account", locale)} variant="primary">
                   {t(locale, "prodReconnectGoogle")}
                 </Button>
               </InlineStack>
@@ -1789,7 +1789,7 @@ export default function ProductsPage() {
                 {t(locale, "prodGoogleNotConnectedBody")}
               </Text>
               <InlineStack>
-                <Button url={`${localizedPath("/app/onboarding", locale)}&step=3`} variant="primary">
+                <Button url={localizedPath("/app/account", locale)} variant="primary">
                   {t(locale, "prodConnectGoogle")}
                 </Button>
               </InlineStack>

@@ -2959,7 +2959,7 @@ export default function IndexPage() {
                 {t(locale, "dashGoogleReauthBody")}
               </Text>
               <InlineStack>
-                <Button url={`${localizedPath("/app/onboarding", locale)}&step=3`} variant="primary">
+                <Button url={localizedPath("/app/account", locale)} variant="primary">
                   {t(locale, "dashReconnectGoogle")}
                 </Button>
               </InlineStack>
@@ -2975,7 +2975,7 @@ export default function IndexPage() {
                 {t(locale, "dashGoogleNotConnectedBody")}
               </Text>
               <InlineStack>
-                <Button url={`${localizedPath("/app/onboarding", locale)}&step=3`} variant="primary">
+                <Button url={localizedPath("/app/account", locale)} variant="primary">
                   {t(locale, "dashConnectGoogle")}
                 </Button>
               </InlineStack>
