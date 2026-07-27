@@ -10,6 +10,16 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-27
+- **Agent:** Claude (Opus 5)
+- **Goal:** Adrien reported that the "Google reconnection required" banner's button does nothing.
+- **Root cause:** the four Google CTAs linked to a bare `/app/onboarding`. That loader redirects straight back to `/app` when `profileValidated && latestAnalysis && !forcedStep` (`app.onboarding.tsx:97-99`) — which is exactly the state of any merchant old enough to see a *reconnection* banner. The click navigated and bounced back, so nothing appeared to happen. The buttons also dropped the locale, unlike every other link in the app.
+- **Fix:** all four now use `` `${localizedPath("/app/onboarding", locale)}&step=3` `` — step 3 is the Google step (`app.onboarding.tsx:510` renders `GoogleConnectionsCard`, the same component that works in Settings), and `forcedStep` suppresses the redirect. Files: `app._index.tsx` (reauth + not-connected), `app.products.tsx` (same two).
+- **Validations:** `npm run typecheck` exit 0, `npm run build` OK, pytest 2188 passed (backend untouched).
+- **Open:** Adrien also reported "same for Shopify" at the top of the dashboard. There is **no Shopify reconnection surface in the code** — the only banners above the Google one are `stale_snapshot` (with the "Rafraîchir le catalogue" button, which posts `intent=refresh` and surfaces its own errors) and `bulk_apply_in_progress`. Waiting on the exact button label before touching anything, rather than guessing.
+
+## Task before that
+
 - **Date:** 2026-07-26
 - **Agent:** Claude (Opus 5)
 - **Goal:** Adrien's calls: keep "tendances temps réel" (it is the core selling point) by making it genuinely grounded, and ship AI visibility as a panel at the top of the Analyse page.
