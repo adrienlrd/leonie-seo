@@ -28,6 +28,7 @@ from app.api.ga4 import router as ga4_router  # noqa: E402  (status used by mark
 from app.api.geo import router as geo_router  # noqa: E402  (continuous-improvement)
 from app.api.gsc import router as gsc_router  # noqa: E402  (status used by market-analysis)
 from app.api.observability import router as observability_router  # noqa: E402
+from app.api.onboarding import router as onboarding_router  # noqa: E402
 from app.api.privacy import router as privacy_router  # noqa: E402
 from app.api.dashboard import router as dashboard_router  # noqa: E402
 from app.api.market_analysis import router as market_analysis_router  # noqa: E402
@@ -207,6 +208,7 @@ app.include_router(jobs_router)
 app.include_router(gsc_router)
 app.include_router(crawl_router)
 app.include_router(observability_router)
+app.include_router(onboarding_router)
 app.include_router(ga4_router)
 app.include_router(geo_router)
 app.include_router(blog_router)

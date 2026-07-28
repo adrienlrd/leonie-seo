@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { Outlet, useLoaderData, useLocation, useNavigation, useRouteError } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
@@ -17,25 +17,57 @@ export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
 
+  const call = (path: string) =>
+    callBackendForShop(session.shop, path, {
+      accessToken: session.accessToken,
+      signal: AbortSignal.timeout(3_000),
+    });
+
+  const [billingResp, onboardingResp] = await Promise.allSettled([
+    call(`/api/shops/${session.shop}/billing/status`),
+    call(`/api/shops/${session.shop}/onboarding/status`),
+  ]);
+
   // Plan feeds the PlanBadge on every page title; the "Forfait" nav entry is
   // always visible.
   let plan = "free";
   try {
-    const resp = await callBackendForShop(session.shop, `/api/shops/${session.shop}/billing/status`, {
-      accessToken: session.accessToken,
-      signal: AbortSignal.timeout(3_000),
-    });
-    if (resp.ok) {
-      const data = (await resp.json()) as { plan?: string };
+    if (billingResp.status === "fulfilled" && billingResp.value.ok) {
+      const data = (await billingResp.value.json()) as { plan?: string };
       plan = data.plan ?? "free";
     }
   } catch {
     // backend unavailable → default to free (hides the Forfaits nag, shows Free badge)
   }
 
+  // Until onboarding is done, this layout is the only gate: every app.* route
+  // renders through it, so one check here covers them all. Fails open — a
+  // backend hiccup must never lock the merchant out of the whole app.
+  let onboardingComplete = true;
+  try {
+    if (onboardingResp.status === "fulfilled" && onboardingResp.value.ok) {
+      const data = (await onboardingResp.value.json()) as { complete?: boolean };
+      onboardingComplete = data.complete !== false;
+    }
+  } catch {
+    // keep the app unlocked
+  }
+
+  const url = new URL(request.url);
+  const locale = await resolveLocale(request, session.shop, session.accessToken, admin);
+  if (!onboardingComplete && !url.pathname.endsWith("/onboarding")) {
+    // Carry the embedded auth context (shop, host, embedded, id_token) — dropping
+    // it makes the onboarding loader see a non-embedded request and bounce to
+    // /auth/login, the "asks for shop domain" loop on fresh installs.
+    const params = new URLSearchParams(url.searchParams);
+    params.set("locale", locale);
+    return redirect(`/app/onboarding?${params.toString()}`);
+  }
+
   return json({
+    onboardingComplete,
     apiKey: process.env.SHOPIFY_API_KEY || "",
-    locale: await resolveLocale(request, session.shop, session.accessToken, admin),
+    locale,
     // Optional support-chat widget (e.g. a Tawk.to embed URL). Empty → no widget.
     supportChatSrc: process.env.LEONIE_SUPPORT_CHAT_SRC || "",
     shop: session.shop,
@@ -44,19 +76,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function App() {
-  const { apiKey, locale, supportChatSrc, shop } = useLoaderData<typeof loader>() as {
+  const { apiKey, locale, supportChatSrc, shop, onboardingComplete } = useLoaderData<typeof loader>() as {
     apiKey: string;
     locale: Locale;
     supportChatSrc: string;
     shop: string;
     plan: string;
+    onboardingComplete: boolean;
   };
 
-  // Hide the secondary nav links while the merchant is on the onboarding screen
-  // (their target pages are empty until setup completes). The rel="home" link
-  // must always stay — App Bridge requires it as the app root.
+  // Hide every secondary nav link until onboarding is done — their pages are
+  // empty before the first analysis, and the loader redirects away from them
+  // anyway. The rel="home" link must always stay — App Bridge requires it as
+  // the app root.
   const location = useLocation();
-  const onOnboarding = location.pathname.endsWith("/onboarding");
+  const onOnboarding = !onboardingComplete;
   const navigation = useNavigation();
   // Skeleton only for real page-to-page navigations; revalidations of the
   // current page (fetcher polls, save redirects to self) keep the live UI.

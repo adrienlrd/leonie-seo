@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import {
   useActionData,
+  useFetcher,
   useLoaderData,
   useNavigate,
   useRevalidator,
@@ -78,32 +79,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const be = (path: string) =>
     callBackendForShop(shop, path, { accessToken: session.accessToken });
 
-  const [gsc, ga4, businessProfile, latestAnalysis] = await Promise.all([
+  const [gsc, ga4, businessProfile, onboarding] = await Promise.all([
     fetchOk<GSCStatus>(be(`/api/shops/${shop}/gsc/status`)),
     fetchOk<GA4Status>(be(`/api/shops/${shop}/ga4/status`)),
     fetchLatestBusinessProfile(shop, session.accessToken),
-    fetchOk<unknown>(be(`/api/shops/${shop}/market-analysis/latest`)),
+    fetchOk<{ complete: boolean; step: number }>(be(`/api/shops/${shop}/onboarding/status`)),
   ]);
-
-  const profileValidated = businessProfile?.status === "validated";
 
   const url = new URL(request.url);
   const forcedStepParam = Number(url.searchParams.get("step"));
   const forcedStep =
     forcedStepParam >= 1 && forcedStepParam <= 6 ? (forcedStepParam as OnboardingStep) : null;
 
-  // Google is optional in the reordered flow: onboarding is done once the
-  // merchant validated the profile and a market analysis exists.
-  if (profileValidated && latestAnalysis && !forcedStep) {
+  // `complete` and `step` come from the backend (app/api/onboarding.py) — the
+  // same values app.tsx gates every route on, so the two can never disagree and
+  // bounce the merchant between this screen and the dashboard.
+  if (onboarding?.complete && !forcedStep) {
     return redirect(localizedPath("/app", locale));
   }
 
   // Value-first order: discovery (1) → profile validation (2) → Google (3)
   // → product selection (4) → identification + deep analysis (5) → first win (6).
-  let startStep: OnboardingStep = 1;
-  if (businessProfile && !profileValidated) startStep = 2;
-  if (profileValidated) startStep = 3;
-  if (forcedStep) startStep = forcedStep;
+  const resumeStep = Math.min(Math.max(onboarding?.step ?? 1, 1), 6) as OnboardingStep;
+  const startStep: OnboardingStep = forcedStep ?? resumeStep;
 
   // GA4 authorized but no property selected → fetch the property list so the
   // card can show a selector.
@@ -180,6 +178,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
       if (!resp.ok) return json<OnboardingActionData>({ error: `${resp.status}` });
       return json<OnboardingActionData>({ ga4PropertySaved: true });
+    }
+
+    if (intent === "saveOnboardingStep") {
+      // Steps 4-6 leave no business trace, so without this the merchant resumes
+      // at step 3 after a reload.
+      await be(`/api/shops/${shop}/onboarding/step`, {
+        method: "PUT",
+        body: JSON.stringify({ step: Number(form.get("step") ?? 1) }),
+      });
+      return json({ type: "saveOnboardingStep" });
     }
 
     if (intent === "startDiscovery") {
@@ -385,6 +393,21 @@ export default function Onboarding() {
     actionData && !("type" in actionData) ? actionData : undefined;
 
   const [step, setStep] = useState<OnboardingStep>(startStep);
+
+  // Persist the furthest step reached so leaving and coming back resumes here
+  // rather than at the last step the backend can infer from business data.
+  const stepFetcher = useFetcher();
+  const persistedStepRef = useRef<number>(startStep);
+  useEffect(() => {
+    if (step <= persistedStepRef.current) return;
+    persistedStepRef.current = step;
+    const fd = new FormData();
+    fd.set("intent", "saveOnboardingStep");
+    fd.set("step", String(step));
+    stepFetcher.submit(fd, { method: "post" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   const [discoveredProfile, setDiscoveredProfile] = useState<BusinessProfile | null>(null);
   const [productJobId, setProductJobId] = useState<string | null>(null);
   const [completedJob, setCompletedJob] = useState<MarketJobState | null>(null);

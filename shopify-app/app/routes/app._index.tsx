@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useFetcher, useLoaderData, useRevalidator } from "@remix-run/react";
 import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
@@ -222,16 +222,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const plan = (url.searchParams.get("plan") ?? "free") as "free" | "pro" | "agency";
 
-  // Redirect to onboarding while preserving the embedded auth context
-  // (shop, host, embedded, id_token). Dropping these makes the onboarding
-  // loader see a non-embedded request, fail to authenticate, and bounce to
-  // /auth/login — the cause of the "asks for shop domain" loop on fresh installs.
-  const redirectToOnboarding = () => {
-    const params = new URLSearchParams(url.searchParams);
-    params.set("locale", locale);
-    return redirect(`/app/onboarding?${params.toString()}`);
-  };
-
   let activeProducts: ActiveProduct[] = [];
   let productResults: Record<string, ProductResult> = {};
   let competitorSignals: string[] = [];
@@ -424,13 +414,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (dashResp.status !== "fulfilled" || !dashResp.value.ok) {
       const errStatus = dashResp.status === "fulfilled" ? dashResp.value.status : 0;
-      // 404 = no crawl/snapshot yet (fresh install). The dashboard has nothing to
-      // show, so guide the merchant to onboarding to run the first audit instead of
-      // surfacing a raw "HTTP 404". This is also the first-open experience for
-      // App Store reviewers, who would otherwise land on an error screen.
-      if (errStatus === 404) {
-        return redirectToOnboarding();
-      }
+      // A fresh install never reaches this loader: app.tsx redirects to
+      // onboarding while it is incomplete. Redirecting again on 404 here would
+      // loop for a *completed* shop whose snapshot went missing — onboarding
+      // sees itself as done and sends it straight back.
       return json<LoaderData>({
         shop, locale, plan,
         dashboard: null,
@@ -456,10 +443,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const dashboard = (await dashResp.value.json()) as DashboardData;
-
-    if (!businessProfile || businessProfile.status !== "validated") {
-      return redirectToOnboarding();
-    }
 
     return json<LoaderData>({ shop, locale, plan, dashboard, activeProducts, productResults, competitorSignals, manualCompetitors, excludedDomains, auditJobId, businessProfile, inspirationIdeas, gscStatus, ga4Connected, themeExt, learningMode, autoAllowed, billing, blogPublished, scheduleStatus, latestAnalysisAt, error: null });
   } catch (err) {
