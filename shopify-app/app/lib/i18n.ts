@@ -195,10 +195,12 @@ const FR: Dictionary = {
   productSelectionTitle: "Choisissez vos produits",
   productSelectionSubtitle:
     "Sélectionnez les produits que l'app va gérer et optimiser. Votre forfait détermine le nombre maximum de produits.",
+  productSelectionPlanHint:
+    "Votre forfait couvre {cap} produits — et c'est le bon nombre pour démarrer. Concentrer le travail SEO sur vos {cap} produits les plus stratégiques donne des résultats mesurables en quelques semaines, là où optimiser tout le catalogue d'un coup dilue l'effort et rend les gains illisibles. Choisissez vos best-sellers, ou les produits sur lesquels vous voulez gagner du terrain — vous élargirez la sélection quand vous passerez à l'échelle.",
   productSelectionLoading: "Chargement de votre catalogue…",
   productSelectionCount: "{selected} / {cap} produits sélectionnés",
   productSelectionCapReached:
-    "Limite de votre forfait atteinte. Passez à un forfait supérieur pour gérer plus de produits.",
+    "Vos {cap} produits sont sélectionnés — c'est le maximum couvert par votre forfait. Pour en optimiser un autre, retirez-en un de votre sélection.",
   productSelectionEmptyCatalog:
     "Aucun produit actif trouvé. Lancez d'abord la découverte de votre boutique.",
   productSelectionSave: "Valider ma sélection",
@@ -1701,10 +1703,12 @@ const EN: Dictionary = {
   productSelectionTitle: "Choose your products",
   productSelectionSubtitle:
     "Select the products the app will manage and optimize. Your plan sets the maximum number of products.",
+  productSelectionPlanHint:
+    "Your plan covers {cap} products — and that's the right number to start with. Focusing SEO work on your {cap} most strategic products delivers measurable results within weeks, whereas optimizing the whole catalog at once spreads the effort thin and makes gains impossible to read. Pick your best-sellers, or the products you want to gain ground on — you'll widen the selection when you scale up.",
   productSelectionLoading: "Loading your catalog…",
   productSelectionCount: "{selected} / {cap} products selected",
   productSelectionCapReached:
-    "Plan limit reached. Upgrade your plan to manage more products.",
+    "Your {cap} products are selected — that's the maximum your plan covers. To optimize a different one, remove one from your selection.",
   productSelectionEmptyCatalog:
     "No active products found. Run the store discovery first.",
   productSelectionSave: "Confirm my selection",
@@ -3205,10 +3209,12 @@ const DE: Dictionary = {
   productSelectionTitle: "Wählen Sie Ihre Produkte",
   productSelectionSubtitle:
     "Wählen Sie die Produkte aus, die die App verwalten und optimieren soll. Ihr Plan legt die maximale Produktanzahl fest.",
+  productSelectionPlanHint:
+    "Ihr Plan umfasst {cap} Produkte — und das ist die richtige Zahl für den Start. Die SEO-Arbeit auf Ihre {cap} strategischsten Produkte zu konzentrieren, bringt innerhalb weniger Wochen messbare Ergebnisse, während die Optimierung des gesamten Katalogs auf einmal den Aufwand verzettelt und die Fortschritte unlesbar macht. Wählen Sie Ihre Bestseller oder die Produkte, bei denen Sie Boden gutmachen wollen — die Auswahl erweitern Sie, wenn Sie skalieren.",
   productSelectionLoading: "Ihr Katalog wird geladen…",
   productSelectionCount: "{selected} / {cap} Produkte ausgewählt",
   productSelectionCapReached:
-    "Planlimit erreicht. Führen Sie ein Plan-Upgrade durch, um mehr Produkte zu verwalten.",
+    "Ihre {cap} Produkte sind ausgewählt — mehr deckt Ihr Plan nicht ab. Um ein anderes zu optimieren, nehmen Sie eines aus Ihrer Auswahl heraus.",
   productSelectionEmptyCatalog:
     "Keine aktiven Produkte gefunden. Führen Sie zuerst die Shop-Erkennung aus.",
   productSelectionSave: "Auswahl bestätigen",
@@ -4709,10 +4715,12 @@ const ES: Dictionary = {
   productSelectionTitle: "Elija sus productos",
   productSelectionSubtitle:
     "Seleccione los productos que la aplicación gestionará y optimizará. Su plan determina el número máximo de productos.",
+  productSelectionPlanHint:
+    "Su plan cubre {cap} productos — y es el número adecuado para empezar. Concentrar el trabajo SEO en sus {cap} productos más estratégicos da resultados medibles en unas semanas, mientras que optimizar todo el catálogo a la vez diluye el esfuerzo y hace ilegibles las mejoras. Elija sus más vendidos, o los productos en los que quiere ganar terreno — ampliará la selección cuando pase a mayor escala.",
   productSelectionLoading: "Cargando su catálogo…",
   productSelectionCount: "{selected} / {cap} productos seleccionados",
   productSelectionCapReached:
-    "Límite del plan alcanzado. Mejore su plan para gestionar más productos.",
+    "Sus {cap} productos están seleccionados — es el máximo que cubre su plan. Para optimizar otro, retire uno de su selección.",
   productSelectionEmptyCatalog:
     "No se encontraron productos activos. Ejecute primero el descubrimiento de la tienda.",
   productSelectionSave: "Confirmar mi selección",

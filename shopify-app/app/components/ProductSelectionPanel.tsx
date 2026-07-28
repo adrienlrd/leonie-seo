@@ -135,14 +135,21 @@ export function ProductSelectionPanel({ locale, onSaved }: ProductSelectionPanel
 
         {managed && (
           <BlockStack gap="300">
+            {managed.plan === "free" && (
+              <Text as="p" tone="subdued">
+                {t(locale, "productSelectionPlanHint").replaceAll("{cap}", String(cap))}
+              </Text>
+            )}
             <Text as="p" fontWeight="semibold">
               {t(locale, "productSelectionCount")
                 .replace("{selected}", String(selected.size))
                 .replace("{cap}", String(cap))}
             </Text>
             {atCap && (
-              <Banner tone="warning">
-                <Text as="p">{t(locale, "productSelectionCapReached")}</Text>
+              <Banner tone="success">
+                <Text as="p">
+                  {t(locale, "productSelectionCapReached").replaceAll("{cap}", String(cap))}
+                </Text>
               </Banner>
             )}
             <BlockStack gap="200">

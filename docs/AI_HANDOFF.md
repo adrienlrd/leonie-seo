@@ -10,6 +10,17 @@
 
 ## Last completed task
 
+- **Date:** 2026-07-28
+- **Agent:** Claude (Opus 5)
+- **Goal:** Adrien is running technical tests on a Shopify dev store (auto-generated snowboard products). Two onboarding step-4 issues: the "0 / 3 products selected" counter is never explained, and "No active products found" shows on a store that has active products.
+- **Copy (shipped):** the plan cap (`free: 3`, `pro: 15`, `agency: 35` — `app/billing/quotas.py:19-41`) was surfaced as a number with no rationale, so it read as a wall. New i18n key `productSelectionPlanHint` (FR/EN/DE/ES) frames 3 products as the *method* — focused SEO work on the 3 most strategic products produces readable gains, spreading across the catalog does not — and seeds the widening ("when you scale up") **without any upgrade CTA**: Adrien's call, a billing button here would add friction at the worst moment of onboarding. Rendered only when `plan === "free"` (the argument is false for pro/agency). `productSelectionCapReached` lost "Upgrade your plan to manage more products" for a factual statement with `{cap}` interpolated; its banner is now `success` in onboarding (hitting the cap is a milestone) and `info` in the dashboard's add-product modal, which shares the key.
+- **Files:** `shopify-app/app/lib/i18n.ts`, `shopify-app/app/components/ProductSelectionPanel.tsx`, `shopify-app/app/routes/app.products.tsx`.
+- **Validations:** `npm run typecheck` exit 0, `npm run build` OK. Backend untouched, pytest not run for that reason.
+- **Open — "No active products found" not yet diagnosed.** The message shows whenever `available_products` is empty (`ProductSelectionPanel.tsx:169-173`), which conflates three causes indistinguishable to the merchant: (1) no snapshot at all — `load_snapshot_from_file_or_db` returns `None` → `[]` (`app/api/shops.py:164-167`); (2) a snapshot with zero ACTIVE products; (3) ACTIVE products not published to the Online Store channel, filtered by `is_active_online_store_product` (`app/snapshot/scope.py:59-62`). **Prime suspect is not the dev store:** onboarding step 1 stops polling the crawl after 90 s (`CRAWL_TIMEOUT_MS`, `OnboardingDiscoveryPanel.tsx:28,97-99`) and chains the analysis regardless — on Render Free with a cold start, reaching step 4 before `shopify_snapshot.json` is written is the nominal path, and the message then lies ("run the discovery first" — it did run, it just did not finish), with no way to re-run it from step 4. Diagnosis on `surf-kvvjcg4x.myshopify.com` is blocked on an authenticated Shopify read: the backend has no stored OAuth token for that shop (403 `is not installed` — expected, Remix injects the token per call), and the password-protected storefront blocks external probes. Shopify CLI upgraded to 4.5.2 for `shopify store execute`; waiting on Adrien's `shopify store auth`.
+- **Next:** confirm the cause, then either make the empty state actionable (real reason + "re-run discovery" button) or stop short-circuiting the crawl at 90 s.
+
+## Task before that
+
 - **Date:** 2026-07-27
 - **Agent:** Claude (Opus 5)
 - **Goal:** Adrien reported that the "Google reconnection required" banner's button does nothing.

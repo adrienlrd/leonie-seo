@@ -1960,8 +1960,13 @@ export default function ProductsPage() {
                           .replace("{cap}", String(managed.cap))}
                       </Text>
                       {(managed.selected_ids ?? []).length >= managed.cap ? (
-                        <Banner tone="warning">
-                          <Text as="p">{t(locale, "productSelectionCapReached")}</Text>
+                        <Banner tone="info">
+                          <Text as="p">
+                            {t(locale, "productSelectionCapReached").replaceAll(
+                              "{cap}",
+                              String(managed.cap),
+                            )}
+                          </Text>
                         </Banner>
                       ) : (
                         (() => {
