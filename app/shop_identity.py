@@ -16,13 +16,12 @@ Resolution order:
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
+from app.paths import data_dir
 from app.shop_config_store import get_shop_config, set_shop_config
 
 _STOREFRONT_HOST_KEY = "storefront_host"
-_PROJECT_ROOT = Path(__file__).parents[1]
-_RAW_DIR = _PROJECT_ROOT / "data" / "raw"
+_RAW_DIR = data_dir()
 _GENERIC_HOST_TOKENS = {"shop", "store", "boutique", "myshopify", "www"}
 
 

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from app.db_adapter import DB_PATH, get_conn
 from app.impact.calculator import aggregate_impact, compute_url_impact
+from app.paths import data_dir
 
 
 def _load_seo_changes(
@@ -68,8 +69,7 @@ def _find_gsc_file(shop: str) -> Path | None:
     fallback (`data/raw/gsc_performance.csv`) was removed in the lot 4 wave 1
     audit fix — it leaked one tenant's GSC data to all other tenants.
     """
-    project_root = Path(__file__).parents[2]
-    path = project_root / "data" / "raw" / shop / "gsc_performance.csv"
+    path = data_dir() / shop / "gsc_performance.csv"
     return path if path.exists() else None
 
 

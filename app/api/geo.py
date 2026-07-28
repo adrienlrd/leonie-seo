@@ -47,6 +47,7 @@ from app.geo.weekly import build_weekly_actions
 from app.gsc.token_store import get_google_token
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
 from app.managed_products import filter_snapshot_products
+from app.paths import data_dir
 from app.snapshot.scope import normalize_product_scope
 
 logger = logging.getLogger(__name__)
@@ -65,8 +66,7 @@ def _run_measurement_loop_safe(shop: str) -> None:
 
 
 def _find_gsc_query_page_file(shop: str) -> Path | None:
-    project_root = Path(__file__).parents[2]
-    path = project_root / "data" / "raw" / shop / "gsc_query_page.csv"
+    path = data_dir() / shop / "gsc_query_page.csv"
     return path if path.exists() else None
 
 

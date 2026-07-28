@@ -13,11 +13,11 @@ from app.api.plans import PlanFeatures, get_features
 from app.api.session_token import SessionTokenError, shop_from_payload, verify_session_token
 from app.billing.subscription_store import get_plan_for_shop
 from app.oauth.token_store import get_token
+from app.paths import data_dir
 
 _API_VERSION = "2025-01"
-_PROJECT_ROOT = Path(__file__).parents[2]
-_SNAPSHOT_DEFAULT = _PROJECT_ROOT / "data" / "raw" / "shopify_snapshot.json"
-_RAW_DIR = _PROJECT_ROOT / "data" / "raw"
+_RAW_DIR = data_dir()
+_SNAPSHOT_DEFAULT = _RAW_DIR / "shopify_snapshot.json"
 
 # Defense-in-depth: even when the shop value is technically trusted (it comes
 # from the OAuth-validated session or X-Leonie-Shop header), reject anything

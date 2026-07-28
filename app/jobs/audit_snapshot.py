@@ -12,6 +12,7 @@ from typing import Any
 
 from app.db import DB_PATH
 from app.db_adapter import get_conn
+from app.paths import data_dir
 from app.shop_identity import persist_storefront_host
 from scripts.audit.crawl_shopify import (
     fetch_articles,
@@ -23,8 +24,7 @@ from scripts.audit.crawl_shopify import (
 
 logger = logging.getLogger(__name__)
 
-_PROJECT_ROOT = Path(__file__).parents[2]
-_RAW_DIR = _PROJECT_ROOT / "data" / "raw"
+_RAW_DIR = data_dir()
 
 # A snapshot younger than this is considered fresh enough to skip the crawl
 # unless `force=True` is passed (e.g. by the manual Refresh button).

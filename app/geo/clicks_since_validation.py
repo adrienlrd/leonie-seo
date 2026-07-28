@@ -19,6 +19,7 @@ from typing import Any
 from app.ga4.queries import get_ai_referrals_by_page_daily, get_organic_by_page_daily
 from app.geo.ledger import list_geo_events
 from app.impact.report import _find_gsc_file, _parse_gsc_csv
+from app.paths import data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,7 @@ _WINDOW_DAYS = 28
 
 
 def _cache_path(shop: str) -> Path:
-    root = Path(__file__).resolve().parents[2] / "data" / "raw" / shop
-    return root / "clicks_since_validation.json"
+    return data_dir() / shop / "clicks_since_validation.json"
 
 
 def _extract_applied_at(event: dict[str, Any]) -> str:
