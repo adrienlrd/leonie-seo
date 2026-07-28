@@ -776,6 +776,72 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  if (intent === "saveManagedSelection") {
+    const nextIdsRaw = String(formData.get("productIds") ?? "[]");
+    const previousIdsRaw = String(formData.get("previousIds") ?? "[]");
+    try {
+      const nextIds = JSON.parse(nextIdsRaw) as string[];
+      const previousIds = JSON.parse(previousIdsRaw) as string[];
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/managed-products`,
+        {
+          accessToken: session.accessToken,
+          method: "PUT",
+          body: JSON.stringify({ product_ids: nextIds }),
+          signal: AbortSignal.timeout(20_000),
+        },
+      );
+      if (!resp.ok) {
+        const detail = await resp.text();
+        return json({ type: "saveManagedSelection", saved: false, error: `HTTP ${resp.status}: ${detail}` });
+      }
+
+      // Drop the analysis of products the merchant just dropped, so the page
+      // stops showing results for products the app no longer manages.
+      const nextSet = new Set(nextIds);
+      const dropped = previousIds.filter((id) => !nextSet.has(id));
+      if (dropped.length > 0) {
+        try {
+          await callBackendForShop(
+            session.shop,
+            `/api/shops/${session.shop}/market-analysis/products/remove`,
+            {
+              accessToken: session.accessToken,
+              method: "POST",
+              body: JSON.stringify({ product_ids: dropped }),
+              signal: AbortSignal.timeout(10_000),
+            },
+          );
+        } catch {
+          // Non-blocking — the selection itself is already saved.
+        }
+      }
+
+      // Same rule as addManagedProduct: a selection change with no visible
+      // analysis reads as "nothing happened".
+      const previousSet = new Set(previousIds);
+      const added = nextIds.filter((id) => !previousSet.has(id));
+      if (added.length === 0) {
+        return json({ type: "saveManagedSelection", saved: true, jobId: null, productIds: [], dropped, error: null });
+      }
+      const qs = added.map((id) => `product_ids=${encodeURIComponent(id)}`).join("&");
+      const jobResp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/jobs?${qs}&persist_product_result=true`,
+        { accessToken: session.accessToken, method: "POST", signal: AbortSignal.timeout(20_000) },
+      );
+      if (!jobResp.ok) {
+        const detail = await jobResp.text();
+        return json({ type: "saveManagedSelection", saved: true, jobId: null, productIds: added, dropped, error: `HTTP ${jobResp.status}: ${detail}` });
+      }
+      const jobData = (await jobResp.json()) as { job_id: string };
+      return json({ type: "saveManagedSelection", saved: true, jobId: jobData.job_id, productIds: added, dropped, error: null });
+    } catch (err) {
+      return json({ type: "saveManagedSelection", saved: false, error: String(err) });
+    }
+  }
+
   // ── Auto-remove products no longer active in the store ───────────────────
   if (intent === "removeProducts") {
     const productIdsRaw = formData.get("productIds") as string;
@@ -929,6 +995,7 @@ function SummaryCard({
   onAnalyzeAll,
   onEditIdentification,
   onAddProduct,
+  onChangeSelection,
   analyzeDisabled,
 }: {
   job: JobState;
@@ -936,6 +1003,7 @@ function SummaryCard({
   onAnalyzeAll?: () => void;
   onEditIdentification?: () => void;
   onAddProduct?: () => void;
+  onChangeSelection?: () => void;
   analyzeDisabled?: boolean;
 }) {
   const contextStatus = job.business_profile_context_status;
@@ -957,7 +1025,7 @@ function SummaryCard({
           ) : (
             <div />
           )}
-          {(onAnalyzeAll || onEditIdentification || onAddProduct) && (
+          {(onAnalyzeAll || onEditIdentification || onAddProduct || onChangeSelection) && (
             <InlineStack gap="200">
               {onAnalyzeAll && (
                 <Button variant="primary" onClick={onAnalyzeAll} disabled={analyzeDisabled} loading={analyzeDisabled}>
@@ -967,6 +1035,11 @@ function SummaryCard({
               {onAddProduct && (
                 <Button onClick={onAddProduct} disabled={analyzeDisabled}>
                   {t(locale, "addProductAction")}
+                </Button>
+              )}
+              {onChangeSelection && (
+                <Button onClick={onChangeSelection} disabled={analyzeDisabled}>
+                  {t(locale, "changeSelectionAction")}
                 </Button>
               )}
               {onEditIdentification && (
@@ -1312,6 +1385,17 @@ export default function ProductsPage() {
   const managedFetcher = useFetcher<{ type: string; managed: ManagedState | null; error?: string | null }>();
   const addProductFetcher = useFetcher<{ type: string; added?: boolean; jobId?: string | null; productIds?: string[]; error?: string | null }>();
   const [addSelection, setAddSelection] = useState<Set<string>>(new Set());
+
+  // ── "Change my selection" modal — swap products, not just append ─────────
+  const [showSelectionModal, setShowSelectionModal] = useState(false);
+  const [selectionDraft, setSelectionDraft] = useState<Set<string>>(new Set());
+  const saveSelectionFetcher = useFetcher<{
+    type: string;
+    saved?: boolean;
+    jobId?: string | null;
+    productIds?: string[];
+    error?: string | null;
+  }>();
   const refreshFetcher = useFetcher<{ type: string; ok?: boolean }>();
   useEffect(() => {
     if (refreshFetcher.data?.type === "refreshCatalog" && refreshFetcher.data.ok) {
@@ -1326,6 +1410,50 @@ export default function ProductsPage() {
     fd.set("intent", "loadManagedProducts");
     managedFetcher.submit(fd, { method: "post" });
   };
+  const openSelectionModal = () => {
+    setShowSelectionModal(true);
+    const fd = new FormData();
+    fd.set("intent", "loadManagedProducts");
+    managedFetcher.submit(fd, { method: "post" });
+  };
+
+  // A shop that never saved a selection gets `selected_ids: null`, and the
+  // backend then manages the first `cap` active products
+  // (app/managed_products.py, filter_managed_products). Pre-check those, so the
+  // modal opens on what the app is actually working on rather than on nothing.
+  const effectiveSelection = (state: ManagedState): string[] =>
+    state.selected_ids ?? state.available_products.slice(0, state.cap).map((p) => p.id);
+
+  useEffect(() => {
+    if (!showSelectionModal || !managed) return;
+    setSelectionDraft(new Set(effectiveSelection(managed)));
+  }, [showSelectionModal, managed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSaveSelection = () => {
+    if (!managed) return;
+    const fd = new FormData();
+    fd.set("intent", "saveManagedSelection");
+    fd.set("productIds", JSON.stringify([...selectionDraft]));
+    fd.set("previousIds", JSON.stringify(effectiveSelection(managed)));
+    saveSelectionFetcher.submit(fd, { method: "post" });
+  };
+
+  useEffect(() => {
+    const data = saveSelectionFetcher.data;
+    if (data?.type !== "saveManagedSelection" || !data.saved) return;
+    setShowSelectionModal(false);
+    revalidator.revalidate();
+    const { jobId, productIds } = data;
+    if (jobId && productIds?.length) {
+      setStep("analysis");
+      setSingleProductJobId(jobId);
+      setSingleProductId(productIds[0]);
+      setSingleProductJob(null);
+      setSingleProductError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveSelectionFetcher.data]);
+
   const handleAddProducts = () => {
     const fd = new FormData();
     fd.set("intent", "addManagedProduct");
@@ -1835,6 +1963,73 @@ export default function ProductsPage() {
         })()}
         {/* Competitor signals are surfaced on the dashboard "Concurrents" card. */}
 
+        {/* Managed-products selection — mounted outside the step branches so it
+            is reachable from identification and from the analysis view. */}
+        <Modal
+          open={showSelectionModal}
+          onClose={() => setShowSelectionModal(false)}
+          title={t(locale, "changeSelectionModalTitle")}
+        >
+          <Modal.Section>
+            <BlockStack gap="300">
+              <Text as="p" tone="subdued">{t(locale, "changeSelectionHelp")}</Text>
+              {managedFetcher.state !== "idle" && <Spinner size="small" />}
+              {saveSelectionFetcher.data?.error && (
+                <Banner tone="critical">
+                  <Text as="p">{saveSelectionFetcher.data.error}</Text>
+                </Banner>
+              )}
+              {managed && (
+                <>
+                  <Text as="p" fontWeight="semibold">
+                    {t(locale, "productSelectionCount")
+                      .replace("{selected}", String(selectionDraft.size))
+                      .replace("{cap}", String(managed.cap))}
+                  </Text>
+                  <BlockStack gap="200">
+                    {managed.available_products.map((ap) => {
+                      const checked = selectionDraft.has(ap.id);
+                      return (
+                        <InlineStack key={ap.id} gap="300" blockAlign="center" wrap={false}>
+                          <Checkbox
+                            label=""
+                            labelHidden
+                            checked={checked}
+                            disabled={!checked && selectionDraft.size >= managed.cap}
+                            onChange={(value) =>
+                              setSelectionDraft((prev) => {
+                                const next = new Set(prev);
+                                if (value) next.add(ap.id);
+                                else next.delete(ap.id);
+                                return next;
+                              })
+                            }
+                          />
+                          <Thumbnail source={ap.image_url || ProductAddIcon} alt={ap.title} size="small" />
+                          <Text as="span">{ap.title}</Text>
+                        </InlineStack>
+                      );
+                    })}
+                  </BlockStack>
+                  <InlineStack align="end" gap="200">
+                    <Button variant="plain" onClick={() => setShowSelectionModal(false)}>
+                      {t(locale, "marketAnalysisCancelEdit")}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      disabled={selectionDraft.size === 0}
+                      loading={saveSelectionFetcher.state !== "idle"}
+                      onClick={handleSaveSelection}
+                    >
+                      {t(locale, "changeSelectionSave")}
+                    </Button>
+                  </InlineStack>
+                </>
+              )}
+            </BlockStack>
+          </Modal.Section>
+        </Modal>
+
         {/* ── STEP 1: Product identification ─────────────────────────────── */}
         {step === "identification" && (
           <Card>
@@ -1922,6 +2117,14 @@ export default function ProductsPage() {
                     </Button>
                   )}
                 </BlockStack>
+              )}
+
+              {!isIdentifying && (
+                <InlineStack>
+                  <Button variant="plain" onClick={openSelectionModal}>
+                    {t(locale, "changeSelectionAction")}
+                  </Button>
+                </InlineStack>
               )}
 
               {/* No labels yet — generate button */}
@@ -2190,6 +2393,7 @@ export default function ProductsPage() {
                   locale={locale}
                   onAnalyzeAll={() => setShowRerunModal(true)}
                   onAddProduct={openAddProductModal}
+                  onChangeSelection={openSelectionModal}
                   onEditIdentification={handleEditIdentification}
                   analyzeDisabled={isInProgress}
                 />

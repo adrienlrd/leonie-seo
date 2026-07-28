@@ -204,6 +204,11 @@ const FR: Dictionary = {
   productSelectionEmptyCatalog:
     "Aucun produit actif trouvé. Lancez d'abord la découverte de votre boutique.",
   productSelectionSave: "Valider ma sélection",
+  changeSelectionAction: "Modifier ma sélection",
+  changeSelectionModalTitle: "Choisir les produits gérés",
+  changeSelectionHelp:
+    "Décochez un produit pour le retirer, cochez-en un autre à la place. Les produits retirés ne seront plus analysés ni optimisés.",
+  changeSelectionSave: "Enregistrer ma sélection",
   addProductAction: "Ajouter un produit",
   addProductModalTitle: "Ajouter un produit à gérer",
   addProductNoneLeft: "Tous vos produits actifs sont déjà gérés.",
@@ -1712,6 +1717,11 @@ const EN: Dictionary = {
   productSelectionEmptyCatalog:
     "No active products found. Run the store discovery first.",
   productSelectionSave: "Confirm my selection",
+  changeSelectionAction: "Change my selection",
+  changeSelectionModalTitle: "Choose the managed products",
+  changeSelectionHelp:
+    "Uncheck a product to drop it, then check another one instead. Dropped products are no longer analyzed or optimized.",
+  changeSelectionSave: "Save my selection",
   addProductAction: "Add a product",
   addProductModalTitle: "Add a product to manage",
   addProductNoneLeft: "All your active products are already managed.",
@@ -3218,6 +3228,11 @@ const DE: Dictionary = {
   productSelectionEmptyCatalog:
     "Keine aktiven Produkte gefunden. Führen Sie zuerst die Shop-Erkennung aus.",
   productSelectionSave: "Auswahl bestätigen",
+  changeSelectionAction: "Auswahl ändern",
+  changeSelectionModalTitle: "Verwaltete Produkte auswählen",
+  changeSelectionHelp:
+    "Haken Sie ein Produkt ab, um es zu entfernen, und wählen Sie stattdessen ein anderes. Entfernte Produkte werden nicht mehr analysiert oder optimiert.",
+  changeSelectionSave: "Auswahl speichern",
   addProductAction: "Produkt hinzufügen",
   addProductModalTitle: "Ein zu verwaltendes Produkt hinzufügen",
   addProductNoneLeft: "Alle Ihre aktiven Produkte werden bereits verwaltet.",
@@ -4724,6 +4739,11 @@ const ES: Dictionary = {
   productSelectionEmptyCatalog:
     "No se encontraron productos activos. Ejecute primero el descubrimiento de la tienda.",
   productSelectionSave: "Confirmar mi selección",
+  changeSelectionAction: "Modificar mi selección",
+  changeSelectionModalTitle: "Elegir los productos gestionados",
+  changeSelectionHelp:
+    "Desmarque un producto para retirarlo y marque otro en su lugar. Los productos retirados dejan de analizarse y optimizarse.",
+  changeSelectionSave: "Guardar mi selección",
   addProductAction: "Añadir un producto",
   addProductModalTitle: "Añadir un producto a gestionar",
   addProductNoneLeft: "Todos sus productos activos ya están gestionados.",
