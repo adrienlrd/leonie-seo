@@ -196,7 +196,7 @@ const FR: Dictionary = {
   productSelectionSubtitle:
     "Sélectionnez les produits que l'app va gérer et optimiser. Votre forfait détermine le nombre maximum de produits.",
   productSelectionPlanHint:
-    "Votre forfait couvre {cap} produits — et c'est le bon nombre pour démarrer. Concentrer le travail SEO sur vos {cap} produits les plus stratégiques donne des résultats mesurables en quelques semaines, là où optimiser tout le catalogue d'un coup dilue l'effort et rend les gains illisibles. Choisissez vos best-sellers, ou les produits sur lesquels vous voulez gagner du terrain — vous élargirez la sélection quand vous passerez à l'échelle.",
+    "Votre forfait couvre {cap} produits. Passez à l'étape supérieure en choisissant notre abonnement Pro.",
   productSelectionLoading: "Chargement de votre catalogue…",
   productSelectionCount: "{selected} / {cap} produits sélectionnés",
   productSelectionCapReached:
@@ -1704,7 +1704,7 @@ const EN: Dictionary = {
   productSelectionSubtitle:
     "Select the products the app will manage and optimize. Your plan sets the maximum number of products.",
   productSelectionPlanHint:
-    "Your plan covers {cap} products — and that's the right number to start with. Focusing SEO work on your {cap} most strategic products delivers measurable results within weeks, whereas optimizing the whole catalog at once spreads the effort thin and makes gains impossible to read. Pick your best-sellers, or the products you want to gain ground on — you'll widen the selection when you scale up.",
+    "Your plan covers {cap} products. Step up by choosing our Pro subscription.",
   productSelectionLoading: "Loading your catalog…",
   productSelectionCount: "{selected} / {cap} products selected",
   productSelectionCapReached:
@@ -3210,7 +3210,7 @@ const DE: Dictionary = {
   productSelectionSubtitle:
     "Wählen Sie die Produkte aus, die die App verwalten und optimieren soll. Ihr Plan legt die maximale Produktanzahl fest.",
   productSelectionPlanHint:
-    "Ihr Plan umfasst {cap} Produkte — und das ist die richtige Zahl für den Start. Die SEO-Arbeit auf Ihre {cap} strategischsten Produkte zu konzentrieren, bringt innerhalb weniger Wochen messbare Ergebnisse, während die Optimierung des gesamten Katalogs auf einmal den Aufwand verzettelt und die Fortschritte unlesbar macht. Wählen Sie Ihre Bestseller oder die Produkte, bei denen Sie Boden gutmachen wollen — die Auswahl erweitern Sie, wenn Sie skalieren.",
+    "Ihr Plan umfasst {cap} Produkte. Gehen Sie den nächsten Schritt mit unserem Pro-Abo.",
   productSelectionLoading: "Ihr Katalog wird geladen…",
   productSelectionCount: "{selected} / {cap} Produkte ausgewählt",
   productSelectionCapReached:
@@ -4716,7 +4716,7 @@ const ES: Dictionary = {
   productSelectionSubtitle:
     "Seleccione los productos que la aplicación gestionará y optimizará. Su plan determina el número máximo de productos.",
   productSelectionPlanHint:
-    "Su plan cubre {cap} productos — y es el número adecuado para empezar. Concentrar el trabajo SEO en sus {cap} productos más estratégicos da resultados medibles en unas semanas, mientras que optimizar todo el catálogo a la vez diluye el esfuerzo y hace ilegibles las mejoras. Elija sus más vendidos, o los productos en los que quiere ganar terreno — ampliará la selección cuando pase a mayor escala.",
+    "Su plan cubre {cap} productos. Dé el siguiente paso eligiendo nuestra suscripción Pro.",
   productSelectionLoading: "Cargando su catálogo…",
   productSelectionCount: "{selected} / {cap} productos seleccionados",
   productSelectionCapReached:
