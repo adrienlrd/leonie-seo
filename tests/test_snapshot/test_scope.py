@@ -51,6 +51,22 @@ def test_filter_products_by_scope_keeps_legacy_products_when_publication_signal_
     assert filter_products_by_scope([product], "active") == [product]
 
 
+def test_is_online_store_published_when_storefront_is_password_protected() -> None:
+    product = _product("protected", online_store_url=None)
+    product["publishedAt"] = "2026-07-20T15:31:56Z"
+
+    assert is_active_online_store_product(product) is True
+    assert filter_products_by_scope([product], "active") == [product]
+
+
+def test_is_not_online_store_published_when_url_and_published_at_are_null() -> None:
+    product = _product("unlisted", online_store_url=None)
+    product["publishedAt"] = None
+
+    assert is_active_online_store_product(product) is False
+    assert filter_products_by_scope([product], "active") == []
+
+
 def test_filter_products_by_scope_returns_dedicated_views_when_requested() -> None:
     products = [
         _product("active"),

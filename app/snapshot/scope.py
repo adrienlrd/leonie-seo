@@ -32,7 +32,16 @@ def is_online_store_published(product: dict[str, Any]) -> bool:
     catalogs are not silently emptied until the next Shopify snapshot refresh.
     """
     if "onlineStoreUrl" in product:
-        return bool(product.get("onlineStoreUrl"))
+        if product.get("onlineStoreUrl"):
+            return True
+        # A password-protected storefront (dev store, or a merchant preparing a
+        # launch) returns a null onlineStoreUrl for products that ARE published
+        # to the Online Store channel. publishedAt is not affected by the
+        # password, so it decides whenever the URL is missing. Absent entirely,
+        # a null URL still means unlisted.
+        if "publishedAt" in product or "published_at" in product:
+            return bool(product.get("publishedAt") or product.get("published_at"))
+        return False
 
     if "onlineStorePublication" in product:
         publication = product.get("onlineStorePublication")
