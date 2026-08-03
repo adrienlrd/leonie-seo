@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 
 from app.business_profile.context import build_business_profile_context_meta
 from app.geo.facts import analyze_product_facts
+from app.language import DEFAULT_LANGUAGE
 from app.llm import LLMError, get_router
 from app.llm.language_context import language_context
 from app.market_analysis.competitor_crawl.config import CompetitorCrawlConfig
@@ -29,6 +30,7 @@ from app.market_analysis.competitors import (
     build_competitor_signals,
     load_excluded_competitors,
 )
+from app.market_analysis.enrichment_templates import questions_for, why_for
 from app.market_analysis.history_context import (
     build_optimization_history,
     format_optimization_history,
@@ -547,7 +549,7 @@ def _fetch_trends_once(
     top_titles: list[str],
     status_out: dict[str, Any] | None = None,
     *,
-    language: str = "fr",
+    language: str = DEFAULT_LANGUAGE,
 ) -> list[Any]:
     """Call Google Trends once with up to 5 product title seeds. Returns [] on any error.
 
@@ -585,7 +587,7 @@ def _fetch_realtime_signals_once(
     *,
     force: bool = False,
     status_out: dict[str, Any] | None = None,
-    language: str = "fr",
+    language: str = DEFAULT_LANGUAGE,
 ) -> dict[str, Any] | None:
     """Call the grounded world-events fetcher once per job. Fail-open.
 
@@ -713,7 +715,7 @@ def _build_pass1_prompt(
     candidate_pool: list[dict[str, Any]] | None = None,
     optimization_history_block: str = "",
     realtime_text: str = "",
-    language: str = "fr",
+    language: str = DEFAULT_LANGUAGE,
 ) -> str:
     queries_text = ", ".join(matched_queries[:5]) if matched_queries else "aucune donnée GSC"
     collections_text = ", ".join(collections) if collections else "aucune"
@@ -964,7 +966,7 @@ def _build_pass2_prompt(
     competitor_crawl_summary: str | None = None,
     optimization_history_block: str = "",
     realtime_text: str = "",
-    language: str = "fr",
+    language: str = DEFAULT_LANGUAGE,
 ) -> str:
     """Build the pass-2 (content) prompt with strict per-field rules.
 
@@ -2964,6 +2966,7 @@ def _build_enrichment_questions(
     keywords: list[dict[str, Any]],
     missing_facts: list[dict[str, Any]],
     surface_plan: dict[str, dict[str, Any]],
+    language: str = DEFAULT_LANGUAGE,
 ) -> list[dict[str, Any]]:
     """Create merchant questions that improve content quality.
 
@@ -2971,6 +2974,9 @@ def _build_enrichment_questions(
     close every gap shown on the readiness card, not just two at a time), followed
     by the 2 editorial questions (benefit + selection guide). Answered questions are
     filtered out by the caller so the list stays in sync with what is still missing.
+
+    Wording comes from `enrichment_templates` — these are fixed templates shown to
+    the merchant, not LLM output, so they are translated rather than prompted.
     """
     primary_query = str(keywords[0].get("query", "")).strip() if keywords else ""
     if not primary_query:
@@ -2987,57 +2993,15 @@ def _build_enrichment_questions(
     available_missing = {
         str(fact.get("key", "")) for fact in missing_facts if isinstance(fact, dict)
     }
-    templates = {
-        "warranty": (
-            f"Quelle garantie pouvez-vous confirmer pour « {primary_query} » ?",
-            "Ex. garantie 2 ans, avec les conditions exactes.",
-        ),
-        "compatibility": (
-            f"Dans quel contexte ou usage principal « {primary_query} » est-il conçu ?",
-            "Ex. en hiver pour les petits chiens frileux, en promenade par temps frais.",
-        ),
-        "dimensions": (
-            f"Quelles dimensions exactes peut-on indiquer pour « {primary_query} » ?",
-            "Ex. hauteur, largeur et capacité vérifiées.",
-        ),
-        "care": (
-            f"Quel entretien exact recommandez-vous pour « {primary_query} » ?",
-            "Ex. étapes de nettoyage et fréquence confirmées.",
-        ),
-        "materials": (
-            f"Quels matériaux composent réellement « {primary_query} » ?",
-            "Ex. acier inoxydable, coton bio ou silicone.",
-        ),
-        "origins": (
-            f"Quelle origine de fabrication pouvez-vous prouver pour « {primary_query} » ?",
-            "Ex. fabriqué en France, seulement si confirmé.",
-        ),
-        "certifications": (
-            f"Quelle certification vérifiée concerne « {primary_query} » ?",
-            "Ex. nom exact du label et périmètre concerné.",
-        ),
-        "size_recommendation": (
-            f"Comment choisir la bonne taille de « {primary_query} » pour son animal ?",
-            "Ex. mesure à prendre (tour de poitrine, longueur dos) et correspondance taille confirmée.",
-        ),
-        "targets": (
-            f"À qui s'adresse principalement « {primary_query} » (espèce, race, profil) ?",
-            "Ex. chiens adultes de petite race frileux, chats d'intérieur séniors, lapins nains.",
-        ),
-        "properties": (
-            f"Quelles sont les 2-3 propriétés distinctives de « {primary_query} » face aux alternatives ?",
-            "Ex. fermeture à clipper réglable, lavable en machine à 30°C, bandes réfléchissantes la nuit.",
-        ),
-        "delivery": (
-            f"Quelle information de livraison souhaitez-vous mentionner pour « {primary_query} » ?",
-            "Ex. expédié sous 24h, livraison offerte dès 49€.",
-        ),
-        "returns": (
-            f"Quelle politique de retour ou satisfaction s'applique à « {primary_query} » ?",
-            "Ex. retours acceptés 30 jours, remboursement garanti si insatisfait.",
-        ),
-    }
+    templates = questions_for(language)
+    why = why_for(language)
+
+    def _render(key: str) -> tuple[str, str]:
+        question, placeholder = templates[key]
+        return question.replace("{query}", primary_query), placeholder
+
     questions: list[dict[str, Any]] = []
+    fact_why = why["fact"].replace("{topic}", paa_question or primary_query)
     for key in (
         "origins",
         "care",
@@ -3050,62 +3014,51 @@ def _build_enrichment_questions(
     ):
         if key not in available_missing:
             continue
-        question, placeholder = templates[key]
+        question, placeholder = _render(key)
         questions.append(
             {
                 "key": key,
                 "field_key": key,
                 "question": question,
                 "placeholder": placeholder,
-                "why_it_matters": (
-                    f"Permet une réponse factuelle liée à « {paa_question or primary_query} »."
-                ),
+                "why_it_matters": fact_why,
                 "target_keyword": primary_query,
                 "unlocks_surfaces": ["faq", "geo_answer"],
             }
         )
     # Score-boosting questions not gated by Shopify snapshot: always proposed until answered.
-    # targets + properties → Répondabilité IA (20%). delivery + returns → Confiance (15%).
-    for key, why in (
-        ("targets", "Améliore la Répondabilité IA — pilier à 20% dans le Score GEO."),
-        ("properties", "Améliore la Répondabilité IA — pilier à 20% dans le Score GEO."),
-        ("delivery", "Améliore le pilier Confiance — à 15% dans le Score GEO."),
-        ("returns", "Améliore le pilier Confiance — à 15% dans le Score GEO."),
+    # targets + properties -> Répondabilité IA (20%). delivery + returns -> Confiance (15%).
+    for key, why_key in (
+        ("targets", "answerability"),
+        ("properties", "answerability"),
+        ("delivery", "trust"),
+        ("returns", "trust"),
     ):
-        question, placeholder = templates[key]
+        question, placeholder = _render(key)
         questions.append(
             {
                 "key": key,
                 "field_key": key,
                 "question": question,
                 "placeholder": placeholder,
-                "why_it_matters": why,
+                "why_it_matters": why[why_key],
                 "target_keyword": primary_query,
                 "unlocks_surfaces": ["faq", "geo_answer"],
             }
         )
-    questions.extend(
-        [
+    for key, surfaces in (("use_cases", ["faq", "blog"]), ("selection_criteria", ["blog"])):
+        question, placeholder = _render(key)
+        questions.append(
             {
-                "key": "use_cases",
-                "field_key": "use_cases",
-                "question": f"Quel bénéfice concret « {primary_query} » apporte-t-il à vos clients, et quel problème résout-il ?",
-                "placeholder": "Ex. tient chaud aux petits chiens frileux en hiver, évite les frissons après le bain.",
-                "why_it_matters": "Fournit l'angle éditorial central pour un article ou une FAQ qui accroche.",
+                "key": key,
+                "field_key": key,
+                "question": question,
+                "placeholder": placeholder,
+                "why_it_matters": why[key],
                 "target_keyword": primary_query,
-                "unlocks_surfaces": ["faq", "blog"],
-            },
-            {
-                "key": "selection_criteria",
-                "field_key": "selection_criteria",
-                "question": f"Comment un client non-expert devrait-il choisir entre plusieurs « {primary_query} » ?",
-                "placeholder": "Ex. selon la race, le poids, la météo ou le niveau d'activité.",
-                "why_it_matters": "Structure un guide d'achat naturellement optimisé pour les requêtes de comparaison.",
-                "target_keyword": primary_query,
-                "unlocks_surfaces": ["blog"],
-            },
-        ]
-    )
+                "unlocks_surfaces": surfaces,
+            }
+        )
     return questions
 
 
@@ -5592,7 +5545,7 @@ def run_market_analysis(
     db_path: Path | None = None,
     fetch_realtime: bool = False,
     fetch_realtime_force: bool = False,
-    language: str = "fr",
+    language: str = DEFAULT_LANGUAGE,
 ) -> dict[str, Any]:
     """Run a two-pass SEO/GEO market analysis for active products.
 
@@ -5932,6 +5885,7 @@ def run_market_analysis(
             state["pack"].get("seo_keywords", []) or [],
             state["fields"].get("missing_facts", []),
             state["pack"]["surface_plan"],
+            language,
         )
         _pid = str(state.get("product_id") or state["fields"].get("product_id") or "")
         _retired = frozenset((retired_questions_by_product or {}).get(_pid) or [])

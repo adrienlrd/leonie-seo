@@ -1631,6 +1631,7 @@ async def run_market_analysis_endpoint(
             business_profile=business_profile,
             collections=snapshot.get("collections") or [],
             articles=snapshot.get("articles") or [],
+            language=get_shop_language(ctx.shop),
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erreur analyse marché : {exc}") from exc
