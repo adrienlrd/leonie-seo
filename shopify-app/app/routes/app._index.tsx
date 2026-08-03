@@ -2348,6 +2348,10 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
   const saveFetcher = useFetcher<{ type: string; ok: boolean; error: string | null }>();
   const [editSection, setEditSection] = useState<ProfileSection>(null);
   const [draft, setDraft] = useState<BusinessProfile>(profile);
+  // Tags are reference detail, not the headline — collapsed so the two cards
+  // lead with the brand name and the tone.
+  const [showNicheTags, setShowNicheTags] = useState(false);
+  const [showVoiceTags, setShowVoiceTags] = useState(false);
   // Edits feed the LLM prompts (brand voice, personas, content style, seasonality),
   // so saving here changes future analyses.
   useEffect(() => { setDraft(profile); }, [profile]);
@@ -2402,9 +2406,19 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
             <Text as="p" variant="headingLg">{profile.brand_name}</Text>
             <Text as="p" tone="subdued">{profile.niche_summary}</Text>
             {(profile.key_themes ?? []).length > 0 && (
-              <InlineStack gap="100" wrap>
-                {profile.key_themes.map((theme) => (<Badge key={theme} tone="info">{theme}</Badge>))}
-              </InlineStack>
+              <BlockStack gap="200">
+                <InlineStack>
+                  <Button variant="plain" onClick={() => setShowNicheTags((v) => !v)}>
+                    {t(locale, showNicheTags ? "dashHideTags" : "dashShowTags")
+                      .replace("{n}", String(profile.key_themes.length))}
+                  </Button>
+                </InlineStack>
+                {showNicheTags && (
+                  <InlineStack gap="100" wrap>
+                    {profile.key_themes.map((theme) => (<Badge key={theme} tone="info">{theme}</Badge>))}
+                  </InlineStack>
+                )}
+              </BlockStack>
             )}
           </BlockStack>
         </Card>
@@ -2418,10 +2432,25 @@ function BizProfileCards({ profile, competitorSignals, manualCompetitors, exclud
             <Text as="p" variant="headingLg">{profile.content_style?.tone ?? "—"}</Text>
             <Text as="p" tone="subdued">{profile.brand_voice}</Text>
             {(profile.content_style?.vocabulary_to_use ?? []).length > 0 && (
-              <InlineStack gap="100" wrap>
-                {profile.content_style.vocabulary_to_use.map((v) => (<Badge key={v} tone="info">{v}</Badge>))}
-                {(profile.content_style?.vocabulary_to_avoid ?? []).map((v) => (<Badge key={v} tone="critical">{v}</Badge>))}
-              </InlineStack>
+              <BlockStack gap="200">
+                <InlineStack>
+                  <Button variant="plain" onClick={() => setShowVoiceTags((v) => !v)}>
+                    {t(locale, showVoiceTags ? "dashHideTags" : "dashShowTags").replace(
+                      "{n}",
+                      String(
+                        profile.content_style.vocabulary_to_use.length +
+                          (profile.content_style?.vocabulary_to_avoid ?? []).length,
+                      ),
+                    )}
+                  </Button>
+                </InlineStack>
+                {showVoiceTags && (
+                  <InlineStack gap="100" wrap>
+                    {profile.content_style.vocabulary_to_use.map((v) => (<Badge key={v} tone="info">{v}</Badge>))}
+                    {(profile.content_style?.vocabulary_to_avoid ?? []).map((v) => (<Badge key={v} tone="critical">{v}</Badge>))}
+                  </InlineStack>
+                )}
+              </BlockStack>
             )}
           </BlockStack>
         </Card>
