@@ -3709,9 +3709,20 @@ function AnalysisSchedulePanels({
 
           <div style={{ flex: "1 1 auto" }} />
 
+          {/* Publishing is the action that moves the needle; re-running only
+              produces more proposals to publish. */}
           <BlockStack gap="200">
+            {showValidateButton && (
+              <Button
+                variant="primary"
+                fullWidth
+                disabled={running}
+                onClick={() => setValidateOpen(true)}
+              >
+                {t(locale, "validateResultsButton")}
+              </Button>
+            )}
             <Button
-              variant="primary"
               fullWidth
               icon={RefreshIcon}
               loading={running}
@@ -3720,11 +3731,6 @@ function AnalysisSchedulePanels({
             >
               {t(locale, "runReanalysisNowButton")}
             </Button>
-            {showValidateButton && (
-              <Button fullWidth disabled={running} onClick={() => setValidateOpen(true)}>
-                {t(locale, "validateResultsButton")}
-              </Button>
-            )}
           </BlockStack>
         </div>
       </Box>
