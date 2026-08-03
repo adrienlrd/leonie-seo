@@ -1226,18 +1226,12 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
 
   const steps: GuideStep[] = [
     {
-      id: "gsc",
-      label: t(locale, "dashStepGscLabel"),
-      why: t(locale, "dashStepGscWhy"),
-      done: signals.gscConnected,
-      ctaLabel: t(locale, "dashConnect"),
-      ctaUrl: localizedPath("/app/account", locale),
-    },
-    {
-      id: "ga4",
-      label: t(locale, "dashStepGa4Label"),
-      why: t(locale, "dashStepGa4Why"),
-      done: signals.ga4Connected,
+      // Search Console and Analytics are one decision for the merchant — a
+      // single Google authorization grants both (they share one token row).
+      id: "google",
+      label: t(locale, "dashStepGoogleLabel"),
+      why: t(locale, "dashStepGoogleWhy"),
+      done: signals.gscConnected && signals.ga4Connected,
       ctaLabel: t(locale, "dashConnect"),
       ctaUrl: localizedPath("/app/account", locale),
     },
