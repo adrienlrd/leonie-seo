@@ -1306,11 +1306,13 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
   const pct = Math.round((doneCount / steps.length) * 100);
   // Auto-collapse once the merchant has completed the core action steps
   // (first analysis, theme extension, publish proposals, first blog post).
+  // Paying merchants get it collapsed from the start: the guide is onboarding
+  // material, and they have already committed.
   const CORE_STEP_IDS = ["analysis", "theme", "proposals", "blog"];
   const coreDone = steps
     .filter((s) => CORE_STEP_IDS.includes(s.id))
     .every((s) => s.done);
-  const [open, setOpen] = useState(!coreDone);
+  const [open, setOpen] = useState(isFree && !coreDone);
 
   return (
     <Card>

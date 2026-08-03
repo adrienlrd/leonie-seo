@@ -16,7 +16,7 @@ import {
   Text,
 } from "@shopify/polaris";
 import { PlanBadge } from "../components/PlanBadge";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { t, type Locale } from "../lib/i18n";
@@ -185,11 +185,20 @@ export default function LlmsTxtPage() {
     "templates/llms-full.txt.liquid",
   ];
 
+  const previewRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (data?.ok && data.intent === "generate" && data.result?.llms_txt) {
       setPreview(data.result.llms_txt);
     }
   }, [data]);
+
+  // The preview renders at the very bottom of the page, below the fold, so
+  // generating it looked like nothing had happened. Scroll once it is mounted.
+  useEffect(() => {
+    if (preview) {
+      previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [preview]);
 
   const published = data?.ok && data.intent === "publish" ? true : Boolean(status?.is_published);
   const divergent = Boolean(status?.divergent);
@@ -426,6 +435,7 @@ export default function LlmsTxtPage() {
         </Card>
 
         {preview && (
+          <div ref={previewRef}>
           <Card>
             <BlockStack gap="200">
               <Text as="h3" variant="headingSm">
@@ -443,7 +453,10 @@ export default function LlmsTxtPage() {
               </Box>
             </BlockStack>
           </Card>
+          </div>
         )}
+        {/* Breathing room so the last card is not flush against the iframe edge. */}
+        <Box paddingBlockEnd="800" />
       </BlockStack>
     </Page>
   );

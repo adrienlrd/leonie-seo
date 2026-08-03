@@ -1118,25 +1118,6 @@ export default function BlogIndexPage() {
             </p>
           </Banner>
         )}
-        {!selected && (
-          <button
-            type="button"
-            onClick={() => setShowBlogEdu(true)}
-            style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}
-          >
-            <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
-              <InlineStack align="space-between" blockAlign="center" wrap={false} gap="200">
-                <InlineStack gap="200" blockAlign="center" wrap={false}>
-                  <Icon source={QuestionCircleIcon} tone="subdued" />
-                  <Text as="h3" variant="bodySm" fontWeight="medium">
-                    {t(locale, "blogEduTitle")}
-                  </Text>
-                </InlineStack>
-                <Icon source={CheckIcon} tone="subdued" />
-              </InlineStack>
-            </Box>
-          </button>
-        )}
         <Modal
           open={showBlogEdu}
           onClose={() => setShowBlogEdu(false)}
@@ -1212,6 +1193,26 @@ export default function BlogIndexPage() {
           </Banner>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", gap: 16, alignItems: "start" }}>
+          <BlockStack gap="200">
+          {!selected && (
+            <button
+              type="button"
+              onClick={() => setShowBlogEdu(true)}
+              style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}
+            >
+              <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                <InlineStack align="space-between" blockAlign="center" wrap={false} gap="200">
+                  <InlineStack gap="200" blockAlign="center" wrap={false}>
+                    <Icon source={QuestionCircleIcon} tone="subdued" />
+                    <Text as="h3" variant="bodySm" fontWeight="medium">
+                      {t(locale, "blogEduTitle")}
+                    </Text>
+                  </InlineStack>
+                  <Icon source={CheckIcon} tone="subdued" />
+                </InlineStack>
+              </Box>
+            </button>
+          )}
           <Card padding="200">
             <BlockStack gap="200">
               {/* ── Publiés ──────────────────────────────────────────── */}
@@ -1413,6 +1414,7 @@ export default function BlogIndexPage() {
               </Button>
             </BlockStack>
           </Card>
+          </BlockStack>
 
           {selectedIdea ? (
             <Card>

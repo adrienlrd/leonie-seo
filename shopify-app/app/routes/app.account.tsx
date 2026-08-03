@@ -292,6 +292,57 @@ export default function AccountHub() {
       subtitle={t(locale, "hubSettingsSubtitle")}
     >
       <BlockStack gap="600">
+        <GoogleConnectionsCardWrapper
+          locale={locale}
+          gsc={gsc}
+          ga4={ga4}
+          ga4Properties={ga4Properties}
+          fetcher={onboardingFetcher}
+          footer={
+            <BlockStack gap="300">
+              <BlockStack gap="100">
+                <Text as="h3" variant="headingSm">
+                  {t(locale, "acctGeoSourcesTitle")}
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t(locale, "acctGeoSourcesDesc")}
+                </Text>
+              </BlockStack>
+              <InlineStack gap="400" wrap>
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" variant="bodySm">Shopify</Text>
+                  <Badge tone="success">{t(locale, "acctLive")}</Badge>
+                </InlineStack>
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" variant="bodySm">Google Search Console</Text>
+                  <Badge tone={gscConnected ? "success" : "attention"}>
+                    {t(locale, gscConnected ? "acctLive" : "acctNotConnected")}
+                  </Badge>
+                </InlineStack>
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" variant="bodySm">Google Analytics 4</Text>
+                  <Badge tone={ga4Connected ? "success" : "attention"}>
+                    {t(locale, ga4Connected ? "acctLive" : ga4?.oauth_connected ? "acctSelectProperty" : "acctNotConnected")}
+                  </Badge>
+                </InlineStack>
+                <InlineStack gap="200" blockAlign="center">
+                  <Text as="span" variant="bodySm">{t(locale, "acctThemeExtLabel")}</Text>
+                  {themeExt?.available
+                    ? (themeExt.enabled
+                        ? <Badge tone="success">{t(locale, "acctEnabled")}</Badge>
+                        : <Badge tone="attention">{t(locale, "acctNotEnabled")}</Badge>)
+                    : <Badge tone="info">{t(locale, "acctUnknown")}</Badge>}
+                </InlineStack>
+              </InlineStack>
+              {themeExt?.available && !themeExt.enabled && (
+                <Text as="p" variant="bodySm" tone="subdued">
+                  {t(locale, "acctThemeExtHowTo")}
+                </Text>
+              )}
+            </BlockStack>
+          }
+        />
+
         <LanguageCard locale={locale} />
 
         <Card>
@@ -347,57 +398,6 @@ export default function AccountHub() {
             )}
           </BlockStack>
         </Card>
-
-        <GoogleConnectionsCardWrapper
-          locale={locale}
-          gsc={gsc}
-          ga4={ga4}
-          ga4Properties={ga4Properties}
-          fetcher={onboardingFetcher}
-          footer={
-            <BlockStack gap="300">
-              <BlockStack gap="100">
-                <Text as="h3" variant="headingSm">
-                  {t(locale, "acctGeoSourcesTitle")}
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {t(locale, "acctGeoSourcesDesc")}
-                </Text>
-              </BlockStack>
-              <InlineStack gap="400" wrap>
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="span" variant="bodySm">Shopify</Text>
-                  <Badge tone="success">{t(locale, "acctLive")}</Badge>
-                </InlineStack>
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="span" variant="bodySm">Google Search Console</Text>
-                  <Badge tone={gscConnected ? "success" : "attention"}>
-                    {t(locale, gscConnected ? "acctLive" : "acctNotConnected")}
-                  </Badge>
-                </InlineStack>
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="span" variant="bodySm">Google Analytics 4</Text>
-                  <Badge tone={ga4Connected ? "success" : "attention"}>
-                    {t(locale, ga4Connected ? "acctLive" : ga4?.oauth_connected ? "acctSelectProperty" : "acctNotConnected")}
-                  </Badge>
-                </InlineStack>
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="span" variant="bodySm">{t(locale, "acctThemeExtLabel")}</Text>
-                  {themeExt?.available
-                    ? (themeExt.enabled
-                        ? <Badge tone="success">{t(locale, "acctEnabled")}</Badge>
-                        : <Badge tone="attention">{t(locale, "acctNotEnabled")}</Badge>)
-                    : <Badge tone="info">{t(locale, "acctUnknown")}</Badge>}
-                </InlineStack>
-              </InlineStack>
-              {themeExt?.available && !themeExt.enabled && (
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {t(locale, "acctThemeExtHowTo")}
-                </Text>
-              )}
-            </BlockStack>
-          }
-        />
 
         <Card>
           <BlockStack gap="300">
@@ -502,7 +502,8 @@ export default function AccountHub() {
           </BlockStack>
         </Card>
         <HubGrid items={items} locale={locale} />
-
+        {/* Breathing room so the last card is not flush against the iframe edge. */}
+        <Box paddingBlockEnd="800" />
       </BlockStack>
     </Page>
   );

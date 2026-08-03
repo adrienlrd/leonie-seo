@@ -435,6 +435,8 @@ export default function Billing() {
             </Collapsible>
           </BlockStack>
         </Card>
+        {/* Breathing room so the last card is not flush against the iframe edge. */}
+        <Box paddingBlockEnd="800" />
       </BlockStack>
     </Page>
   );
