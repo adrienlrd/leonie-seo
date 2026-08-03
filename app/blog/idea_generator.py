@@ -11,28 +11,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from app.blog.idea_templates import season_for, templates_for
+from app.language import DEFAULT_LANGUAGE
+
 # Marketplaces make poor "alternative to X" blog angles — skip them, keep niche rivals.
 _MARKETPLACES = frozenset(
     {"amazon", "cdiscount", "fnac", "ebay", "aliexpress", "rakuten", "leboncoin", "temu", "wish"}
 )
-
-# Pet-shop seasonal calendar (FR): month → list of (theme label, trigger keywords).
-# Generic enough for any pet niche; an idea is only emitted when a product matches.
-_SEASONAL: dict[int, list[tuple[str, tuple[str, ...]]]] = {
-    1: [("Froid de l'hiver", ("manteau", "chaud", "froid", "hiver", "pull"))],
-    2: [("Froid de l'hiver", ("manteau", "chaud", "froid", "hiver", "pull"))],
-    3: [("Retour du printemps", ("mue", "brosse", "poil", "promenade", "allergie"))],
-    4: [("Printemps & promenades", ("harnais", "laisse", "promenade", "tique", "puce"))],
-    5: [("Beaux jours", ("promenade", "voyage", "transport", "tique", "puce"))],
-    6: [("Chaleur estivale", ("fontaine", "eau", "hydratation", "fraîch", "chaleur", "ventil"))],
-    7: [("Canicule", ("fontaine", "eau", "hydratation", "fraîch", "chaleur", "coup de chaleur"))],
-    8: [("Canicule", ("fontaine", "eau", "hydratation", "fraîch", "chaleur", "voyage"))],
-    9: [("Rentrée", ("anti-stress", "anxiété", "solitude", "jouet", "routine"))],
-    10: [("Automne", ("poil", "brosse", "mue", "intérieur", "jouet"))],
-    11: [("Pré-hiver", ("manteau", "chaud", "couchage", "panier", "couverture"))],
-    12: [("Fêtes de fin d'année", ("cadeau", "jouet", "friandise", "panier", "confort"))],
-}
-
 
 def _norm(text: Any) -> str:
     return str(text or "").lower()
@@ -49,6 +34,12 @@ def _product_haystack(product: dict[str, Any]) -> str:
     parts = [_norm(product.get("product_title")), _norm(product.get("product_summary"))]
     parts += [_norm(kw.get("query")) for kw in (product.get("seo_keywords") or []) if isinstance(kw, dict)]
     return " ".join(parts)
+
+
+def _render(template: str, **values: str) -> str:
+    for key, value in values.items():
+        template = template.replace("{" + key + "}", value)
+    return template
 
 
 def _idea(
@@ -75,53 +66,55 @@ def _idea(
     }
 
 
-def _seasonal_ideas(products: list[dict[str, Any]], month: int, limit: int) -> list[dict[str, Any]]:
+def _seasonal_ideas(
+    products: list[dict[str, Any]], month: int, limit: int, language: str
+) -> list[dict[str, Any]]:
+    season = season_for(language, month)
+    if season is None:
+        return []
+    theme_label, triggers = season
+    tpl = templates_for(language)["seasonal"]
     ideas: list[dict[str, Any]] = []
-    for theme_label, triggers in _SEASONAL.get(month, []):
-        for product in products:
-            hay = _product_haystack(product)
-            if not any(t in hay for t in triggers):
-                continue
-            title = product.get("product_title") or _primary_keyword(product)
-            kw = _primary_keyword(product)
-            ideas.append(
-                _idea(
-                    title=f"{theme_label} : bien choisir {title.lower()} pour son animal",
-                    target_keyword=kw,
-                    intro=f"À l'approche de la période « {theme_label.lower()} », voici comment {title.lower()} aide votre animal, et comment bien le choisir.",
-                    outline=[
-                        f"Pourquoi {title.lower()} est utile pendant cette période ?",
-                        f"Comment bien choisir {kw} ?",
-                        "Conseils pratiques et erreurs à éviter",
-                    ],
-                    angle="seasonal",
-                    source_label=f"Tendance saisonnière · {theme_label}",
-                    product=product,
-                )
+    for product in products:
+        hay = _product_haystack(product)
+        if not any(t in hay for t in triggers):
+            continue
+        title = (product.get("product_title") or _primary_keyword(product)).lower()
+        kw = _primary_keyword(product)
+        ideas.append(
+            _idea(
+                title=_render(tpl["title"], theme=theme_label, title=title),
+                target_keyword=kw,
+                intro=_render(tpl["intro"], theme=theme_label, title=title),
+                outline=[_render(line, title=title, keyword=kw) for line in tpl["outline"]],
+                angle="seasonal",
+                source_label=_render(tpl["source_label"], theme=theme_label),
+                product=product,
             )
-            if len(ideas) >= limit:
-                return ideas
+        )
+        if len(ideas) >= limit:
+            return ideas
     return ideas
 
 
-def _trend_ideas(products: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+def _trend_ideas(
+    products: list[dict[str, Any]], limit: int, language: str
+) -> list[dict[str, Any]]:
     """Use rising Google Trends queries stored on the product (when present)."""
+    tpl = templates_for(language)["trend"]
     ideas: list[dict[str, Any]] = []
     for product in products:
         rising = [str(q).strip() for q in (product.get("trend_rising") or []) if str(q).strip()]
+        p_title = str(product.get("product_title") or "")
         for query in rising:
             ideas.append(
                 _idea(
-                    title=f"{query.capitalize()} : ce qu'il faut savoir",
+                    title=_render(tpl["title"], query=query.capitalize()),
                     target_keyword=query,
-                    intro=f"« {query} » est une recherche en forte hausse. Voici une réponse claire et nos conseils.",
-                    outline=[
-                        f"Qu'est-ce que {query} ?",
-                        f"Comment {product.get('product_title', '')} répond à ce besoin ?",
-                        "Nos recommandations",
-                    ],
+                    intro=_render(tpl["intro"], query=query),
+                    outline=[_render(line, query=query, title=p_title) for line in tpl["outline"]],
                     angle="trend",
-                    source_label="Tendance Google (en hausse)",
+                    source_label=tpl["source_label"],
                     product=product,
                 )
             )
@@ -134,6 +127,7 @@ def _event_ideas(
     products: list[dict[str, Any]],
     realtime_signals: dict[str, Any] | None,
     limit: int,
+    language: str,
 ) -> list[dict[str, Any]]:
     """Real-time events + rising queries (Gemini + Google Search grounding,
     Grande boutique plan only — `realtime_signals` is None for every other
@@ -159,6 +153,7 @@ def _event_ideas(
         matched = next((p for p in products if any(w in _product_haystack(p) for w in hay_words)), None)
         return matched or products[0]
 
+    tpl = templates_for(language)["event"]
     ideas: list[dict[str, Any]] = []
 
     for event in realtime_signals.get("events") or []:
@@ -170,12 +165,15 @@ def _event_ideas(
         source_url = str(event.get("source_url") or "") or default_source_url
         ideas.append(
             _idea(
-                title=f"{title_text} : {p_title.lower()}, la solution du moment",
+                title=_render(tpl["title"], event=title_text, title=p_title.lower()),
                 target_keyword=_primary_keyword(product),
-                intro=f"{title_text}. Voici pourquoi {p_title.lower()} répond directement à ce besoin, maintenant.",
-                outline=[title_text, f"Comment {p_title.lower()} aide concrètement", "Conseils pratiques"],
+                intro=_render(tpl["intro"], event=title_text, title=p_title.lower()),
+                outline=[
+                    _render(line, event=title_text, title=p_title.lower())
+                    for line in tpl["outline"]
+                ],
                 angle="event",
-                source_label="Actualité en temps réel (sourcée)",
+                source_label=tpl["source_label"],
                 source_url=source_url,
                 product=product,
             )
@@ -196,7 +194,9 @@ def _competitor_ideas(
     products: list[dict[str, Any]],
     competitor_signals: list[dict[str, Any]],
     limit: int,
+    language: str,
 ) -> list[dict[str, Any]]:
+    tpl = templates_for(language)["competitor"]
     ideas: list[dict[str, Any]] = []
     seen_domains: set[str] = set()
     first_product = products[0] if products else None
@@ -221,16 +221,12 @@ def _competitor_ideas(
         title = product.get("product_title") or kw
         ideas.append(
             _idea(
-                title=f"Alternative à {brand} : pourquoi choisir {title.lower()} ?",
-                target_keyword=f"alternative {brand.lower()}",
-                intro=f"Vous comparez {brand} et d'autres options ? Voici une alternative et ce qui distingue {title.lower()}.",
-                outline=[
-                    f"Ce que propose {brand}",
-                    f"Pourquoi {title.lower()} est une bonne alternative",
-                    "Comparatif : critères qui comptent vraiment",
-                ],
+                title=_render(tpl["title"], brand=brand, title=title.lower()),
+                target_keyword=_render(tpl["keyword"], brand=brand.lower()),
+                intro=_render(tpl["intro"], brand=brand, title=title.lower()),
+                outline=[_render(line, brand=brand, title=title.lower()) for line in tpl["outline"]],
                 angle="competitor",
-                source_label=f"Concurrent détecté · {brand}",
+                source_label=_render(tpl["source_label"], brand=brand),
                 product=product,
             )
         )
@@ -239,7 +235,10 @@ def _competitor_ideas(
     return ideas
 
 
-def _advantage_ideas(products: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+def _advantage_ideas(
+    products: list[dict[str, Any]], limit: int, language: str
+) -> list[dict[str, Any]]:
+    tpl = templates_for(language)["advantages"]
     ideas: list[dict[str, Any]] = []
     for product in products:
         title = str(product.get("product_title") or "").strip()
@@ -248,16 +247,12 @@ def _advantage_ideas(products: list[dict[str, Any]], limit: int) -> list[dict[st
         kw = _primary_keyword(product)
         ideas.append(
             _idea(
-                title=f"Les avantages de {title.lower()} : le guide complet",
+                title=_render(tpl["title"], title=title.lower()),
                 target_keyword=kw,
-                intro=f"Découvrez en détail les avantages de {title.lower()} et comment il améliore le quotidien de votre animal.",
-                outline=[
-                    f"Quels sont les avantages de {title.lower()} ?",
-                    "À qui s'adresse ce produit ?",
-                    "Comment bien l'utiliser au quotidien ?",
-                ],
+                intro=_render(tpl["intro"], title=title.lower()),
+                outline=[_render(line, title=title.lower()) for line in tpl["outline"]],
                 angle="advantages",
-                source_label="Avantages produit",
+                source_label=tpl["source_label"],
                 product=product,
             )
         )
@@ -273,6 +268,7 @@ def build_blog_idea_suggestions(
     realtime_signals: dict[str, Any] | None = None,
     now: datetime | None = None,
     max_per_angle: int = 3,
+    language: str = DEFAULT_LANGUAGE,
 ) -> list[dict[str, Any]]:
     """Return blog idea suggestions across event, seasonal, trend, competitor
     and advantage angles. `realtime_signals` (Grande boutique plan only, None
@@ -284,11 +280,11 @@ def build_blog_idea_suggestions(
         return []
     month = (now or datetime.now()).month
     suggestions: list[dict[str, Any]] = []
-    suggestions += _event_ideas(products, realtime_signals, max_per_angle)
-    suggestions += _seasonal_ideas(products, month, max_per_angle)
-    suggestions += _trend_ideas(products, max_per_angle)
-    suggestions += _competitor_ideas(products, competitor_signals or [], max_per_angle)
-    suggestions += _advantage_ideas(products, max_per_angle)
+    suggestions += _event_ideas(products, realtime_signals, max_per_angle, language)
+    suggestions += _seasonal_ideas(products, month, max_per_angle, language)
+    suggestions += _trend_ideas(products, max_per_angle, language)
+    suggestions += _competitor_ideas(products, competitor_signals or [], max_per_angle, language)
+    suggestions += _advantage_ideas(products, max_per_angle, language)
     # Dedup by title, keep first occurrence (seasonal/trend prioritized by order).
     seen: set[str] = set()
     unique: list[dict[str, Any]] = []

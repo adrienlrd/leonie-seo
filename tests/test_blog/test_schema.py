@@ -60,7 +60,8 @@ def test_article_jsonld_emits_machine_readable_signals():
 def test_article_jsonld_omits_about_without_product_name():
     ld = build_article_jsonld(headline="x", description="y", url="https://shop/x", about={"name": "  "})
     assert "about" not in ld
-    assert ld["inLanguage"] == "fr"
+    # The default follows app.language, not a hardcoded French fallback.
+    assert ld["inLanguage"] == "en"
 
 
 def test_faqpage_jsonld_filters_empty_pairs():

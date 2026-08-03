@@ -176,7 +176,7 @@ class IdeaClustersRequest(BaseModel):
     items: list[IdeaClusterItem] = Field(default_factory=list)
 
 
-def _apply_keyword_check(draft: dict[str, Any]) -> None:
+def _apply_keyword_check(draft: dict[str, Any], language: str) -> None:
     """Run the keyword-placement guardrail and attach its result to the draft in-place.
 
     Advisory only — never blocks generation or persistence. Skipped silently
@@ -193,6 +193,7 @@ def _apply_keyword_check(draft: dict[str, Any]) -> None:
         h2_questions=[str(q) for q in (draft.get("outline") or [])],
         sections=[s for s in (draft.get("sections") or []) if isinstance(s, dict)],
         target_keyword=keyword,
+        language=language,
     )
 
 
@@ -394,6 +395,7 @@ def list_blog_idea_suggestions(
         products=latest.get("products") or [],
         competitor_signals=latest.get("competitor_signals") or [],
         realtime_signals=realtime_signals,
+        language=get_shop_language(ctx.shop),
     )
     return {"suggestions": suggestions}
 
@@ -475,7 +477,7 @@ def create_blog_draft(
                 keywords=keywords,
                 shop=ctx.shop,
             )
-            _apply_keyword_check(draft)
+            _apply_keyword_check(draft, get_shop_language(ctx.shop))
     else:
         draft = {
             "product_title": "",
@@ -593,7 +595,7 @@ def update_blog_draft(
         ]
     draft.update(patch)
     if {"blog_title", "intro", "sections", "target_keyword"} & set(patch):
-        _apply_keyword_check(draft)
+        _apply_keyword_check(draft, get_shop_language(ctx.shop))
     if "image_url" in patch:
         _apply_image_alt(draft)
     _apply_seo_score(draft)
@@ -641,7 +643,7 @@ def regenerate_draft_section(
     if not replaced:
         existing.append(section)
     draft["sections"] = existing
-    _apply_keyword_check(draft)
+    _apply_keyword_check(draft, get_shop_language(ctx.shop))
     _apply_seo_score(draft)
     return save_draft(ctx.shop, draft)
 
@@ -1162,6 +1164,7 @@ def publish_draft(
         publisher_name=body.publisher_name or body.author_name,
         publisher_logo_url=body.publisher_logo_url,
         image_url=body.image_url,
+        language=get_shop_language(ctx.shop),
     )
     faq_ld = build_faqpage_jsonld(_build_faq_pairs(body.sections))
     body_html = html + "\n" + render_jsonld_blocks(article_ld, faq_ld)

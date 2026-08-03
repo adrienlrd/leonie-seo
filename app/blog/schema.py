@@ -12,6 +12,8 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
+from app.language import DEFAULT_LANGUAGE
+
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -31,7 +33,7 @@ def build_article_jsonld(
     publisher_name: str = "",
     publisher_logo_url: str | None = None,
     image_url: str | None = None,
-    language: str = "fr",
+    language: str = DEFAULT_LANGUAGE,
     article_body: str = "",
     word_count: int = 0,
     keywords: str = "",

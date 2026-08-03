@@ -10,11 +10,58 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.language import DEFAULT_LANGUAGE
 from app.market_analysis.keyword_normalization import is_semantically_covered, strip_accents
 
 _FIRST_WORDS_WINDOW = 100
 _COVERAGE_THRESHOLD = 0.6
 _MAX_DENSITY_PER_100_WORDS = 3.0
+
+# Advisory messages shown next to the draft, so they follow the shop language.
+# `{n}` is the lead-window size, `{count}`/`{words}` the density figures.
+_ISSUES: dict[str, dict[str, str]] = {
+    "fr": {
+        "title": "Le mot-clé cible n'apparaît pas dans le titre.",
+        "h2": "Le mot-clé cible n'apparaît dans aucun sous-titre (H2).",
+        "lead": "Le mot-clé cible n'apparaît pas dans les {n} premiers mots.",
+        "density": (
+            "Le mot-clé cible revient trop souvent ({count}× pour {words} mots — "
+            "risque de sur-optimisation)."
+        ),
+    },
+    "en": {
+        "title": "The target keyword is missing from the title.",
+        "h2": "The target keyword appears in no subheading (H2).",
+        "lead": "The target keyword is missing from the first {n} words.",
+        "density": (
+            "The target keyword repeats too often ({count}× across {words} words — "
+            "risk of over-optimization)."
+        ),
+    },
+    "de": {
+        "title": "Das Ziel-Keyword fehlt im Titel.",
+        "h2": "Das Ziel-Keyword kommt in keiner Zwischenüberschrift (H2) vor.",
+        "lead": "Das Ziel-Keyword fehlt in den ersten {n} Wörtern.",
+        "density": (
+            "Das Ziel-Keyword wiederholt sich zu oft ({count}× bei {words} Wörtern – "
+            "Gefahr der Überoptimierung)."
+        ),
+    },
+    "es": {
+        "title": "La palabra clave objetivo no aparece en el título.",
+        "h2": "La palabra clave objetivo no aparece en ningún subtítulo (H2).",
+        "lead": "La palabra clave objetivo no aparece en las primeras {n} palabras.",
+        "density": (
+            "La palabra clave objetivo se repite demasiado ({count}× en {words} palabras: "
+            "riesgo de sobreoptimización)."
+        ),
+    },
+}
+
+
+def _issues_for(language: str) -> dict[str, str]:
+    return _ISSUES.get(language, _ISSUES[DEFAULT_LANGUAGE])
+
 
 _LABEL_THRESHOLDS: tuple[tuple[int, str], ...] = (
     (85, "excellent"),
@@ -50,6 +97,7 @@ def check_keyword_placement(
     h2_questions: list[str],
     sections: list[dict[str, Any]],
     target_keyword: str,
+    language: str = DEFAULT_LANGUAGE,
 ) -> dict[str, Any]:
     """Check that ``target_keyword`` sits where search engines look first.
 
@@ -61,6 +109,7 @@ def check_keyword_placement(
         return {"ok": True, "score": 100, "label": "excellent", "issues": []}
 
     issues: list[str] = []
+    messages = _issues_for(language)
     section_dicts = [s for s in sections if isinstance(s, dict)]
     body_text = " ".join(
         f"{s.get('direct_answer', '')} {s.get('body', '')}" for s in section_dicts
@@ -68,12 +117,12 @@ def check_keyword_placement(
     full_text = " ".join(part for part in (title, intro, *h2_questions, body_text) if part)
 
     if not is_semantically_covered(keyword, title, threshold=_COVERAGE_THRESHOLD):
-        issues.append("Le mot-clé cible n'apparaît pas dans le titre.")
+        issues.append(messages["title"])
 
     if h2_questions and not any(
         is_semantically_covered(keyword, h2, threshold=_COVERAGE_THRESHOLD) for h2 in h2_questions
     ):
-        issues.append("Le mot-clé cible n'apparaît dans aucun sous-titre (H2).")
+        issues.append(messages["h2"])
 
     lead_parts = [intro]
     if section_dicts:
@@ -81,9 +130,7 @@ def check_keyword_placement(
         lead_parts.append(str(section_dicts[0].get("body", "")))
     lead_window = _first_words(" ".join(p for p in lead_parts if p), _FIRST_WORDS_WINDOW)
     if not is_semantically_covered(keyword, lead_window, threshold=_COVERAGE_THRESHOLD):
-        issues.append(
-            f"Le mot-clé cible n'apparaît pas dans les {_FIRST_WORDS_WINDOW} premiers mots."
-        )
+        issues.append(messages["lead"].replace("{n}", str(_FIRST_WORDS_WINDOW)))
 
     word_count = len(full_text.split())
     if word_count:
@@ -91,8 +138,9 @@ def check_keyword_placement(
         density = occurrences / word_count * 100
         if density > _MAX_DENSITY_PER_100_WORDS:
             issues.append(
-                f"Le mot-clé cible revient trop souvent ({occurrences}× pour {word_count} "
-                "mots — risque de sur-optimisation)."
+                messages["density"]
+                .replace("{count}", str(occurrences))
+                .replace("{words}", str(word_count))
             )
 
     score = max(0, 100 - 25 * len(issues))

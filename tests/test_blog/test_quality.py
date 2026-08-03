@@ -52,6 +52,7 @@ def test_check_keyword_placement_flags_missing_title_h2_and_lead_when_keyword_ab
         ],
         sections=[_section("Comment bien nourrir son animal ?")],
         target_keyword=_KEYWORD,
+        language="fr",
     )
 
     assert result["ok"] is False
@@ -77,6 +78,7 @@ def test_check_keyword_placement_flags_overuse_when_density_too_high() -> None:
             }
         ],
         target_keyword=keyword,
+        language="fr",
     )
 
     assert result["ok"] is False
