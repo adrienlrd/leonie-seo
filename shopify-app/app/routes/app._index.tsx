@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useFetcher, useLoaderData, useRevalidator } from "@remix-run/react";
+import { useFetcher, useLoaderData, useRevalidator, useSearchParams } from "@remix-run/react";
 import type { ShouldRevalidateFunction } from "@remix-run/react";
 import {
   EmptyState,
@@ -1270,7 +1270,8 @@ function SetupGuide({ signals, locale, shop }: { signals: SetupSignals; locale: 
       why: t(locale, "dashStepProposalsWhy"),
       done: signals.proposalsPublished,
       ctaLabel: t(locale, "dashPublish"),
-      ctaUrl: `${localizedPath("/app", locale)}?panel=publish`,
+      // localizedPath already appends "?locale=…", so this must chain with "&".
+      ctaUrl: `${localizedPath("/app", locale)}&panel=publish`,
     },
     {
       id: "blog",
@@ -3473,13 +3474,19 @@ function AnalysisSchedulePanels({
   const [validateOpen, setValidateOpen] = useState(false);
   const [appliedOpen, setAppliedOpen] = useState(false);
 
-  // Deep-link from the setup guide: /app?panel=publish opens the publish modal.
+  // Deep-link from the setup guide: /app?…&panel=publish opens the publish modal.
+  // Read through useSearchParams, not window on mount: the guide lives on this
+  // same route, so clicking it never remounts the component. The param is then
+  // cleared, otherwise a second click on the same URL would be a no-op.
+  const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (new URLSearchParams(window.location.search).get("panel") === "publish") {
-      setValidateOpen(true);
-    }
-  }, []);
+    if (searchParams.get("panel") !== "publish") return;
+    setValidateOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("panel");
+    setSearchParams(next, { replace: true, preventScrollReset: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Per-product checked set (backend field names), seeded from auto_publish_fields
   // (or, absent any saved selection, every unapplied field that has a proposal).
