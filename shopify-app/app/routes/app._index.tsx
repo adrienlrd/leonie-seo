@@ -971,7 +971,6 @@ interface EduTopic {
   steps: string[];
   stat: string;
   close: string;
-  cta?: { label: string; url: string };
   /** Optional button in the modal that opens another topic (e.g. SEO vs GEO). */
   relatedTopicId?: string;
   relatedTopicLabel?: string;
@@ -998,7 +997,6 @@ function EducationPanel({
       steps: [t(locale, "dashEduRankStep1"), t(locale, "dashEduRankStep2"), t(locale, "dashEduRankStep3")],
       stat: t(locale, "dashEduRankStat"),
       close: t(locale, "dashEduRankClose"),
-      cta: { label: t(locale, "dashEduRankCta"), url: localizedPath("/app/analyse", locale) },
     },
     {
       id: "why-28-days",
@@ -1008,7 +1006,6 @@ function EducationPanel({
       steps: [t(locale, "dashEdu28Step1"), t(locale, "dashEdu28Step2"), t(locale, "dashEdu28Step3"), t(locale, "dashEdu28Step4")],
       stat: t(locale, "dashEdu28Stat"),
       close: t(locale, "dashEdu28Close"),
-      cta: { label: t(locale, "dashEdu28Cta"), url: localizedPath("/app/analyse", locale) },
     },
     {
       id: "llms-txt",
@@ -1018,7 +1015,6 @@ function EducationPanel({
       steps: [t(locale, "dashEduLlmsStep1"), t(locale, "dashEduLlmsStep2"), t(locale, "dashEduLlmsStep3")],
       stat: t(locale, "dashEduLlmsStat"),
       close: t(locale, "dashEduLlmsClose"),
-      cta: { label: t(locale, "dashEduLlmsCta"), url: localizedPath("/app/geo-llms-txt", locale) },
     },
     {
       id: "keywords",
@@ -1028,7 +1024,6 @@ function EducationPanel({
       steps: [t(locale, "dashEduKwStep1"), t(locale, "dashEduKwStep2"), t(locale, "dashEduKwStep3")],
       stat: t(locale, "dashEduKwStat"),
       close: t(locale, "dashEduKwClose"),
-      cta: { label: t(locale, "dashEduKwCta"), url: localizedPath("/app/market-analysis", locale) },
     },
     {
       id: "auto-analysis",
@@ -1082,23 +1077,17 @@ function EducationPanel({
         open={openTopic !== null}
         onClose={() => setOpenTopic(null)}
         title={openTopic?.question ?? ""}
-        primaryAction={
-          openTopic?.cta
-            ? { content: openTopic.cta.label, url: openTopic.cta.url }
-            : { content: t(locale, "dashGotIt"), onAction: () => setOpenTopic(null) }
-        }
-        secondaryActions={[
-          ...(openTopic?.relatedTopicId
+        // These cards explain, they don't sell: a single "Got it" closes them.
+        primaryAction={{ content: t(locale, "dashGotIt"), onAction: () => setOpenTopic(null) }}
+        secondaryActions={
+          openTopic?.relatedTopicId
             ? [{
                 content: openTopic.relatedTopicLabel ?? "",
                 onAction: () =>
                   setOpenTopic(topics.find((tpc) => tpc.id === openTopic.relatedTopicId) ?? null),
               }]
-            : []),
-          ...(openTopic?.cta
-            ? [{ content: t(locale, "dashClose"), onAction: () => setOpenTopic(null) }]
-            : []),
-        ]}
+            : []
+        }
       >
         {openTopic && (
           <Modal.Section>
