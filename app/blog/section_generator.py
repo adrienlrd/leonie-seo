@@ -27,6 +27,14 @@ _SYSTEM = (
 
 _OUTPUT_KEYS = ("direct_answer", "body", "claims_used")
 
+# The grounded call answers in prose (Gemini forbids search + forced JSON), so it
+# must not be told to reply in JSON.
+_GROUNDED_SYSTEM = (
+    "Tu es un rédacteur SEO + GEO pour boutiques Shopify. "
+    "N'invente jamais un fait : si une affirmation n'a pas de preuve dans les FAITS "
+    "PRODUIT CONFIRMÉS ou dans une source web que tu cites, retire-la."
+)
+
 
 def _format_facts(confirmed_facts: list[dict[str, Any]] | None) -> str:
     if not confirmed_facts:
@@ -61,18 +69,35 @@ def _build_prompt(
         if keywords.strip()
         else ""
     )
-    # Grounded calls (Gemini + Google Search) don't expose separate grounding
-    # metadata alongside a forced-JSON response (verified live: groundingMetadata
-    # is absent from the API response in that combination) — so sources must be
-    # requested directly in the JSON schema instead of read from a side channel.
-    sources_rule = (
-        "7. sources : liste d'objets {url, title}. Pour toute affirmation appuyée par "
-        "une recherche web réelle et récente, cite son URL et son titre exacts. "
-        "N'invente JAMAIS une URL : si tu n'as pas de source web vérifiable, liste vide.\n"
-        if grounded
-        else ""
-    )
-    keys_list = "direct_answer, body, claims_used" + (", sources" if grounded else "")
+    # Gemini refuses google_search together with a forced JSON responseMimeType
+    # (see app/llm/providers/gemini.py), so a grounded call answers in prose. It
+    # used to be asked for JSON anyway: json.loads then raised on every section
+    # and the merchant silently got an empty article. Grounded sections are now
+    # written in prose and reshaped by `_structure_section`.
+    if grounded:
+        return (
+            f"TITRE BLOG: {blog_title}\n"
+            f"H2 SECTION: {h2_question}\n"
+            f"PRODUIT: {product_title}\n"
+            f"RÉSUMÉ PRODUIT: {product_summary}\n"
+            f"CLIENT CIBLE: {target_customer}\n"
+            f"{voice}"
+            f"{kw}"
+            "FAITS PRODUIT CONFIRMÉS (seule source autorisée pour les affirmations) :\n"
+            f"{_format_facts(confirmed_facts)}\n\n"
+            "Rédige cette section d'article, en texte courant, en citant tes sources.\n"
+            "1. Commence par une réponse directe de 40-60 mots qui répond au H2 dès la "
+            "première phrase.\n"
+            "2. Poursuis par 320-480 mots : plusieurs paragraphes de 2-3 phrases, et une "
+            "liste à puces de 3-5 items quand c'est pertinent.\n"
+            "3. N'affirme aucun fait vérifiable qui ne soit ni dans les FAITS CONFIRMÉS ni "
+            "appuyé par une source web que tu cites.\n"
+            "4. Jamais de markdown : pas de **gras**, pas de titres. Tirets `-` autorisés "
+            "pour les puces.\n"
+            "5. Ne présente jamais le produit sous un angle négatif : pas d'« inconvénients », "
+            "pas de prix présenté comme un défaut."
+        )
+
     return (
         f"TITRE BLOG: {blog_title}\n"
         f"H2 SECTION: {h2_question}\n"
@@ -102,18 +127,60 @@ def _build_prompt(
         "comme un défaut. Si un point d'attention factuel doit être nuancé (ex : entretien "
         "spécifique), formule-le de façon constructive, sans jamais dévaloriser le produit "
         "ni risquer de freiner la vente.\n\n"
-        f"{sources_rule}"
-        f"Réponds en JSON valide avec EXACTEMENT ces clés : {keys_list}."
+        "Réponds en JSON valide avec EXACTEMENT ces clés : direct_answer, body, claims_used."
     )
+
+
+_STRUCTURE_SYSTEM = (
+    "Tu reformates un texte en JSON valide et rien d'autre. "
+    "Tu n'ajoutes aucun fait, aucune source et aucune phrase absente du texte fourni."
+)
+
+
+def _build_structure_prompt(prose: str) -> str:
+    return (
+        "Voici une section d'article rédigée en texte courant :\n\n"
+        f"{prose}\n\n"
+        "Découpe-la sans rien inventer ni retirer de substance :\n"
+        "- direct_answer : la réponse directe d'ouverture (40-60 mots).\n"
+        "- body : tout le reste du texte, sans markdown.\n"
+        "- sources : liste d'objets {url, title} pour les URL citées dans le texte. "
+        "N'invente aucune URL ; liste vide s'il n'y en a pas.\n\n"
+        "Réponds en JSON valide avec EXACTEMENT ces clés : direct_answer, body, sources."
+    )
+
+
+def _structure_section(shop: str | None, prose: str) -> dict[str, Any] | None:
+    """Reshape grounded prose into the section schema, or None if unusable.
+
+    Deliberately the default (ungrounded, cheap) chain: Gemini cannot return
+    JSON while searching, so the grounded call writes prose and this call — which
+    invents nothing — gives it structure. Same split as
+    `app/niche/signals/realtime_trends._structure_events`.
+    """
+    try:
+        router = get_router(shop=shop, tier="default")
+        completion = router.complete(
+            _build_structure_prompt(prose),
+            system=_STRUCTURE_SYSTEM,
+            max_tokens=2048,
+            temperature=0.0,
+            json_mode=True,
+        )
+        parsed = json.loads(completion.text.strip())
+    except (json.JSONDecodeError, LLMError) as exc:
+        logger.warning("Blog section structuring failed: %s", exc)
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 def _merge_citations(
     grounding_citations: list[dict[str, Any]], model_sources: Any
 ) -> list[dict[str, Any]]:
-    """Combine groundingMetadata citations (side channel, currently always
-    empty when grounded+json_mode are combined — verified live) with sources
-    the model wrote directly into its own JSON output (`sources` field, only
-    requested when grounded). Deduplicated by URL.
+    """Combine groundingMetadata citations with URLs found in the prose.
+
+    Grounding metadata is now actually populated: it was always empty while the
+    grounded call also forced a JSON mime type. Deduplicated by URL.
     """
     merged: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -171,14 +238,27 @@ def generate_section(
 
         prompt = f"{prompt}\n\n{language_context(get_shop_language(shop))}"
 
+    grounded = tier == "grounded"
     try:
         completion = router.complete(
             prompt,
-            system=_SYSTEM,
+            system=_SYSTEM if not grounded else _GROUNDED_SYSTEM,
             max_tokens=2048,
             temperature=0.0,
-            json_mode=True,
+            json_mode=not grounded,
         )
+        if grounded:
+            structured = _structure_section(shop, completion.text.strip())
+            if structured is None:
+                return fallback
+            return {
+                "direct_answer": str(structured.get("direct_answer", "") or ""),
+                "body": str(structured.get("body", "") or ""),
+                # claims_used is not asked of the grounded call: it writes prose,
+                # and the reshaping call must not invent claim-to-fact mappings.
+                "claims_used": [],
+                "citations": _merge_citations(completion.citations, structured.get("sources")),
+            }
         parsed = json.loads(completion.text.strip())
         if not isinstance(parsed, dict):
             return fallback

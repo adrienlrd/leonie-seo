@@ -58,17 +58,34 @@ def test_generate_section_falls_back_on_parse_failure():
     assert out == {"direct_answer": "", "body": "", "claims_used": [], "citations": []}
 
 
-def test_agency_shop_uses_grounded_tier_and_returns_citations():
-    router = MagicMock()
-    router.complete.return_value = CompletionResult(
-        text=json.dumps({"direct_answer": "x", "body": "y", "claims_used": []}),
+def _grounded_pair(prose: str, structured: dict, citations: list | None = None):
+    """Router stub for the two-call grounded flow: prose, then JSON reshaping."""
+    grounded = MagicMock()
+    grounded.complete.return_value = CompletionResult(
+        text=prose,
         provider="gemini",
         model="gemini-3.5-flash-lite",
+        citations=citations or [],
+    )
+    structurer = MagicMock()
+    structurer.complete.return_value = CompletionResult(
+        text=json.dumps(structured), provider="openai", model="m"
+    )
+    return grounded, structurer
+
+
+def test_agency_shop_asks_the_grounded_call_for_prose_then_structures_it():
+    """Gemini refuses google_search together with a forced JSON mime type, so the
+    grounded call must not be asked for JSON — it used to be, and json.loads then
+    failed on every section, silently shipping an empty article."""
+    grounded, structurer = _grounded_pair(
+        "Une réponse directe en prose. Puis le corps de la section.",
+        {"direct_answer": "Une réponse directe en prose.", "body": "Puis le corps de la section.", "sources": []},
         citations=[{"url": "https://example.com", "title": "Example"}],
     )
     with (
         patch("app.blog.section_generator.get_plan_for_shop", return_value="agency"),
-        patch("app.blog.section_generator.get_router", return_value=router) as mock_get_router,
+        patch("app.blog.section_generator.get_router", side_effect=[grounded, structurer]) as mock_get_router,
     ):
         out = generate_section(
             blog_title="x",
@@ -78,33 +95,24 @@ def test_agency_shop_uses_grounded_tier_and_returns_citations():
             confirmed_facts=[],
             shop="agency-shop.myshopify.com",
         )
-    mock_get_router.assert_called_once_with(shop="agency-shop.myshopify.com", tier="grounded")
+
+    assert mock_get_router.call_args_list[0].kwargs["tier"] == "grounded"
+    assert mock_get_router.call_args_list[1].kwargs["tier"] == "default"
+    assert grounded.complete.call_args.kwargs["json_mode"] is False
+    assert out["direct_answer"] == "Une réponse directe en prose."
+    assert out["body"] == "Puis le corps de la section."
     assert out["citations"] == [{"url": "https://example.com", "title": "Example"}]
 
 
-def test_agency_shop_reads_sources_the_model_wrote_into_its_own_json():
-    """Verified live: Gemini's groundingMetadata side-channel is absent when
-    grounding + forced JSON are combined, so `sources` must be requested
-    directly in the JSON schema and read from there (see _build_prompt's
-    `grounded` param). completion.citations (the side channel) stays empty
-    in this scenario but is still merged in case the API ever changes."""
-    router = MagicMock()
-    router.complete.return_value = CompletionResult(
-        text=json.dumps(
-            {
-                "direct_answer": "x",
-                "body": "y",
-                "claims_used": [],
-                "sources": [{"url": "https://meteo.fr/canicule", "title": "Météo France"}],
-            }
-        ),
-        provider="gemini",
-        model="gemini-3.5-flash-lite",
-        citations=[],
+def test_agency_section_is_not_empty_when_the_grounded_call_answers_in_prose():
+    """The reported bug: paid shops got H2 titles with no content at all."""
+    grounded, structurer = _grounded_pair(
+        "Texte libre sans la moindre accolade JSON.",
+        {"direct_answer": "Texte libre.", "body": "sans la moindre accolade JSON.", "sources": []},
     )
     with (
         patch("app.blog.section_generator.get_plan_for_shop", return_value="agency"),
-        patch("app.blog.section_generator.get_router", return_value=router),
+        patch("app.blog.section_generator.get_router", side_effect=[grounded, structurer]),
     ):
         out = generate_section(
             blog_title="x",
@@ -114,10 +122,28 @@ def test_agency_shop_reads_sources_the_model_wrote_into_its_own_json():
             confirmed_facts=[],
             shop="agency-shop.myshopify.com",
         )
-    assert out["citations"] == [{"url": "https://meteo.fr/canicule", "title": "Météo France"}]
-    prompt = router.complete.call_args.args[0]
-    assert "sources" in prompt
-    assert "N'invente JAMAIS une URL" in prompt
+
+    assert out["direct_answer"]
+    assert out["body"]
+
+
+def test_agency_section_falls_back_when_structuring_fails():
+    grounded, structurer = _grounded_pair("prose", {})
+    structurer.complete.return_value = CompletionResult(text="not json", provider="openai", model="m")
+    with (
+        patch("app.blog.section_generator.get_plan_for_shop", return_value="agency"),
+        patch("app.blog.section_generator.get_router", side_effect=[grounded, structurer]),
+    ):
+        out = generate_section(
+            blog_title="x",
+            h2_question="y",
+            product_title="z",
+            product_summary="",
+            confirmed_facts=[],
+            shop="agency-shop.myshopify.com",
+        )
+
+    assert out == {"direct_answer": "", "body": "", "claims_used": [], "citations": []}
 
 
 def test_free_shop_prompt_does_not_request_sources():
