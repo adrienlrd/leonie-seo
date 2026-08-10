@@ -797,6 +797,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return json({ type: "saveManagedSelection", saved: false, error: `HTTP ${resp.status}: ${detail}` });
       }
 
+      // Labels are edited in the same modal as the selection, so they are saved
+      // in the same round trip.
+      const labelsRaw = String(formData.get("identifications") ?? "");
+      if (labelsRaw) {
+        try {
+          await callBackendForShop(
+            session.shop,
+            `/api/shops/${session.shop}/market-analysis/identifications`,
+            {
+              accessToken: session.accessToken,
+              method: "POST",
+              body: JSON.stringify({ identifications: JSON.parse(labelsRaw) }),
+              signal: AbortSignal.timeout(10_000),
+            },
+          );
+        } catch {
+          // Non-blocking — the selection itself is already saved.
+        }
+      }
+
       // Drop the analysis of products the merchant just dropped, so the page
       // stops showing results for products the app no longer manages.
       const nextSet = new Set(nextIds);
@@ -993,17 +1013,13 @@ function SummaryCard({
   job,
   locale,
   onAnalyzeAll,
-  onEditIdentification,
-  onAddProduct,
-  onChangeSelection,
+  onManageProducts,
   analyzeDisabled,
 }: {
   job: JobState;
   locale: Locale;
   onAnalyzeAll?: () => void;
-  onEditIdentification?: () => void;
-  onAddProduct?: () => void;
-  onChangeSelection?: () => void;
+  onManageProducts?: () => void;
   analyzeDisabled?: boolean;
 }) {
   const contextStatus = job.business_profile_context_status;
@@ -1025,26 +1041,16 @@ function SummaryCard({
           ) : (
             <div />
           )}
-          {(onAnalyzeAll || onEditIdentification || onAddProduct || onChangeSelection) && (
+          {(onAnalyzeAll || onManageProducts) && (
             <InlineStack gap="200">
               {onAnalyzeAll && (
                 <Button variant="primary" onClick={onAnalyzeAll} disabled={analyzeDisabled} loading={analyzeDisabled}>
                   {t(locale, "marketAnalysisAnalyzeAll")}
                 </Button>
               )}
-              {onAddProduct && (
-                <Button onClick={onAddProduct} disabled={analyzeDisabled}>
-                  {t(locale, "addProductAction")}
-                </Button>
-              )}
-              {onChangeSelection && (
-                <Button onClick={onChangeSelection} disabled={analyzeDisabled}>
-                  {t(locale, "changeSelectionAction")}
-                </Button>
-              )}
-              {onEditIdentification && (
-                <Button onClick={onEditIdentification} disabled={analyzeDisabled}>
-                  {t(locale, "marketAnalysisEditIdentification")}
+              {onManageProducts && (
+                <Button onClick={onManageProducts} disabled={analyzeDisabled}>
+                  {t(locale, "manageProductsAction")}
                 </Button>
               )}
             </InlineStack>
@@ -1381,12 +1387,9 @@ export default function ProductsPage() {
     plan: string;
     available_products: Array<{ id: string; title: string; image_url: string | null }>;
   };
-  const [showAddProductModal, setShowAddProductModal] = useState(false);
   const managedFetcher = useFetcher<{ type: string; managed: ManagedState | null; error?: string | null }>();
-  const addProductFetcher = useFetcher<{ type: string; added?: boolean; jobId?: string | null; productIds?: string[]; error?: string | null }>();
-  const [addSelection, setAddSelection] = useState<Set<string>>(new Set());
-
-  // ── "Change my selection" modal — swap products, not just append ─────────
+  // ── One modal for the whole product setup: which products are managed,
+  // and what each one actually is. They used to be three separate flows.
   const [showSelectionModal, setShowSelectionModal] = useState(false);
   const [selectionDraft, setSelectionDraft] = useState<Set<string>>(new Set());
   const saveSelectionFetcher = useFetcher<{
@@ -1404,12 +1407,6 @@ export default function ProductsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshFetcher.data]);
   const managed = managedFetcher.data?.managed ?? null;
-  const openAddProductModal = () => {
-    setShowAddProductModal(true);
-    const fd = new FormData();
-    fd.set("intent", "loadManagedProducts");
-    managedFetcher.submit(fd, { method: "post" });
-  };
   const openSelectionModal = () => {
     setShowSelectionModal(true);
     const fd = new FormData();
@@ -1435,6 +1432,7 @@ export default function ProductsPage() {
     fd.set("intent", "saveManagedSelection");
     fd.set("productIds", JSON.stringify([...selectionDraft]));
     fd.set("previousIds", JSON.stringify(effectiveSelection(managed)));
+    fd.set("identifications", JSON.stringify(identifications));
     saveSelectionFetcher.submit(fd, { method: "post" });
   };
 
@@ -1453,32 +1451,6 @@ export default function ProductsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saveSelectionFetcher.data]);
-
-  const handleAddProducts = () => {
-    const fd = new FormData();
-    fd.set("intent", "addManagedProduct");
-    fd.set("productIds", JSON.stringify([...addSelection]));
-    fd.set("currentIds", JSON.stringify(managed?.selected_ids ?? []));
-    addProductFetcher.submit(fd, { method: "post" });
-  };
-  useEffect(() => {
-    if (addProductFetcher.data?.type === "addManagedProduct" && addProductFetcher.data.added) {
-      setShowAddProductModal(false);
-      setAddSelection(new Set());
-      revalidator.revalidate();
-      // Follow the grouped analysis launched by the action for every added
-      // product — adding without a visible analysis read as "nothing happened".
-      const { jobId, productIds } = addProductFetcher.data;
-      if (jobId && productIds?.length) {
-        setStep("analysis");
-        setSingleProductJobId(jobId);
-        setSingleProductId(productIds[0]);
-        setSingleProductJob(null);
-        setSingleProductError(null);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addProductFetcher.data]);
 
   // ── Single-product analysis state ─────────────────────────────────────────
   const [singleProductJobId, setSingleProductJobId] = useState<string | null>(null);
@@ -1815,13 +1787,6 @@ export default function ProductsPage() {
     startFetcher.submit(fd, { method: "post" });
   };
 
-  const handleEditIdentification = () => {
-    setStep("identification");
-    setEditMode(true);
-    setIdentifyJobId(null);
-    setIdentifyJob(null);
-  };
-
   const handleSaveOnly = () => {
     const fd = new FormData();
     fd.set("intent", "saveOnly");
@@ -1968,11 +1933,11 @@ export default function ProductsPage() {
         <Modal
           open={showSelectionModal}
           onClose={() => setShowSelectionModal(false)}
-          title={t(locale, "changeSelectionModalTitle")}
+          title={t(locale, "manageProductsModalTitle")}
         >
           <Modal.Section>
             <BlockStack gap="300">
-              <Text as="p" tone="subdued">{t(locale, "changeSelectionHelp")}</Text>
+              <Text as="p" tone="subdued">{t(locale, "manageProductsHelp")}</Text>
               {managedFetcher.state !== "idle" && <Spinner size="small" />}
               {saveSelectionFetcher.data?.error && (
                 <Banner tone="critical">
@@ -1990,24 +1955,41 @@ export default function ProductsPage() {
                     {managed.available_products.map((ap) => {
                       const checked = selectionDraft.has(ap.id);
                       return (
-                        <InlineStack key={ap.id} gap="300" blockAlign="center" wrap={false}>
-                          <Checkbox
-                            label=""
-                            labelHidden
-                            checked={checked}
-                            disabled={!checked && selectionDraft.size >= managed.cap}
-                            onChange={(value) =>
-                              setSelectionDraft((prev) => {
-                                const next = new Set(prev);
-                                if (value) next.add(ap.id);
-                                else next.delete(ap.id);
-                                return next;
-                              })
-                            }
-                          />
-                          <Thumbnail source={ap.image_url || ProductAddIcon} alt={ap.title} size="small" />
-                          <Text as="span">{ap.title}</Text>
-                        </InlineStack>
+                        <BlockStack key={ap.id} gap="100">
+                          <InlineStack gap="300" blockAlign="center" wrap={false}>
+                            <Checkbox
+                              label=""
+                              labelHidden
+                              checked={checked}
+                              disabled={!checked && selectionDraft.size >= managed.cap}
+                              onChange={(value) =>
+                                setSelectionDraft((prev) => {
+                                  const next = new Set(prev);
+                                  if (value) next.add(ap.id);
+                                  else next.delete(ap.id);
+                                  return next;
+                                })
+                              }
+                            />
+                            <Thumbnail source={ap.image_url || ProductAddIcon} alt={ap.title} size="small" />
+                            <Text as="span">{ap.title}</Text>
+                          </InlineStack>
+                          {/* The label only matters for a managed product, so it
+                              appears with the checkbox rather than in its own step. */}
+                          {checked && (
+                            <Box paddingInlineStart="800">
+                              <TextField
+                                label={t(locale, "prodWhatIsProductCol")}
+                                value={identifications[ap.id] ?? ""}
+                                onChange={(val) =>
+                                  setIdentifications((prev) => ({ ...prev, [ap.id]: val }))
+                                }
+                                placeholder={t(locale, "marketAnalysisLabelPlaceholder")}
+                                autoComplete="off"
+                              />
+                            </Box>
+                          )}
+                        </BlockStack>
                       );
                     })}
                   </BlockStack>
@@ -2021,7 +2003,7 @@ export default function ProductsPage() {
                       loading={saveSelectionFetcher.state !== "idle"}
                       onClick={handleSaveSelection}
                     >
-                      {t(locale, "changeSelectionSave")}
+                      {t(locale, "manageProductsSave")}
                     </Button>
                   </InlineStack>
                 </>
@@ -2091,7 +2073,7 @@ export default function ProductsPage() {
                     ))}
                   </div>
                   {editMode ? (
-                    /* Came from "Modifier l'identification" — save only, no new analysis */
+                    /* Labels reopened from the manage-products modal — save only. */
                     <InlineStack gap="300">
                       <Button
                         variant="primary"
@@ -2122,7 +2104,7 @@ export default function ProductsPage() {
               {!isIdentifying && (
                 <InlineStack>
                   <Button variant="plain" onClick={openSelectionModal}>
-                    {t(locale, "changeSelectionAction")}
+                    {t(locale, "manageProductsAction")}
                   </Button>
                 </InlineStack>
               )}
@@ -2142,95 +2124,6 @@ export default function ProductsPage() {
           <>
             {/* Rerun confirmation modal — always mounted so Polaris can animate close
                 before the completed-job block disappears from the tree */}
-            <Modal
-              open={showAddProductModal}
-              onClose={() => setShowAddProductModal(false)}
-              title={t(locale, "addProductModalTitle")}
-            >
-              <Modal.Section>
-                <BlockStack gap="300">
-                  {managedFetcher.state !== "idle" && <Spinner size="small" />}
-                  {addProductFetcher.data?.error && (
-                    <Banner tone="critical">
-                      <Text as="p">{addProductFetcher.data.error}</Text>
-                    </Banner>
-                  )}
-                  {managed && (
-                    <>
-                      <Text as="p" fontWeight="semibold">
-                        {t(locale, "productSelectionCount")
-                          .replace("{selected}", String((managed.selected_ids ?? []).length))
-                          .replace("{cap}", String(managed.cap))}
-                      </Text>
-                      {(managed.selected_ids ?? []).length >= managed.cap ? (
-                        <Banner tone="info">
-                          <Text as="p">
-                            {t(locale, "productSelectionCapReached").replaceAll(
-                              "{cap}",
-                              String(managed.cap),
-                            )}
-                          </Text>
-                        </Banner>
-                      ) : (
-                        (() => {
-                          const selectedSet = new Set(managed.selected_ids ?? []);
-                          const addable = managed.available_products.filter((ap) => !selectedSet.has(ap.id));
-                          if (addable.length === 0) {
-                            return (
-                              <Text as="p" tone="subdued">{t(locale, "addProductNoneLeft")}</Text>
-                            );
-                          }
-                          const remaining = managed.cap - (managed.selected_ids ?? []).length;
-                          return (
-                            <>
-                              {addable.map((ap) => {
-                                const checked = addSelection.has(ap.id);
-                                const atCap = !checked && addSelection.size >= remaining;
-                                return (
-                                  <InlineStack key={ap.id} gap="300" blockAlign="center" wrap={false}>
-                                    <Checkbox
-                                      label=""
-                                      labelHidden
-                                      checked={checked}
-                                      disabled={atCap}
-                                      onChange={(value: boolean) =>
-                                        setAddSelection((prev) => {
-                                          const next = new Set(prev);
-                                          if (value) next.add(ap.id);
-                                          else next.delete(ap.id);
-                                          return next;
-                                        })
-                                      }
-                                    />
-                                    <Thumbnail
-                                      source={ap.image_url || ProductAddIcon}
-                                      alt={ap.title}
-                                      size="small"
-                                    />
-                                    <Text as="span">{ap.title}</Text>
-                                  </InlineStack>
-                                );
-                              })}
-                              <InlineStack align="end">
-                                <Button
-                                  variant="primary"
-                                  disabled={addSelection.size === 0}
-                                  loading={addProductFetcher.state !== "idle"}
-                                  onClick={handleAddProducts}
-                                >
-                                  {t(locale, "addProductAddCount").replace("{n}", String(addSelection.size))}
-                                </Button>
-                              </InlineStack>
-                            </>
-                          );
-                        })()
-                      )}
-                    </>
-                  )}
-                </BlockStack>
-              </Modal.Section>
-            </Modal>
-
             <Modal
               open={showRerunModal}
               onClose={() => setShowRerunModal(false)}
@@ -2392,9 +2285,7 @@ export default function ProductsPage() {
                   job={job}
                   locale={locale}
                   onAnalyzeAll={() => setShowRerunModal(true)}
-                  onAddProduct={openAddProductModal}
-                  onChangeSelection={openSelectionModal}
-                  onEditIdentification={handleEditIdentification}
+                  onManageProducts={openSelectionModal}
                   analyzeDisabled={isInProgress}
                 />
                 <InlineStack gap="200" blockAlign="center">

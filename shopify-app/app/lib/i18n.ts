@@ -204,15 +204,11 @@ const FR: Dictionary = {
   productSelectionEmptyCatalog:
     "Aucun produit actif trouvé. Lancez d'abord la découverte de votre boutique.",
   productSelectionSave: "Valider ma sélection",
-  changeSelectionAction: "Modifier ma sélection",
-  changeSelectionModalTitle: "Choisir les produits gérés",
-  changeSelectionHelp:
-    "Décochez un produit pour le retirer, cochez-en un autre à la place. Les produits retirés ne seront plus analysés ni optimisés.",
-  changeSelectionSave: "Enregistrer ma sélection",
-  addProductAction: "Ajouter un produit",
-  addProductModalTitle: "Ajouter un produit à gérer",
-  addProductNoneLeft: "Tous vos produits actifs sont déjà gérés.",
-  addProductAdd: "Ajouter",
+  manageProductsAction: "Gérer mes produits",
+  manageProductsModalTitle: "Gérer mes produits",
+  manageProductsHelp:
+    "Cochez les produits que l'app doit optimiser, et décrivez en une phrase ce qu'est chacun d'eux. Les produits retirés ne seront plus analysés.",
+  manageProductsSave: "Enregistrer",
 
   onboardingGoogleExampleTitle: "La différence concrète :",
   onboardingGoogleExampleEstimated: "Sans connexion : « harnais chien » — demande estimée par Organically",
@@ -610,7 +606,6 @@ const FR: Dictionary = {
   marketAnalysisGenerating: "Génération des descriptions en cours…",
   marketAnalysisGenerateLabels: "Identifier les produits avec Organically",
   marketAnalysisValidateLabels: "Valider et analyser",
-  marketAnalysisEditIdentification: "Modifier l'identification",
   marketAnalysisRerun: "Relancer l'analyse",
   marketAnalysisLabelPlaceholder: "Description courte du produit",
   marketAnalysisSaveLabels: "Publier",
@@ -1514,7 +1509,6 @@ const FR: Dictionary = {
   srcBusinessProfile: "Profil d'activité",
   srcNiche: "Hypothèse de niche",
   marketAnalysisSingleRunning: "Analyse du nouveau produit en cours — environ 2 minutes…",
-  addProductAddCount: "Ajouter et analyser ({n})",
 };
 
 const EN: Dictionary = {
@@ -1713,15 +1707,11 @@ const EN: Dictionary = {
   productSelectionEmptyCatalog:
     "No active products found. Run the store discovery first.",
   productSelectionSave: "Confirm my selection",
-  changeSelectionAction: "Change my selection",
-  changeSelectionModalTitle: "Choose the managed products",
-  changeSelectionHelp:
-    "Uncheck a product to drop it, then check another one instead. Dropped products are no longer analyzed or optimized.",
-  changeSelectionSave: "Save my selection",
-  addProductAction: "Add a product",
-  addProductModalTitle: "Add a product to manage",
-  addProductNoneLeft: "All your active products are already managed.",
-  addProductAdd: "Add",
+  manageProductsAction: "Manage my products",
+  manageProductsModalTitle: "Manage my products",
+  manageProductsHelp:
+    "Check the products the app should optimize, and describe in one sentence what each one is. Unchecked products are no longer analyzed.",
+  manageProductsSave: "Save",
 
   onboardingGoogleExampleTitle: "The concrete difference:",
   onboardingGoogleExampleEstimated: "Without connection: “dog harness” — demand estimated by Organically",
@@ -2119,7 +2109,6 @@ const EN: Dictionary = {
   marketAnalysisGenerating: "Generating descriptions…",
   marketAnalysisGenerateLabels: "Identify products with Organically",
   marketAnalysisValidateLabels: "Validate and analyze",
-  marketAnalysisEditIdentification: "Edit identification",
   marketAnalysisRerun: "Re-run analysis",
   marketAnalysisLabelPlaceholder: "Short product description",
   marketAnalysisSaveLabels: "Publish",
@@ -3021,7 +3010,6 @@ const EN: Dictionary = {
   srcBusinessProfile: "Business profile",
   srcNiche: "Niche hypothesis",
   marketAnalysisSingleRunning: "Analyzing the new product — about 2 minutes…",
-  addProductAddCount: "Add and analyze ({n})",
 };
 
 const DE: Dictionary = {
@@ -3220,15 +3208,11 @@ const DE: Dictionary = {
   productSelectionEmptyCatalog:
     "Keine aktiven Produkte gefunden. Führen Sie zuerst die Shop-Erkennung aus.",
   productSelectionSave: "Auswahl bestätigen",
-  changeSelectionAction: "Auswahl ändern",
-  changeSelectionModalTitle: "Verwaltete Produkte auswählen",
-  changeSelectionHelp:
-    "Haken Sie ein Produkt ab, um es zu entfernen, und wählen Sie stattdessen ein anderes. Entfernte Produkte werden nicht mehr analysiert oder optimiert.",
-  changeSelectionSave: "Auswahl speichern",
-  addProductAction: "Produkt hinzufügen",
-  addProductModalTitle: "Ein zu verwaltendes Produkt hinzufügen",
-  addProductNoneLeft: "Alle Ihre aktiven Produkte werden bereits verwaltet.",
-  addProductAdd: "Hinzufügen",
+  manageProductsAction: "Produkte verwalten",
+  manageProductsModalTitle: "Produkte verwalten",
+  manageProductsHelp:
+    "Haken Sie die Produkte an, die die App optimieren soll, und beschreiben Sie in einem Satz, was jedes davon ist. Abgewählte Produkte werden nicht mehr analysiert.",
+  manageProductsSave: "Speichern",
 
   onboardingGoogleExampleTitle: "Der konkrete Unterschied:",
   onboardingGoogleExampleEstimated: "Ohne Verbindung: „Hundegeschirr“ — Nachfrage von Organically geschätzt",
@@ -3626,7 +3610,6 @@ const DE: Dictionary = {
   marketAnalysisGenerating: "Beschreibungen werden generiert…",
   marketAnalysisGenerateLabels: "Produkte mit Organically identifizieren",
   marketAnalysisValidateLabels: "Validieren und analysieren",
-  marketAnalysisEditIdentification: "Identifikation bearbeiten",
   marketAnalysisRerun: "Analyse erneut ausführen",
   marketAnalysisLabelPlaceholder: "Kurze Produktbeschreibung",
   marketAnalysisSaveLabels: "Veröffentlichen",
@@ -4528,7 +4511,6 @@ const DE: Dictionary = {
   srcBusinessProfile: "Unternehmensprofil",
   srcNiche: "Nischen-Hypothese",
   marketAnalysisSingleRunning: "Analyse des neuen Produkts läuft — etwa 2 Minuten…",
-  addProductAddCount: "Hinzufügen und analysieren ({n})",
 };
 
 const ES: Dictionary = {
@@ -4727,15 +4709,11 @@ const ES: Dictionary = {
   productSelectionEmptyCatalog:
     "No se encontraron productos activos. Ejecute primero el descubrimiento de la tienda.",
   productSelectionSave: "Confirmar mi selección",
-  changeSelectionAction: "Modificar mi selección",
-  changeSelectionModalTitle: "Elegir los productos gestionados",
-  changeSelectionHelp:
-    "Desmarque un producto para retirarlo y marque otro en su lugar. Los productos retirados dejan de analizarse y optimizarse.",
-  changeSelectionSave: "Guardar mi selección",
-  addProductAction: "Añadir un producto",
-  addProductModalTitle: "Añadir un producto a gestionar",
-  addProductNoneLeft: "Todos sus productos activos ya están gestionados.",
-  addProductAdd: "Añadir",
+  manageProductsAction: "Gestionar mis productos",
+  manageProductsModalTitle: "Gestionar mis productos",
+  manageProductsHelp:
+    "Marque los productos que la app debe optimizar y describa en una frase qué es cada uno. Los productos desmarcados dejan de analizarse.",
+  manageProductsSave: "Guardar",
 
   onboardingGoogleExampleTitle: "La diferencia concreta:",
   onboardingGoogleExampleEstimated: "Sin conexión: «arnés para perro» — demanda estimada por Organically",
@@ -5133,7 +5111,6 @@ const ES: Dictionary = {
   marketAnalysisGenerating: "Generando las descripciones…",
   marketAnalysisGenerateLabels: "Identificar los productos con Organically",
   marketAnalysisValidateLabels: "Validar y analizar",
-  marketAnalysisEditIdentification: "Editar la identificación",
   marketAnalysisRerun: "Volver a ejecutar el análisis",
   marketAnalysisLabelPlaceholder: "Descripción corta del producto",
   marketAnalysisSaveLabels: "Publicar",
@@ -6035,7 +6012,6 @@ const ES: Dictionary = {
   srcBusinessProfile: "Perfil de negocio",
   srcNiche: "Hipótesis de nicho",
   marketAnalysisSingleRunning: "Analizando el nuevo producto — unos 2 minutos…",
-  addProductAddCount: "Añadir y analizar ({n})",
 };
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr: FR, en: EN, de: DE, es: ES };
