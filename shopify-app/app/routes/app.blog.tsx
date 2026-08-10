@@ -41,7 +41,7 @@ import {
   TextField,
 } from "@shopify/polaris";
 import { PlanBadge } from "../components/PlanBadge";
-import { CheckIcon, EditIcon, ImageIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
+import { CheckIcon, EditIcon, ImageIcon, LinkIcon, QuestionCircleIcon, XIcon } from "@shopify/polaris-icons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { callBackendForShop } from "../lib/api.server";
@@ -805,6 +805,8 @@ export default function BlogIndexPage() {
   // Up to 6 ideas (suggested first, then analysis blog ideas) for the landing grid.
   const inspirationIdeas = [...visibleSuggestions, ...visibleBlogIdeas].slice(0, 6);
   const [coverOpen, setCoverOpen] = useState(false);
+  // Internal links are editable straight from the preview, like the cover image.
+  const [linksOpen, setLinksOpen] = useState(false);
   // Keyword editing for the idea panel (pre-generation): primary keyword + extras
   // chosen from past-analysis suggestions, all fed into the article generation.
   const [ideaKeyword, setIdeaKeyword] = useState("");
@@ -956,6 +958,18 @@ export default function BlogIndexPage() {
       internal_links: (prev.internal_links ?? []).map((link, i) =>
         i === idx ? { ...link, ...patch } : link,
       ),
+    } : prev);
+
+  const removeInternalLink = (idx: number) =>
+    setDraft((prev) => prev ? {
+      ...prev,
+      internal_links: (prev.internal_links ?? []).filter((_, i) => i !== idx),
+    } : prev);
+
+  const addBlankInternalLink = () =>
+    setDraft((prev) => prev ? {
+      ...prev,
+      internal_links: [...(prev.internal_links ?? []), { target_url: "", anchor: "", target_title: "", reason: "manual" }],
     } : prev);
 
   const addArticleLink = (article: LinkableArticle) => {
@@ -2173,12 +2187,25 @@ export default function BlogIndexPage() {
                           </a>
                         </div>
                       )}
-                      {/* 9. Internal links */}
-                      {(draft.internal_links ?? []).length > 0 && (
-                        <aside style={{ marginTop: 32, borderTop: "1px solid var(--p-color-border)", paddingTop: 20 }}>
+                      {/* 9. Internal links — same pencil-overlay pattern as the cover image. */}
+                      {(draft.internal_links ?? []).length > 0 ? (
+                        <aside style={{ position: "relative", marginTop: 32, borderTop: "1px solid var(--p-color-border)", paddingTop: 20 }}>
                           <h2 style={{ fontSize: 20, marginBottom: 10 }}>
                             {t(locale, "blogRelatedReading")}
                           </h2>
+                          <button
+                            type="button"
+                            onClick={() => setLinksOpen(true)}
+                            aria-label={t(locale, "blogEditInternalLinks")}
+                            style={{
+                              position: "absolute", top: 16, right: 0, width: 32, height: 32,
+                              borderRadius: "50%", border: "none", cursor: "pointer",
+                              background: "rgba(255,255,255,0.92)", boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15,
+                            }}
+                          >
+                            ✎
+                          </button>
                           <ul>
                             {(draft.internal_links ?? []).map((link, idx) => (
                               <li key={`${link.target_url}-${idx}`}>
@@ -2187,8 +2214,89 @@ export default function BlogIndexPage() {
                             ))}
                           </ul>
                         </aside>
+                      ) : (
+                        <div style={{ marginTop: 32 }}>
+                          <Button fullWidth icon={LinkIcon} onClick={() => setLinksOpen(true)}>
+                            {t(locale, "blogAddInternalLink")}
+                          </Button>
+                        </div>
                       )}
                     </article>
+                    <Modal
+                      open={linksOpen}
+                      onClose={() => setLinksOpen(false)}
+                      title={t(locale, "blogInternalLinks")}
+                      primaryAction={{ content: t(locale, "blogGotIt"), onAction: () => setLinksOpen(false) }}
+                    >
+                      <Modal.Section>
+                        <BlockStack gap="300">
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {t(locale, "blogInternalLinksDesc")}
+                          </Text>
+                          {(draft.internal_links ?? []).map((link, idx) => (
+                            <BlockStack key={`modal-link-${idx}`} gap="100">
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                <TextField
+                                  label={t(locale, "blogAnchor")}
+                                  value={link.anchor}
+                                  onChange={(v) => setInternalLink(idx, { anchor: v })}
+                                  autoComplete="off"
+                                />
+                                <TextField
+                                  label="URL"
+                                  value={link.target_url}
+                                  onChange={(v) => setInternalLink(idx, { target_url: v })}
+                                  autoComplete="off"
+                                />
+                              </div>
+                              <InlineStack align="end">
+                                <Button variant="plain" tone="critical" onClick={() => removeInternalLink(idx)}>
+                                  {t(locale, "blogRemoveLink")}
+                                </Button>
+                              </InlineStack>
+                            </BlockStack>
+                          ))}
+                          <InlineStack gap="200">
+                            <Button size="slim" onClick={onLoadArticles}>
+                              {t(locale, "blogAddArticleLink")}
+                            </Button>
+                            <Button size="slim" variant="plain" onClick={addBlankInternalLink}>
+                              {t(locale, "blogAddManualLink")}
+                            </Button>
+                          </InlineStack>
+                          {showArticlePicker && (
+                            <Box padding="300" background="bg-surface-secondary" borderRadius="200" borderColor="border" borderWidth="025">
+                              <BlockStack gap="200">
+                                <Text as="p" variant="bodySm" fontWeight="semibold">
+                                  {t(locale, "blogChooseArticle")}
+                                </Text>
+                                {articlesFetcher.state !== "idle" ? (
+                                  <InlineStack gap="200" blockAlign="center">
+                                    <Spinner size="small" />
+                                    <Text as="span" variant="bodySm">{t(locale, "blogLoading")}</Text>
+                                  </InlineStack>
+                                ) : (articlesFetcher.data?.articles ?? []).length === 0 ? (
+                                  <Text as="p" variant="bodySm" tone="subdued">
+                                    {t(locale, "blogNoOtherArticles")}
+                                  </Text>
+                                ) : (
+                                  (articlesFetcher.data?.articles ?? []).map((article) => (
+                                    <Button
+                                      key={article.id}
+                                      size="slim"
+                                      variant="plain"
+                                      onClick={() => addArticleLink(article)}
+                                    >
+                                      {article.blog_title}
+                                    </Button>
+                                  ))
+                                )}
+                              </BlockStack>
+                            </Box>
+                          )}
+                        </BlockStack>
+                      </Modal.Section>
+                    </Modal>
                     <CoverImageModal
                       locale={locale}
                       open={coverOpen}
