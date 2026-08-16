@@ -8,7 +8,9 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+from app.language import DEFAULT_LANGUAGE
 from app.llm import LLMError, get_router
+from app.llm.language_context import output_instruction
 
 logger = logging.getLogger(__name__)
 
@@ -46,22 +48,32 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _build_label_prompt(items: list[dict[str, str]], niche_summary: str) -> str:
+def _build_label_prompt(
+    items: list[dict[str, str]], niche_summary: str, language: str = DEFAULT_LANGUAGE
+) -> str:
+    """Build the labelling prompt.
+
+    Instructions stay in French (they address the model); the label language is
+    parameterized like everywhere else. It used to demand French outright, so an
+    English catalog came back with French labels. The examples span different
+    verticals on purpose — they used to be pet-shop only.
+    """
     return (
         f"NICHE: {niche_summary or 'non définie'}\n"
-        "Pour chaque produit, génère un label court en français (3 à 6 mots) "
+        "Pour chaque produit, génère un label court (3 à 6 mots) "
         "qui décrit concrètement CE QU'EST le produit — matière, type, usage — "
         "de façon SEO-friendly. "
         "NE PAS répéter le nom de marque ou le nom commercial. "
         "NE PAS utiliser le titre tel quel. "
         "Décrire le produit comme un client le rechercherait sur Google.\n"
-        "Exemples :\n"
-        "  Titre 'Le Cosy' → label 'pull en cachemire pour chat'\n"
-        "  Titre 'Fontaine Premium' → label 'fontaine à eau filtrante pour chat'\n"
-        "  Titre 'Bowl Set' → label 'bol en céramique pour chat'\n"
-        "  Titre 'Couchette Royale' → label 'coussin orthopédique pour chat'\n"
+        "Exemples (la forme, pas le secteur) :\n"
+        "  Titre 'Le Nomade' → label 'sac à dos de randonnée 30 litres'\n"
+        "  Titre 'Série Onyx' → label 'montre automatique en acier'\n"
+        "  Titre 'Pack Essentiel' → label 'set de couteaux de cuisine en inox'\n"
+        "  Titre 'Édition Alpine' → label 'veste imperméable coupe-vent'\n"
         f"PRODUITS: {json.dumps(items, ensure_ascii=False)}\n"
-        'Réponds uniquement avec un JSON valide : {"<product_id>": "<label>", ...}'
+        'Réponds uniquement avec un JSON valide : {"<product_id>": "<label>", ...}\n'
+        f"{output_instruction(language)}"
     )
 
 
@@ -85,8 +97,11 @@ def generate_product_labels(
     shop: str,
     niche_summary: str = "",
     progress_callback: Callable[[int, int], None] | None = None,
+    language: str = DEFAULT_LANGUAGE,
 ) -> dict[str, str]:
-    """Generate short French SEO labels for all products via LLM (one call per chunk).
+    """Generate short SEO labels for all products via LLM (one call per chunk).
+
+    Labels follow the shop language.
 
     Falls back to the raw Shopify title if the LLM call fails or returns invalid JSON.
     """
@@ -118,7 +133,7 @@ def generate_product_labels(
         ]
 
         chunk_fallback = {item["id"]: item["title"] for item in items}
-        prompt = _build_label_prompt(items, niche_summary)
+        prompt = _build_label_prompt(items, niche_summary, language)
 
         try:
             # Deterministic: stable labels keep the downstream DataForSEO/Suggest

@@ -22,7 +22,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from app.business_profile.jobs import load_business_profile
-from app.language import get_shop_language
+from app.language import get_market, get_shop_language
 from app.llm import LLMError, get_router
 from app.market_analysis import keyword_cache
 from app.market_analysis.competitor_crawl.config import CompetitorCrawlConfig
@@ -34,16 +34,16 @@ from app.market_analysis.jobs import load_latest_result
 
 logger = logging.getLogger(__name__)
 
-_LOCATION_CODE = 2250
-_LANGUAGE_CODE = "fr"
 _BLOCKED_PATH_PARTS = ("/cart", "/checkout", "/account", "/search", "/login", "/register")
 _MAX_PREVIEW = 12  # competitors shown instantly (aligned with the home page list)
 _MAX_ENRICH = 8  # competitors crawled + LLM-synthesized (cost cap)
 
+# No output language here on purpose: `language_context(language)` is appended to
+# the user prompt, and a system prompt hardcoding French overrode it.
 _SYNTHESIS_SYSTEM = (
-    "Tu es un expert SEO/GEO francophone qui aide un marchand Shopify à comprendre "
+    "Tu es un expert SEO/GEO qui aide un marchand Shopify à comprendre "
     "ce que font ses concurrents pour s'en inspirer. Tu réponds UNIQUEMENT en JSON "
-    "valide, en français, sans copier le texte des concurrents — tu décris des "
+    "valide, sans copier le texte des concurrents — tu décris des "
     "patterns et des actions concrètes."
 )
 
@@ -73,7 +73,7 @@ def aggregate_competitors_from_serp(
         return _empty_result(shop, error="no_market_analysis")
 
     merchant_domains = _collect_merchant_domains(shop)
-    serp_by_domain = _build_serp_map(result, merchant_domains)
+    serp_by_domain = _build_serp_map(result, merchant_domains, get_shop_language(shop))
     authoritative = _authoritative_competitors(shop, result, merchant_domains)
 
     competitors = [
@@ -126,15 +126,20 @@ def _authoritative_competitors(
 
 
 def _build_serp_map(
-    result: dict[str, Any], merchant_domains: set[str]
+    result: dict[str, Any], merchant_domains: set[str], language: str
 ) -> dict[str, dict[str, Any]]:
-    """Per-domain SERP enrichment from the keyword cache (no API call)."""
+    """Per-domain SERP enrichment from the keyword cache (no API call).
+
+    The market follows the shop language — it was pinned to France, so an
+    English shop had its competitors looked up on google.fr.
+    """
+    market = get_market(language)
     all_keywords = _collect_all_keywords(result)
     serp_cache = keyword_cache.get_many(
         keyword_cache.SERP,
         list(all_keywords),
-        location_code=_LOCATION_CODE,
-        language_code=_LANGUAGE_CODE,
+        location_code=market.dataforseo_location_code,
+        language_code=market.dataforseo_language_code,
     )
     missing = len(all_keywords) - len(serp_cache)
     if missing > 0:

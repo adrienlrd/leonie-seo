@@ -224,6 +224,7 @@ def _run_identification_background(
             progress_callback=lambda done, total: append_job_event(
                 job_id, "identification_chunk", {"done": done, "total": total}
             ),
+            language=get_shop_language(shop_domain),
         )
         product_titles = {str(p.get("id", "")): p.get("title", "") for p in products}
         completed_data: dict[str, Any] = {
