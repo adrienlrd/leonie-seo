@@ -66,6 +66,7 @@ export function ProductContentProposals({
   onRetireQuestion,
   onRestoreQuestion,
   onValidateQuestion,
+  failedValidation,
   enrichmentOpen,
   applyAction,
 }: {
@@ -81,6 +82,8 @@ export function ProductContentProposals({
   onRetireQuestion?: (key: string) => void;
   onRestoreQuestion?: (key: string) => void;
   onValidateQuestion?: (key: string, answer: string) => void;
+  /** Set when the last validate failed, so the optimistic "completed" is undone. */
+  failedValidation?: { key: string; error: string } | null;
   /**
    * Controlled mode: when defined, the parent owns the "Améliorer le contenu"
    * toggle (e.g. a button in its own toolbar) and the internal one is hidden.
@@ -155,7 +158,16 @@ export function ProductContentProposals({
     if (!editMode && editingField === null) {
       setEditedPack({ ...pack });
       setShowEnrichmentQuestions(false);
-      setEnrichmentAnswers(merchantAnswersFromPack(pack));
+      // Merge, never replace: validating a question revalidates the loader, and
+      // a plain replace wiped whatever the merchant had typed into the other
+      // fields before they got a chance to submit them.
+      setEnrichmentAnswers((previous) => {
+        const fromPack = merchantAnswersFromPack(pack);
+        for (const [key, value] of Object.entries(previous)) {
+          if (value.trim() && !fromPack[key]) fromPack[key] = value;
+        }
+        return fromPack;
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [packSignature]);
@@ -649,6 +661,18 @@ export function ProductContentProposals({
     setLocalRetiredKeys((prev) => { const next = new Set(prev); next.delete(key); return next; });
     onRestoreQuestion?.(key);
   };
+  // A failed save must not keep showing the question as completed.
+  useEffect(() => {
+    const key = failedValidation?.key;
+    if (!key) return;
+    setLocalValidated((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, [failedValidation?.key, failedValidation?.error]);
+
   const handleValidate = (key: string) => {
     const answer = enrichmentAnswers[key] ?? "";
     if (!answer.trim()) return;
@@ -763,6 +787,12 @@ export function ProductContentProposals({
                   </BlockStack>
                 </Collapsible>
               </>
+            )}
+
+            {failedValidation && (
+              <Banner tone="critical">
+                <Text as="p">{t(locale, "pcpValidateFailed")}</Text>
+              </Banner>
             )}
 
             <InlineStack>

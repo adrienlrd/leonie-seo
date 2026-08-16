@@ -220,7 +220,7 @@ export function ProductCard({
   const [geoHelpOpen, setGeoHelpOpen] = useState(false);
 
   // ── Question retire/restore ───────────────────────────────────────────────
-  const questionFetcher = useFetcher<{ type: string; ok: boolean }>();
+  const questionFetcher = useFetcher<{ type: string; ok: boolean; key?: string; error?: string | null }>();
   const onRetireQuestion = (key: string) =>
     questionFetcher.submit(
       { intent: "retireQuestion", productId: product.product_id, key },
@@ -695,6 +695,11 @@ export function ProductCard({
           onRetireQuestion={onRetireQuestion}
           onRestoreQuestion={onRestoreQuestion}
           onValidateQuestion={onValidateQuestion}
+          failedValidation={
+            questionFetcher.data?.type === "validateQuestion" && !questionFetcher.data.ok
+              ? { key: questionFetcher.data.key ?? "", error: questionFetcher.data.error ?? "" }
+              : null
+          }
           enrichmentOpen={enrichmentOpen}
           applyAction={
             checkedApplyFields.size > 0 ? (

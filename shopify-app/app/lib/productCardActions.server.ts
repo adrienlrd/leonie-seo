@@ -115,21 +115,35 @@ export async function handleProductCardIntent(
     const productId = String(formData.get("productId") ?? "");
     const key = String(formData.get("key") ?? "");
     const answer = String(formData.get("answer") ?? "");
-    if (key && answer.trim()) {
-      try {
-        await callBackendForShop(
-          session.shop,
-          `/api/shops/${session.shop}/market-analysis/facts/${encodeURIComponent(productId)}`,
-          {
-            accessToken: session.accessToken,
-            method: "POST",
-            body: JSON.stringify({ answers: { [key]: answer } }),
-            signal: AbortSignal.timeout(10_000),
-          },
-        );
-      } catch { /* best-effort */ }
+    if (!key || !answer.trim()) {
+      return json({ type: "validateQuestion", ok: false, key, error: "empty_answer" });
     }
-    return json({ type: "validateQuestion", ok: true, error: null });
+    // Never report success blindly: the card marks the question completed from
+    // this result, and a swallowed failure left merchants believing an answer
+    // was saved when it was not.
+    try {
+      const resp = await callBackendForShop(
+        session.shop,
+        `/api/shops/${session.shop}/market-analysis/facts/${encodeURIComponent(productId)}`,
+        {
+          accessToken: session.accessToken,
+          method: "POST",
+          body: JSON.stringify({ answers: { [key]: answer } }),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (!resp.ok) {
+        return json({
+          type: "validateQuestion",
+          ok: false,
+          key,
+          error: `HTTP ${resp.status}: ${await resp.text()}`,
+        });
+      }
+    } catch (err) {
+      return json({ type: "validateQuestion", ok: false, key, error: String(err) });
+    }
+    return json({ type: "validateQuestion", ok: true, key, error: null });
   }
 
   if (intent === "retireQuestion" || intent === "restoreQuestion") {

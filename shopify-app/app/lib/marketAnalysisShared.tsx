@@ -654,6 +654,12 @@ export function KeywordSourceBadge({
 
 export function merchantAnswersFromPack(pack: ContentTestPack): Record<string, string> {
   const answers: Record<string, string> = {};
+  // A just-saved answer lives in completed_questions until the next analysis
+  // folds it into confirmed_facts. Reading only the latter wiped the field the
+  // moment the merchant validated, so "Improve with my answers" sent nothing.
+  for (const question of (pack.completed_questions ?? [])) {
+    if (question.key && question.answer) answers[question.key] = question.answer;
+  }
   for (const fact of (pack.confirmed_facts ?? [])) {
     if (fact.source === "merchant_confirmation" && fact.key) {
       answers[fact.key] = Array.isArray(fact.value)
