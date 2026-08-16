@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { t, type Locale } from "../lib/i18n";
 import { ProductContentProposals, type FieldKey } from "./ProductContentProposals";
 import {
+  fieldStateRing,
   keywordCoverage,
   scoreTone,
   type ImprovementTag,
@@ -737,9 +738,9 @@ export function ProductCard({
                       key={`${k.query}-${idx}`}
                       style={
                         isRetired
-                          ? { outline: "2px solid var(--p-color-border-critical)", borderRadius: 8 }
+                          ? fieldStateRing("critical")
                           : isAdded
-                          ? { outline: "2px solid #F4C430", borderRadius: 8 }
+                          ? fieldStateRing("caution")
                           : {}
                       }
                     >

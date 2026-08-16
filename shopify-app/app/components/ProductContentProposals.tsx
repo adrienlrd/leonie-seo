@@ -44,6 +44,7 @@ import {
   KeywordSourceBadge,
   highlightKeywords,
   keywordCoverage,
+  fieldStateRing,
   merchantAnswersFromPack,
   qualityWarningText,
 } from "../lib/marketAnalysisShared";
@@ -868,9 +869,9 @@ export function ProductContentProposals({
         <div
           style={
             appliedAt
-              ? { outline: "2px solid #29845E", borderRadius: 6 }
+              ? fieldStateRing("success")
               : showYellow
-              ? { outline: "2px solid #F4C430", borderRadius: 6 }
+              ? fieldStateRing("caution")
               : {}
           }
         >

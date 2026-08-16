@@ -7,10 +7,24 @@
 
 import { Badge, Icon, Text } from "@shopify/polaris";
 import type { IconSource } from "@shopify/polaris";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { t, type Locale } from "./i18n";
 
 // ── Shared presentational components ──────────────────────────────────────
+
+/** Ring drawn around a field button to flag its state.
+ *
+ * A box-shadow rather than an outline: it hugs the border radius in every
+ * browser and takes no layout space. The radius token is the one
+ * `.Polaris-Button` itself uses, so the ring can never drift from the button
+ * again — it used to be hardcoded at 6px against an 8px button.
+ */
+export function fieldStateRing(tone: "success" | "caution" | "critical"): CSSProperties {
+  return {
+    boxShadow: `0 0 0 2px var(--p-color-border-${tone})`,
+    borderRadius: "var(--p-border-radius-200)",
+  };
+}
 
 export function SectionTitle({ source, children }: { source: IconSource; children: ReactNode }) {
   // The icon is wrapped in a fixed-size box because Polaris .Polaris-Icon has margin:auto,
