@@ -1012,6 +1012,9 @@ const FR: Dictionary = {
   pcpHide: "Masquer",
   pcpAlreadyCompleted: "Déjà complété",
   pcpNotRelevant: "Non pertinente",
+  pcpUnlockWithPro: "Débloquer avec Pro",
+  pcpFreeLimitNote:
+    "Le plan gratuit permet de répondre à 1 question par produit. Passez à GEO Pro pour débloquer toutes les questions.",
   pcpRestore: "Restaurer",
   pcpImproveWithAnswers: "Améliorer le contenu avec mes réponses",
   pcpValidateFailed: "Votre réponse n'a pas pu être enregistrée. Réessayez avant de relancer l'analyse.",
@@ -2518,6 +2521,9 @@ const EN: Dictionary = {
   pcpHide: "Hide",
   pcpAlreadyCompleted: "Already completed",
   pcpNotRelevant: "Not relevant",
+  pcpUnlockWithPro: "Unlock with Pro",
+  pcpFreeLimitNote:
+    "The free plan allows 1 answered question per product. Upgrade to GEO Pro to unlock every question.",
   pcpRestore: "Restore",
   pcpImproveWithAnswers: "Improve content with my answers",
   pcpValidateFailed: "Your answer could not be saved. Try again before re-running the analysis.",
@@ -4024,6 +4030,9 @@ const DE: Dictionary = {
   pcpHide: "Ausblenden",
   pcpAlreadyCompleted: "Bereits erledigt",
   pcpNotRelevant: "Nicht relevant",
+  pcpUnlockWithPro: "Mit Pro freischalten",
+  pcpFreeLimitNote:
+    "Im kostenlosen Tarif kann 1 Frage pro Produkt beantwortet werden. Mit GEO Pro schalten Sie alle Fragen frei.",
   pcpRestore: "Wiederherstellen",
   pcpImproveWithAnswers: "Inhalt mit meinen Antworten verbessern",
   pcpValidateFailed: "Ihre Antwort konnte nicht gespeichert werden. Versuchen Sie es erneut, bevor Sie die Analyse neu starten.",
@@ -5530,6 +5539,9 @@ const ES: Dictionary = {
   pcpHide: "Ocultar",
   pcpAlreadyCompleted: "Ya completado",
   pcpNotRelevant: "No relevante",
+  pcpUnlockWithPro: "Desbloquear con Pro",
+  pcpFreeLimitNote:
+    "El plan gratuito permite responder 1 pregunta por producto. Cambia a GEO Pro para desbloquear todas las preguntas.",
   pcpRestore: "Restaurar",
   pcpImproveWithAnswers: "Mejorar el contenido con mis respuestas",
   pcpValidateFailed: "No se ha podido guardar su respuesta. Inténtelo de nuevo antes de relanzar el análisis.",

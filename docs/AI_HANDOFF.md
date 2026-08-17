@@ -10,6 +10,18 @@
 
 ## Last completed task
 
+- **Date:** 2026-08-17
+- **Agent:** Claude (Opus 5)
+- **Goal:** Make the free plan's limit on merchant enrichment questions visible and desirable instead of invisible: on a free shop, only one question per product is answerable, the rest are locked.
+- **Behaviour:** in `ProductContentProposals.tsx`, the active enrichment questions are split at `unlockedQuestionCount`. Free shops get `FREE_ANSWERS_PER_PRODUCT = 1` **minus the answers already saved on that product** (Adrien's call: definitive, not a rolling unlock — once the free answer is used, the remaining questions on that product stay locked until upgrade). Paid plans are unaffected: `unlockedQuestionCount` equals the full list. Dismissing a question ("Pas pertinent") is not an answer and does not consume the allowance, so the merchant can always reach a question that is relevant to them.
+- **Locked row design** (Adrien's choice): lock icon + a grey bar where the question text would be + a `Pro` badge, with `why_it_matters` rendered **in full, in plain text** ("Improves AI answerability — a 20% pillar of the GEO Score") and an "Unlock with Pro" button to `/app/billing`. The point is that the merchant sees exactly what the answer would buy them without learning what to write. The `Improve (n)` counter on the product card deliberately keeps showing the **total** — that number is the upsell.
+- **Plan source:** `useRouteLoaderData("routes/app")`, the same pattern as `PlanBadge.tsx` — no loader change in either route that renders the card (`app.products.tsx`, `app._index.tsx`).
+- **Files:** `shopify-app/app/components/ProductContentProposals.tsx`, `shopify-app/app/lib/i18n.ts` (new `pcpUnlockWithPro`, `pcpFreeLimitNote` × FR/EN/DE/ES).
+- **Validations:** `npm run typecheck` exit 0, `npm run build` OK. Backend untouched, pytest not run for that reason. No automated coverage exists for this component; the four-case manual check (free/no answer, free/answered, dismiss, paid) is in the plan file and has **not** been run yet.
+- **Known gap (accepted):** the gating is UI-only. The locked questions' text still ships in the `market-analysis/latest` payload, and `POST /market-analysis/facts/{product_id}` enforces no per-plan quota, so a direct API call could save more than one answer. Harden server-side if this ever needs to be a real limit rather than a product nudge.
+
+## Task before that
+
 - **Date:** 2026-07-28
 - **Agent:** Claude (Opus 5)
 - **Goal:** Adrien is running technical tests on a Shopify dev store (auto-generated snowboard products). Two onboarding step-4 issues: the "0 / 3 products selected" counter is never explained, and "No active products found" shows on a store that has active products.

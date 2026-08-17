@@ -13,7 +13,7 @@
  *    (dashboard active-products panel)
  */
 
-import { Form, useFetcher, useNavigation } from "@remix-run/react";
+import { Form, useFetcher, useNavigation, useRouteLoaderData } from "@remix-run/react";
 import {
   Badge,
   Banner,
@@ -29,15 +29,19 @@ import {
   Thumbnail,
   Tooltip,
 } from "@shopify/polaris";
-import { AlertTriangleIcon, CheckIcon } from "@shopify/polaris-icons";
+import { AlertTriangleIcon, CheckIcon, LockIcon } from "@shopify/polaris-icons";
 import { useEffect, useState, type ReactNode } from "react";
-import { loaderPhrases, t, type Locale } from "../lib/i18n";
+import { loaderPhrases, localizedPath, t, type Locale } from "../lib/i18n";
 import { ResearchConsole } from "./ResearchConsole";
 
 // Days before GEO results are measurable after applying a field — matches the
 // J+28 milestone on the Measure page. Each applied field counts down from its
 // own applied_at, and re-applying a field restarts its countdown.
 const MEASURE_CYCLE_DAYS = 28;
+
+// Enrichment answers a free shop can save per product before the remaining
+// questions are locked behind a paid plan.
+const FREE_ANSWERS_PER_PRODUCT = 1;
 import {
   type ContentTestPack,
   type ProductResult,
@@ -652,6 +656,19 @@ export function ProductContentProposals({
     (q) => !localRetiredKeys.has(q.key) && !localValidated[q.key] && !inBackend.has(q.key),
   );
 
+  // Free plan: only the first unanswered question is editable. The others stay
+  // visible with their benefit in plain text but the question itself hidden, so
+  // the merchant sees what an upgrade unlocks. Dismissing a question ("Pas
+  // pertinent") is not an answer and must not consume the free allowance.
+  const routeData = useRouteLoaderData("routes/app") as { plan?: string } | undefined;
+  const isFreePlan = (routeData?.plan ?? "free") === "free";
+  const answeredCount =
+    completedQuestions.filter((q) => (q.answer ?? "").trim()).length +
+    Object.keys(localValidated).length;
+  const unlockedQuestionCount = isFreePlan
+    ? Math.max(0, FREE_ANSWERS_PER_PRODUCT - answeredCount)
+    : activeEnrichmentQuestions.length;
+
   // Optimistic retire/restore/validate: update local state immediately + call parent callback
   const handleRetire = (key: string) => {
     setLocalRetiredKeys((prev) => new Set([...prev, key]));
@@ -721,7 +738,7 @@ export function ProductContentProposals({
             </Text>
 
             {/* Questions actives — toujours visibles, bouton Retirer inline */}
-            {activeEnrichmentQuestions.map((question) => (
+            {activeEnrichmentQuestions.slice(0, unlockedQuestionCount).map((question) => (
               <InlineStack key={question.key} align="space-between" blockAlign="start" wrap={false} gap="200">
                 <Box width="100%">
                   <TextField
@@ -749,6 +766,40 @@ export function ProductContentProposals({
                 </div>
               </InlineStack>
             ))}
+
+            {/* Questions verrouillées (plan gratuit) : bénéfice en clair, question masquée */}
+            {activeEnrichmentQuestions.slice(unlockedQuestionCount).map((question) => (
+              <InlineStack key={question.key} align="space-between" blockAlign="center" wrap={false} gap="200">
+                <BlockStack gap="100">
+                  <InlineStack gap="150" blockAlign="center">
+                    <Icon source={LockIcon} tone="subdued" />
+                    <Box
+                      background="bg-surface-secondary"
+                      borderRadius="100"
+                      minWidth="180px"
+                      minHeight="12px"
+                    />
+                    <Badge tone="info">{t(locale, "pbPro")}</Badge>
+                  </InlineStack>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    {question.why_it_matters}
+                  </Text>
+                </BlockStack>
+                <Button
+                  size="slim"
+                  icon={LockIcon}
+                  url={localizedPath("/app/billing", locale)}
+                >
+                  {t(locale, "pcpUnlockWithPro")}
+                </Button>
+              </InlineStack>
+            ))}
+
+            {isFreePlan && unlockedQuestionCount === 0 && activeEnrichmentQuestions.length > 0 && (
+              <Text as="p" variant="bodySm" tone="subdued">
+                {t(locale, "pcpFreeLimitNote")}
+              </Text>
+            )}
 
             {/* Déjà complété = retirées + déjà répondues */}
             {allCompletedQuestions.length > 0 && (
