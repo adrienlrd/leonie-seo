@@ -1,4 +1,4 @@
-import { Badge, BlockStack, Card, InlineStack, Text } from "@shopify/polaris";
+import { Badge, BlockStack, InlineStack, Text } from "@shopify/polaris";
 import { t, type Locale } from "../lib/i18n";
 
 type Tone = "success" | "info" | undefined;
@@ -22,8 +22,9 @@ const SOURCE_META: Record<string, [string, Tone]> = {
 };
 
 /** Compact per-analysis data-provenance summary (Built for Shopify: the
- * merchant sees at a glance which real sources fed the recommendations). */
-export function SourcesUsedCard({
+ * merchant sees at a glance which real sources fed the recommendations).
+ * Rendered inside the analysis summary card, so it brings no card of its own. */
+export function SourcesUsedSection({
   sources,
   locale,
 }: {
@@ -33,22 +34,20 @@ export function SourcesUsedCard({
   const known = sources.filter((code) => SOURCE_META[code]);
   if (known.length === 0) return null;
   return (
-    <Card>
-      <BlockStack gap="200">
-        <Text as="h3" variant="headingSm">
-          {t(locale, "sourcesUsedTitle")}
-        </Text>
-        <InlineStack gap="150" wrap>
-          {known.map((code) => {
-            const [labelKey, tone] = SOURCE_META[code];
-            return (
-              <Badge key={code} tone={tone}>
-                {t(locale, labelKey)}
-              </Badge>
-            );
-          })}
-        </InlineStack>
-      </BlockStack>
-    </Card>
+    <BlockStack gap="200">
+      <Text as="h3" variant="headingSm">
+        {t(locale, "sourcesUsedTitle")}
+      </Text>
+      <InlineStack gap="150" wrap>
+        {known.map((code) => {
+          const [labelKey, tone] = SOURCE_META[code];
+          return (
+            <Badge key={code} tone={tone}>
+              {t(locale, labelKey)}
+            </Badge>
+          );
+        })}
+      </InlineStack>
+    </BlockStack>
   );
 }

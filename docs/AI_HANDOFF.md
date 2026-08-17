@@ -12,6 +12,15 @@
 
 - **Date:** 2026-08-17
 - **Agent:** Claude (Opus 5)
+- **Goal:** On the products page, three separate blocks sat above the product cards — the "Analysis complete — N active products analyzed" card, the bare `Catalog: … · Analysis: … / Refresh data` line, and the "Data sources for this analysis" card. They all describe the *same* analysis, so they now form one card.
+- **Changes:** `SummaryCard` (`app.products.tsx`) took over the freshness line (new props `snapshotDate`, `onRefreshCatalog`, `refreshingCatalog`) and renders the sources below a `Divider`. `SourcesUsedCard` → `SourcesUsedSection` (file renamed, single call site) and dropped its own `<Card>` so it can nest. Also removed a dead `contextStatus` local in `SummaryCard`.
+- **Files:** `shopify-app/app/routes/app.products.tsx`, `shopify-app/app/components/SourcesUsedSection.tsx` (renamed from `SourcesUsedCard.tsx`).
+- **Validations:** `npm run typecheck` exit 0, `npm run build` OK. Visual check not run. No i18n or backend change.
+
+## Task before that
+
+- **Date:** 2026-08-17
+- **Agent:** Claude (Opus 5)
 - **Goal:** Make the free plan's limit on merchant enrichment questions visible and desirable instead of invisible: on a free shop, only one question per product is answerable, the rest are locked.
 - **Behaviour:** in `ProductContentProposals.tsx`, the active enrichment questions are split at `unlockedQuestionCount`. Free shops get `FREE_UNLOCKED_QUESTIONS = 1` — **one editable question at a time, answering it unlocks the next** (Adrien reversed the initial "definitive cap" here after seeing it in the app: on a product where questions had already been answered, the cap left *every* remaining question locked, which reads as broken rather than as an upsell). Paid plans are unaffected: `unlockedQuestionCount` equals the full list.
 - **Locked row design** (Adrien's spec, one single line): lock icon → `why_it_matters` in plain text, truncated → `Pro` badge, with the "Unlock with Pro" button at the far end of the row linking to `/app/billing`. The question text itself is never rendered. The merchant sees exactly what the answer would buy them ("Improves AI answerability — a 20% pillar of the GEO Score") without learning what to write. The `Improve (n)` counter on the product card deliberately keeps showing the **total** — that number is the upsell.

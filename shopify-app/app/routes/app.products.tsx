@@ -12,6 +12,7 @@ import {
   Button,
   Card,
   Collapsible,
+  Divider,
   Icon,
   InlineGrid,
   InlineStack,
@@ -33,7 +34,7 @@ import { resolveLocale } from "../lib/i18n.server";
 import { ResearchConsole, type ResearchJobEvent } from "../components/ResearchConsole";
 import { QuotaPill } from "../components/UsageMeter";
 import { showToast } from "../lib/toast";
-import { SourcesUsedCard } from "../components/SourcesUsedCard";
+import { SourcesUsedSection } from "../components/SourcesUsedSection";
 import { buildAnalysisCounters, buildAnalysisSteps } from "../lib/researchSteps";
 import { ProductContentProposals, type FieldKey } from "../components/ProductContentProposals";
 import { ProductCard } from "../components/ProductCard";
@@ -1009,21 +1010,29 @@ function PaidRecommendedCard({
 
 
 
+/** Single card recapping the analysis: what was analyzed, how fresh the data is
+ * (with the refresh action) and which sources fed it. These used to be three
+ * separate blocks stacked above the product cards, which read as three
+ * unrelated statements about the same analysis. */
 function SummaryCard({
   job,
   locale,
   onAnalyzeAll,
   onManageProducts,
   analyzeDisabled,
+  snapshotDate,
+  onRefreshCatalog,
+  refreshingCatalog,
 }: {
   job: JobState;
   locale: Locale;
   onAnalyzeAll?: () => void;
   onManageProducts?: () => void;
   analyzeDisabled?: boolean;
+  snapshotDate?: string | null;
+  onRefreshCatalog: () => void;
+  refreshingCatalog: boolean;
 }) {
-  const contextStatus = job.business_profile_context_status;
-
   return (
     <Card>
       <BlockStack gap="300">
@@ -1056,6 +1065,29 @@ function SummaryCard({
             </InlineStack>
           )}
         </InlineStack>
+
+        <InlineStack gap="200" blockAlign="center" wrap>
+          <Text as="p" variant="bodySm" tone="subdued">
+            {t(locale, "freshnessLine")
+              .replace("{snap}", snapshotDate ? new Date(snapshotDate).toLocaleDateString(locale) : "—")
+              .replace("{ana}", job.analyzed_at ? new Date(job.analyzed_at).toLocaleDateString(locale) : "—")}
+          </Text>
+          <Button
+            variant="plain"
+            size="slim"
+            loading={refreshingCatalog}
+            onClick={onRefreshCatalog}
+          >
+            {t(locale, "freshnessRefresh")}
+          </Button>
+        </InlineStack>
+
+        {(job.sources_used?.length ?? 0) > 0 && (
+          <>
+            <Divider />
+            <SourcesUsedSection sources={job.sources_used ?? []} locale={locale} />
+          </>
+        )}
       </BlockStack>
     </Card>
   );
@@ -2280,37 +2312,20 @@ export default function ProductsPage() {
 
             {/* Summary + export */}
             {job && job.analyzed_product_count > 0 && (
-              <>
-                <SummaryCard
-                  job={job}
-                  locale={locale}
-                  onAnalyzeAll={() => setShowRerunModal(true)}
-                  onManageProducts={openSelectionModal}
-                  analyzeDisabled={isInProgress}
-                />
-                <InlineStack gap="200" blockAlign="center">
-                  <Text as="p" variant="bodySm" tone="subdued">
-                    {t(locale, "freshnessLine")
-                      .replace("{snap}", snapshotDate ? new Date(snapshotDate).toLocaleDateString(locale) : "—")
-                      .replace("{ana}", job.analyzed_at ? new Date(job.analyzed_at).toLocaleDateString(locale) : "—")}
-                  </Text>
-                  <Button
-                    variant="plain"
-                    size="slim"
-                    loading={refreshFetcher.state !== "idle"}
-                    onClick={() => {
-                      const fd = new FormData();
-                      fd.set("intent", "refreshCatalog");
-                      refreshFetcher.submit(fd, { method: "post" });
-                    }}
-                  >
-                    {t(locale, "freshnessRefresh")}
-                  </Button>
-                </InlineStack>
-                {(job.sources_used?.length ?? 0) > 0 && (
-                  <SourcesUsedCard sources={job.sources_used ?? []} locale={locale} />
-                )}
-              </>
+              <SummaryCard
+                job={job}
+                locale={locale}
+                onAnalyzeAll={() => setShowRerunModal(true)}
+                onManageProducts={openSelectionModal}
+                analyzeDisabled={isInProgress}
+                snapshotDate={snapshotDate}
+                refreshingCatalog={refreshFetcher.state !== "idle"}
+                onRefreshCatalog={() => {
+                  const fd = new FormData();
+                  fd.set("intent", "refreshCatalog");
+                  refreshFetcher.submit(fd, { method: "post" });
+                }}
+              />
             )}
 
             {/* Product cards — filtered to active by default */}
