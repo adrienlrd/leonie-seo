@@ -39,9 +39,9 @@ import { ResearchConsole } from "./ResearchConsole";
 // own applied_at, and re-applying a field restarts its countdown.
 const MEASURE_CYCLE_DAYS = 28;
 
-// Enrichment answers a free shop can save per product before the remaining
-// questions are locked behind a paid plan.
-const FREE_ANSWERS_PER_PRODUCT = 1;
+// Enrichment questions a free shop can answer at once per product; answering
+// the current one unlocks the next. The rest are locked behind a paid plan.
+const FREE_UNLOCKED_QUESTIONS = 1;
 import {
   type ContentTestPack,
   type ProductResult,
@@ -656,17 +656,13 @@ export function ProductContentProposals({
     (q) => !localRetiredKeys.has(q.key) && !localValidated[q.key] && !inBackend.has(q.key),
   );
 
-  // Free plan: only the first unanswered question is editable. The others stay
-  // visible with their benefit in plain text but the question itself hidden, so
-  // the merchant sees what an upgrade unlocks. Dismissing a question ("Pas
-  // pertinent") is not an answer and must not consume the free allowance.
+  // Free plan: one question at a time is editable — answering it unlocks the
+  // next one. The others stay visible with their benefit in plain text but the
+  // question itself hidden, so the merchant sees what an upgrade unlocks.
   const routeData = useRouteLoaderData("routes/app") as { plan?: string } | undefined;
   const isFreePlan = (routeData?.plan ?? "free") === "free";
-  const answeredCount =
-    completedQuestions.filter((q) => (q.answer ?? "").trim()).length +
-    Object.keys(localValidated).length;
   const unlockedQuestionCount = isFreePlan
-    ? Math.max(0, FREE_ANSWERS_PER_PRODUCT - answeredCount)
+    ? FREE_UNLOCKED_QUESTIONS
     : activeEnrichmentQuestions.length;
 
   // Optimistic retire/restore/validate: update local state immediately + call parent callback
@@ -770,32 +766,22 @@ export function ProductContentProposals({
             {/* Questions verrouillées (plan gratuit) : bénéfice en clair, question masquée */}
             {activeEnrichmentQuestions.slice(unlockedQuestionCount).map((question) => (
               <InlineStack key={question.key} align="space-between" blockAlign="center" wrap={false} gap="200">
-                <BlockStack gap="100">
-                  <InlineStack gap="150" blockAlign="center">
-                    <Icon source={LockIcon} tone="subdued" />
-                    <Box
-                      background="bg-surface-secondary"
-                      borderRadius="100"
-                      minWidth="180px"
-                      minHeight="12px"
-                    />
-                    <Badge tone="info">{t(locale, "pbPro")}</Badge>
-                  </InlineStack>
-                  <Text as="p" variant="bodySm" tone="subdued">
+                <InlineStack gap="150" blockAlign="center" wrap={false}>
+                  <Icon source={LockIcon} tone="subdued" />
+                  <Text as="span" variant="bodySm" tone="subdued" truncate>
                     {question.why_it_matters}
                   </Text>
-                </BlockStack>
-                <Button
-                  size="slim"
-                  icon={LockIcon}
-                  url={localizedPath("/app/billing", locale)}
-                >
-                  {t(locale, "pcpUnlockWithPro")}
-                </Button>
+                  <Badge tone="info">{t(locale, "pbPro")}</Badge>
+                </InlineStack>
+                <Box minWidth="fit-content">
+                  <Button size="slim" url={localizedPath("/app/billing", locale)}>
+                    {t(locale, "pcpUnlockWithPro")}
+                  </Button>
+                </Box>
               </InlineStack>
             ))}
 
-            {isFreePlan && unlockedQuestionCount === 0 && activeEnrichmentQuestions.length > 0 && (
+            {isFreePlan && activeEnrichmentQuestions.length > unlockedQuestionCount && (
               <Text as="p" variant="bodySm" tone="subdued">
                 {t(locale, "pcpFreeLimitNote")}
               </Text>
