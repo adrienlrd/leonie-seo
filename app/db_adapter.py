@@ -22,8 +22,15 @@ DB_PATH = Path(__file__).parents[1] / "data" / "history.db"
 
 
 def _to_pg(sql: str) -> str:
-    """Translate SQLite ? positional placeholders to Postgres %s."""
-    return re.sub(r"\?", "%s", sql)
+    """Translate SQLite ? positional placeholders to Postgres %s.
+
+    Literal percent signs are doubled first: psycopg2 runs the statement
+    through Python's %-formatting, so an un-escaped `LIKE 'prefix:%'` raises
+    "not enough arguments for format string" before the query ever reaches the
+    database. SQLite has no such rule, so these statements work in tests and
+    fail in production.
+    """
+    return re.sub(r"\?", "%s", sql.replace("%", "%%"))
 
 
 class _Cursor:

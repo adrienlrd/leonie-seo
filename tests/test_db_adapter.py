@@ -284,3 +284,22 @@ def test_rowcount_survives_a_closed_cursor():
     raw.close()
 
     assert cursor.rowcount == 3
+
+
+def test_to_pg_escapes_literal_percent():
+    """psycopg2 %-formats the statement, so a LIKE wildcard must be doubled."""
+    from app.db_adapter import _to_pg
+
+    translated = _to_pg(
+        "DELETE FROM usage_events WHERE shop = ? AND kind LIKE 'product_analysis:%'"
+    )
+
+    assert translated == (
+        "DELETE FROM usage_events WHERE shop = %s AND kind LIKE 'product_analysis:%%'"
+    )
+    # The %-formatting psycopg2 performs must now succeed and restore the
+    # wildcard; before the fix it raised "not enough arguments for format string".
+    assert translated % ("shop.myshopify.com",) == (
+        "DELETE FROM usage_events WHERE shop = shop.myshopify.com"
+        " AND kind LIKE 'product_analysis:%'"
+    )
