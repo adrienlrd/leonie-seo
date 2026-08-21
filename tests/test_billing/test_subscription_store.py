@@ -91,3 +91,69 @@ def test_get_plan_for_shop_no_subscription_returns_free(db):
 def test_get_plan_for_shop_cancelled_returns_free(db):
     upsert_subscription(SHOP, "pro", "cancelled", SUB_ID, db_path=db)
     assert get_plan_for_shop(SHOP, db_path=db) == "free"
+
+
+# ── Cancellation grace period + code/subscription precedence ──────────────────
+
+
+def _iso(days: int) -> str:
+    from datetime import UTC, datetime, timedelta
+
+    return (datetime.now(UTC) + timedelta(days=days)).isoformat()
+
+
+def test_cancelled_subscription_keeps_the_plan_until_the_period_ends(db):
+    """Shopify issues no pro-rata refund, so a paid month is honoured in full."""
+    upsert_subscription(SHOP, "pro", "active", SUB_ID, db_path=db)
+    update_subscription_status(SUB_ID, "cancelled", db, current_period_end=_iso(12))
+
+    assert get_plan_for_shop(SHOP, db_path=db) == "pro"
+
+
+def test_cancelled_subscription_ends_once_the_period_is_over(db):
+    upsert_subscription(SHOP, "pro", "active", SUB_ID, db_path=db)
+    update_subscription_status(SUB_ID, "cancelled", db, current_period_end=_iso(-1))
+
+    assert get_plan_for_shop(SHOP, db_path=db) == "free"
+
+
+def test_frozen_subscription_ends_access_immediately(db):
+    """Frozen means unpaid — it must not buy extra time."""
+    upsert_subscription(SHOP, "pro", "active", SUB_ID, db_path=db)
+    update_subscription_status(SUB_ID, "frozen", db, current_period_end=_iso(12))
+
+    assert get_plan_for_shop(SHOP, db_path=db) == "free"
+
+
+def test_cancelled_without_a_known_period_end_ends_access(db):
+    upsert_subscription(SHOP, "pro", "active", SUB_ID, db_path=db)
+    update_subscription_status(SUB_ID, "cancelled", db)
+
+    assert get_plan_for_shop(SHOP, db_path=db) == "free"
+
+
+def test_paid_subscription_wins_over_a_lower_partner_code(db, monkeypatch, tmp_path):
+    """A code must never cap a merchant paying for more than it grants."""
+    monkeypatch.setattr("app.shop_config_store.DB_PATH", tmp_path / "config.db")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    from app.db import init_db as _init_db
+    from app.shop_config_store import set_shop_config
+
+    _init_db(tmp_path / "config.db")
+    set_shop_config(SHOP, "plan_override", "pro")
+    upsert_subscription(SHOP, "agency", "active", SUB_ID, db_path=db)
+
+    assert get_plan_for_shop(SHOP, db_path=db) == "agency"
+
+
+def test_partner_code_wins_over_a_lower_paid_plan(db, monkeypatch, tmp_path):
+    monkeypatch.setattr("app.shop_config_store.DB_PATH", tmp_path / "config.db")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    from app.db import init_db as _init_db
+    from app.shop_config_store import set_shop_config
+
+    _init_db(tmp_path / "config.db")
+    set_shop_config(SHOP, "plan_override", "agency")
+    upsert_subscription(SHOP, "pro", "active", SUB_ID, db_path=db)
+
+    assert get_plan_for_shop(SHOP, db_path=db) == "agency"

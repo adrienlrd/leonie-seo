@@ -22,10 +22,12 @@ from app.billing.client import (
     create_subscription,
     get_active_subscriptions,
 )
+from app.billing.quota_codes import OVERRIDE_EXPIRY_KEY
 from app.billing.quotas import get_quotas, get_usage, is_plan_upgrade, reset_usage_window
 from app.billing.subscription_store import (
     get_plan_for_shop,
     get_subscription,
+    get_subscription_plan,
     update_subscription_status,
     upsert_subscription,
 )
@@ -138,6 +140,14 @@ async def billing_status(
     """Return the current plan and subscription status for a shop."""
     sub = get_subscription(ctx.shop)
     plan = get_plan_for_shop(ctx.shop)
+    override_expires_at = get_shop_config(ctx.shop, OVERRIDE_EXPIRY_KEY) or None
+    # Only surfaced while the cancelled subscription is still running out its
+    # paid period; the merchant needs to know the date access actually ends.
+    access_until = (
+        sub["current_period_end"]
+        if sub and sub["status"] == "cancelled" and get_subscription_plan(ctx.shop)
+        else None
+    )
     return {
         **plan_summary(plan),
         "quotas": get_quotas(plan),
@@ -146,6 +156,8 @@ async def billing_status(
             "blog": get_usage(ctx.shop, "blog"),
         },
         "override": get_shop_config(ctx.shop, "plan_override") is not None,
+        "override_expires_at": override_expires_at,
+        "access_until": access_until,
         "subscription_id": sub["subscription_id"] if sub else None,
         "subscription_status": sub["status"] if sub else None,
     }
@@ -201,8 +213,15 @@ async def cancel(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     update_subscription_status(sub["subscription_id"], new_status)
-    set_theme_entitlement(ctx.shop, get_plan_for_shop(ctx.shop) != "free")
-    return {"status": new_status, "plan": "free"}
+    # Not necessarily "free": a cancelled subscription keeps its plan until the
+    # period the merchant already paid for runs out.
+    plan = get_plan_for_shop(ctx.shop)
+    set_theme_entitlement(ctx.shop, plan != "free")
+    return {
+        "status": new_status,
+        "plan": plan,
+        "access_until": sub["current_period_end"] if get_subscription_plan(ctx.shop) else None,
+    }
 
 
 # ── Confirm callback (Shopify redirects here after merchant approves) ─────────

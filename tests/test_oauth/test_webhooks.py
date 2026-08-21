@@ -107,3 +107,32 @@ def test_app_subscription_update_grants_theme_on_activation(client: TestClient, 
     resp = client.post("/shopify/webhooks/app_subscriptions/update", content=body, headers=headers)
     assert resp.status_code == 200
     mock_set.assert_called_once_with(SHOP, True)
+
+
+def test_app_subscription_update_stores_the_paid_through_date(client: TestClient, mocker):
+    """The cancellation grace period is only possible if this date is kept."""
+    mock_update = mocker.patch("app.oauth.webhooks.update_subscription_status", return_value=True)
+    mocker.patch(
+        "app.oauth.webhooks.get_subscription_by_id",
+        return_value={"shop": SHOP, "plan": "pro", "status": "cancelled"},
+    )
+    mocker.patch("app.oauth.webhooks.get_plan_for_shop", return_value="pro")
+    mocker.patch("app.oauth.webhooks.set_theme_entitlement")
+    body = (
+        b'{"admin_graphql_api_id":"gid://shopify/AppSubscription/1","status":"CANCELLED",'
+        b'"current_period_end":"2026-09-30T00:00:00+00:00"}'
+    )
+    headers = {
+        "X-Shopify-Hmac-Sha256": _sign(body),
+        "X-Shopify-Shop-Domain": SHOP,
+        "Content-Type": "application/json",
+    }
+
+    resp = client.post("/shopify/webhooks/app_subscriptions/update", content=body, headers=headers)
+
+    assert resp.status_code == 200
+    mock_update.assert_called_once_with(
+        "gid://shopify/AppSubscription/1",
+        "cancelled",
+        current_period_end="2026-09-30T00:00:00+00:00",
+    )

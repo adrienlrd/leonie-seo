@@ -69,7 +69,8 @@ _SQLITE_DDL = [
         plan            TEXT NOT NULL DEFAULT 'free',
         status          TEXT NOT NULL DEFAULT 'pending',
         created_at      TEXT NOT NULL,
-        updated_at      TEXT NOT NULL
+        updated_at      TEXT NOT NULL,
+        current_period_end TEXT
     )""",
     """CREATE TABLE IF NOT EXISTS usage_events (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -601,7 +602,8 @@ _PG_DDL = [
         plan            TEXT NOT NULL DEFAULT 'free',
         status          TEXT NOT NULL DEFAULT 'pending',
         created_at      TEXT NOT NULL,
-        updated_at      TEXT NOT NULL
+        updated_at      TEXT NOT NULL,
+        current_period_end TEXT
     )""",
     """CREATE TABLE IF NOT EXISTS usage_events (
         id         SERIAL PRIMARY KEY,
@@ -937,10 +939,15 @@ _LEARNING_OBSERVATION_COLUMNS = {
 }
 _MERCHANT_LEARNING_SETTINGS_COLUMNS = {
     "reanalysis_frequency_days": "INTEGER NOT NULL DEFAULT 28",
-    "auto_publish_scopes": "TEXT NOT NULL DEFAULT '[\"meta_title\",\"meta_description\",\"alt_text\"]'",
+    "auto_publish_scopes": 'TEXT NOT NULL DEFAULT \'["meta_title","meta_description","alt_text"]\'',
 }
 _AGENT_SCHEDULE_SETTINGS_COLUMNS = {
     "last_reanalysis_at": "TEXT",
+}
+# Paid-through date from Shopify, so a cancelled subscription keeps access
+# until the period the merchant already paid for actually ends.
+_SUBSCRIPTION_COLUMNS = {
+    "current_period_end": "TEXT",
 }
 
 
@@ -975,18 +982,21 @@ def _migrate_sqlite_merchant_learning_settings(conn: sqlite3.Connection) -> None
     """Add re-analysis cadence and auto-publish scope columns to legacy rows."""
     for column, definition in _MERCHANT_LEARNING_SETTINGS_COLUMNS.items():
         if not _sqlite_has_column(conn, "merchant_learning_settings", column):
-            conn.execute(
-                f"ALTER TABLE merchant_learning_settings ADD COLUMN {column} {definition}"
-            )
+            conn.execute(f"ALTER TABLE merchant_learning_settings ADD COLUMN {column} {definition}")
+
+
+def _migrate_sqlite_subscriptions(conn: sqlite3.Connection) -> None:
+    """Add the paid-through column to legacy subscription rows."""
+    for column, definition in _SUBSCRIPTION_COLUMNS.items():
+        if not _sqlite_has_column(conn, "subscriptions", column):
+            conn.execute(f"ALTER TABLE subscriptions ADD COLUMN {column} {definition}")
 
 
 def _migrate_sqlite_agent_schedule_settings(conn: sqlite3.Connection) -> None:
     """Add the re-analysis cadence tracking column to legacy schedule rows."""
     for column, definition in _AGENT_SCHEDULE_SETTINGS_COLUMNS.items():
         if not _sqlite_has_column(conn, "agent_schedule_settings", column):
-            conn.execute(
-                f"ALTER TABLE agent_schedule_settings ADD COLUMN {column} {definition}"
-            )
+            conn.execute(f"ALTER TABLE agent_schedule_settings ADD COLUMN {column} {definition}")
 
 
 def _pg_has_column(cur, table: str, column: str) -> bool:
@@ -1023,18 +1033,21 @@ def _migrate_postgres_merchant_learning_settings(cur) -> None:
     """Add re-analysis cadence and auto-publish scope columns to legacy rows."""
     for column, definition in _MERCHANT_LEARNING_SETTINGS_COLUMNS.items():
         if not _pg_has_column(cur, "merchant_learning_settings", column):
-            cur.execute(
-                f"ALTER TABLE merchant_learning_settings ADD COLUMN {column} {definition}"
-            )
+            cur.execute(f"ALTER TABLE merchant_learning_settings ADD COLUMN {column} {definition}")
+
+
+def _migrate_postgres_subscriptions(cur) -> None:
+    """Add the paid-through column to legacy subscription rows."""
+    for column, definition in _SUBSCRIPTION_COLUMNS.items():
+        if not _pg_has_column(cur, "subscriptions", column):
+            cur.execute(f"ALTER TABLE subscriptions ADD COLUMN {column} {definition}")
 
 
 def _migrate_postgres_agent_schedule_settings(cur) -> None:
     """Add the re-analysis cadence tracking column to legacy schedule rows."""
     for column, definition in _AGENT_SCHEDULE_SETTINGS_COLUMNS.items():
         if not _pg_has_column(cur, "agent_schedule_settings", column):
-            cur.execute(
-                f"ALTER TABLE agent_schedule_settings ADD COLUMN {column} {definition}"
-            )
+            cur.execute(f"ALTER TABLE agent_schedule_settings ADD COLUMN {column} {definition}")
 
 
 def _init_postgres(database_url: str) -> None:
@@ -1055,6 +1068,7 @@ def _init_postgres(database_url: str) -> None:
             _migrate_postgres_learning_observations(cur)
             _migrate_postgres_merchant_learning_settings(cur)
             _migrate_postgres_agent_schedule_settings(cur)
+            _migrate_postgres_subscriptions(cur)
         conn.commit()
 
 
@@ -1081,3 +1095,4 @@ def init_db(db_path: Path | None = None) -> None:
         _migrate_sqlite_learning_observations(conn)
         _migrate_sqlite_merchant_learning_settings(conn)
         _migrate_sqlite_agent_schedule_settings(conn)
+        _migrate_sqlite_subscriptions(conn)

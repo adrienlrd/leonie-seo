@@ -303,3 +303,25 @@ def test_to_pg_escapes_literal_percent():
         "DELETE FROM usage_events WHERE shop = shop.myshopify.com"
         " AND kind LIKE 'product_analysis:%'"
     )
+
+
+def test_legacy_subscriptions_table_gains_the_period_column(tmp_path):
+    """The grace period needs current_period_end on databases that predate it."""
+    import sqlite3 as _sqlite3
+
+    db = tmp_path / "legacy_subs.db"
+    with _sqlite3.connect(db) as conn:
+        conn.execute(
+            """CREATE TABLE subscriptions (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                shop            TEXT NOT NULL UNIQUE,
+                subscription_id TEXT,
+                plan            TEXT NOT NULL DEFAULT 'free',
+                status          TEXT NOT NULL DEFAULT 'pending',
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT NOT NULL)"""
+        )
+
+    init_db(db)
+
+    assert "current_period_end" in _sqlite_columns(db, "subscriptions")

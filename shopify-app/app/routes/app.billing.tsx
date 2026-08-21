@@ -50,6 +50,10 @@ interface LoaderData {
   plans: Plan[];
   currentPlan: string;
   override: boolean;
+  /** ISO date a partner-code plan stops applying, null when indefinite. */
+  overrideExpiresAt: string | null;
+  /** ISO date a cancelled subscription stops applying (paid period end). */
+  accessUntil: string | null;
   usage: { analysis: number; blog: number } | null;
 }
 
@@ -61,6 +65,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let plans: Plan[] = [];
   let currentPlan = "free";
   let override = false;
+  let overrideExpiresAt: string | null = null;
+  let accessUntil: string | null = null;
   let usage: LoaderData["usage"] = null;
   try {
     const [plansResp, statusResp] = await Promise.all([
@@ -79,16 +85,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (statusResp.ok) {
       const status = (await statusResp.json()) as {
         override?: boolean;
+        override_expires_at?: string | null;
+        access_until?: string | null;
         usage?: { analysis: number; blog: number };
       };
       override = Boolean(status.override);
+      overrideExpiresAt = status.override_expires_at ?? null;
+      accessUntil = status.access_until ?? null;
       usage = status.usage ?? null;
     }
   } catch {
     // Python backend unavailable
   }
 
-  return json<LoaderData>({ shop, locale, plans, currentPlan, override, usage });
+  return json<LoaderData>({
+    shop,
+    locale,
+    plans,
+    currentPlan,
+    override,
+    overrideExpiresAt,
+    accessUntil,
+    usage,
+  });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -220,7 +239,8 @@ const PLAN_LABELS: Record<string, { fr: string; en: string; taglineFr: string; t
 };
 
 export default function Billing() {
-  const { locale, plans, currentPlan, override, usage } = useLoaderData<typeof loader>();
+  const { locale, plans, currentPlan, override, overrideExpiresAt, accessUntil, usage } =
+    useLoaderData<typeof loader>();
   const submit = useSubmit();
   const redeemFetcher = useFetcher<{ redeemed: string | null; redeemError: string | null }>();
   const [codeOpen, setCodeOpen] = useState(false);
@@ -262,7 +282,27 @@ export default function Billing() {
           </Banner>
         )}
         {override && !redeemed && (
-          <Banner tone="success" title={t(locale, "billPartnerActive")} />
+          <Banner tone="success" title={t(locale, "billPartnerActive")}>
+            {overrideExpiresAt && (
+              <Text as="p">
+                {t(locale, "billPartnerUntil").replace(
+                  "{date}",
+                  new Date(overrideExpiresAt).toLocaleDateString(locale),
+                )}
+              </Text>
+            )}
+          </Banner>
+        )}
+
+        {accessUntil && (
+          <Banner tone="warning" title={t(locale, "billCancelledTitle")}>
+            <Text as="p">
+              {t(locale, "billCancelledUntil").replace(
+                "{date}",
+                new Date(accessUntil).toLocaleDateString(locale),
+              )}
+            </Text>
+          </Banner>
         )}
 
         {usage && (

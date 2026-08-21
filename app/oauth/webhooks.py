@@ -63,9 +63,14 @@ async def app_subscriptions_update(
     subscription_gid = event.get("admin_graphql_api_id")
     raw_status = event.get("status", "")
     status = raw_status.lower()
+    # Paid-through date: a cancelled subscription keeps its plan until then,
+    # since Shopify issues no pro-rata refund.
+    current_period_end = event.get("current_period_end")
 
     if subscription_gid and status:
-        updated = update_subscription_status(subscription_gid, status)
+        updated = update_subscription_status(
+            subscription_gid, status, current_period_end=current_period_end
+        )
         _sync_theme_entitlement(subscription_gid)
         return {"updated": updated, "subscription_id": subscription_gid, "status": status}
 

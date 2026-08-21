@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from app.billing.subscription_store import get_plan_for_shop
+from app.billing.subscription_store import PLAN_RANK, get_plan_for_shop
 from app.db import DB_PATH
 from app.db_adapter import get_conn
 
@@ -131,12 +131,9 @@ def product_analysis_quota(shop: str, db_path: Path | None = None) -> int:
     return int(get_quotas(plan)["product_analysis"])
 
 
-_PLAN_RANK = {"free": 0, "pro": 1, "agency": 2}
-
-
 def is_plan_upgrade(old_plan: str, new_plan: str) -> bool:
     """True when new_plan is strictly higher than old_plan (free < pro < agency)."""
-    return _PLAN_RANK.get(new_plan, 0) > _PLAN_RANK.get(old_plan, 0)
+    return PLAN_RANK.get(new_plan, 0) > PLAN_RANK.get(old_plan, 0)
 
 
 def reset_usage_window(shop: str, db_path: Path | None = None) -> int:

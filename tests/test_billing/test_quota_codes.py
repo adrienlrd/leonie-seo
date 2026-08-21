@@ -167,3 +167,65 @@ def test_a_failed_redeem_releases_the_code(db: Path) -> None:
         redeem_quota_code(SHOP, code, db_path=db)
 
     assert redeem_quota_code(SHOP, code, db_path=db)["reset_events"] == 0
+
+
+# ── Time-limited plan grants ──────────────────────────────────────────────────
+
+
+def test_timed_grant_code_carries_its_duration_in_the_prefix() -> None:
+    code = build_code("TRIAL01", SECRET, "pro", 30)
+    assert code.startswith("GEOPRO30-TRIAL01-")
+
+
+def test_signature_is_bound_to_the_duration(db: Path) -> None:
+    """Editing 30 into 90 must not yield a longer valid grant."""
+    code = build_code("TRIAL02", SECRET, "pro", 30)
+    forged = code.replace("GEOPRO30-", "GEOPRO90-", 1)
+    with pytest.raises(InvalidQuotaCode):
+        redeem_quota_code(SHOP, forged, db_path=db)
+
+
+def test_timed_grant_sets_an_expiry_and_expires(db: Path) -> None:
+    from app.billing.subscription_store import get_plan_for_shop
+    from app.shop_config_store import get_shop_config, set_shop_config
+
+    code = build_code("TRIAL03", SECRET, "pro", 30)
+    with patch("app.apply.theme_entitlement.set_theme_entitlement"):
+        result = redeem_quota_code(SHOP, code, db_path=db)
+
+    assert result["expires_at"]
+    assert get_plan_for_shop(SHOP, db_path=db) == "pro"
+
+    set_shop_config(SHOP, "plan_override_expires_at", "2020-01-01T00:00:00+00:00")
+    assert get_plan_for_shop(SHOP, db_path=db) == "free"
+    # The override itself is left in place; only its deadline decides.
+    assert get_shop_config(SHOP, "plan_override") == "pro"
+
+
+def test_indefinite_grant_clears_a_previous_expiry(db: Path) -> None:
+    """A code with no duration must not inherit an earlier code's deadline."""
+    from app.billing.subscription_store import get_plan_for_shop
+    from app.shop_config_store import set_shop_config
+
+    set_shop_config(SHOP, "plan_override_expires_at", "2020-01-01T00:00:00+00:00")
+    with patch("app.apply.theme_entitlement.set_theme_entitlement"):
+        redeem_quota_code(SHOP, build_code("FOREVER1", SECRET, "pro"), db_path=db)
+
+    assert get_plan_for_shop(SHOP, db_path=db) == "pro"
+
+
+def test_reset_codes_reject_a_duration() -> None:
+    with pytest.raises(ValueError):
+        build_code("NODAYS1", SECRET, None, 30)
+
+
+def test_unreadable_expiry_does_not_revoke_access(db: Path) -> None:
+    """A corrupted deadline must not silently cut a merchant off."""
+    from app.billing.subscription_store import get_plan_for_shop
+    from app.shop_config_store import set_shop_config
+
+    with patch("app.apply.theme_entitlement.set_theme_entitlement"):
+        redeem_quota_code(SHOP, build_code("CORRUPT1", SECRET, "pro"), db_path=db)
+    set_shop_config(SHOP, "plan_override_expires_at", "not-a-date")
+
+    assert get_plan_for_shop(SHOP, db_path=db) == "pro"
