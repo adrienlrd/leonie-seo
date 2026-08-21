@@ -12,6 +12,19 @@
 
 - **Date:** 2026-08-21
 - **Agent:** Claude (Opus 5)
+- **Goal:** Root-cause a redeem that burned the code without applying anything. Symptom: a brand-new `GEO-RESET02-…` answered "already used" on its first submit, and `usage.analysis` stayed at 1 on `surf-kvvjcg4x`.
+- **Root cause — `app/db_adapter.py`, not the billing code.** `reset_analysis_usage` (`app/billing/quotas.py:158`) reads `cur.rowcount` *after* its `with get_conn(...)` block. psycopg2 raises `InterfaceError` on a cursor whose connection is closed, so in Postgres the redeem crashed **after** the code had been committed to `redeemed_quota_codes` and, for plan codes, after `plan_override` had been written. Hence the exact pattern Adrien saw twice: the plan really was granted / the code really was burned, yet the UI showed an error. SQLite lets you read `rowcount` on a closed cursor, so all 2248 tests passed while production failed — the defect could only ever appear against Postgres.
+- **Fix:** `_Cursor` captures `rowcount` at execute time, while the connection is open. Done in the adapter rather than at the call site because the same shape exists in `subscription_store.py:70`, `meta_store.py:110`, `state_store.py:60`, `continuous_improvement.py:435` — all latent, most simply never exercised in production (there are no live subscriptions).
+- **Diagnosis method (worth reusing):** probing the prod API with a deliberately malformed code separates "secret missing" (`quota codes are not enabled`) from "secret mismatch" (`invalid signature`) without consuming anything, and `GET /billing/status` shows `plan` + `override` + `usage` per shop.
+- **Burned with no effect:** `RESET01`, `RESET02`, `ADRIEN01`. Reissued `GEO-RESET03-27DF2584` for after the API redeploys.
+- **Files:** `app/db_adapter.py`, `tests/test_db_adapter.py` (regression test with a cursor stub that raises once closed — it fails without the fix).
+- **Validations:** full `pytest` 2248 passed / 174 skipped, `ruff check` + `ruff format` clean.
+- **Next:** redeploy `leonie-seo-pilot-api`, then redeem `GEO-RESET03-27DF2584` and confirm `usage.analysis` drops to 0.
+
+## Task before that
+
+- **Date:** 2026-08-21
+- **Agent:** Claude (Opus 5)
 - **Goal:** Enable the single-use plan codes (they were dead in production) and fix the "Invalid code" shown on a code that had actually worked.
 - **Ops:** `QUOTA_CODE_SECRET` was set nowhere — not in `.env`, not in `render-env-values.local.txt` — so `redeem_quota_code` rejected every code with "quota codes are not enabled on this server". A 64-hex secret is now in both local files (gitignored); **Adrien still has to add it to the `leonie-seo-pilot-api` service on Render**. Documented in `.env.example` (no value). First code minted: `GEOPRO-ADRIEN01-…`.
 - **Bug:** `app.billing.tsx` mapped *every* non-2xx redeem answer to `billCodeInvalid`. The 409 `code_already_used` — what a second submit gets right after a successful one — therefore read as a typo in a code that had just granted the plan. Fixed: `redeemError` carries `"already_used" | "invalid"` (new i18n key `billCodeAlreadyUsed` ×4), a submit while one is in flight is dropped, and the success banner reads `granted_plan` from the response instead of labelling every code a quota reset (a GEOPRO- code used to announce the "quota" plan).
