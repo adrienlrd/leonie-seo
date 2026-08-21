@@ -189,10 +189,22 @@ function planCopy(plan: Plan, locale: Locale) {
       text: countLine(q.analysis, "billAnalysisSingular", "billAnalysesPlural"),
       included: true,
     },
-    {
-      text: countLine(q.product_analysis, "billProductAnalysisSingular", "billProductAnalysesPlural"),
-      included: true,
-    },
+    // Hidden on the paid plans: the number is a cap *per product*, and read as
+    // a store-wide total it undersells them ("3 product analyses" instead of 3
+    // per product across 15). Kept on Free, where 1 per product is a real
+    // limit worth knowing before subscribing. The quota is unchanged either way.
+    ...(plan.id === "free"
+      ? [
+          {
+            text: countLine(
+              q.product_analysis,
+              "billProductAnalysisSingular",
+              "billProductAnalysesPlural",
+            ),
+            included: true,
+          },
+        ]
+      : []),
     {
       text: countLine(q.blog, "billBlogArticleSingular", "billBlogArticlesPlural"),
       included: true,
