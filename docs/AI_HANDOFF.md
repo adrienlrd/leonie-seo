@@ -12,6 +12,17 @@
 
 - **Date:** 2026-08-21
 - **Agent:** Claude (Opus 5)
+- **Goal:** Quota codes reset analyses but not blog articles. Adrien's call: a "quota reset" must reset everything.
+- **Change:** `reset_analysis_usage` → `reset_usage_window` (`app/billing/quotas.py:142`), now `DELETE FROM usage_events WHERE shop = ?` with no kind filter. Applies to both call paths — quota-code redemption **and** plan upgrades (`billing/router.py:174,276`, `quota_codes.py`), so a merchant who just upgraded no longer starts capped on blog by their old plan's consumed window. Log wording lost its "analysis" qualifier.
+- **Confirmed working in prod first:** after redeploying `811e5e9`, `GEO-RESET04` succeeded and `usage.analysis` on `surf-kvvjcg4x` went 1 → 0 (checked via `GET /billing/status`). That closed the percent-escaping bug below.
+- **Files:** `app/billing/quotas.py`, `app/billing/router.py`, `app/billing/quota_codes.py`, `tests/test_billing/test_quota_codes.py` (two tests rewritten to assert blog is cleared, one added for shop isolation).
+- **Validations:** full `pytest` 2251 passed / 174 skipped, `ruff check` clean.
+- **Next:** redeploy the API, then `GEO-RESET05-9C152C15` to reset blog + analyses together.
+
+## Task before that
+
+- **Date:** 2026-08-21
+- **Agent:** Claude (Opus 5)
 - **Goal:** Root-cause a redeem that burned the code without applying anything. Symptom: a brand-new `GEO-RESET02-…` answered "already used" on its first submit, and `usage.analysis` stayed at 1 on `surf-kvvjcg4x`.
 - **CORRECTION (same day, after probing prod):** the root cause below was wrong. The real one is in the same file: `_to_pg` did not escape literal `%`. psycopg2 %-formats the statement before sending it, so `reset_analysis_usage`'s `LIKE 'product_analysis:%'` raised `TypeError: not enough arguments for format string` — **every quota reset has always returned 500 on Postgres**, while passing in SQLite-backed tests. Fixed by doubling `%` before translating `?` → `%s` (`811e5e9`), with a test asserting the translated statement survives the formatting. Evidence: `POST /quota-code/redeem` with a validly signed code answered 500 twice in a row (a burned code would have answered 409), and the failure reproduces offline with a one-line `%`-format. The `rowcount` change below is harmless and still correct in principle, but it was **not** the bug — grep for other `LIKE '…%'` statements before assuming a query is Postgres-safe (`app/geo/auto_tracking.py:83` passes its wildcard as a parameter, which is fine).
 - **Superseded root cause — kept for the reasoning trail.** `reset_analysis_usage` (`app/billing/quotas.py:158`) reads `cur.rowcount` *after* its `with get_conn(...)` block. psycopg2 raises `InterfaceError` on a cursor whose connection is closed, so in Postgres the redeem crashed **after** the code had been committed to `redeemed_quota_codes` and, for plan codes, after `plan_override` had been written. Hence the exact pattern Adrien saw twice: the plan really was granted / the code really was burned, yet the UI showed an error. SQLite lets you read `rowcount` on a closed cursor, so all 2248 tests passed while production failed — the defect could only ever appear against Postgres.
