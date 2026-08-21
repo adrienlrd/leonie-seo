@@ -141,3 +141,19 @@ def test_plan_grant_code_is_single_use(db: Path) -> None:
         redeem_quota_code(SHOP, code, db_path=db)
         with pytest.raises(QuotaCodeAlreadyUsed):
             redeem_quota_code("other.myshopify.com", code, db_path=db)
+
+
+def test_a_failed_redeem_releases_the_code(db: Path) -> None:
+    """A code spent on a redeem that then failed must stay usable.
+
+    Production burned three codes this way: the row was committed, the quota
+    reset raised, and the merchant was left with a code that could never work.
+    """
+    code = build_code("RETRY1", SECRET)
+    with (
+        patch("app.billing.quotas.reset_analysis_usage", side_effect=RuntimeError("boom")),
+        pytest.raises(RuntimeError),
+    ):
+        redeem_quota_code(SHOP, code, db_path=db)
+
+    assert redeem_quota_code(SHOP, code, db_path=db)["reset_events"] == 0
