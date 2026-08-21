@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from app.db import init_db
-from app.db_adapter import DB_PATH, get_conn
+from app.db_adapter import DB_PATH, _Cursor, get_conn
 
 # ── SQLite mode (default, no DATABASE_URL) ────────────────────────────────────
 
@@ -252,10 +252,35 @@ def test_pg_and_sqlite_ddl_create_the_same_tables():
     pg_tables = (
         table_names(_PG_DDL)
         | table_names(_PG_EMBEDDINGS)
-        | table_names(
-            [_PG_LLM_METRICS, _PG_LLM_CACHE, _PG_KEYWORD_CACHE, _PG_SHOP_CONFIG]
-        )
+        | table_names([_PG_LLM_METRICS, _PG_LLM_CACHE, _PG_KEYWORD_CACHE, _PG_SHOP_CONFIG])
     )
     sqlite_tables = table_names(_SQLITE_DDL)
 
     assert sqlite_tables - pg_tables == set()
+
+
+def test_rowcount_survives_a_closed_cursor():
+    """Postgres cursors raise once closed, and callers read rowcount after the
+    `with get_conn(...)` block. The adapter must capture it while still open."""
+
+    class ClosingCursor:
+        """Mimics psycopg2: attribute access fails once the cursor is closed."""
+
+        def __init__(self) -> None:
+            self._closed = False
+            self._rowcount = 3
+
+        @property
+        def rowcount(self) -> int:
+            if self._closed:
+                raise RuntimeError("cursor already closed")
+            return self._rowcount
+
+        def close(self) -> None:
+            self._closed = True
+
+    raw = ClosingCursor()
+    cursor = _Cursor(raw, is_pg=True)
+    raw.close()
+
+    assert cursor.rowcount == 3

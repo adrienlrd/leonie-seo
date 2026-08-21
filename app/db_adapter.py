@@ -32,10 +32,15 @@ class _Cursor:
     def __init__(self, raw, is_pg: bool) -> None:
         self._raw = raw
         self._is_pg = is_pg
+        # Captured now, while the connection is open: psycopg2 raises
+        # InterfaceError on a closed cursor, and callers routinely read
+        # rowcount after the `with get_conn(...)` block has closed it. SQLite
+        # tolerates that, so the difference only ever surfaced in production.
+        self._rowcount = raw.rowcount
 
     @property
     def rowcount(self) -> int:
-        return self._raw.rowcount
+        return self._rowcount
 
     def fetchone(self) -> dict | None:
         row = self._raw.fetchone()
