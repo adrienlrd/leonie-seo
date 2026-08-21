@@ -223,7 +223,9 @@ function planCopy(plan: Plan, locale: Locale) {
     },
     {
       text: t(locale, "billTrendsWatch"),
-      included: plan.id === "agency",
+      // Every backend gate for grounded calls is GROUNDED_PLANS = pro + agency
+      // (app/billing/quotas.py), so Pro pays for this and gets it.
+      included: plan.id !== "free",
     },
   ];
   return lines;

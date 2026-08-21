@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from app.api.deps import ShopContext, get_shop_context
 from app.api.snapshot_store import load_snapshot_from_file_or_db
 from app.apply.shopify_writer import ShopifyWriteError
-from app.billing.quotas import QuotaExceeded, check_quota, record_usage
+from app.billing.quotas import GROUNDED_PLANS, QuotaExceeded, check_quota, record_usage
 from app.billing.subscription_store import get_plan_for_shop
 from app.blog.authors import delete_author, load_authors, save_author
 from app.blog.clusters import build_blog_idea_clusters
@@ -384,10 +384,12 @@ def list_blog_idea_suggestions(
     LLM/network call. Empty until a market analysis has run.
     """
     latest = load_latest_result(ctx.shop) or {}
-    # Read-only: never triggers a new grounded call, and only ever populated
-    # for the agency plan (fetch_realtime_signals persists nothing otherwise).
+    # Read-only: never triggers a new grounded call. Gated on GROUNDED_PLANS,
+    # the same set that decides who gets a grounded call in the first place —
+    # this used to read `== "agency"`, which hid from Pro shops the signals
+    # their own analyses had already fetched and persisted.
     realtime_signals = None
-    if get_plan_for_shop(ctx.shop) == "agency":
+    if get_plan_for_shop(ctx.shop) in GROUNDED_PLANS:
         from app.niche.signals.realtime_trends import load_realtime_signals  # noqa: PLC0415
 
         realtime_signals = load_realtime_signals(ctx.shop)
