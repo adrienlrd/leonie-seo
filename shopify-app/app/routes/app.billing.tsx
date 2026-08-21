@@ -107,8 +107,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         accessToken: session.accessToken,
         body: JSON.stringify({ code }),
       });
-      if (resp.ok) return json({ redeemed: "quota", redeemError: false });
-      return json({ redeemed: null, redeemError: true });
+      if (resp.ok) {
+        // GEOPRO-/GEOBIG- codes grant a plan; plain GEO- codes only reset quotas.
+        const data = (await resp.json()) as { granted_plan?: string };
+        return json({ redeemed: data.granted_plan ?? "quota", redeemError: null });
+      }
+      // A burnt code is not an invalid one — saying so sends the merchant
+      // hunting for a typo in a code that already worked.
+      return json({
+        redeemed: null,
+        redeemError: resp.status === 409 ? "already_used" : "invalid",
+      });
     }
     const resp = await callBackendForShop(shop, `/api/shops/${shop}/billing/redeem-code`, {
       method: "POST",
@@ -117,9 +126,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
     if (resp.ok) {
       const data = (await resp.json()) as { plan: string };
-      return json({ redeemed: data.plan, redeemError: false });
+      return json({ redeemed: data.plan, redeemError: null });
     }
-    return json({ redeemed: null, redeemError: true });
+    return json({ redeemed: null, redeemError: "invalid" });
   }
 
   if (intent === "cancel") {
@@ -213,7 +222,7 @@ const PLAN_LABELS: Record<string, { fr: string; en: string; taglineFr: string; t
 export default function Billing() {
   const { locale, plans, currentPlan, override, usage } = useLoaderData<typeof loader>();
   const submit = useSubmit();
-  const redeemFetcher = useFetcher<{ redeemed: string | null; redeemError: boolean }>();
+  const redeemFetcher = useFetcher<{ redeemed: string | null; redeemError: string | null }>();
   const [codeOpen, setCodeOpen] = useState(false);
   const [code, setCode] = useState("");
 
@@ -419,13 +428,20 @@ export default function Billing() {
                     onChange={setCode}
                     autoComplete="off"
                     placeholder={t(locale, "billCodePlaceholder")}
-                    error={redeemError ? t(locale, "billCodeInvalid") : undefined}
+                    error={
+                      redeemError
+                        ? t(locale, redeemError === "already_used" ? "billCodeAlreadyUsed" : "billCodeInvalid")
+                        : undefined
+                    }
                   />
                 </div>
                 <Button
-                  onClick={() =>
-                    redeemFetcher.submit({ intent: "redeem", code }, { method: "post" })
-                  }
+                  onClick={() => {
+                    // A second submit burns nothing but answers 409, which used
+                    // to surface as "invalid code" right after a success.
+                    if (redeemFetcher.state !== "idle") return;
+                    redeemFetcher.submit({ intent: "redeem", code }, { method: "post" });
+                  }}
                   loading={redeemFetcher.state !== "idle"}
                   disabled={!code.trim()}
                 >
