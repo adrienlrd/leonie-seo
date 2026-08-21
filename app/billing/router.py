@@ -22,7 +22,7 @@ from app.billing.client import (
     create_subscription,
     get_active_subscriptions,
 )
-from app.billing.quotas import get_quotas, get_usage, is_plan_upgrade, reset_analysis_usage
+from app.billing.quotas import get_quotas, get_usage, is_plan_upgrade, reset_usage_window
 from app.billing.subscription_store import (
     get_plan_for_shop,
     get_subscription,
@@ -171,10 +171,13 @@ async def redeem_code(
             set_shop_config(ctx.shop, "plan_override", plan)
             set_theme_entitlement(ctx.shop, True)
             if is_plan_upgrade(old_plan, plan):
-                cleared = reset_analysis_usage(ctx.shop)
+                cleared = reset_usage_window(ctx.shop)
                 logger.info(
-                    "billing.redeem: %s upgraded %s→%s, %d analysis usage events reset",
-                    ctx.shop, old_plan, plan, cleared,
+                    "billing.redeem: %s upgraded %s→%s, %d usage events reset",
+                    ctx.shop,
+                    old_plan,
+                    plan,
+                    cleared,
                 )
             logger.info("billing.redeem: shop=%s granted plan=%s via access code", ctx.shop, plan)
             return {"plan": plan, "override": True}
@@ -273,10 +276,13 @@ async def billing_confirm(shop: str, charge_id: str | None = None) -> RedirectRe
     update_subscription_status(expected_id, "active")
     set_theme_entitlement(shop, True)
     if is_plan_upgrade(old_plan, str(sub["plan"])):
-        cleared = reset_analysis_usage(shop)
+        cleared = reset_usage_window(shop)
         logger.info(
-            "billing.confirm: %s upgraded %s→%s, %d analysis usage events reset",
-            shop, old_plan, sub["plan"], cleared,
+            "billing.confirm: %s upgraded %s→%s, %d usage events reset",
+            shop,
+            old_plan,
+            sub["plan"],
+            cleared,
         )
     logger.info("billing.confirm: activated subscription %s for shop=%s", expected_id, shop)
     return RedirectResponse(url=f"{app_url}/?shop={shop}&billing=confirmed")

@@ -107,9 +107,7 @@ def check_quota(shop: str, kind: str, db_path: Path | None = None) -> None:
         raise QuotaExceeded(plan, kind, used, quota)
 
 
-def check_product_analysis_quota(
-    shop: str, product_id: str, db_path: Path | None = None
-) -> None:
+def check_product_analysis_quota(shop: str, product_id: str, db_path: Path | None = None) -> None:
     """Raise QuotaExceeded when a single product has been analysed too many times.
 
     The limit is per product over the rolling window: free 1, pro 3, agency 5.
@@ -141,20 +139,17 @@ def is_plan_upgrade(old_plan: str, new_plan: str) -> bool:
     return _PLAN_RANK.get(new_plan, 0) > _PLAN_RANK.get(old_plan, 0)
 
 
-def reset_analysis_usage(shop: str, db_path: Path | None = None) -> int:
-    """Wipe the shop's rolling-window analysis usage (full + per-product).
+def reset_usage_window(shop: str, db_path: Path | None = None) -> int:
+    """Wipe the shop's whole rolling usage window — analyses, per-product and blog.
 
-    Blog usage is untouched. Used on plan upgrades and quota-code redemption,
-    so a merchant who just paid more never starts capped by their old plan's
-    consumed window. Returns the number of cleared events.
+    Used on plan upgrades and quota-code redemption, so a merchant who just
+    paid more never starts capped by their old plan's consumed window. Blog
+    used to be spared, which made a "quota reset" code leave one counter
+    untouched with nothing in the UI saying so. Returns the events cleared.
     """
     path = db_path if db_path is not None else DB_PATH
     with get_conn(path) as conn:
-        cur = conn.execute(
-            "DELETE FROM usage_events WHERE shop = ?"
-            " AND (kind = 'analysis' OR kind LIKE 'product_analysis:%')",
-            (shop,),
-        )
+        cur = conn.execute("DELETE FROM usage_events WHERE shop = ?", (shop,))
     return max(cur.rowcount, 0)
 
 

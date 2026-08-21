@@ -90,7 +90,7 @@ def redeem_quota_code(shop: str, code: str, *, db_path: Path | None = None) -> d
             "INSERT INTO redeemed_quota_codes (code, shop, redeemed_at) VALUES (?, ?, ?)",
             (normalized, shop, datetime.now(UTC).isoformat()),
         )
-    from app.billing.quotas import is_plan_upgrade, reset_analysis_usage  # noqa: PLC0415
+    from app.billing.quotas import is_plan_upgrade, reset_usage_window  # noqa: PLC0415
 
     try:
         if plan:
@@ -101,9 +101,9 @@ def redeem_quota_code(shop: str, code: str, *, db_path: Path | None = None) -> d
             old_plan = get_plan_for_shop(shop, db_path)
             set_shop_config(shop, "plan_override", plan)
             set_theme_entitlement(shop, True)
-            cleared = reset_analysis_usage(shop, db_path) if is_plan_upgrade(old_plan, plan) else 0
+            cleared = reset_usage_window(shop, db_path) if is_plan_upgrade(old_plan, plan) else 0
             return {"granted_plan": plan, "reset_events": cleared}
-        return {"reset_events": reset_analysis_usage(shop, db_path)}
+        return {"reset_events": reset_usage_window(shop, db_path)}
     except Exception:
         # The burn above is already committed, in its own transaction. Without
         # this release, any failure here spends the code while granting

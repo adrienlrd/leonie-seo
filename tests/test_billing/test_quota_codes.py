@@ -44,16 +44,16 @@ def test_build_code_rejects_bad_base() -> None:
         build_code("ab", SECRET)
 
 
-def test_redeem_resets_analysis_usage_only(db: Path) -> None:
+def test_redeem_resets_every_usage_kind(db: Path) -> None:
     record_usage(SHOP, "analysis", db)
     record_product_analysis(SHOP, "gid://shopify/Product/1", db)
     record_usage(SHOP, "blog", db)
 
     result = redeem_quota_code(SHOP, build_code("VIP1", SECRET), db_path=db)
 
-    assert result["reset_events"] == 2
+    assert result["reset_events"] == 3
     assert get_usage(SHOP, "analysis", db) == 0
-    assert get_usage(SHOP, "blog", db) == 1  # blog quota untouched
+    assert get_usage(SHOP, "blog", db) == 0
 
 
 def test_redeem_is_single_use_even_for_another_shop(db: Path) -> None:
@@ -95,15 +95,25 @@ def test_plan_upgrade_detection() -> None:
     assert is_plan_upgrade("agency", "pro") is False
 
 
-def test_reset_analysis_usage_clears_only_analysis_kinds(db: Path) -> None:
-    from app.billing.quotas import reset_analysis_usage
+def test_reset_usage_window_clears_every_kind(db: Path) -> None:
+    """Blog counts too: a "quota reset" that spares a counter is a trap."""
+    from app.billing.quotas import reset_usage_window
 
     record_usage(SHOP, "analysis", db)
     record_product_analysis(SHOP, "gid://shopify/Product/9", db)
     record_usage(SHOP, "blog", db)
-    assert reset_analysis_usage(SHOP, db) == 2
+    assert reset_usage_window(SHOP, db) == 3
     assert get_usage(SHOP, "analysis", db) == 0
-    assert get_usage(SHOP, "blog", db) == 1
+    assert get_usage(SHOP, "blog", db) == 0
+
+
+def test_reset_usage_window_leaves_other_shops_alone(db: Path) -> None:
+    from app.billing.quotas import reset_usage_window
+
+    record_usage(SHOP, "analysis", db)
+    record_usage("neighbour.myshopify.com", "blog", db)
+    assert reset_usage_window(SHOP, db) == 1
+    assert get_usage("neighbour.myshopify.com", "blog", db) == 1
 
 
 def test_plan_grant_codes_switch_plan_and_reset_quotas(db: Path) -> None:
@@ -151,7 +161,7 @@ def test_a_failed_redeem_releases_the_code(db: Path) -> None:
     """
     code = build_code("RETRY1", SECRET)
     with (
-        patch("app.billing.quotas.reset_analysis_usage", side_effect=RuntimeError("boom")),
+        patch("app.billing.quotas.reset_usage_window", side_effect=RuntimeError("boom")),
         pytest.raises(RuntimeError),
     ):
         redeem_quota_code(SHOP, code, db_path=db)
