@@ -10,6 +10,17 @@
 
 ## Last completed task
 
+- **Date:** 2026-08-21
+- **Agent:** Claude (Opus 5)
+- **Goal:** Enable the single-use plan codes (they were dead in production) and fix the "Invalid code" shown on a code that had actually worked.
+- **Ops:** `QUOTA_CODE_SECRET` was set nowhere — not in `.env`, not in `render-env-values.local.txt` — so `redeem_quota_code` rejected every code with "quota codes are not enabled on this server". A 64-hex secret is now in both local files (gitignored); **Adrien still has to add it to the `leonie-seo-pilot-api` service on Render**. Documented in `.env.example` (no value). First code minted: `GEOPRO-ADRIEN01-…`.
+- **Bug:** `app.billing.tsx` mapped *every* non-2xx redeem answer to `billCodeInvalid`. The 409 `code_already_used` — what a second submit gets right after a successful one — therefore read as a typo in a code that had just granted the plan. Fixed: `redeemError` carries `"already_used" | "invalid"` (new i18n key `billCodeAlreadyUsed` ×4), a submit while one is in flight is dropped, and the success banner reads `granted_plan` from the response instead of labelling every code a quota reset (a GEOPRO- code used to announce the "quota" plan).
+- **Not proven:** no Render logs were consulted; the double-submit 409 is the most plausible path to the symptom Adrien reported, not a confirmed root cause. If red text reappears on a code that works, capture the network response before assuming.
+- **Files:** `shopify-app/app/routes/app.billing.tsx`, `shopify-app/app/lib/i18n.ts`, `.env.example`.
+- **Validations:** `npm run typecheck` exit 0, `npm run build` OK. Not exercised against a real redeem.
+
+## Task before that
+
 - **Date:** 2026-08-17
 - **Agent:** Claude (Opus 5)
 - **Goal:** On the products page, three separate blocks sat above the product cards — the "Analysis complete — N active products analyzed" card, the bare `Catalog: … · Analysis: … / Refresh data` line, and the "Data sources for this analysis" card. They all describe the *same* analysis, so they now form one card.
