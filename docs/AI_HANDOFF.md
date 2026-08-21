@@ -12,6 +12,20 @@
 
 - **Date:** 2026-08-21
 - **Agent:** Claude (Opus 5)
+- **Goal:** Make Pro/agency codes time-limited without ever capping a paying merchant. Audit of the billing path turned up two related defects, fixed in the same pass.
+- **Durations are signed into the code.** `GEOPRO30-BASE-SIG`, payload `pro:30:BASE` — forging `GEOPRO90-` breaks the signature (test asserts it). A prefix without digits stays indefinite, so every already-distributed code keeps working. Redeeming writes `plan_override_expires_at` in `shop_config`; an indefinite grant writes an **empty** value on purpose, to clear a deadline left by a previous timed code. `scripts/generate_quota_code.py` moved to argparse: `--days` defaults to 30 with `--plan`, `--days 0` is indefinite, and `--days` without `--plan` is refused.
+- **Cancellation now honours the paid period.** New `current_period_end` column on `subscriptions` (both DDLs + idempotent migrations, `app/db.py`), captured from the `app_subscriptions/update` webhook. `cancelled` keeps its plan while that date is in the future; `frozen`/`expired`/`declined` end access at once — those are unpaid, not paid-through. `POST /billing/cancel` no longer claims `plan: "free"`; it returns the real plan plus `access_until`.
+- **Effective plan = max(code, subscription).** `get_plan_for_shop` split into `get_override_plan` + `get_subscription_plan` (`subscription_store.py`), combined by `PLAN_RANK` — moved there from `quotas.py`, which now imports it (subscription_store is the lower-level module).
+- **Deliberate asymmetry worth knowing:** `_is_future` (extends access) and `_is_expired` (revokes it) both reject unreadable timestamps, so a corrupted value never grants an extension *and* never silently cuts a merchant off. A test pins the revoke side.
+- **Files:** `app/billing/{quota_codes,quotas,router,subscription_store}.py`, `app/db.py`, `app/oauth/webhooks.py`, `scripts/generate_quota_code.py`, `shopify-app/app/routes/app.billing.tsx`, `shopify-app/app/lib/i18n.ts` (3 keys × 4 languages: expiry date on the partner banner, and a warning banner for a cancelled-but-still-running subscription).
+- **Validations:** `pytest` 2265 passed / 174 skipped; `ruff check .` clean; `ruff format --check` on the changed files only (the repo at large is *not* ruff-formatted — 173 files would change, do not run it repo-wide); `npm run typecheck` + `npm run build` OK.
+- **Not exercised end to end:** no real subscription exists in production, so the cancellation grace path has only been tested against the DB. `current_period_end` stays empty for subscriptions created before this shipped.
+- **Open, out of scope:** no way to revoke an override already granted (e.g. `ADRIEN01`, indefinite) short of editing `shop_config` by hand. A `--revoke <shop>` would be the fix if it comes up.
+
+## Task before that
+
+- **Date:** 2026-08-21
+- **Agent:** Claude (Opus 5)
 - **Goal:** Quota codes reset analyses but not blog articles. Adrien's call: a "quota reset" must reset everything.
 - **Change:** `reset_analysis_usage` → `reset_usage_window` (`app/billing/quotas.py:142`), now `DELETE FROM usage_events WHERE shop = ?` with no kind filter. Applies to both call paths — quota-code redemption **and** plan upgrades (`billing/router.py:174,276`, `quota_codes.py`), so a merchant who just upgraded no longer starts capped on blog by their old plan's consumed window. Log wording lost its "analysis" qualifier.
 - **Confirmed working in prod first:** after redeploying `811e5e9`, `GEO-RESET04` succeeded and `usage.analysis` on `surf-kvvjcg4x` went 1 → 0 (checked via `GET /billing/status`). That closed the percent-escaping bug below.
