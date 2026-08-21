@@ -18,7 +18,7 @@ import {
 } from "@shopify/polaris";
 import { PlanBadge } from "../components/PlanBadge";
 import { CheckCircleIcon, LockIcon } from "@shopify/polaris-icons";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { authenticate } from "../shopify.server";
 import { callBackendForShop } from "../lib/api.server";
 import { pickLang, t, type Locale } from "../lib/i18n";
@@ -174,6 +174,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
   return redirect("/app/billing");
 };
+
+/** Render the `**…**` segments of a plan line in bold.
+ *
+ * Only the paid cards emphasise: on Free the markers are stripped, so the
+ * bigger numbers on Pro and Grande boutique are what catches the eye.
+ */
+function planLine(text: string, emphasise: boolean): ReactNode {
+  const parts = text.split("**");
+  if (!emphasise) return parts.join("");
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <Text key={i} as="span" variant="bodySm" fontWeight="bold">
+        {part}
+      </Text>
+    ) : (
+      part
+    ),
+  );
+}
 
 function planCopy(plan: Plan, locale: Locale) {
   const q = plan.quotas;
@@ -416,7 +435,7 @@ export default function Billing() {
                             variant="bodySm"
                             tone={line.included ? undefined : "subdued"}
                           >
-                            {line.text}
+                            {planLine(line.text, plan.id !== "free")}
                           </Text>
                         </InlineStack>
                       ))}
