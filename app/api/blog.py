@@ -925,14 +925,24 @@ class DraftPublishRequest(BaseModel):
     published: bool = False  # False → Shopify draft (hidden); True → live (visible)
 
 
-@router.post("/shops/{shop}/blog/drafts/{draft_id}/publish")
-def publish_blog_draft(
+def publish_draft_to_shopify(
+    shop: str,
+    access_token: str | None,
     draft_id: str,
-    body: DraftPublishRequest,
-    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+    *,
+    blog_id: str = "",
+    publisher_name: str = "",
+    publisher_logo_url: str | None = None,
+    published: bool = False,
 ) -> dict[str, Any]:
+    """Assemble a saved draft and push it to Shopify, creating or updating in place.
+
+    Extracted from the endpoint so the daily publisher can reuse the exact same
+    assembly (cover image, internal links, CTA, JSON-LD) instead of keeping a
+    second copy of it that would drift.
+    """
     """Push a saved draft to Shopify as an unpublished article. Updates the draft status."""
-    draft = get_draft(ctx.shop, draft_id)
+    draft = get_draft(shop, draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     sections = [BlogSection(**s) for s in (draft.get("sections") or []) if isinstance(s, dict)]
@@ -1010,10 +1020,10 @@ def publish_blog_draft(
             author_name=draft.get("author_name", ""),
             author_url=draft.get("author_url"),
             author_bio=draft.get("author_bio", ""),
-            publisher_name=body.publisher_name or draft.get("author_name", "") or ctx.shop,
-            publisher_logo_url=body.publisher_logo_url,
+            publisher_name=publisher_name or draft.get("author_name", "") or shop,
+            publisher_logo_url=publisher_logo_url,
             image_url=draft.get("image_url"),
-            language=get_shop_language(ctx.shop),
+            language=get_shop_language(shop),
             article_body=article_body_text,
             word_count=int(draft.get("word_count") or 0),
             keywords=", ".join(
@@ -1033,13 +1043,13 @@ def publish_blog_draft(
     # correct the JSON-LD @id with the real handles if they differ.
     predicted_blog_handle = str(draft.get("shopify_blog_handle") or "").strip() or "blog"
     predicted_url = (
-        f"https://{ctx.shop}/blogs/{predicted_blog_handle}/{_slugify_handle(draft.get('blog_title', ''))}"
+        f"https://{shop}/blogs/{predicted_blog_handle}/{_slugify_handle(draft.get('blog_title', ''))}"
     )
     body_html = _render_body(predicted_url)
 
     existing_article_id = str(draft.get("shopify_article_id") or "")
     try:
-        publisher = BlogPublisher(ctx.shop, ctx.access_token)
+        publisher = BlogPublisher(shop, access_token)
 
         def _update_in_place(article_id: str) -> dict[str, Any]:
             return publisher.update_article(
@@ -1052,7 +1062,7 @@ def publish_blog_draft(
                 image_url=None,
                 image_alt=None,
                 meta_description=meta_description,
-                published=body.published,
+                published=published,
             )
 
         def _create() -> tuple[dict[str, Any], str]:
@@ -1068,7 +1078,7 @@ def publish_blog_draft(
             if existing:
                 found_blog_id = str((existing.get("blog") or {}).get("id") or "")
                 return _update_in_place(str(existing["id"])), found_blog_id
-            new_blog_id = str(draft.get("shopify_blog_id") or body.blog_id or "") or publisher.ensure_default_blog()
+            new_blog_id = str(draft.get("shopify_blog_id") or blog_id or "") or publisher.ensure_default_blog()
             return (
                 publisher.create_draft_article(
                     blog_id=new_blog_id,
@@ -1082,14 +1092,14 @@ def publish_blog_draft(
                     image_url=None,
                     image_alt=None,
                     meta_description=meta_description,
-                    published=body.published,
+                    published=published,
                 ),
                 new_blog_id,
             )
 
         if existing_article_id:
             # Re-publishing edits the SAME Shopify article in place (no duplicate).
-            blog_id = str(draft.get("shopify_blog_id") or body.blog_id or "")
+            blog_id = str(draft.get("shopify_blog_id") or blog_id or "")
             try:
                 created = _update_in_place(existing_article_id)
             except ShopifyWriteError as exc:
@@ -1108,7 +1118,7 @@ def publish_blog_draft(
         real_article_handle = str(created.get("handle") or "").strip()
         draft["shopify_blog_handle"] = real_blog_handle
         if real_article_handle:
-            real_url = f"https://{ctx.shop}/blogs/{real_blog_handle}/{real_article_handle}"
+            real_url = f"https://{shop}/blogs/{real_blog_handle}/{real_article_handle}"
             if real_url != predicted_url:
                 publisher.update_article(
                     article_id=str(created.get("id")),
@@ -1120,20 +1130,20 @@ def publish_blog_draft(
                     image_url=None,
                     image_alt=None,
                     meta_description=meta_description,
-                    published=body.published,
+                    published=published,
                 )
     except ShopifyWriteError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     draft["status"] = "published_to_shopify"
-    draft["shopify_visible"] = bool(created.get("isPublished", body.published))
+    draft["shopify_visible"] = bool(created.get("isPublished", published))
     draft["shopify_article_id"] = created.get("id")
     draft["shopify_article_handle"] = created.get("handle")
     if blog_id:
         draft["shopify_blog_id"] = blog_id
-    saved = save_draft(ctx.shop, draft)
+    saved = save_draft(shop, draft)
     record_applied_change(
-        shop=ctx.shop,
+        shop=shop,
         resource_type="blog_post",
         resource_id=str(created.get("id") or draft_id),
         resource_title=str(draft.get("blog_title") or ""),
@@ -1144,6 +1154,24 @@ def publish_blog_draft(
         new_value=draft.get("blog_title"),
     )
     return {"draft": saved, "article": created}
+
+
+@router.post("/shops/{shop}/blog/drafts/{draft_id}/publish")
+def publish_blog_draft(
+    draft_id: str,
+    body: DraftPublishRequest,
+    ctx: Annotated[ShopContext, Depends(get_shop_context)],
+) -> dict[str, Any]:
+    """Push a saved draft to Shopify as an article. Updates the draft status."""
+    return publish_draft_to_shopify(
+        ctx.shop,
+        ctx.access_token,
+        draft_id,
+        blog_id=body.blog_id,
+        publisher_name=body.publisher_name,
+        publisher_logo_url=body.publisher_logo_url,
+        published=body.published,
+    )
 
 
 @router.post("/shops/{shop}/blog/publish-draft")

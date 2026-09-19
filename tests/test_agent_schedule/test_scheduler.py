@@ -294,3 +294,26 @@ def test_catalog_refresh_is_skipped_without_a_token(tmp_path: Path) -> None:
         run_due_agent_schedules(db_path=db)
 
     assert enqueue.call_count == 0
+
+
+def test_daily_run_publishes_the_blog_article(tmp_path: Path) -> None:
+    db = _db(tmp_path)
+    past = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
+    upsert_schedule(
+        SHOP, {"enabled": True, "mode": "auto_apply", "next_run_at": past}, db_path=db
+    )
+
+    with (
+        patch.object(scheduler, "load_latest_result", return_value={"products": []}),
+        patch.object(scheduler, "run_learning_cycle", return_value={"run_id": 7, "status": "completed"}),
+        patch.object(scheduler, "get_token", return_value={"access_token": "shpua_tok"}),
+        patch.object(scheduler, "enqueue_unique", return_value="job-1"),
+        patch.object(
+            scheduler, "run_daily_blog", return_value={"status": "published", "title": "Guide"}
+        ) as blog,
+    ):
+        result = run_due_agent_schedules(db_path=db)
+
+    assert blog.call_count == 1
+    assert blog.call_args[1]["access_token"] == "shpua_tok"
+    assert result["ran"][0]["blog"] == {"status": "published", "title": "Guide"}

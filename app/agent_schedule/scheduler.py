@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from app.agent_schedule.daily_blog import run_daily_blog
 from app.agent_schedule.reanalysis import is_reanalysis_due, run_scheduled_reanalysis
 from app.agent_schedule.store import (
     AgentScheduleSettings,
@@ -171,6 +172,13 @@ def _queue_catalog_refresh(shop: str, *, db_path: Path | None) -> None:
     )
 
 
+def _run_daily_blog(shop: str, now: datetime, *, db_path: Path | None) -> dict[str, Any]:
+    """Publish today's article. Opt-in per shop, and never fatal for the cycle."""
+    record = get_token(shop, db_path=db_path)
+    access_token = str(record.get("access_token") or "") if record else ""
+    return run_daily_blog(shop, access_token=access_token, now=now, db_path=db_path)
+
+
 def run_due_agent_schedules(
     *,
     now: datetime | None = None,
@@ -225,6 +233,7 @@ def run_due_agent_schedules(
                 shop, schedule, current, force=is_test_due, db_path=db_path
             )
             result = run_learning_cycle(shop, db_path=db_path)
+            blog_outcome = _run_daily_blog(shop, current, db_path=db_path)
             run_id = result.get("run_id")
             ran_at = datetime.now(UTC).isoformat()
             next_run_at = (
@@ -247,6 +256,7 @@ def run_due_agent_schedules(
                     "kind": "test" if is_test_due else "daily",
                     "status": result.get("status"),
                     "reanalysis": reanalysis_outcome,
+                    "blog": blog_outcome,
                 }
             )
         except Exception as exc:  # noqa: BLE001 — report per-shop, never abort the sweep
