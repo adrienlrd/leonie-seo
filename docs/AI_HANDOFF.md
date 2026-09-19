@@ -12,6 +12,19 @@
 
 - **Date:** 2026-09-19
 - **Agent:** Claude (Opus 5)
+- **Goal:** In automatic mode, nothing must stay in "to review" for a cosmetic reason (Adrien's explicit call).
+- **What was blocking:** on the real store, `auto_publish_held` held `meta_title` (67 chars, limit 60) and `image_alts` (one alt at 13 words, limit 12) — both `length_out_of_bounds`. `_validate_field` validated alts **as a block**, so that single alt held five valid ones.
+- **Change:** new `repair_for_publish` (`app/content_actions/audit.py`) shortens an over-long text at a separator (`|`, `–`, `—`, `·`) or failing that a word boundary. Applied in two places: `auto_publish_checked_proposals` repairs the pack in place before publishing (so `_apply_proposals_core` writes the repaired text, and `patch_product_proposals` persists it — the merchant sees what actually shipped), and `audit_result` repairs at generation, so the daily agent no longer flags a length as `needs_review`.
+- **Deliberate limits:** only META_TITLE / META_DESCRIPTION / ALT_TEXT are repairable — descriptions carry HTML and cutting one mid-tag would publish broken markup, so they go out as generated. A text that is too *short* is published untouched (repairing would mean inventing content). Only `forbidden_promise` / `do_not_say` still hold a field: an unverified claim on the live store is not something a length edit fixes. The 28-day cooldown stays — republishing earlier resets the baseline and the J+28 window never matures.
+- **Repair happens before the no-op check**, so a proposal that becomes identical once shortened is not republished for nothing.
+- **Production setting changed:** `auto_publish_scopes` for `287c4a-bb.myshopify.com` now includes `product_description` (was meta_title / meta_description / alt_text). Done via `PUT /learning/settings` on the pilot API, at Adrien's request.
+- **Files modified:** `app/content_actions/audit.py`, `app/api/market_analysis.py`, `tests/market_analysis/test_auto_publish.py`, `tests/test_content_actions/test_validate_proposal.py`.
+- **Validations:** `pytest` → 2273 passed / 174 skipped; `ruff check` clean on the changed files. 8 new tests: shortening at the separator, per-alt repair, claim still held, too-short published as is, HTML never cut.
+- **Not validated:** no real auto-publish cycle has run with this code yet — the proof is the next re-analysis publishing `meta_title` + `image_alts` with `held: 0`.
+- **Open:** the UI still shows only "To review" without the reason, although `auto_publish_held` carries it.
+
+- **Date:** 2026-09-19
+- **Agent:** Claude (Opus 5)
 - **Goal:** Diagnose why every daily agent cycle in production ends `completed_with_errors`.
 - **Root cause:** `create_observation` and `record_decision` passed `int(...)` for `is_primary_window` / `approval_required`. Both columns are `INTEGER` in the SQLite DDL but `BOOLEAN` in the Postgres DDL (`app/db.py`), so Render rejected every insert with *"column is of type boolean but expression is of type integer"*. The `observations` stage therefore aborted on every run since the Postgres migration: **no J+14/J+28/J+60 feedback was ever recorded in production, and the learning weights never updated.** The rest of the cycle (tags, proposals, auto-publish) ran normally, which is why the failure stayed invisible.
 - **Fix:** `bool(...)` instead of `int(...)` at `app/learning/store.py:276` and `:475`. SQLite stores Python `True` as 1, so the local path is unchanged.
