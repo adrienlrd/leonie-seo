@@ -10,6 +10,16 @@
 
 ## Last completed task
 
+- **Date:** 2026-09-19
+- **Agent:** Claude (Opus 5)
+- **Goal:** Diagnose why every daily agent cycle in production ends `completed_with_errors`.
+- **Root cause:** `create_observation` and `record_decision` passed `int(...)` for `is_primary_window` / `approval_required`. Both columns are `INTEGER` in the SQLite DDL but `BOOLEAN` in the Postgres DDL (`app/db.py`), so Render rejected every insert with *"column is of type boolean but expression is of type integer"*. The `observations` stage therefore aborted on every run since the Postgres migration: **no J+14/J+28/J+60 feedback was ever recorded in production, and the learning weights never updated.** The rest of the cycle (tags, proposals, auto-publish) ran normally, which is why the failure stayed invisible.
+- **Fix:** `bool(...)` instead of `int(...)` at `app/learning/store.py:276` and `:475`. SQLite stores Python `True` as 1, so the local path is unchanged.
+- **Files modified:** `app/learning/store.py`.
+- **Validations:** `pytest tests/test_learning tests/test_agent_schedule tests/test_api/test_learning.py` → 158 passed; `ruff check app/learning/store.py` clean.
+- **Not validated:** the test suite runs on SQLite only, which accepted the int. The real proof is the next production cycle (06:00 UTC) coming back `completed` — to re-check via `GET /api/shops/{shop}/learning/status`.
+- **Open issue:** the UI shows only the run badge (`app._index.tsx:3368`, `app.continuous-improvement.tsx:1200`); `recent_runs[].errors` is returned by the API but never displayed, so a merchant sees a failure with no cause. Worth surfacing.
+
 - **Date:** 2026-08-21
 - **Agent:** Claude (Opus 5)
 - **Goal:** Make Pro/agency codes time-limited without ever capping a paying merchant. Audit of the billing path turned up two related defects, fixed in the same pass.
