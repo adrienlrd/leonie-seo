@@ -30,6 +30,7 @@ from app.agent_schedule.store import (
     upsert_schedule,
 )
 from app.billing.quotas import auto_analysis_allowed
+from app.jobs.store import enqueue_unique
 from app.learning.scheduler import run_learning_cycle
 from app.learning.store import get_settings, list_runs, update_settings
 from app.market_analysis.jobs import load_latest_result
@@ -148,6 +149,28 @@ def _maybe_run_reanalysis(
     return outcome
 
 
+def _queue_catalog_refresh(shop: str, *, db_path: Path | None) -> None:
+    """Queue a Shopify catalog crawl so the snapshot never goes stale.
+
+    Only the 28-day re-analysis used to refresh it, so the dashboard flagged the
+    catalog as stale (>7 days) for three weeks out of four. The crawl is
+    Admin-API only — no LLM cost — and the job's own 5-minute freshness guard
+    makes a duplicate tick a no-op. It refreshes the *next* cycle's data: this
+    run still reads the snapshot already on disk.
+    """
+    record = get_token(shop, db_path=db_path)
+    access_token = str(record.get("access_token") or "") if record else ""
+    if not access_token:
+        return
+    enqueue_unique(
+        "seo_audit",
+        {"access_token": access_token},
+        shop=shop,
+        max_retries=2,
+        db_path=db_path,
+    )
+
+
 def run_due_agent_schedules(
     *,
     now: datetime | None = None,
@@ -197,6 +220,7 @@ def run_due_agent_schedules(
 
         _RUNNING.add(shop)
         try:
+            _queue_catalog_refresh(shop, db_path=db_path)
             reanalysis_outcome = _maybe_run_reanalysis(
                 shop, schedule, current, force=is_test_due, db_path=db_path
             )
