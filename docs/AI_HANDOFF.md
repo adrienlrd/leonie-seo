@@ -12,6 +12,16 @@
 
 - **Date:** 2026-09-19
 - **Agent:** Claude (Opus 5)
+- **Goal:** "Your catalog data is more than 7 days old" showed permanently although the daily agent runs.
+- **Root cause:** the banner is `stale_snapshot` (`app/api/dashboard.py:292`), true when `shopify_snapshot.json` is older than 7 days. Nothing in the **daily** cycle refreshed it: only `_enqueue_refresh_jobs` inside `run_scheduled_reanalysis` queued a crawl, and that runs once every `reanalysis_frequency_days` (28). So the snapshot aged past 7 days and stayed there for three weeks out of four — and the daily agent analysed a stale catalog the whole time.
+- **Change:** `_queue_catalog_refresh` in `app/agent_schedule/scheduler.py`, called on every daily run before the re-analysis check. Queues the same `seo_audit` job — Admin-API only, no LLM cost. `enqueue_unique` plus the job's own 5-minute freshness guard (`_FRESH_SNAPSHOT_SECONDS`) make a duplicate tick a no-op. No token → no job, silently.
+- **Known timing:** the crawl is queued, not awaited, so it refreshes the *next* cycle's data. The current run still reads the snapshot on disk — same contract as `_enqueue_refresh_jobs`.
+- **Files modified:** `app/agent_schedule/scheduler.py`, `tests/test_agent_schedule/test_scheduler.py`.
+- **Validations:** `pytest` → 2275 passed / 174 skipped; `ruff check app tests` clean. 2 new tests: a daily run queues `seo_audit` for the shop; no token queues nothing.
+- **Not validated:** no daily tick has run with this code. Proof is the banner disappearing after the next 06:00 UTC cycle plus its queued crawl.
+
+- **Date:** 2026-09-19
+- **Agent:** Claude (Opus 5)
 - **Goal:** In automatic mode, nothing must stay in "to review" for a cosmetic reason (Adrien's explicit call).
 - **What was blocking:** on the real store, `auto_publish_held` held `meta_title` (67 chars, limit 60) and `image_alts` (one alt at 13 words, limit 12) — both `length_out_of_bounds`. `_validate_field` validated alts **as a block**, so that single alt held five valid ones.
 - **Change:** new `repair_for_publish` (`app/content_actions/audit.py`) shortens an over-long text at a separator (`|`, `–`, `—`, `·`) or failing that a word boundary. Applied in two places: `auto_publish_checked_proposals` repairs the pack in place before publishing (so `_apply_proposals_core` writes the repaired text, and `patch_product_proposals` persists it — the merchant sees what actually shipped), and `audit_result` repairs at generation, so the daily agent no longer flags a length as `needs_review`.
