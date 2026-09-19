@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from app.content_actions.schema import (
     ContentActionRequest,
     ContentActionResult,
@@ -108,6 +110,53 @@ _LANGUAGE_CHECKED_TYPES = frozenset(
 )
 
 
+_SEPARATOR_RE = re.compile(r"\s*[|–—·]\s*")
+_TRAILING_SEPARATORS = " \t-–—|,;:·/"
+
+# Only the short, plain-text fields are shortened. Descriptions carry HTML, and
+# cutting one mid-tag would publish broken markup — they go out as generated.
+_REPAIRABLE_TYPES = frozenset(
+    {ContentType.META_TITLE, ContentType.META_DESCRIPTION, ContentType.ALT_TEXT}
+)
+
+
+def repair_for_publish(field: str, text: str) -> str:
+    """Shorten an over-long proposal so it can be published instead of held.
+
+    Automatic publishing must not park a field in "to review" for a cosmetic
+    reason: an over-long meta title or alt text is cut back to its limit on a
+    word boundary and published. A text that is too *short* cannot be repaired
+    without inventing content, so it is returned untouched.
+    """
+    content_type = _FIELD_TO_CONTENT_TYPE.get(field.strip().lower())
+    if content_type not in _REPAIRABLE_TYPES:
+        return text
+    repaired = " ".join(text.split())
+    if content_type == ContentType.ALT_TEXT:
+        words = repaired.split()
+        if len(words) > _ALT_TEXT_MAX_WORDS:
+            repaired = " ".join(words[:_ALT_TEXT_MAX_WORDS])
+    max_len = (_LENGTH_LIMITS.get(content_type) or (None, None))[1]
+    if max_len is not None and len(repaired) > max_len:
+        repaired = _shorten(repaired, max_len)
+    return repaired.rstrip(_TRAILING_SEPARATORS)
+
+
+def _shorten(text: str, max_len: int) -> str:
+    """Cut `text` to `max_len`, preferring a separator, then a word boundary.
+
+    "Harnais anti traction en cuir | Ma Boutique" cut at a separator keeps a
+    whole clause; cut mid-word it would publish a dangling fragment.
+    """
+    separators = [m.start() for m in _SEPARATOR_RE.finditer(text) if m.start() <= max_len]
+    if separators:
+        return text[: separators[-1]].rstrip(_TRAILING_SEPARATORS)
+    cut = text[:max_len]
+    if " " in cut and not text[max_len].isspace():
+        cut = cut.rsplit(" ", 1)[0]
+    return cut
+
+
 def validate_proposal_text(
     field: str,
     text: str,
@@ -201,6 +250,12 @@ def audit_result(
     Returns:
         Updated ContentActionResult with audit fields populated.
     """
+    # Shorten an over-long generation instead of sending it to review: the
+    # merchant asked that automatic publishing never stall on a length. Only the
+    # short plain-text fields are touched (see repair_for_publish).
+    result.output.primary_text = repair_for_publish(
+        result.content_type.value, result.output.primary_text
+    )
     text = result.output.primary_text
     ct = result.content_type
     forbidden = request.niche_context.forbidden_promises

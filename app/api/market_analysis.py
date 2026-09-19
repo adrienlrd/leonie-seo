@@ -31,7 +31,7 @@ from app.business_profile.context import (
     resolve_business_profile_context_status,
 )
 from app.business_profile.jobs import load_business_profile
-from app.content_actions.audit import validate_proposal_text
+from app.content_actions.audit import repair_for_publish, validate_proposal_text
 from app.geo.auto_tracking import record_applied_change
 from app.geo.continuous_improvement import (
     enrich_market_analysis_result,
@@ -1309,6 +1309,37 @@ def _in_cooldown(pack: dict[str, Any], field: str, now: datetime) -> bool:
     return (now - applied_dt).days < PRIMARY_WINDOW_DAYS
 
 
+# Automatic publishing must never park a field in "to review" for a cosmetic
+# reason (merchant requirement): an over-long proposal is shortened and
+# published. Only an unverified claim still blocks — publishing one on the live
+# store is not something the merchant can undo by editing a length.
+_BLOCKING_REASON_PREFIXES = ("forbidden_promise", "do_not_say")
+
+
+_FIELD_TO_PACK_KEY = {
+    "meta_title": "proposed_meta_title",
+    "meta_description": "proposed_meta_description",
+    "description": "proposed_product_description",
+}
+
+
+def _repair_pack_field(pack: dict[str, Any], field: str) -> str:
+    """Shorten an over-long proposal in place and return the text to publish.
+
+    Writing back into the pack matters: ``_apply_proposals_core`` reads the
+    proposal from there, so the repaired text is what reaches Shopify and what
+    is persisted as the proposal the merchant sees.
+    """
+    if field == "image_alts":
+        for alt in pack.get("proposed_image_alts") or []:
+            if isinstance(alt, dict) and alt.get("proposed_alt"):
+                alt["proposed_alt"] = repair_for_publish("alt_text", str(alt["proposed_alt"]))
+        return _proposed_text(pack, field)
+    key = _FIELD_TO_PACK_KEY[field]
+    pack[key] = repair_for_publish(field, str(pack.get(key) or ""))
+    return str(pack[key])
+
+
 def _validate_field(
     field: str,
     proposed: str,
@@ -1331,10 +1362,17 @@ def _validate_field(
             )
             if not safe:
                 reasons.extend(alt_reasons)
-        return (len(reasons) == 0, sorted(set(reasons)))
-    return validate_proposal_text(
+        blocking = _blocking(reasons)
+        return (len(blocking) == 0, sorted(set(blocking)))
+    _safe, reasons = validate_proposal_text(
         field, proposed, forbidden_promises=forbidden_promises, do_not_say=do_not_say
     )
+    blocking = _blocking(reasons)
+    return (len(blocking) == 0, blocking)
+
+
+def _blocking(reasons: list[str]) -> list[str]:
+    return [r for r in reasons if r.startswith(_BLOCKING_REASON_PREFIXES)]
 
 
 def auto_publish_checked_proposals(
@@ -1349,9 +1387,10 @@ def auto_publish_checked_proposals(
 
     For each product, the checked fields (``auto_publish_fields`` or, if unset,
     all fields with a proposal) are published to Shopify — but only when the
-    proposal passes safety validation and differs from the current value.
-    Fields that fail validation are held (``auto_publish_held``) for manual
-    review and regenerated at the next analysis. No-op when the shop is in
+    proposal differs from the current value. An over-long proposal is shortened
+    and published rather than held; only an unverified claim (forbidden promise
+    or banned word) is held (``auto_publish_held``) for manual review and
+    regenerated at the next analysis. No-op when the shop is in
     manual mode or has no Shopify token. Fail-open: never raises.
 
     ``access_token`` (the string token the caller already holds, e.g. the
@@ -1370,6 +1409,7 @@ def auto_publish_checked_proposals(
         "skipped_out_of_scope": 0,
         "skipped_cooldown": 0,
         "skipped_noop": 0,
+        "repaired": 0,
     }
     try:
         settings = get_settings(shop, db_path=db_path)
@@ -1405,6 +1445,7 @@ def auto_publish_checked_proposals(
 
             fields_to_apply: list[str] = []
             held: dict[str, list[str]] = {}
+            repaired_fields: dict[str, str] = {}
             for field in selected:
                 proposed = _proposed_text(pack, field)
                 if not proposed:
@@ -1412,6 +1453,11 @@ def auto_publish_checked_proposals(
                 if field not in allowed_fields:
                     summary["skipped_out_of_scope"] += 1
                     continue  # stays a proposal for manual review
+                repaired = _repair_pack_field(pack, field)
+                if repaired != proposed:
+                    summary["repaired"] += 1
+                    repaired_fields[field] = repaired
+                proposed = repaired
                 if _is_noop(pack, field):
                     summary["skipped_noop"] += 1
                     continue  # identical → re-publishing would only reset the baseline
@@ -1436,7 +1482,13 @@ def auto_publish_checked_proposals(
                 summary["published"] += sum(
                     1 for r in results.values() if isinstance(r, dict) and r.get("applied")
                 )
-            patch_product_proposals(shop, str(product.get("product_id") or ""), {"auto_publish_held": held})
+            patch = {"auto_publish_held": held}
+            for field in repaired_fields:
+                if field == "image_alts":
+                    patch["proposed_image_alts"] = pack.get("proposed_image_alts") or []
+                else:
+                    patch[_FIELD_TO_PACK_KEY[field]] = pack[_FIELD_TO_PACK_KEY[field]]
+            patch_product_proposals(shop, str(product.get("product_id") or ""), patch)
             summary["held"] += len(held)
             summary["products"] += 1
 

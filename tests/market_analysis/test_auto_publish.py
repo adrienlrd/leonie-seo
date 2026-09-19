@@ -270,3 +270,79 @@ def test_default_fields_when_no_checkboxes_persisted(
     summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
     assert captured["applied"] == [("gid://shopify/Product/1", ["meta_title"])]
     assert summary["published"] == 1
+
+
+def test_over_long_meta_title_is_shortened_and_published(
+    monkeypatch: pytest.MonkeyPatch, captured: dict
+) -> None:
+    """A cosmetic length overflow must never park a field in "to review"."""
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    product = _product(
+        proposed_meta_title="Harnais pour chien anti traction en cuir | Le Harnais Haute Couture",
+        current_meta_title="Vieux titre",
+    )
+    summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+
+    assert summary["published"] == 1
+    assert summary["held"] == 0
+    assert summary["repaired"] == 1
+    published = product["content_test_pack"]["proposed_meta_title"]
+    assert published == "Harnais pour chien anti traction en cuir"
+    assert captured["applied"] == [("gid://shopify/Product/1", ["meta_title"])]
+    # The shortened text is persisted, so the merchant sees what actually shipped.
+    assert captured["patched"][-1][1]["proposed_meta_title"] == published
+
+
+def test_one_over_long_alt_no_longer_holds_the_whole_field(
+    monkeypatch: pytest.MonkeyPatch, captured: dict
+) -> None:
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    product = _product(
+        proposed_image_alts=[
+            {"image_id": "1", "proposed_alt": "Harnais anti traction en cuir pour chien"},
+            {
+                "image_id": "2",
+                "proposed_alt": (
+                    "Détail du harnais cuir chien Le Harnais Haute Couture en cuir et corde"
+                ),
+            },
+        ],
+        current_product_images=[{"id": "1", "current_alt": "ancien"}, {"id": "2", "current_alt": ""}],
+    )
+    summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+
+    assert summary["published"] == 1
+    assert summary["held"] == 0
+    alts = product["content_test_pack"]["proposed_image_alts"]
+    assert len(alts[1]["proposed_alt"].split()) == 12
+
+
+def test_unverified_claim_is_still_held(monkeypatch: pytest.MonkeyPatch, captured: dict) -> None:
+    """Shortening never excuses a forbidden promise — that one still needs a human."""
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    product = _product(
+        proposed_meta_title="Ce harnais guérit votre chien en une semaine",
+        current_meta_title="Vieux titre",
+    )
+    summary = ma.auto_publish_checked_proposals(
+        "s.myshopify.com", {"products": [product]}, {"forbidden_promises": ["guérit"]}
+    )
+
+    assert summary["published"] == 0
+    assert summary["held"] == 1
+    assert captured["patched"][-1][1]["auto_publish_held"]["meta_title"] == [
+        "forbidden_promise: guérit"
+    ]
+
+
+def test_too_short_proposal_is_published_as_is(
+    monkeypatch: pytest.MonkeyPatch, captured: dict
+) -> None:
+    """Too short cannot be repaired without inventing content — publish it anyway."""
+    _set_mode(monkeypatch, LearningMode.AUTO_APPLY)
+    product = _product(proposed_meta_title="Harnais cuir", current_meta_title="Vieux titre")
+    summary = ma.auto_publish_checked_proposals("s.myshopify.com", {"products": [product]}, {})
+
+    assert summary["published"] == 1
+    assert summary["held"] == 0
+    assert summary["repaired"] == 0

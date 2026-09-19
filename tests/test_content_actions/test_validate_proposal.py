@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.content_actions.audit import validate_proposal_text
+from app.content_actions.audit import repair_for_publish, validate_proposal_text
 
 
 def test_valid_meta_title_passes() -> None:
@@ -66,3 +66,27 @@ def test_unknown_field_skips_length_check() -> None:
     safe, reasons = validate_proposal_text("some_unknown_field", "anything")
     assert safe is True
     assert reasons == []
+
+
+def test_repair_shortens_meta_title_at_the_separator() -> None:
+    repaired = repair_for_publish(
+        "meta_title", "Harnais pour chien anti traction en cuir | Le Harnais Haute Couture"
+    )
+    assert repaired == "Harnais pour chien anti traction en cuir"
+    assert len(repaired) <= 60
+
+
+def test_repair_shortens_alt_text_to_twelve_words() -> None:
+    repaired = repair_for_publish(
+        "alt_text", "Détail du harnais cuir chien Le Harnais Haute Couture en cuir et corde"
+    )
+    assert len(repaired.split()) == 12
+
+
+def test_repair_leaves_a_too_short_text_untouched() -> None:
+    assert repair_for_publish("meta_title", "Court") == "Court"
+
+
+def test_repair_never_cuts_an_html_description() -> None:
+    html = "<p>" + "a" * 5000 + "</p>"
+    assert repair_for_publish("description", html) == html
